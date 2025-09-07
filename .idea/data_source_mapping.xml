@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourcePerFileMappings">
-    <file url="file://$PROJECT_DIR$/migrations/2025-09-07-080855_create_users/down.sql" value="c01cf599-9440-4eeb-b1a4-62f658024220" />
+    <file url="file://$APPLICATION_CONFIG_DIR$/consoles/db/c01cf599-9440-4eeb-b1a4-62f658024220/console.sql" value="c01cf599-9440-4eeb-b1a4-62f658024220" />
   </component>
 </project>
