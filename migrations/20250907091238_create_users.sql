@@ -1,7 +1,6 @@
--- Your SQL goes here
-CREATE TABLE users
+CREATE TABLE IF NOT EXISTS users
 (
     id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL,
     role     TEXT NOT NULL
 );
