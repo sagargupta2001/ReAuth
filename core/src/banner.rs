@@ -16,6 +16,4 @@ pub fn print_banner() {
         "🏷️  Name:".yellow().bold(),
         env!("CARGO_PKG_NAME").white()
     );
-
-    info!("Banner displayed successfully ✅");
 }

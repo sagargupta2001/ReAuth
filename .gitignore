@@ -1,2 +1,13 @@
-target
-db
+# Rust build
+/target/
+
+# SQLite database
+*.db
+*.sqlite
+*.sqlite3
+
+# Diesel schema cache
+src/schema.rs
+
+# Env files
+.env
