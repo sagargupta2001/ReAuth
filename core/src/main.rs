@@ -29,7 +29,6 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("⚠️  Migration warning: {}", e);
     }
 
-
     info!("Starting server...");
     start_server(db).await?;
 
