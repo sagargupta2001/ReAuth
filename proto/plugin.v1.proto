@@ -1,0 +1,27 @@
+syntax = "proto3";
+package plugin.v1;
+
+// Core service every plugin MUST implement for discovery.
+service Handshake {
+  rpc GetPluginInfo(Empty) returns (PluginInfo);
+}
+
+// Example service for the hello-world plugin's functionality.
+service Greeter {
+  rpc SayHello(HelloRequest) returns (HelloReply);
+}
+
+message Empty {}
+
+message PluginInfo {
+  string name = 1;
+  string version = 2;
+}
+
+message HelloRequest {
+  string name = 1;
+}
+
+message HelloReply {
+  string message = 1;
+}

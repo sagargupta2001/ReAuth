@@ -11,4 +11,15 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    // ADD THIS PROXY CONFIGURATION
+    proxy: {
+      // Any request from your UI that starts with /api
+      // will be forwarded to the backend server.
+      '/api': {
+        target: 'http://localhost:3000', // Your Rust backend
+        changeOrigin: true, // Recommended for virtual hosts
+      },
+    },
+  },
 })

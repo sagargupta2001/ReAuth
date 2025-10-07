@@ -8,13 +8,13 @@ default = []       # default: dev mode (proxy)
 embed-ui = []      # prod mode (embed UI)
 
 [dependencies]
+reauth-plugin-manager = { path = "../plugin-manager" }
 # Web Server
 axum = "0.8.4"
 tokio = { version = "1", features = ["full"] }
 
 # Serialization/Deserialization
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 
 # Configuration & Logging
 dotenvy = "0.15"
@@ -36,4 +36,4 @@ features = ["sqlite", "runtime-tokio-native-tls", "macros"]
 
 [dependencies.tower-http]
 version = "0.6.6"
-features = ["fs", "trace"]
+features = ["fs", "trace", "cors"]

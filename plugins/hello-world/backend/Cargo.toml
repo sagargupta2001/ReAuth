@@ -1,0 +1,11 @@
+[package]
+name = "hello-world-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sdk = { path = "../../../crates/sdk" }
+tokio = { version = "1", features = ["full"] }
+tonic = "0.11"
+anyhow = "1.0"
+axum = "0.6.20"
