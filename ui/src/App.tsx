@@ -1,8 +1,7 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
+import { useState, useEffect, Suspense, type ComponentType } from 'react';
+import { HashRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import './App.css';
 
-// Defines the structure of the data we expect from the backend's plugin.json files.
 interface PluginManifest {
     id: string;
     frontend: {
@@ -12,38 +11,82 @@ interface PluginManifest {
     };
 }
 
-// Helper function to dynamically load a plugin's component using its entry URL.
-const loadRemoteComponent = (manifest: PluginManifest) => {
-    return lazy(() => {
-        // The /* @vite-ignore */ comment is essential. It tells Vite's build tool
-        // not to try and resolve this dynamic URL at build time, as it will be
-        // provided at runtime by the browser.
-        return import(/* @vite-ignore */ manifest.frontend.entry);
-    });
-};
+function getUMDGlobalName(pluginId: string) {
+    return pluginId
+        .split('-')
+        .map((w, i) => (i === 0 ? w : w[0].toUpperCase() + w.slice(1)))
+        .join('') + 'Plugin';
+}
 
+/**
+ * Dynamically load a plugin script (UMD) and return the component attached to window
+ */
+function loadPluginScript(plugin: PluginManifest): Promise<ComponentType | null> {
+    return new Promise((resolve, reject) => {
+        // Check if script is already loaded
+        const existing = document.querySelector(`script[src="${plugin.frontend.entry}"]`);
+        if (existing) {
+            const Component = (window as any)[getUMDGlobalName(plugin.id)];
+            return resolve(Component ?? null);
+        }
+
+        // Create script element
+        const script = document.createElement('script');
+        script.src = plugin.frontend.entry;
+        script.async = true;
+
+        script.onload = () => {
+            const Component = (window as any)[getUMDGlobalName(plugin.id)];
+            if (!Component) console.warn(`Plugin ${plugin.id} did not attach to window`);
+            else console.log(`Plugin ${plugin.id} loaded successfully`);
+            resolve(Component ?? null);
+        };
+
+        script.onerror = (err) => {
+            console.error(`Failed to load plugin script: ${plugin.frontend.entry}`, err);
+            reject(err);
+        };
+
+        document.body.appendChild(script);
+    });
+}
 
 function App() {
     const [plugins, setPlugins] = useState<PluginManifest[]>([]);
+    const [pluginModules, setPluginModules] = useState<Record<string, ComponentType>>({});
 
-    // This effect runs once when the app starts. It fetches the list of
-    // available plugins from the ReAuth core backend.
     useEffect(() => {
         const initPlugins = async () => {
             try {
-                const response = await fetch('/api/plugins/manifests');
-                if (!response.ok) {
-                    console.error("Failed to fetch plugin manifests:", response.statusText);
-                    return;
-                }
-                const manifests: PluginManifest[] = await response.json();
+                const res = await fetch('/api/plugins/manifests');
+                if (!res.ok) throw new Error(res.statusText);
+
+                const manifests: PluginManifest[] = await res.json();
                 setPlugins(manifests);
-            } catch (error) {
-                console.error("Error fetching plugins:", error);
+
+                // Dynamically load all plugins
+                const loadedModules: Record<string, ComponentType> = {};
+                await Promise.all(
+                    manifests.map(async (p) => {
+                        try {
+                            const Component = await loadPluginScript(p);
+                            if (Component) loadedModules[p.id] = Component;
+                        } catch (err) {
+                            console.error(`Error loading plugin ${p.id}:`, err);
+                        }
+                    })
+                );
+
+                setPluginModules(loadedModules);
+            } catch (err) {
+                console.error('Error initializing plugins:', err);
             }
         };
+
         initPlugins();
     }, []);
+
+    console.log('Loaded pluginModules:', pluginModules);
 
     return (
         <Router>
@@ -53,7 +96,11 @@ function App() {
                         <h3>ReAuth</h3>
                     </div>
                     <ul className="nav-list">
-                        <li><NavLink to="/">Home</NavLink></li>
+                        <li>
+                            <NavLink to="/" end>
+                                Home
+                            </NavLink>
+                        </li>
                     </ul>
 
                     {plugins.length > 0 && (
@@ -63,10 +110,11 @@ function App() {
                                 <h4>Plugins</h4>
                             </div>
                             <ul className="nav-list">
-                                {/* Dynamically create a navigation link for each loaded plugin */}
-                                {plugins.map(p => (
+                                {plugins.map((p) => (
                                     <li key={p.id}>
-                                        <NavLink to={p.frontend.route}>{p.frontend.sidebarLabel}</NavLink>
+                                        <NavLink to={p.frontend.route} end>
+                                            {p.frontend.sidebarLabel}
+                                        </NavLink>
                                     </li>
                                 ))}
                             </ul>
@@ -75,19 +123,28 @@ function App() {
                 </nav>
 
                 <main className="main-content">
-                    <Suspense fallback={<div className="loading">Loading Page...</div>}>
+                    <Suspense fallback={<div>Loading plugin...</div>}>
                         <Routes>
-                            <Route path="/" element={
-                                <div>
-                                    <h1>Welcome to ReAuth Core</h1>
-                                    <p>Select a plugin from the sidebar to view its page.</p>
-                                </div>
-                            } />
+                            <Route
+                                path="/"
+                                element={
+                                    <div>
+                                        <h1>Welcome to ReAuth Core</h1>
+                                        <p>Select a plugin from the sidebar.</p>
+                                    </div>
+                                }
+                            />
 
-                            {/* Dynamically create a route for each plugin */}
-                            {plugins.map(p => {
-                                const Component = loadRemoteComponent(p);
-                                return <Route key={p.id} path={p.frontend.route} element={<Component />} />;
+                            {plugins.map((p) => {
+                                const Component = pluginModules[p.id];
+                                if (!Component) return null;
+
+                                const routePath = p.frontend.route.startsWith('/')
+                                    ? p.frontend.route
+                                    : '/' + p.frontend.route;
+                                console.log(`Adding route for plugin ${p.id}:`, routePath);
+
+                                return <Route key={p.id} path={routePath} element={<Component />} />;
                             })}
 
                             <Route path="*" element={<div>Page Not Found</div>} />

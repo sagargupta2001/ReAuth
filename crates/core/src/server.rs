@@ -15,7 +15,7 @@ mod ui_handler {
     use axum::http::{header, HeaderValue, StatusCode};
 
     #[derive(Embed)]
-    #[folder = "../ui/dist/"]
+    #[folder = "../../ui/dist/"]
     pub struct UiAssets;
 
     pub async fn static_handler(uri: Uri) -> impl IntoResponse {

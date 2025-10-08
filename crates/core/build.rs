@@ -4,7 +4,7 @@ use std::path::Path;
 fn main() {
     // Only build UI if the "embed-ui" feature is enabled
     if std::env::var("CARGO_FEATURE_EMBED_UI").is_ok() {
-        let ui_path = Path::new("../ui");
+        let ui_path = Path::new("../../ui");
 
         println!("cargo:warning=Running npm ci and npm run build for UI...");
 

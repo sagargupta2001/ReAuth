@@ -7,7 +7,7 @@
     "windows_amd64": "target/debug/hello-world-backend.exe"
   },
   "frontend": {
-    "entry": "http://localhost:5174/src/main.tsx",
+    "entry": "/plugins/hello-world/frontend/dist/module.js",
     "route": "/plugins/hello-world",
     "sidebarLabel": "Hello World"
   }
