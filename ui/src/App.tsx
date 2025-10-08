@@ -2,48 +2,60 @@ import { useState, useEffect, Suspense, type ComponentType } from 'react';
 import { HashRouter as Router, Routes, Route, NavLink } from 'react-router-dom';
 import './App.css';
 
+/**
+ * Plugin manifest interface describing plugin metadata
+ */
 interface PluginManifest {
     id: string;
     frontend: {
-        entry: string;
-        route: string;
-        sidebarLabel: string;
+        entry: string;       // URL to the plugin's JS bundle
+        route: string;       // Route path in host app
+        sidebarLabel: string; // Label to show in sidebar
     };
 }
 
-function getUMDGlobalName(pluginId: string) {
-    return pluginId
-        .split('-')
-        .map((w, i) => (i === 0 ? w : w[0].toUpperCase() + w.slice(1)))
-        .join('') + 'Plugin';
+/**
+ * Convert plugin id to UMD global name
+ * E.g., "hello-world" => "helloWorldPlugin"
+ */
+function getUMDGlobalName(pluginId: string): string {
+    return (
+        pluginId
+            .split('-')
+            .map((w, i) => (i === 0 ? w : w[0].toUpperCase() + w.slice(1)))
+            .join('') + 'Plugin'
+    );
 }
 
 /**
- * Dynamically load a plugin script (UMD) and return the component attached to window
+ * Dynamically load a plugin script as UMD and return its React component
+ * @param plugin Plugin manifest
  */
 function loadPluginScript(plugin: PluginManifest): Promise<ComponentType | null> {
     return new Promise((resolve, reject) => {
-        // Check if script is already loaded
-        const existing = document.querySelector(`script[src="${plugin.frontend.entry}"]`);
-        if (existing) {
+        const existingScript = document.querySelector(`script[src="${plugin.frontend.entry}"]`);
+
+        if (existingScript) {
+            // Script already exists, read component from window
             const Component = (window as any)[getUMDGlobalName(plugin.id)];
+            console.log(`[Plugin Loader] Script already loaded for ${plugin.id}`, Component);
             return resolve(Component ?? null);
         }
 
-        // Create script element
+        // Create new script element
         const script = document.createElement('script');
         script.src = plugin.frontend.entry;
         script.async = true;
 
         script.onload = () => {
             const Component = (window as any)[getUMDGlobalName(plugin.id)];
-            if (!Component) console.warn(`Plugin ${plugin.id} did not attach to window`);
-            else console.log(`Plugin ${plugin.id} loaded successfully`);
+            if (!Component) console.warn(`[Plugin Loader] Plugin ${plugin.id} did not attach to window`);
+            else console.log(`[Plugin Loader] Plugin ${plugin.id} loaded successfully`, Component);
             resolve(Component ?? null);
         };
 
         script.onerror = (err) => {
-            console.error(`Failed to load plugin script: ${plugin.frontend.entry}`, err);
+            console.error(`[Plugin Loader] Failed to load plugin script: ${plugin.frontend.entry}`, err);
             reject(err);
         };
 
@@ -51,46 +63,57 @@ function loadPluginScript(plugin: PluginManifest): Promise<ComponentType | null>
     });
 }
 
+/**
+ * Main App component
+ */
 function App() {
-    const [plugins, setPlugins] = useState<PluginManifest[]>([]);
-    const [pluginModules, setPluginModules] = useState<Record<string, ComponentType>>({});
+    const [plugins, setPlugins] = useState<PluginManifest[]>([]); // List of plugin manifests
+    const [pluginModules, setPluginModules] = useState<Record<string, ComponentType>>({}); // Loaded React components
 
+    /**
+     * Fetch plugin manifests and dynamically load their scripts
+     */
     useEffect(() => {
         const initPlugins = async () => {
             try {
+                console.log('[App] Fetching plugin manifests...');
                 const res = await fetch('/api/plugins/manifests');
-                if (!res.ok) throw new Error(res.statusText);
+                if (!res.ok) {
+                    console.error('Failed to fetch plugin manifests:', res.status, res.statusText);
+                    return; // exit early
+                }
 
                 const manifests: PluginManifest[] = await res.json();
+                console.log('[App] Plugin manifests fetched:', manifests);
                 setPlugins(manifests);
 
-                // Dynamically load all plugins
+                // Load all plugin scripts concurrently
                 const loadedModules: Record<string, ComponentType> = {};
                 await Promise.all(
-                    manifests.map(async (p) => {
+                    manifests.map(async (plugin) => {
                         try {
-                            const Component = await loadPluginScript(p);
-                            if (Component) loadedModules[p.id] = Component;
+                            const Component = await loadPluginScript(plugin);
+                            if (Component) loadedModules[plugin.id] = Component;
                         } catch (err) {
-                            console.error(`Error loading plugin ${p.id}:`, err);
+                            console.error(`[App] Error loading plugin ${plugin.id}:`, err);
                         }
                     })
                 );
 
                 setPluginModules(loadedModules);
+                console.log('[App] Loaded plugin modules:', loadedModules);
             } catch (err) {
-                console.error('Error initializing plugins:', err);
+                console.error('[App] Error initializing plugins:', err);
             }
         };
 
-        initPlugins();
+        initPlugins().catch((err) => console.error('[App] Unexpected error in initPlugins:', err));
     }, []);
-
-    console.log('Loaded pluginModules:', pluginModules);
 
     return (
         <Router>
             <div className="app-container">
+                {/* Sidebar navigation */}
                 <nav className="sidebar">
                     <div className="sidebar-header">
                         <h3>ReAuth</h3>
@@ -110,10 +133,10 @@ function App() {
                                 <h4>Plugins</h4>
                             </div>
                             <ul className="nav-list">
-                                {plugins.map((p) => (
-                                    <li key={p.id}>
-                                        <NavLink to={p.frontend.route} end>
-                                            {p.frontend.sidebarLabel}
+                                {plugins.map((plugin) => (
+                                    <li key={plugin.id}>
+                                        <NavLink to={plugin.frontend.route} end>
+                                            {plugin.frontend.sidebarLabel}
                                         </NavLink>
                                     </li>
                                 ))}
@@ -122,9 +145,11 @@ function App() {
                     )}
                 </nav>
 
+                {/* Main content area */}
                 <main className="main-content">
                     <Suspense fallback={<div>Loading plugin...</div>}>
                         <Routes>
+                            {/* Default home route */}
                             <Route
                                 path="/"
                                 element={
@@ -135,18 +160,24 @@ function App() {
                                 }
                             />
 
-                            {plugins.map((p) => {
-                                const Component = pluginModules[p.id];
-                                if (!Component) return null;
+                            {/* Plugin routes */}
+                            {plugins.map((plugin) => {
+                                const Component = pluginModules[plugin.id];
+                                if (!Component) {
+                                    console.warn(`[App] Component not loaded yet for plugin ${plugin.id}`);
+                                    return null;
+                                }
 
-                                const routePath = p.frontend.route.startsWith('/')
-                                    ? p.frontend.route
-                                    : '/' + p.frontend.route;
-                                console.log(`Adding route for plugin ${p.id}:`, routePath);
+                                const routePath = plugin.frontend.route.startsWith('/')
+                                    ? plugin.frontend.route
+                                    : '/' + plugin.frontend.route;
 
-                                return <Route key={p.id} path={routePath} element={<Component />} />;
+                                console.log(`[App] Adding route for plugin ${plugin.id}:`, routePath);
+
+                                return <Route key={plugin.id} path={routePath} element={<Component />} />;
                             })}
 
+                            {/* Fallback route */}
                             <Route path="*" element={<div>Page Not Found</div>} />
                         </Routes>
                     </Suspense>
