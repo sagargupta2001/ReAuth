@@ -65,6 +65,9 @@ impl PluginManager {
             return;
         };
 
+        let exe_path = std::env::current_exe().unwrap();
+        let is_dev_run = exe_path.ancestors().any(|p| p.ends_with("target"));
+
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
@@ -89,7 +92,13 @@ impl PluginManager {
                         continue;
                     };
 
-                    let executable_path = PathBuf::from(executable_rel_path);
+                    let executable_path = if is_dev_run {
+                        // In dev mode, the path from JSON is relative to the workspace root.
+                        PathBuf::from(executable_rel_path)
+                    } else {
+                        // In prod mode, the path from JSON is relative to its own plugin folder.
+                        path.join(executable_rel_path)
+                    };
                     self.spawn_and_handshake(manifest, executable_path).await;
                 }
             }

@@ -1,6 +1,4 @@
 use colored::*;
-use tracing::info;
-
 pub fn print_banner() {
     println!("{}", "========================================".bright_blue().bold());
     println!("{}", " 🚀  Starting ReAuth Application ".bright_green().bold());
