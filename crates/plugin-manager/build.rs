@@ -6,6 +6,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     tonic_build::configure()
         .build_client(true)
         .build_server(false)
+        .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
         .compile(&["../../proto/plugin.v1.proto"], &["../../proto"])?;
     Ok(())
 }

@@ -1,11 +1,14 @@
 use axum::{body::Body, http::{Request, Uri}, response::IntoResponse, routing::get, Json, Router};
 use tower_http::trace::TraceLayer;
 use std::net::SocketAddr;
-use axum::extract::State;
+use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::routing::get_service;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use reauth_plugin_manager::{Manifest, PluginManager};
+use reauth_plugin_manager::proto::plugin::v1::greeter_client::GreeterClient;
+use reauth_plugin_manager::proto::plugin::v1::HelloRequest;
 use crate::database::Database;
 
 #[cfg(feature = "embed-ui")]
@@ -75,6 +78,23 @@ async fn get_plugin_manifests(
     Json(manifests)
 }
 
+async fn plugin_proxy_handler(
+    State(plugin_manager): State<PluginManager>,
+    Path(plugin_id): Path<String>,
+) -> impl IntoResponse {
+    let instances = plugin_manager.instances.lock().await;
+    if let Some(instance) = instances.get(&plugin_id) {
+        let mut client = GreeterClient::new(instance.grpc_channel.clone());
+        let request = tonic::Request::new(HelloRequest { name: "Proxied User".to_string() });
+        match client.say_hello(request).await {
+            Ok(response) => Json(response.into_inner()).into_response(),
+            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        }
+    } else {
+        (StatusCode::NOT_FOUND, "Plugin not found".to_string()).into_response()
+    }
+}
+
 pub async fn start_server(db: Database, plugin_manager: PluginManager) -> anyhow::Result<()> {
 
     let cors = CorsLayer::new()
@@ -86,11 +106,11 @@ pub async fn start_server(db: Database, plugin_manager: PluginManager) -> anyhow
     let plugins_asset_route =
         Router::new().nest_service("/plugins", get_service(ServeDir::new("plugins")));
 
-    // --- REFACTORED ROUTING LOGIC ---
     // 1. Create a router for all API endpoints.
     let api_router = Router::new()
         .route("/health", get(|| async { "OK" }))
-        .route("/plugins/manifests", get(get_plugin_manifests));
+        .route("/plugins/manifests", get(get_plugin_manifests))
+        .route("/plugins/{id}/say-hello", get(plugin_proxy_handler));
 
     // 2. Create the main application router.
     let app = Router::new()
@@ -101,7 +121,6 @@ pub async fn start_server(db: Database, plugin_manager: PluginManager) -> anyhow
         .layer(TraceLayer::new_for_http())
         .with_state(plugin_manager)
         .with_state(db);
-    // --- END OF REFACTOR ---
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     let listener = tokio::net::TcpListener::bind(addr).await?;

@@ -106,7 +106,7 @@ impl PluginManager {
     }
 
     async fn spawn_and_handshake(&self, manifest: Manifest, executable_path: PathBuf) {
-        info!("Attempting to spawn plugin from absolute path: {:?}", std::fs::canonicalize(&executable_path));
+        info!("Attempting to spawn plugin from: {:?}", &executable_path);
         let mut child = match Command::new(executable_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -119,32 +119,66 @@ impl PluginManager {
             }
         };
 
+        // Take ownership of the output handles.
         let stdout = child.stdout.take().unwrap();
-        let mut reader = BufReader::new(stdout).lines();
+        let stderr = child.stderr.take().unwrap();
+        let mut stdout_reader = BufReader::new(stdout).lines();
 
-        if let Ok(Ok(Some(line))) = tokio::time::timeout(Duration::from_secs(5), reader.next_line()).await {
-            let parts: Vec<&str> = line.split('|').collect();
-            if parts.len() == 5 && parts[4] == "grpc" {
-                let addr = format!("http://{}", parts[3]);
-                match Channel::from_shared(addr).unwrap().connect().await {
-                    Ok(channel) => {
+        // --- RESTRUCTURED HANDSHAKE AND OWNERSHIP LOGIC ---
+
+        // Perform the handshake and get the gRPC channel if successful.
+        let handshake_result = tokio::time::timeout(Duration::from_secs(5), async {
+            if let Ok(Some(line)) = stdout_reader.next_line().await {
+                let parts: Vec<&str> = line.split('|').collect();
+                if parts.len() == 5 && parts[4] == "grpc" {
+                    let addr = format!("http://{}", parts[3]);
+                    if let Ok(channel) = Channel::from_shared(addr).unwrap().connect().await {
                         let mut client = HandshakeClient::new(channel.clone());
                         if client.get_plugin_info(Empty {}).await.is_ok() {
-                            info!("Successfully connected to plugin '{}'", manifest.name);
-                            let instance = PluginInstance {
-                                process: child,
-                                manifest: manifest.clone(),
-                                grpc_channel: channel,
-                            };
-                            self.instances.lock().await.insert(manifest.id, instance);
+                            return Some(channel); // Handshake success! Return the channel.
                         }
                     }
-                    Err(e) => error!("Failed to connect to gRPC for plugin {}: {}", manifest.name, e),
                 }
             }
-        } else {
-            error!("Plugin {} did not handshake in time.", manifest.name);
-            child.kill().await.ok();
+            None // Handshake failed.
+        }).await;
+
+        match handshake_result {
+            // Handshake succeeded within the timeout.
+            Ok(Some(channel)) => {
+                info!("Successfully connected to plugin '{}'", manifest.name);
+
+                // Now we can safely move `child` into the instance.
+                let instance = PluginInstance {
+                    process: child,
+                    manifest: manifest.clone(),
+                    grpc_channel: channel,
+                };
+                self.instances.lock().await.insert(manifest.id, instance);
+
+                // Spawn logging tasks for the remaining output.
+                let plugin_name_stdout = manifest.name.clone();
+                tokio::spawn(async move {
+                    let mut remaining_lines = stdout_reader;
+                    while let Ok(Some(line)) = remaining_lines.next_line().await {
+                        info!("[Plugin: {}] {}", plugin_name_stdout, line);
+                    }
+                });
+
+                let plugin_name_stderr = manifest.name.clone();
+                tokio::spawn(async move {
+                    let mut reader = BufReader::new(stderr).lines();
+                    while let Ok(Some(line)) = reader.next_line().await {
+                        error!("[Plugin: {}] {}", plugin_name_stderr, line);
+                    }
+                });
+            }
+            // Handshake failed or timed out.
+            _ => {
+                error!("Plugin {} did not handshake in time or handshake was invalid.", manifest.name);
+                // `child` is still owned here, so we can safely kill it.
+                child.kill().await.ok();
+            }
         }
     }
 }

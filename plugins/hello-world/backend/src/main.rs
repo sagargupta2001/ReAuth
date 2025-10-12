@@ -1,9 +1,9 @@
-use tonic::{Request, Response, Status};
 use sdk::{run, Plugin};
 use sdk::proto::plugin::v1::greeter_server::{Greeter, GreeterServer};
 use sdk::proto::plugin::v1::{HelloReply, HelloRequest, PluginInfo};
+use tonic::{Request, Response, Status};
 
-// 1. Define the plugin
+// 1. Define the plugin's main struct
 pub struct HelloWorldPlugin;
 impl Plugin for HelloWorldPlugin {
     fn info(&self) -> PluginInfo {
@@ -15,7 +15,7 @@ impl Plugin for HelloWorldPlugin {
 }
 
 // 2. Implement the gRPC service
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct GreeterService;
 
 #[tonic::async_trait]
@@ -25,6 +25,7 @@ impl Greeter for GreeterService {
         request: Request<HelloRequest>,
     ) -> Result<Response<HelloReply>, Status> {
         let name = request.into_inner().name;
+        println!("[Plugin Backend] Received a 'say_hello' request for '{}'", name);
         Ok(Response::new(HelloReply {
             message: format!("Hello, {}! This message is from the Rust plugin backend.", name),
         }))
@@ -37,12 +38,7 @@ async fn main() -> anyhow::Result<()> {
     let plugin = HelloWorldPlugin;
     let greeter_service = GreeterService::default();
 
-    // Pass a closure that receives a tonic Router
-    run(plugin, |mut router: tonic::transport::server::Router| {
-        router = router.add_service(GreeterServer::new(greeter_service));
-        router
-    })
-        .await?;
+    run(plugin, GreeterServer::new(greeter_service)).await?;
 
     Ok(())
 }

@@ -326,6 +326,7 @@ dependencies = [
  "serde",
  "sqlx",
  "tokio",
+ "tonic",
  "tower-http",
  "tracing",
  "tracing-subscriber",
@@ -2006,6 +2007,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "tonic-build",
+ "tower 0.4.13",
  "tracing",
 ]
 

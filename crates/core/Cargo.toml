@@ -28,6 +28,7 @@ rust-embed = "8.3"
 anyhow = "1.0.99"
 mime_guess = "2.0.5"
 reqwest = "0.12.23"
+tonic = "0.11.0"
 
 # Database
 [dependencies.sqlx]
