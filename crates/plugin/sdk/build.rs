@@ -1,12 +1,12 @@
 use std::env;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // This tells tonic-build to use the protoc binary downloaded by the vendored crate.
     env::set_var("PROTOC", protoc_bin_vendored::protoc_bin_path().unwrap());
 
     tonic_build::configure()
+        .build_server(true)
         .build_client(true)
-        .build_server(false)
-        .type_attribute(".", "#[derive(serde::Serialize, serde::Deserialize)]")
-        .compile(&["../../proto/plugin.v1.proto"], &["../../proto"])?;
+        .compile(&["../../../proto/plugin.v1.proto"], &["../../../proto"])?;
     Ok(())
 }

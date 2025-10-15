@@ -8,7 +8,7 @@ default = []       # default: dev mode (proxy)
 embed-ui = []      # prod mode (embed UI)
 
 [dependencies]
-reauth-plugin-manager = { path = "../plugin-manager" }
+reauth-plugin-manager = { path = "../plugin/manager" }
 # Web Server
 axum = "0.8.4"
 tokio = { version = "1", features = ["full"] }
