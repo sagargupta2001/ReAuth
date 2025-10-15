@@ -9,6 +9,7 @@ embed-ui = []      # prod mode (embed UI)
 
 [dependencies]
 reauth-plugin-manager = { path = "../plugin/manager" }
+config = { version = "0.15.18", features = ["toml"] }
 # Web Server
 axum = "0.8.4"
 tokio = { version = "1", features = ["full"] }

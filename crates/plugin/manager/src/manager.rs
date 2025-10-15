@@ -1,10 +1,6 @@
 //! The main implementation of the `PluginManager`.
 
-use crate::{
-    error::{Error, Result},
-    grpc::plugin::v1::{handshake_client::HandshakeClient, Empty},
-    plugin::{Manifest, PluginInstance},
-};
+use crate::{constants, error::{Error, Result}, grpc::plugin::v1::{handshake_client::HandshakeClient, Empty}, plugin::{Manifest, PluginInstance}, ManagerConfig};
 use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -18,16 +14,20 @@ use tracing::{error, info};
 ///
 /// The registry of running plugins is stored in `instances`, which is
 /// wrapped in `Arc<Mutex<...>>` to allow for safe concurrent access.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct PluginManager {
     /// The in-memory "registry" of all active plugin instances.
     pub instances: Arc<Mutex<HashMap<String, PluginInstance>>>,
+    config: ManagerConfig,
 }
 
 impl PluginManager {
     /// Creates a new, empty `PluginManager`.
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(config: ManagerConfig) -> Self {
+        Self {
+            instances: Arc::new(Mutex::new(HashMap::new())),
+            config,
+        }
     }
 
     /// Scans a directory for plugins, spawns them, and performs the handshake.
@@ -37,7 +37,7 @@ impl PluginManager {
     /// * `plugins_dir` - The path to the directory containing plugin subdirectories.
     pub async fn discover_and_run(&self, plugins_dir: &str) {
         let is_dev_run = match std::env::current_exe() {
-            Ok(exe_path) => exe_path.ancestors().any(|p| p.ends_with("target")),
+            Ok(exe_path) => exe_path.ancestors().any(|p| p.ends_with(constants::DEV_ENVIRONMENT_DIR)),
             Err(_) => false,
         };
 
@@ -55,7 +55,7 @@ impl PluginManager {
                 continue;
             }
 
-            let manifest_path = path.join("plugin.json");
+            let manifest_path = path.join(constants::MANIFEST_FILENAME);
             if !manifest_path.exists() {
                 continue;
             }
@@ -72,7 +72,7 @@ impl PluginManager {
 
     /// Loads, spawns, and handshakes a single plugin.
     async fn load_plugin(&self, path: PathBuf, is_dev_run: bool) -> Result<()> {
-        let manifest_str = std::fs::read_to_string(path.join("plugin.json"))?;
+        let manifest_str = std::fs::read_to_string(path.join(constants::MANIFEST_FILENAME))?;
         let manifest: Manifest = serde_json::from_str(&manifest_str).map_err(|e| Error::ManifestParse { path: path.clone(), source: e })?;
 
         info!("Found plugin: {}", manifest.name);
@@ -108,9 +108,9 @@ impl PluginManager {
         // Perform handshake within a timeout.
         let handshake_result = tokio::time::timeout(Duration::from_secs(5), async {
             if let Ok(Some(line)) = stdout_reader.next_line().await {
-                let parts: Vec<&str> = line.split('|').collect();
+                let parts: Vec<&str> = line.split(constants::HANDSHAKE_DELIMITER).collect();
                 if parts.len() == 5 && parts[4] == "grpc" {
-                    let addr = format!("http://{}", parts[3]);
+                    let addr = format!("{}://{}", constants::HANDSHAKE_URL_SCHEME, parts[3]);
                     if let Ok(channel) = Channel::from_shared(addr).unwrap().connect().await {
                         return Ok(channel); // Handshake seems valid, return channel for verification.
                     }

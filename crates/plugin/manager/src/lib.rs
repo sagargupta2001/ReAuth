@@ -8,9 +8,11 @@ pub mod error;
 pub mod grpc;
 pub mod manager;
 pub mod plugin;
+pub mod constants;
+pub mod config;
 
 // Re-export the most important types for consumers of this crate.
-// This is often called a "prelude."
+pub use config::ManagerConfig;
 pub use error::{Error, Result};
 pub use manager::PluginManager;
 pub use plugin::{Manifest, PluginInstance};

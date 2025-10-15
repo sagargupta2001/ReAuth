@@ -1,15 +1,48 @@
-use axum::{body::Body, http::{Request, Uri}, response::IntoResponse, routing::get, Json, Router};
-use tower_http::trace::TraceLayer;
-use std::net::SocketAddr;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
-use axum::routing::get_service;
-use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
-use reauth_plugin_manager::{Manifest, PluginManager};
-use reauth_plugin_manager::grpc::plugin::v1::greeter_client::GreeterClient;
-use reauth_plugin_manager::grpc::plugin::v1::HelloRequest;
+use crate::config::Settings;
 use crate::database::Database;
+use axum::{
+    extract::{Path, State},
+    http::{Request, StatusCode, Uri},
+    response::{IntoResponse, Json},
+    routing::{get, get_service},
+    Router,
+};
+use reauth_plugin_manager::{
+    grpc::plugin::v1::{greeter_client::GreeterClient, HelloRequest},
+    Manifest, PluginManager,
+};
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use tower_http::{
+    cors::{Any, CorsLayer},
+    services::ServeDir,
+    trace::TraceLayer,
+};
+
+// --- A UNIFIED APP STATE STRUCT ---
+#[derive(Clone)]
+struct AppState {
+    db: Database,
+    plugin_manager: PluginManager,
+    settings: Settings,
+}
+
+#[cfg(not(feature = "embed-ui"))]
+mod ui_handler {
+    use super::*;
+    use axum::body::Body;
+    pub async fn static_handler(
+        State(state): State<AppState>,
+        uri: Uri,
+        _req: Request<Body>,
+    ) -> impl IntoResponse {
+        let url = format!("{}{}", state.settings.ui.dev_url, uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"));
+        match reqwest::get(&url).await {
+            Ok(resp) => (resp.status(), resp.headers().clone(), resp.bytes().await.unwrap_or_default()).into_response(),
+            Err(_) => (StatusCode::BAD_GATEWAY, "React dev server not running").into_response(),
+        }
+    }
+}
 
 #[cfg(feature = "embed-ui")]
 mod ui_handler {
@@ -45,44 +78,17 @@ mod ui_handler {
     }
 }
 
-#[cfg(not(feature = "embed-ui"))]
-mod ui_handler {
-    use super::*;
-    use axum::http::StatusCode;
-
-    /// Proxy all UI requests to React dev server (http://localhost:5173)
-    pub async fn static_handler(uri: Uri, _: Request<Body>) -> impl IntoResponse {
-        let url = format!("http://localhost:5173{}", uri.path_and_query().map(|u| u.as_str()).unwrap_or("/"));
-
-        match reqwest::get(&url).await {
-            Ok(resp) => {
-                let status = resp.status();
-                let headers = resp.headers().clone();
-                let body = resp.bytes().await.unwrap_or_default();
-                (status, headers, body).into_response()
-            }
-            Err(_) => (
-                StatusCode::BAD_GATEWAY,
-                "React dev server not running".to_string(),
-            )
-                .into_response(),
-        }
-    }
-}
-
-async fn get_plugin_manifests(
-    State(plugin_manager): State<PluginManager>,
-) -> impl IntoResponse {
-    let instances = plugin_manager.instances.lock().await;
+async fn get_plugin_manifests(State(state): State<AppState>) -> impl IntoResponse {
+    let instances = state.plugin_manager.instances.lock().await;
     let manifests: Vec<Manifest> = instances.values().map(|inst| inst.manifest.clone()).collect();
     Json(manifests)
 }
 
 async fn plugin_proxy_handler(
-    State(plugin_manager): State<PluginManager>,
+    State(state): State<AppState>,
     Path(plugin_id): Path<String>,
 ) -> impl IntoResponse {
-    let instances = plugin_manager.instances.lock().await;
+    let instances = state.plugin_manager.instances.lock().await;
     if let Some(instance) = instances.get(&plugin_id) {
         let mut client = GreeterClient::new(instance.grpc_channel.clone());
         let request = tonic::Request::new(HelloRequest { name: "Proxied User".to_string() });
@@ -95,34 +101,33 @@ async fn plugin_proxy_handler(
     }
 }
 
-pub async fn start_server(db: Database, plugin_manager: PluginManager) -> anyhow::Result<()> {
+pub async fn start_server(
+    db: Database,
+    plugin_manager: PluginManager,
+    settings: Settings,
+    plugins_path: PathBuf,
+) -> anyhow::Result<()> {
+    let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // Create the single, unified AppState
+    let app_state = AppState { db, plugin_manager, settings: settings.clone() };
 
-    // Route to serve static assets from plugin directories
-    let plugins_asset_route =
-        Router::new().nest_service("/plugins", get_service(ServeDir::new("plugins")));
+    let plugins_asset_route = Router::new().nest_service("/plugins", get_service(ServeDir::new(plugins_path)));
 
-    // 1. Create a router for all API endpoints.
     let api_router = Router::new()
         .route("/health", get(|| async { "OK" }))
         .route("/plugins/manifests", get(get_plugin_manifests))
         .route("/plugins/{id}/say-hello", get(plugin_proxy_handler));
 
-    // 2. Create the main application router.
     let app = Router::new()
-        .nest("/api", api_router) // Nest all API routes under the `/api` prefix.
+        .nest("/api", api_router)
         .merge(plugins_asset_route)
-        .fallback(ui_handler::static_handler) // This fallback now correctly ignores `/api` routes.
+        .fallback(ui_handler::static_handler)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
-        .with_state(plugin_manager)
-        .with_state(db);
+        .with_state(app_state); // Pass the unified state to the router
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from((settings.server.host.parse::<std::net::IpAddr>()?, settings.server.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("Server listening on {}", addr);
 

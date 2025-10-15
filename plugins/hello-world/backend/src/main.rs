@@ -1,7 +1,9 @@
-use sdk::{run, Plugin};
-use sdk::proto::plugin::v1::greeter_server::{Greeter, GreeterServer};
-use sdk::proto::plugin::v1::{HelloReply, HelloRequest, PluginInfo};
+
 use tonic::{Request, Response, Status};
+use sdk::plugin::Plugin;
+use sdk::prelude::v1::greeter_server::{Greeter, GreeterServer};
+use sdk::prelude::v1::{HelloReply, HelloRequest, PluginInfo};
+use sdk::runner::run;
 
 // 1. Define the plugin's main struct
 pub struct HelloWorldPlugin;
@@ -27,7 +29,7 @@ impl Greeter for GreeterService {
         let name = request.into_inner().name;
         println!("[Plugin Backend] Received a 'say_hello' request for '{}'", name);
         Ok(Response::new(HelloReply {
-            message: format!("Hello, {}! This message is from the Rust plugin backend.", name),
+            message: format!("Hello, {}! This message is from the Rust plugin backend latest!.", name),
         }))
     }
 }
