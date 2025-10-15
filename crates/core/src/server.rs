@@ -7,8 +7,8 @@ use axum::routing::get_service;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use reauth_plugin_manager::{Manifest, PluginManager};
-use reauth_plugin_manager::proto::plugin::v1::greeter_client::GreeterClient;
-use reauth_plugin_manager::proto::plugin::v1::HelloRequest;
+use reauth_plugin_manager::grpc::plugin::v1::greeter_client::GreeterClient;
+use reauth_plugin_manager::grpc::plugin::v1::HelloRequest;
 use crate::database::Database;
 
 #[cfg(feature = "embed-ui")]
