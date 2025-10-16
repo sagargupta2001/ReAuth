@@ -2,18 +2,18 @@ mod database;
 mod server;
 mod logging;
 mod config;
+mod constants;
 
 use std::env;
 use std::path::PathBuf;
 use once_cell::sync::Lazy;
 use tracing::info;
-use reauth_plugin_manager::{ManagerConfig, PluginManager};
+use manager::{ManagerConfig, PluginManager};
 use crate::config::Settings;
 use crate::database::init_db;
 use crate::database::migrate::run_migrations;
 use crate::logging::banner::print_banner;
 use crate::logging::logging::LOGGER;
-use crate::logging::status::log_system_status;
 use crate::server::start_server;
 
 #[tokio::main]
@@ -29,18 +29,17 @@ async fn main() -> anyhow::Result<()> {
     };
 
     let exe_path = env::current_exe()?;
-    let is_dev_run = exe_path.ancestors().any(|p| p.ends_with("target"));
+    let is_dev_run = exe_path.ancestors().any(|p| p.ends_with(constants::DEV_ENVIRONMENT_DIR));
     let plugins_path = if is_dev_run {
-        PathBuf::from("plugins")
+        PathBuf::from(constants::PLUGINS_DIR)
     } else {
         let mut prod_path = exe_path;
         prod_path.pop();
-        prod_path.join("plugins")
+        prod_path.join(constants::PLUGINS_DIR)
     };
     let plugins_path_clone = plugins_path.clone();
     info!("Loading plugins from: {:?}", plugins_path.canonicalize().unwrap_or_else(|_| plugins_path.clone()));
 
-    // Initialize and run the plugin manager
     let plugin_manager = PluginManager::new(manager_config);
     let manager_clone = plugin_manager.clone();
     tokio::spawn(async move {
@@ -50,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     info!("Initializing database...");
-    let db = init_db().await?;
+    let db = init_db(&settings.database).await?;
 
     let server_url = format!(
         "{}://{}:{}",
@@ -59,10 +58,11 @@ async fn main() -> anyhow::Result<()> {
         settings.server.port
     );
     let ui_location = if cfg!(feature = "embed-ui") { None } else { Some(settings.ui.dev_url.as_str()) };
-    log_system_status(&server_url, "Up & Running");
+    info!("🖥Server started at: {}", server_url);
+    info!("Database status: {}", "Up & Running");
 
     if let Err(e) = run_migrations(&db).await {
-        tracing::warn!("⚠Migration warning: {}", e);
+        tracing::warn!("Migration warning: {}", e);
     }
 
     info!("Starting server...");

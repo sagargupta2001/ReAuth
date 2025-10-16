@@ -1,5 +1,5 @@
 [package]
-name = "reauth-plugin-manager"
+name = "manager"
 version = "0.1.0"
 edition = "2021"
 

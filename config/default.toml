@@ -8,3 +8,8 @@ dev_url = "http://localhost:5173"
 
 [plugins]
 handshake_timeout_secs = 5
+
+[database]
+data_dir = "./data"
+db_file = "reauth.db"
+max_connections = 5

@@ -370,9 +370,9 @@ dependencies = [
  "colored",
  "config",
  "dotenvy",
+ "manager",
  "mime_guess",
  "once_cell",
- "reauth-plugin-manager",
  "reqwest",
  "rust-embed",
  "serde",
@@ -1319,6 +1319,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
+name = "manager"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "protoc-bin-vendored",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tonic",
+ "tonic-build",
+ "tracing",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1898,21 +1913,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
  "getrandom 0.2.16",
-]
-
-[[package]]
-name = "reauth-plugin-manager"
-version = "0.1.0"
-dependencies = [
- "prost",
- "protoc-bin-vendored",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tonic",
- "tonic-build",
- "tracing",
 ]
 
 [[package]]

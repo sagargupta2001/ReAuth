@@ -13,7 +13,7 @@ pub struct UserRepository;
 
 impl UserRepository {
     pub async fn get_user(db: &Database, id: &str) -> anyhow::Result<Option<User>> {
-        let row = sqlx::query("SELECT id, username, role FROM user WHERE id = ?")
+        let row = sqlx::query("SELECT id, username, role FROM users WHERE id = ?")
             .bind(id)
             .fetch_optional(&**db)
             .await?;
@@ -30,7 +30,7 @@ impl UserRepository {
     }
 
     pub async fn create_user(db: &Database, user: &User) -> anyhow::Result<User> {
-        sqlx::query("INSERT INTO user (id, username, role) VALUES (?, ?, ?)")
+        sqlx::query("INSERT INTO users (id, username, role) VALUES (?, ?, ?)")
             .bind(&user.id)
             .bind(&user.username)
             .bind(&user.role)

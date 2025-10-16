@@ -7,7 +7,7 @@ use axum::{
     routing::{get, get_service},
     Router,
 };
-use reauth_plugin_manager::{
+use manager::{
     grpc::plugin::v1::{greeter_client::GreeterClient, HelloRequest},
     Manifest, PluginManager,
 };
@@ -19,7 +19,6 @@ use tower_http::{
     trace::TraceLayer,
 };
 
-// --- A UNIFIED APP STATE STRUCT ---
 #[derive(Clone)]
 struct AppState {
     db: Database,

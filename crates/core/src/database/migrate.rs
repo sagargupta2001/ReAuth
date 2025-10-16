@@ -9,6 +9,6 @@ pub async fn run_migrations(pool: &Pool<Sqlite>) -> Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("Migration error: {}", e))?;
 
-    tracing::info!("✅ All migrations applied");
+    tracing::info!("All migrations applied");
     Ok(())
 }

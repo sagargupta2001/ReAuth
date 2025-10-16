@@ -18,10 +18,18 @@ pub struct PluginsConfig {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct DatabaseConfig {
+    pub data_dir: String,
+    pub db_file: String,
+    pub max_connections: u32,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub server: Server,
     pub ui: Ui,
     pub plugins: PluginsConfig,
+    pub database: DatabaseConfig,
 }
 
 
