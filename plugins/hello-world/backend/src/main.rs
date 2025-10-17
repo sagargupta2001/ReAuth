@@ -29,7 +29,7 @@ impl Greeter for GreeterService {
         let name = request.into_inner().name;
         println!("[Plugin Backend] Received a 'say_hello' request for '{}'", name);
         Ok(Response::new(HelloReply {
-            message: format!("Hello, {}! This message is from the Rust plugin backend latest!.", name),
+            message: format!("Hello, {}! This message is from the Rust plugin backend (17/10/2025)!.", name),
         }))
     }
 }
@@ -37,6 +37,7 @@ impl Greeter for GreeterService {
 // 3. Main function
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt::init();
     let plugin = HelloWorldPlugin;
     let greeter_service = GreeterService::default();
 

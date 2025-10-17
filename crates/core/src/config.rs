@@ -19,8 +19,7 @@ pub struct PluginsConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct DatabaseConfig {
-    pub data_dir: String,
-    pub db_file: String,
+    pub url: String,
     pub max_connections: u32,
 }
 
@@ -38,6 +37,7 @@ impl Settings {
         let s = config::Config::builder()
             .add_source(config::File::with_name("config/default"))
             .add_source(config::Environment::with_prefix("REAUTH"))
+            .add_source(config::Environment::default().separator("__"))
             .build()?;
         s.try_deserialize()
     }

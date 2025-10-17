@@ -1,5 +1,4 @@
 use crate::config::Settings;
-use crate::database::Database;
 use axum::{
     extract::{Path, State},
     http::{Request, StatusCode, Uri},
@@ -18,6 +17,7 @@ use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
+use crate::adapters::persistence::connection::Database;
 
 #[derive(Clone)]
 struct AppState {

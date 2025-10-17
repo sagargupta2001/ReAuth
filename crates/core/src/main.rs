@@ -1,20 +1,27 @@
-mod database;
-mod server;
-mod logging;
 mod config;
 mod constants;
+mod error;
+mod domain;
+mod ports;
+mod application;
+mod adapters;
 
 use std::env;
-use std::path::PathBuf;
+use std::fs::OpenOptions;
+use std::path::{Path, PathBuf};
 use once_cell::sync::Lazy;
 use tracing::info;
 use manager::{ManagerConfig, PluginManager};
 use crate::config::Settings;
-use crate::database::init_db;
-use crate::database::migrate::run_migrations;
-use crate::logging::banner::print_banner;
-use crate::logging::logging::LOGGER;
-use crate::server::start_server;
+use tokio::{fs};
+
+use adapters::{
+    init_db,
+    run_migrations,
+    start_server,
+};
+use crate::adapters::logging::banner::print_banner;
+use crate::adapters::logging::logging::LOGGER;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -49,6 +56,23 @@ async fn main() -> anyhow::Result<()> {
     });
 
     info!("Initializing database...");
+    if let Some(db_path_str) = settings.database.url.strip_prefix("sqlite:") {
+        let db_path = Path::new(db_path_str);
+
+        // 1. Ensure the parent directory exists.
+        if let Some(parent_dir) = db_path.parent() {
+            if !parent_dir.exists() {
+                info!("Creating database directory at: {:?}", parent_dir);
+                fs::create_dir_all(parent_dir).await?;
+            }
+        }
+
+        // 2. Explicitly create the database file if it's missing.
+        if !db_path.exists() {
+            info!("Creating database file at: {:?}", db_path);
+            OpenOptions::new().write(true).create_new(true).open(db_path)?;
+        }
+    }
     let db = init_db(&settings.database).await?;
 
     let server_url = format!(
@@ -57,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         settings.server.host,
         settings.server.port
     );
-    let ui_location = if cfg!(feature = "embed-ui") { None } else { Some(settings.ui.dev_url.as_str()) };
+    if cfg!(feature = "embed-ui") { None } else { Some(settings.ui.dev_url.as_str()) };
     info!("🖥Server started at: {}", server_url);
     info!("Database status: {}", "Up & Running");
 

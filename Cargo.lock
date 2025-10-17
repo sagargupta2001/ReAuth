@@ -366,6 +366,7 @@ name = "core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum 0.8.4",
  "colored",
  "config",
@@ -377,11 +378,13 @@ dependencies = [
  "rust-embed",
  "serde",
  "sqlx",
+ "thiserror",
  "tokio",
  "tonic",
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -831,6 +834,7 @@ dependencies = [
  "sdk",
  "tokio",
  "tonic",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3132,6 +3136,17 @@ name = "utf8_iter"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
+
+[[package]]
+name = "uuid"
+version = "1.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
+dependencies = [
+ "getrandom 0.3.3",
+ "js-sys",
+ "wasm-bindgen",
+]
 
 [[package]]
 name = "valuable"

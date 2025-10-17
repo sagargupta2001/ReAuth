@@ -10,6 +10,5 @@ dev_url = "http://localhost:5173"
 handshake_timeout_secs = 5
 
 [database]
-data_dir = "./data"
-db_file = "reauth.db"
+url = "sqlite:data/reauth.db"
 max_connections = 5
