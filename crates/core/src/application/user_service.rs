@@ -1,10 +1,11 @@
+use std::sync::Arc;
+use uuid::Uuid;
+
 use crate::{
     domain::user::User,
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
-use std::sync::Arc;
-use uuid::Uuid;
 
 /// A service that handles user-related application logic.
 /// It depends on the `UserRepository` port, not a concrete database implementation.

@@ -12,16 +12,17 @@ use std::path::{Path, PathBuf};
 use once_cell::sync::Lazy;
 use tracing::info;
 use manager::{ManagerConfig, PluginManager};
-use crate::config::Settings;
 use tokio::{fs};
+
+use crate::adapters::logging::{banner::print_banner, logging::LOGGER};
+use crate::config::Settings;
 
 use adapters::{
     init_db,
     run_migrations,
     start_server,
 };
-use crate::adapters::logging::banner::print_banner;
-use crate::adapters::logging::logging::LOGGER;
+
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

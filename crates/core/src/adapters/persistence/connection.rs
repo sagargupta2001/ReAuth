@@ -1,8 +1,8 @@
-use crate::config::DatabaseConfig;
 use anyhow::Result;
-use sqlx::sqlite::SqlitePoolOptions;
-use sqlx::SqlitePool;
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 use std::sync::Arc;
+
+use crate::config::DatabaseConfig;
 
 pub type Database = Arc<SqlitePool>;
 

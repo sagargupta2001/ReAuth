@@ -1,9 +1,7 @@
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt};
 use once_cell::sync::Lazy;
 use tracing::Level;
-use tracing_subscriber::layer::SubscriberExt;
 
-/// Centralized logging initialization
 pub static LOGGER: Lazy<()> = Lazy::new(|| {
     // Read RUST_LOG env variable or default to info
     let env_filter = EnvFilter::try_from_default_env()

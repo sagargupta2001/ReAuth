@@ -1,7 +1,8 @@
-use crate::application::user_service::UserService;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Deserialize;
 use std::sync::Arc;
+
+use crate::application::user_service::UserService;
 
 #[derive(Deserialize)]
 pub struct CreateUserPayload {
