@@ -4,7 +4,6 @@ pub mod domain;
 mod ports;
 pub mod application;
 pub mod adapters;
-
 pub mod error;
 
 use std::env;
@@ -25,11 +24,18 @@ use crate::adapters::SqliteUserRepository;
 use crate::application::rbac_service::RbacService;
 use crate::application::user_service::UserService;
 
-/// Starts the full ReAuth Core application.
-///
-/// This function is exposed so that integration tests (or other binaries)
-/// can start the application without duplicating logic from `main.rs`.
-pub async fn run() -> anyhow::Result<()> {
+/// Represents the fully initialized application state,
+/// returned by `initialize()` and used by both run() and benchmark mode.
+pub struct AppState {
+    pub settings: Settings,
+    pub plugin_manager: PluginManager,
+    pub plugins_path: PathBuf,
+    pub user_service: Arc<UserService>,
+    pub rbac_service: Arc<RbacService>,
+}
+
+/// Performs all initialization logic: env, plugins, DB, migrations, and DI.
+pub async fn initialize() -> anyhow::Result<AppState> {
     Lazy::force(&LOGGER);
     dotenvy::dotenv().ok();
     print_banner();
@@ -53,7 +59,6 @@ pub async fn run() -> anyhow::Result<()> {
         prod_path.join(constants::PLUGINS_DIR)
     };
 
-    let plugins_path_clone = plugins_path.clone();
     info!(
         "Loading plugins from: {:?}",
         plugins_path.canonicalize().unwrap_or_else(|_| plugins_path.clone())
@@ -62,8 +67,10 @@ pub async fn run() -> anyhow::Result<()> {
     let plugin_manager = PluginManager::new(manager_config);
     let manager_clone = plugin_manager.clone();
 
+    let plugins_path_for_task = plugins_path.clone();
+
     tokio::spawn(async move {
-        if let Some(path_str) = plugins_path.to_str() {
+        if let Some(path_str) = plugins_path_for_task.to_str() {
             manager_clone.discover_and_run(path_str).await;
         }
     });
@@ -72,7 +79,6 @@ pub async fn run() -> anyhow::Result<()> {
     if let Some(db_path_str) = settings.database.url.strip_prefix("sqlite:") {
         let db_path = Path::new(db_path_str);
 
-        // Ensure the parent directory exists.
         if let Some(parent_dir) = db_path.parent() {
             if !parent_dir.exists() {
                 info!("Creating database directory at: {:?}", parent_dir);
@@ -80,7 +86,6 @@ pub async fn run() -> anyhow::Result<()> {
             }
         }
 
-        // Explicitly create the database file if it's missing.
         if !db_path.exists() {
             info!("Creating database file at: {:?}", db_path);
             OpenOptions::new().write(true).create_new(true).open(db_path)?;
@@ -89,21 +94,9 @@ pub async fn run() -> anyhow::Result<()> {
 
     let db_pool = init_db(&settings.database).await?;
 
-    let server_url = format!(
-        "{}://{}:{}",
-        settings.server.scheme, settings.server.host, settings.server.port
-    );
-
-    if cfg!(feature = "embed-ui") {
-        None
-    } else {
-        Some(settings.ui.dev_url.as_str())
-    };
-
-    info!("🖥 Server started at: {}", server_url);
-    info!("Database status: {}", "Up & Running");
-
-    // --- Dependency Injection ---
+    if let Err(e) = run_migrations(&db_pool).await {
+        tracing::warn!("Migration warning: {}", e);
+    }
 
     let user_repo = Arc::new(SqliteUserRepository::new(db_pool.clone()));
     let rbac_repo = Arc::new(SqliteRbacRepository::new(db_pool.clone()));
@@ -111,17 +104,35 @@ pub async fn run() -> anyhow::Result<()> {
     let user_service = Arc::new(UserService::new(user_repo));
     let rbac_service = Arc::new(RbacService::new(rbac_repo));
 
-    if let Err(e) = run_migrations(&db_pool).await {
-        tracing::warn!("Migration warning: {}", e);
-    }
-
-    info!("Starting server...");
-    start_server(
+    Ok(AppState {
         settings,
         plugin_manager,
-        plugins_path_clone,
+        plugins_path,
         user_service,
         rbac_service,
+    })
+}
+
+/// Starts the full ReAuth Core application (normal mode).
+pub async fn run() -> anyhow::Result<()> {
+    let app_state = initialize().await?;
+
+    let server_url = format!(
+        "{}://{}:{}",
+        app_state.settings.server.scheme,
+        app_state.settings.server.host,
+        app_state.settings.server.port
+    );
+
+    info!("🖥 Server started at: {}", server_url);
+    info!("Database status: {}", "Up & Running");
+
+    start_server(
+        app_state.settings,
+        app_state.plugin_manager,
+        app_state.plugins_path,
+        app_state.user_service,
+        app_state.rbac_service,
     )
         .await?;
 
