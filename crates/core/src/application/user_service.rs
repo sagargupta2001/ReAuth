@@ -25,9 +25,9 @@ impl UserService {
         }
 
         let user = User {
-            id: Uuid::new_v4().to_string(),
+            id: Uuid::new_v4().to_string().parse().unwrap(),
             username: username.to_string(),
-            role: role.to_string(),
+            hashed_password: "sagar".to_string(),
         };
 
         self.user_repo.save(&user).await?;

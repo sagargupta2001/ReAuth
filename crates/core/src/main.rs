@@ -9,6 +9,7 @@ mod adapters;
 use std::env;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use once_cell::sync::Lazy;
 use tracing::info;
 use manager::{ManagerConfig, PluginManager};
@@ -22,7 +23,10 @@ use adapters::{
     run_migrations,
     start_server,
 };
-
+use crate::adapters::persistence::sqlite_rbac_repository::SqliteRbacRepository;
+use crate::adapters::SqliteUserRepository;
+use crate::application::rbac_service::RbacService;
+use crate::application::user_service::UserService;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -86,12 +90,36 @@ async fn main() -> anyhow::Result<()> {
     info!("🖥Server started at: {}", server_url);
     info!("Database status: {}", "Up & Running");
 
-    if let Err(e) = run_migrations(&db).await {
+    // --- DEPENDENCY INJECTION ---
+
+    // 1. Initialize Adapters
+    let db_pool = init_db(&settings.database).await?;
+    let user_repo = Arc::new(SqliteUserRepository::new(db_pool.clone()));
+    let rbac_repo = Arc::new(SqliteRbacRepository::new(db_pool.clone()));
+
+    // 2. Initialize Application Services (injecting adapters)
+    let user_service = Arc::new(UserService::new(user_repo));
+    let rbac_service = Arc::new(RbacService::new(rbac_repo));
+
+    // --- END DEPENDENCY INJECTION ---
+
+    // FIX: Pass a reference to `db_pool` here.
+    // `&db_pool` will be automatically dereferenced from `&Arc<SqlitePool>`
+    // to `&SqlitePool`, which is what `run_migrations` expects.
+    if let Err(e) = run_migrations(&db_pool).await {
         tracing::warn!("Migration warning: {}", e);
     }
 
     info!("Starting server...");
-    start_server(db, plugin_manager, settings, plugins_path_clone).await?;
+    // REFACTORED CALL: Pass `db_pool.clone()` to `start_server`.
+    // This correctly passes ownership of one of the `Arc` pointers.
+    start_server(
+        settings,
+        plugin_manager,
+        plugins_path_clone,
+        user_service,
+        rbac_service
+    ).await?;
 
     Ok(())
 }

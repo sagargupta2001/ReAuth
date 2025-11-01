@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
-/// Represents a User entity within the application's domain.
-/// This is pure data and has no knowledge of how it is stored or presented.
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct User {
-    pub id: String,
+    #[sqlx(try_from = "String")] // Convert TEXT from DB to Uuid
+    pub id: Uuid,
     pub username: String,
-    pub role: String,
+    pub hashed_password: String, // Renamed from 'role'
 }

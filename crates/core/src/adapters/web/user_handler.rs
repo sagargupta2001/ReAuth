@@ -1,8 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Deserialize;
-use std::sync::Arc;
 
-use crate::application::user_service::UserService;
+use crate::adapters::web::server::AppState;
 
 #[derive(Deserialize)]
 pub struct CreateUserPayload {
@@ -11,10 +10,10 @@ pub struct CreateUserPayload {
 }
 
 pub async fn create_user_handler(
-    State(user_service): State<Arc<UserService>>,
+    State(state): State<AppState>,
     Json(payload): Json<CreateUserPayload>,
 ) -> impl IntoResponse {
-    match user_service.create_user(&payload.username, &payload.role).await {
+    match state.user_service.create_user(&payload.username, &payload.role).await {
         Ok(user) => (StatusCode::CREATED, Json(user)).into_response(),
         Err(e) => {
             // In a real app, map errors to specific HTTP status codes

@@ -32,12 +32,12 @@ reqwest = "0.12.23"
 tonic = "0.11.0"
 thiserror = "2.0.17"
 async-trait = "0.1.89"
-uuid = {version =  "1.18.1", features = ["v4"] }
+uuid = {version =  "1.18.1", features = ["v4", "serde"] }
 
 # Database
 [dependencies.sqlx]
 version = "0.8.6"
-features = ["sqlite", "runtime-tokio-native-tls", "macros"]
+features = ["sqlite", "runtime-tokio-native-tls", "macros", "uuid"]
 
 [dependencies.tower-http]
 version = "0.6.6"

@@ -4,15 +4,17 @@ use crate::{
     ports::user_repository::UserRepository,
 };
 use async_trait::async_trait;
-use sqlx::SqlitePool;
+use crate::adapters::persistence::connection::Database;
 
 /// The SQLx "Adapter" for the UserRepository port.
 pub struct SqliteUserRepository {
-    pool: SqlitePool,
+    // The struct now holds the shared pointer to the pool.
+    pool: Database,
 }
 
 impl SqliteUserRepository {
-    pub fn new(pool: SqlitePool) -> Self {
+    // The `new` function now correctly accepts the shared pool.
+    pub fn new(pool: Database) -> Self {
         Self { pool }
     }
 }
@@ -22,18 +24,18 @@ impl UserRepository for SqliteUserRepository {
     async fn find_by_username(&self, username: &str) -> Result<Option<User>> {
         let user = sqlx::query_as("SELECT * FROM users WHERE username = ?")
             .bind(username)
-            .fetch_optional(&self.pool)
+            .fetch_optional(&*self.pool) // You can still use &self.pool here
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(user)
     }
 
     async fn save(&self, user: &User) -> Result<()> {
-        sqlx::query("INSERT INTO users (id, username, role) VALUES (?, ?, ?)")
-            .bind(&user.id)
+        sqlx::query("INSERT INTO users (id, username, hashed_password) VALUES (?, ?, ?)")
+            .bind(user.id.to_string())
             .bind(&user.username)
-            .bind(&user.role)
-            .execute(&self.pool)
+            .bind(&user.hashed_password)
+            .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())

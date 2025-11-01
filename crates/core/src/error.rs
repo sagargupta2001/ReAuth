@@ -20,4 +20,10 @@ pub enum Error {
 
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
+
+    #[error("A role with this name already exists")]
+    RoleAlreadyExists,
+
+    #[error("A group with this name already exists")]
+    GroupAlreadyExists,
 }
