@@ -1,9 +1,9 @@
-//! Defines the custom `Error` and `Result` types for the core application.
+//! Defines the custom `Error` and `Result` types for the reauth_core application.
 
-/// A specialized `Result` type for core operations.
+/// A specialized `Result` type for reauth_core operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// The primary error enum for the core application.
+/// The primary error enum for the reauth_core application.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Configuration error: {0}")]

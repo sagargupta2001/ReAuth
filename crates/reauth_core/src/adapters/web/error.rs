@@ -5,7 +5,7 @@ use axum::{
 };
 use serde_json::json;
 
-// Import the application's core error type
+// Import the application's reauth_core error type
 use crate::error::Error;
 
 /// A simple struct to serialize error messages as JSON.

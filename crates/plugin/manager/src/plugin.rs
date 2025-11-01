@@ -1,4 +1,4 @@
-//! Contains the core data structures for representing a plugin.
+//! Contains the reauth_core data structures for representing a plugin.
 
 use tokio::process::Child;
 use tonic::transport::Channel;

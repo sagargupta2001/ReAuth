@@ -29,7 +29,7 @@ impl Greeter for GreeterService {
         let name = request.into_inner().name;
         println!("[Plugin Backend] Received a 'say_hello' request for '{}'", name);
         Ok(Response::new(HelloReply {
-            message: format!("Hello, {}! This message is from the Rust plugin backend (17/10/2025)!.", name),
+            message: format!("Hello, {}! This message is from the Rust plugin backend (1/11/2025)!.", name),
         }))
     }
 }
