@@ -18,7 +18,7 @@ impl UserService {
         Self { user_repo }
     }
 
-    pub async fn create_user(&self, username: &str, role: &str) -> Result<User> {
+    pub async fn create_user(&self, username: &str, hashed_password: &str) -> Result<User> {
         // Business logic: check if user already exists
         if self.user_repo.find_by_username(username).await?.is_some() {
             return Err(Error::UserAlreadyExists);
@@ -27,7 +27,7 @@ impl UserService {
         let user = User {
             id: Uuid::new_v4().to_string().parse().unwrap(),
             username: username.to_string(),
-            hashed_password: "sagar".to_string(),
+            hashed_password: hashed_password.to_string(),
         };
 
         self.user_repo.save(&user).await?;
