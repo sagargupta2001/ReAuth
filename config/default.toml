@@ -1,0 +1,14 @@
+[server]
+scheme = "http"
+host = "127.0.0.1"
+port = 3000
+
+[ui]
+dev_url = "http://localhost:5173"
+
+[plugins]
+handshake_timeout_secs = 5
+
+[database]
+url = "sqlite:data/reauth.db"
+max_connections = 5

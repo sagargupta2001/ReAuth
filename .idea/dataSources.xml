@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="reauth.db" uuid="c01cf599-9440-4eeb-b1a4-62f658024220">
+    <data-source source="LOCAL" name="reauth.db" uuid="574bd634-8dda-4926-9ccc-9172cd8bf9aa">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:$PROJECT_DIR$/data/reauth.db</jdbc-url>
+      <jdbc-url>jdbc:sqlite:$USER_HOME$/Desktop/ReAuth/data/reauth.db</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
   </component>

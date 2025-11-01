@@ -1,0 +1,14 @@
+{
+  "id": "hello-world",
+  "name": "Hello World",
+  "version": "1.0.0",
+  "executable": {
+    "linux_amd64": "target/debug/hello-world-backend",
+    "windows_amd64": "target/debug/hello-world-backend.exe"
+  },
+  "frontend": {
+    "entry": "/plugins/hello-world/frontend/dist/module.js",
+    "route": "/plugins/hello-world",
+    "sidebarLabel": "Hello World"
+  }
+}

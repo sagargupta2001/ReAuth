@@ -11,3 +11,8 @@ src/schema.rs
 
 # Env files
 .env
+
+ui/node_modules
+
+plugins/hello-world/frontend/node_modules
+/plugins/hello-world/frontend/dist/module.js

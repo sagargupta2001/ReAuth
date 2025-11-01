@@ -1,0 +1,18 @@
+[package]
+name = "sdk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tonic = { version = "0.11", features = ["transport"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+prost = "0.12"
+anyhow = "1.0"
+http = "0.2.12"
+tracing = "0.1.41"
+tower = "0.4.13"
+
+[build-dependencies]
+tonic-build = "0.11"
+protoc-bin-vendored = "3.0.0"

@@ -1,0 +1,44 @@
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []       # default: dev mode (proxy)
+embed-ui = []      # prod mode (embed UI)
+
+[dependencies]
+manager = { path = "../plugin/manager" }
+config = { version = "0.15.18", features = ["toml"] }
+# Web Server
+axum = "0.8.4"
+tokio = { version = "1", features = ["full"] }
+
+# Serialization/Deserialization
+serde = { version = "1.0", features = ["derive"] }
+
+# Configuration & Logging
+dotenvy = "0.15"
+colored = "3.0.0"
+tracing = "0.1"
+once_cell = "1.21.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# For embedding the UI
+rust-embed = "8.3"
+anyhow = "1.0.99"
+mime_guess = "2.0.5"
+reqwest = "0.12.23"
+tonic = "0.11.0"
+thiserror = "2.0.17"
+async-trait = "0.1.89"
+uuid = {version =  "1.18.1", features = ["v4"] }
+
+# Database
+[dependencies.sqlx]
+version = "0.8.6"
+features = ["sqlite", "runtime-tokio-native-tls", "macros"]
+
+[dependencies.tower-http]
+version = "0.6.6"
+features = ["fs", "trace", "cors"]

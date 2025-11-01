@@ -1,5 +1,5 @@
 [workspace]
-members = ["core"]
+members = ["crates/core", "crates/plugin/sdk", "crates/plugin/manager", "plugins/hello-world/backend"]
 resolver = "2"
 
 [profile.dev]
