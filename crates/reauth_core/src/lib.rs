@@ -1,10 +1,11 @@
-mod config;
+pub mod config;
 mod constants;
-mod error;
-mod domain;
+pub mod domain;
 mod ports;
-mod application;
-mod adapters;
+pub mod application;
+pub mod adapters;
+
+pub mod error;
 
 use std::env;
 use std::fs::OpenOptions;

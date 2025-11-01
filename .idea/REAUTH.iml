@@ -6,6 +6,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/plugin/manager/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/plugin/sdk/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/reauth_core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/reauth_core/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/data" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
