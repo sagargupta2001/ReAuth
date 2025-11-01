@@ -7,7 +7,7 @@ async fn main() -> anyhow::Result<()> {
 
     if args.iter().any(|a| a == "--benchmark") {
         let _ = initialize().await?;
-        println!("✅ Initialization complete — exiting (benchmark mode)");
+        println!("Initialization complete — exiting (benchmark mode)");
         return Ok(());
     }
 

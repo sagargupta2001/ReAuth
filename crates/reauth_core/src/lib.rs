@@ -1,7 +1,7 @@
 pub mod config;
 mod constants;
 pub mod domain;
-mod ports;
+pub mod ports;
 pub mod application;
 pub mod adapters;
 pub mod error;
@@ -19,10 +19,14 @@ use tokio::fs;
 use crate::adapters::logging::{banner::print_banner, logging::LOGGER};
 use crate::config::Settings;
 use crate::adapters::{init_db, run_migrations, start_server};
+use crate::adapters::cache::cache_invalidator::CacheInvalidator;
+use crate::adapters::cache::moka_cache::MokaCacheService;
+use crate::adapters::eventing::in_memory_bus::InMemoryEventBus;
 use crate::adapters::persistence::sqlite_rbac_repository::SqliteRbacRepository;
 use crate::adapters::SqliteUserRepository;
 use crate::application::rbac_service::RbacService;
 use crate::application::user_service::UserService;
+use crate::ports::event_bus::EventSubscriber;
 
 /// Represents the fully initialized application state,
 /// returned by `initialize()` and used by both run() and benchmark mode.
@@ -64,17 +68,6 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         plugins_path.canonicalize().unwrap_or_else(|_| plugins_path.clone())
     );
 
-    let plugin_manager = PluginManager::new(manager_config);
-    let manager_clone = plugin_manager.clone();
-
-    let plugins_path_for_task = plugins_path.clone();
-
-    tokio::spawn(async move {
-        if let Some(path_str) = plugins_path_for_task.to_str() {
-            manager_clone.discover_and_run(path_str).await;
-        }
-    });
-
     info!("Initializing database...");
     if let Some(db_path_str) = settings.database.url.strip_prefix("sqlite:") {
         let db_path = Path::new(db_path_str);
@@ -94,15 +87,40 @@ pub async fn initialize() -> anyhow::Result<AppState> {
 
     let db_pool = init_db(&settings.database).await?;
 
+    // Initialize Adapters
+    let user_repo = Arc::new(SqliteUserRepository::new(db_pool.clone()));
+    let rbac_repo = Arc::new(SqliteRbacRepository::new(db_pool.clone()));
+    let cache_service = Arc::new(MokaCacheService::new());
+    let event_bus = Arc::new(InMemoryEventBus::new());
+
+    // Initialize Application Services
+    let user_service = Arc::new(UserService::new(user_repo));
+    let rbac_service = Arc::new(RbacService::new(
+        rbac_repo.clone(),
+        cache_service.clone(),
+        event_bus.clone(),
+    ));
+
+    // Initialize and Subscribe Listeners
+    let cache_invalidator = Arc::new(CacheInvalidator::new(cache_service, rbac_repo));
+    event_bus.subscribe(cache_invalidator).await;
+
+    // Run Migrations
     if let Err(e) = run_migrations(&db_pool).await {
         tracing::warn!("Migration warning: {}", e);
     }
 
-    let user_repo = Arc::new(SqliteUserRepository::new(db_pool.clone()));
-    let rbac_repo = Arc::new(SqliteRbacRepository::new(db_pool.clone()));
+    // Spawn plugin discovery in the background
+    let plugin_manager = PluginManager::new(manager_config);
+    let manager_clone = plugin_manager.clone();
 
-    let user_service = Arc::new(UserService::new(user_repo));
-    let rbac_service = Arc::new(RbacService::new(rbac_repo));
+    let plugins_path_for_task = plugins_path.clone();
+
+    tokio::spawn(async move {
+        if let Some(path_str) = plugins_path_for_task.to_str() {
+            manager_clone.discover_and_run(path_str).await;
+        }
+    });
 
     Ok(AppState {
         settings,

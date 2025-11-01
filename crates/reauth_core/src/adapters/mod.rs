@@ -1,6 +1,8 @@
 pub mod logging;
 pub mod persistence;
 pub mod web;
+pub mod eventing;
+pub mod cache;
 
 pub use persistence::{
     connection::init_db,
