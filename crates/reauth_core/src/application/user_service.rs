@@ -1,6 +1,8 @@
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::domain::events::{DomainEvent, UserCreated};
+use crate::ports::event_bus::EventPublisher;
 use crate::{
     domain::user::User,
     error::{Error, Result},
@@ -11,11 +13,12 @@ use crate::{
 /// It depends on the `UserRepository` port, not a concrete database implementation.
 pub struct UserService {
     user_repo: Arc<dyn UserRepository>,
+    event_bus: Arc<dyn EventPublisher>
 }
 
 impl UserService {
-    pub fn new(user_repo: Arc<dyn UserRepository>) -> Self {
-        Self { user_repo }
+    pub fn new(user_repo: Arc<dyn UserRepository>, event_bus: Arc<dyn EventPublisher>) -> Self {
+        Self { user_repo, event_bus }
     }
 
     pub async fn create_user(&self, username: &str, hashed_password: &str) -> Result<User> {
@@ -31,6 +34,14 @@ impl UserService {
         };
 
         self.user_repo.save(&user).await?;
+
+        self.event_bus
+            .publish(DomainEvent::UserCreated(UserCreated {
+                user_id: user.id,
+                username: user.username.clone(),
+            }))
+            .await;
+
         Ok(user)
     }
 }

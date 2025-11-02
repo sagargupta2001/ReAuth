@@ -10,5 +10,8 @@
     "entry": "/plugins/hello-world/frontend/dist/module.js",
     "route": "/plugins/hello-world",
     "sidebarLabel": "Hello World"
+  },
+  "events": {
+    "subscribes_to": ["UserCreated"]
   }
 }

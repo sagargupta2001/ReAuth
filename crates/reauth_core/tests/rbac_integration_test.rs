@@ -52,7 +52,7 @@ mod common {
         let event_bus = Arc::new(InMemoryEventBus::new());
 
         // 4. Initialize Application Services
-        let user_service = Arc::new(UserService::new(user_repo));
+        let user_service = Arc::new(UserService::new(user_repo, event_bus.clone()));
         let rbac_service = Arc::new(RbacService::new(
             rbac_repo.clone(),
             cache_service.clone(),

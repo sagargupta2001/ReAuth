@@ -18,7 +18,7 @@ use tokio::fs;
 
 use crate::adapters::logging::{banner::print_banner, logging::LOGGER};
 use crate::config::Settings;
-use crate::adapters::{init_db, run_migrations, start_server};
+use crate::adapters::{init_db, run_migrations, start_server, PluginEventGateway};
 use crate::adapters::cache::cache_invalidator::CacheInvalidator;
 use crate::adapters::cache::moka_cache::MokaCacheService;
 use crate::adapters::eventing::in_memory_bus::InMemoryEventBus;
@@ -94,21 +94,12 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     let event_bus = Arc::new(InMemoryEventBus::new());
 
     // Initialize Application Services
-    let user_service = Arc::new(UserService::new(user_repo));
+    let user_service = Arc::new(UserService::new(user_repo, event_bus.clone()));
     let rbac_service = Arc::new(RbacService::new(
         rbac_repo.clone(),
         cache_service.clone(),
         event_bus.clone(),
     ));
-
-    // Initialize and Subscribe Listeners
-    let cache_invalidator = Arc::new(CacheInvalidator::new(cache_service, rbac_repo));
-    event_bus.subscribe(cache_invalidator).await;
-
-    // Run Migrations
-    if let Err(e) = run_migrations(&db_pool).await {
-        tracing::warn!("Migration warning: {}", e);
-    }
 
     // Spawn plugin discovery in the background
     let plugin_manager = PluginManager::new(manager_config);
@@ -121,6 +112,17 @@ pub async fn initialize() -> anyhow::Result<AppState> {
             manager_clone.discover_and_run(path_str).await;
         }
     });
+
+    // Initialize and Subscribe Listeners
+    let cache_invalidator = Arc::new(CacheInvalidator::new(cache_service, rbac_repo));
+    event_bus.subscribe(cache_invalidator).await;
+    let plugin_gateway = Arc::new(PluginEventGateway::new(plugin_manager.clone()));
+    event_bus.subscribe(plugin_gateway).await;
+
+    // Run Migrations
+    if let Err(e) = run_migrations(&db_pool).await {
+        tracing::warn!("Migration warning: {}", e);
+    }
 
     Ok(AppState {
         settings,

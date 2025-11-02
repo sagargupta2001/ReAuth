@@ -35,6 +35,13 @@ pub struct FrontendConfig {
     pub sidebar_label: String,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
+pub struct EventsConfig {
+    /// A list of event type strings that the plugin wants to receive.
+    #[serde(default = "Vec::new")]
+    pub subscribes_to: Vec<String>,
+}
+
 /// Represents the `plugin.json` manifest file.
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct Manifest {
@@ -48,4 +55,8 @@ pub struct Manifest {
     pub executable: ExecutableConfig,
     /// Configuration for the frontend UI.
     pub frontend: FrontendConfig,
+
+    /// Configuration for event subscriptions.
+    #[serde(default = "EventsConfig::default")]
+    pub events: EventsConfig,
 }
