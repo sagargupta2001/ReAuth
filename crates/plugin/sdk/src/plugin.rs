@@ -1,4 +1,4 @@
-//! Defines the core `Plugin` trait.
+//! Defines the reauth_core `Plugin` trait.
 
 use crate::grpc::plugin::v1::PluginInfo;
 

@@ -11,6 +11,10 @@ service Greeter {
   rpc SayHello(HelloRequest) returns (HelloReply);
 }
 
+service EventListener {
+  rpc OnEvent(EventRequest) returns (EventResponse);
+}
+
 message Empty {}
 
 message PluginInfo {
@@ -25,3 +29,10 @@ message HelloRequest {
 message HelloReply {
   string message = 1;
 }
+
+message EventRequest {
+  string event_type = 1; // e.g., "RoleDeleted"
+  string event_payload_json = 2; // The event data
+}
+
+message EventResponse {}

@@ -1,7 +1,10 @@
 [workspace]
-members = ["crates/core", "crates/plugin/sdk", "crates/plugin/manager", "plugins/hello-world/backend"]
+members = ["crates/reauth_core", "crates/plugin/sdk", "crates/plugin/manager", "plugins/hello-world/backend"]
 resolver = "2"
 
 [profile.dev]
 incremental = true
 opt-level = 0
+
+[profile.release]
+debug = true

@@ -1,6 +1,12 @@
 //! The main implementation of the `PluginManager`.
 
-use crate::{constants, error::{Error, Result}, grpc::plugin::v1::{handshake_client::HandshakeClient, Empty}, plugin::{Manifest, PluginInstance}, ManagerConfig};
+use crate::{
+    constants,
+    error::{Error, Result},
+    grpc::plugin::v1::{handshake_client::HandshakeClient, Empty},
+    plugin::{Manifest, PluginInstance},
+    ManagerConfig,
+};
 use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -37,7 +43,9 @@ impl PluginManager {
     /// * `plugins_dir` - The path to the directory containing plugin subdirectories.
     pub async fn discover_and_run(&self, plugins_dir: &str) {
         let is_dev_run = match std::env::current_exe() {
-            Ok(exe_path) => exe_path.ancestors().any(|p| p.ends_with(constants::DEV_ENVIRONMENT_DIR)),
+            Ok(exe_path) => exe_path
+                .ancestors()
+                .any(|p| p.ends_with(constants::DEV_ENVIRONMENT_DIR)),
             Err(_) => false,
         };
 
@@ -73,7 +81,11 @@ impl PluginManager {
     /// Loads, spawns, and handshakes a single plugin.
     async fn load_plugin(&self, path: PathBuf, is_dev_run: bool) -> Result<()> {
         let manifest_str = std::fs::read_to_string(path.join(constants::MANIFEST_FILENAME))?;
-        let manifest: Manifest = serde_json::from_str(&manifest_str).map_err(|e| Error::ManifestParse { path: path.clone(), source: e })?;
+        let manifest: Manifest =
+            serde_json::from_str(&manifest_str).map_err(|e| Error::ManifestParse {
+                path: path.clone(),
+                source: e,
+            })?;
 
         info!("Found plugin: {}", manifest.name);
 
@@ -93,23 +105,34 @@ impl PluginManager {
     }
 
     /// Spawns a plugin executable and performs the gRPC handshake protocol.
-    async fn spawn_and_handshake(&self, manifest: Manifest, executable_path: PathBuf) -> Result<()> {
+    async fn spawn_and_handshake(
+        &self,
+        manifest: Manifest,
+        executable_path: PathBuf,
+    ) -> Result<()> {
         info!("Attempting to spawn plugin from: {:?}", &executable_path);
         let mut child = Command::new(&executable_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| Error::PluginSpawn { name: manifest.name.clone(), path: executable_path, source: e })?;
+            .map_err(|e| Error::PluginSpawn {
+                name: manifest.name.clone(),
+                path: executable_path,
+                source: e,
+            })?;
 
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
         let mut stdout_reader = BufReader::new(stdout).lines();
 
         // Perform handshake within a timeout.
-        let handshake_result = tokio::time::timeout(Duration::from_secs(5), async {
+        let handshake_timeout_duration = Duration::from_secs(self.config.handshake_timeout_secs);
+        let handshake_result = tokio::time::timeout(handshake_timeout_duration, async {
             if let Ok(Some(line)) = stdout_reader.next_line().await {
                 let parts: Vec<&str> = line.split(constants::HANDSHAKE_DELIMITER).collect();
-                if parts.len() == 5 && parts[4] == "grpc" {
+                if parts.len() == constants::HANDSHAKE_PARTS_COUNT
+                    && parts[4] == constants::HANDSHAKE_PROTOCOL_TYPE
+                {
                     let addr = format!("{}://{}", constants::HANDSHAKE_URL_SCHEME, parts[3]);
                     if let Ok(channel) = Channel::from_shared(addr).unwrap().connect().await {
                         return Ok(channel); // Handshake seems valid, return channel for verification.
@@ -117,26 +140,48 @@ impl PluginManager {
                 }
             }
             // If we reach here, the line was invalid or not received.
-            Err(Error::HandshakeInvalid { name: manifest.name.clone(), reason: "Invalid format or no line received".into() })
-        }).await;
+            Err(Error::HandshakeInvalid {
+                name: manifest.name.clone(),
+                reason: "Invalid format or no line received".into(),
+            })
+        })
+        .await;
 
         match handshake_result {
-            Ok(Ok(channel)) => { // Timeout didn't occur and handshake parsing was OK
+            Ok(Ok(channel)) => {
+                // Timeout didn't occur and handshake parsing was OK
                 // Verify the gRPC connection is actually working.
                 let mut client = HandshakeClient::new(channel.clone());
-                client.get_plugin_info(Empty {}).await.map_err(|e| Error::GrpcVerification { name: manifest.name.clone(), source: e })?;
+                client
+                    .get_plugin_info(Empty {})
+                    .await
+                    .map_err(|e| Error::GrpcVerification {
+                        name: manifest.name.clone(),
+                        source: e,
+                    })?;
 
                 info!("Successfully connected to plugin '{}'", manifest.name);
 
-                let instance = PluginInstance { process: child, manifest: manifest.clone(), grpc_channel: channel };
-                self.instances.lock().await.insert(manifest.id.clone(), instance);
-
-                // Spawn tasks to forward plugin logs
+                let instance = PluginInstance {
+                    process: child,
+                    manifest: manifest.clone(),
+                    grpc_channel: channel,
+                };
+                self.instances
+                    .lock()
+                    .await
+                    .insert(manifest.id.clone(), instance);
+                
                 self.spawn_log_forwarders(manifest.name, stdout_reader, stderr);
+                
                 Ok(())
             }
-            _ => { // Timeout occurred or handshake parsing failed
-                error!("Plugin {} did not handshake in time or handshake was invalid.", manifest.name);
+            _ => {
+                // Timeout occurred or handshake parsing failed
+                error!(
+                    "Plugin {} did not handshake in time or handshake was invalid.",
+                    manifest.name
+                );
                 child.kill().await?;
                 Err(Error::HandshakeTimeout(manifest.name.clone()))
             }
@@ -144,7 +189,12 @@ impl PluginManager {
     }
 
     /// Spawns background tasks to forward a plugin's stdout and stderr to the tracing system.
-    fn spawn_log_forwarders<R: tokio::io::AsyncRead + Unpin + Send + 'static>(&self, name: String, stdout_reader: tokio::io::Lines<BufReader<R>>, stderr: tokio::process::ChildStderr) {
+    fn spawn_log_forwarders<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
+        &self,
+        name: String,
+        stdout_reader: tokio::io::Lines<BufReader<R>>,
+        stderr: tokio::process::ChildStderr,
+    ) {
         let out_name = name.clone();
         tokio::spawn(async move {
             let mut lines = stdout_reader;
@@ -156,7 +206,7 @@ impl PluginManager {
         tokio::spawn(async move {
             let mut lines = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                error!("[Plugin: {}] {}", name, line);
+                info!("[Plugin: {}] {}", name, line);
             }
         });
     }

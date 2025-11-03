@@ -8,14 +8,8 @@ use crate::{
     },
     plugin::Plugin,
 };
-use std::{sync::Arc};
-use tonic::{
-    body::BoxBody,
-    server::NamedService,
-    transport::{Body, Server},
-    Request, Response, Status,
-};
-use tower::Service;
+use std::sync::Arc;
+use tonic::{transport::Server, Request, Response, Status};
 
 /// The helper function that bootstraps a plugin.
 ///
@@ -25,19 +19,11 @@ use tower::Service;
 ///
 /// # Arguments
 /// * `plugin` - A struct that implements the `Plugin` trait for metadata.
-/// * `service` - The plugin's specific gRPC service implementation (e.g., `GreeterServer`).
-pub async fn run<P, S>(plugin: P, service: S) -> anyhow::Result<()>
+/// * `add_services` - A closure that receives the tonic `Router` and adds all custom gRPC services.
+pub async fn run<P, F>(plugin: P, add_services: F) -> anyhow::Result<()>
 where
     P: Plugin + Send + Sync + 'static,
-    S: Service<
-        http::Request<Body>,
-        Response = http::Response<BoxBody>,
-        Error = std::convert::Infallible,
-    > + NamedService
-    + Clone
-    + Send
-    + 'static,
-    S::Future: Send + 'static,
+    F: FnOnce(tonic::transport::server::Router) -> tonic::transport::server::Router + Send + 'static,
 {
     let listener = tokio::net::TcpListener::bind(constants::PLUGIN_SERVER_BIND_ADDR).await?;
     let addr = listener.local_addr()?;
@@ -46,10 +32,15 @@ where
         plugin: Arc::new(plugin),
     };
 
+    // Start the server builder, adding the mandatory handshake
+    let router = Server::builder()
+        .add_service(HandshakeServer::new(handshake_service));
+
+    // Call the user's closure to add their custom services
+    let router_with_services = add_services(router);
+
     let server_task = tokio::spawn(async move {
-        Server::builder()
-            .add_service(HandshakeServer::new(handshake_service))
-            .add_service(service)
+        router_with_services // Use the final, configured router
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
             .await
     });
