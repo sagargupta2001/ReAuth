@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+
 import type { PluginManifest, PluginModules } from '../types';
 
 interface AppRoutesProps {
@@ -14,8 +15,8 @@ export function AppRoutes({ plugins, pluginModules }: AppRoutesProps) {
                 path="/"
                 element={
                     <div>
-                        <h1>Welcome to ReAuth Core</h1>
-                        <p>Select a plugin from the sidebar.</p>
+                        <h1 className="text-3xl font-bold">Welcome to ReAuth Core</h1>
+                        <p className="text-muted-foreground">Select a plugin from the sidebar.</p>
                     </div>
                 }
             />
