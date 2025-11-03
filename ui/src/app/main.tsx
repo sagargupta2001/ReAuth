@@ -1,10 +1,13 @@
 import React, { StrictMode } from 'react';
+import { HashRouter as Router } from 'react-router-dom';
 import * as ReactDOMClient from 'react-dom/client';
 import * as ReactDOM from 'react-dom';
 import * as jsxRuntime from 'react/jsx-runtime';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import App from './App.tsx';
+
+import "./index.css";
 
 // --- Expose React globals before loading any plugin ---
 declare global {
@@ -37,7 +40,9 @@ const root = ReactDOMClient.createRoot(document.getElementById('root')!);
 root.render(
     <StrictMode>
         <QueryClientProvider client={queryClient}>
-            <App />
+            <Router>
+                <App />
+            </Router>
         </QueryClientProvider>
     </StrictMode>
 );

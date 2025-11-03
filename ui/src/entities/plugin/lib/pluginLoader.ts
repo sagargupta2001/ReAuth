@@ -1,10 +1,6 @@
 import type { ComponentType } from 'react';
-import type { PluginManifest } from '../types';
+import type { PluginManifest } from '../model/types';
 
-/**
- * Convert plugin id to UMD global name
- * E.g., "hello-world" => "helloWorldPlugin"
- */
 function getUMDGlobalName(pluginId: string): string {
     return (
         pluginId
@@ -14,10 +10,6 @@ function getUMDGlobalName(pluginId: string): string {
     );
 }
 
-/**
- * Dynamically load a plugin script as UMD and return its React component
- * @param plugin Plugin manifest
- */
 export function loadPluginScript(plugin: PluginManifest): Promise<ComponentType | null> {
     return new Promise((resolve, reject) => {
         const existingScript = document.querySelector(`script[src="${plugin.frontend.entry}"]`);

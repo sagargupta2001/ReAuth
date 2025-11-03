@@ -1,15 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-
 import { loadPluginScript } from '../lib/pluginLoader';
-import type { PluginManifest, PluginModules } from '../types';
+import type { PluginManifest, PluginModules } from '../model/types';
 
-/**
- * Fetches all plugin manifests and dynamically loads their scripts.
- * This entire async block is now managed by TanStack Query.
- */
 const fetchAndLoadPlugins = async () => {
     // 1. Fetch manifests
-    console.log('[App] Fetching plugin manifests...');
     const res = await fetch('/api/plugins/manifests');
     if (!res.ok) {
         throw new Error(`Failed to fetch manifests: ${res.statusText}`);
@@ -33,24 +27,14 @@ const fetchAndLoadPlugins = async () => {
     );
 
     console.log('[App] Loaded plugin modules:', loadedModules);
-
-    // 3. Return all the data
     return { manifests, modules: loadedModules };
 };
 
-/**
- * Custom hook to fetch plugins and their modules, managed by TanStack Query.
- */
 export function usePlugins() {
     return useQuery({
-        // The queryKey is a unique ID for this data
         queryKey: ['plugins'],
-
-        // The queryFn is the async function that gets the data
         queryFn: fetchAndLoadPlugins,
-
-        // We set `gcTime` (garbage collection time) to Infinity so the
-        // plugin data is cached for the entire session.
+        staleTime: Infinity, // Plugin list won't change in a session
         gcTime: Infinity,
     });
 }
