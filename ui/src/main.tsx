@@ -3,7 +3,6 @@ import * as ReactDOMClient from 'react-dom/client';
 import * as ReactDOM from 'react-dom';
 import * as jsxRuntime from 'react/jsx-runtime';
 
-import './index.css';
 import App from './App.tsx';
 
 // --- Expose React globals before loading any plugin ---
