@@ -1,13 +1,16 @@
-import { DashboardPage } from '@/pages/DashboardPage';
-import { NotFoundPage } from '@/pages/NotFoundPage';
-import type {ComponentType} from 'react';
+import type { ComponentType } from 'react'
+
+import DashboardPage from '@/pages/DashboardPage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
+import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 
 /**
  * Defines the shape of a static route.
  */
 export interface RouteConfig {
-    path: string;
-    element: ComponentType;
+  path: string
+  element: ComponentType
+  layout?: ComponentType<{ children: React.ReactNode }>
 }
 
 /**
@@ -15,12 +18,13 @@ export interface RouteConfig {
  * As your app grows, you just add new pages (like a SettingsPage) here.
  */
 export const staticRoutes: RouteConfig[] = [
-    {
-        path: '/',
-        element: DashboardPage,
-    },
-    {
-        path: '*',
-        element: NotFoundPage,
-    },
-];
+  {
+    path: '/',
+    element: DashboardPage,
+    layout: AuthenticatedLayout,
+  },
+  {
+    path: '*',
+    element: NotFoundPage,
+  },
+]

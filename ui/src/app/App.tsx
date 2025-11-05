@@ -1,25 +1,20 @@
-import { Suspense } from 'react';
-import { Sidebar } from '@/widgets/Sidebar/Sidebar';
-import { AppRouter } from './AppRouter';
-import { usePlugins } from '@/entities/plugin/api/usePlugins';
+import { Suspense } from 'react'
 
-import './App.css';
+import { AppRouter } from './AppRouter'
 
 function App() {
-    // We only need the manifests for the sidebar
-    const { data, isLoading } = usePlugins();
+  // We only need the manifests for the sidebar
+  //const { data, isLoading } = usePlugins()
 
-    return (
-        <div className="app-container">
-            <Sidebar plugins={data?.manifests || []} isLoading={isLoading} />
+  return (
+    <>
+      {/*<Sidebar plugins={data?.manifests || []} isLoading={isLoading} />*/}
 
-            <main className="main-content">
-                <Suspense fallback={<div>Loading page...</div>}>
-                    <AppRouter />
-                </Suspense>
-            </main>
-        </div>
-    );
+      <Suspense fallback={<div>Loading page...</div>}>
+        <AppRouter />
+      </Suspense>
+    </>
+  )
 }
 
-export default App;
+export default App

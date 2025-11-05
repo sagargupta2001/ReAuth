@@ -7,17 +7,10 @@
     "config": "tailwind.config.js",
     "css": "src/app/index.css",
     "baseColor": "neutral",
-    "cssVariables": true,
-    "prefix": ""
+    "cssVariables": true
   },
-  "iconLibrary": "lucide",
   "aliases": {
-    "components": "@/ui",
+    "components": "@/components",
     "utils": "@/lib"
-  },
-  "paths": {
-    "components": "src/shared/ui",
-    "utils": "src/shared/lib/utils.ts"
-  },
-  "registries": {}
+  }
 }

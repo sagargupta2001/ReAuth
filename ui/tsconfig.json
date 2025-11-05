@@ -1,27 +1,11 @@
 {
   "files": [],
   "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ],
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      // --- Base alias ---
-      "@/*": ["./src/*"],
-
-      // --- Shadcn / FSD Aliases ---
-      // These must match your components.json
-      "@/ui/*": ["./src/shared/ui/*"],
-      "@/lib/*": ["./src/shared/lib/*"],
-
-      // --- FSD Layer Aliases (Recommended) ---
-      "@/app/*": ["./src/app/*"],
-      "@/pages/*": ["./src/pages/*"],
-      "@/widgets/*": ["./src/widgets/*"],
-      "@/features/*": ["./src/features/*"],
-      "@/entities/*": ["./src/entities/*"],
-      "@/shared/*": ["./src/shared/*"]
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
     }
-  }
+  ]
 }
