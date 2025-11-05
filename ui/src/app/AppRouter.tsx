@@ -3,6 +3,7 @@ import { Fragment } from 'react'
 import { Route, Routes } from 'react-router-dom'
 
 import { usePlugins } from '@/entities/plugin/api/usePlugins'
+import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 
 import { staticRoutes } from './routerConfig'
 
@@ -42,7 +43,17 @@ export function AppRouter() {
           ? plugin.frontend.route
           : '/' + plugin.frontend.route
 
-        return <Route key={plugin.id} path={routePath} element={<Component />} />
+        return (
+          <Route
+            key={plugin.id}
+            path={routePath}
+            element={
+              <AuthenticatedLayout>
+                <Component />{' '}
+              </AuthenticatedLayout>
+            }
+          />
+        )
       })}
     </Routes>
   )

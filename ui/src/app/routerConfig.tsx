@@ -2,6 +2,7 @@ import type { ComponentType, ReactNode } from 'react'
 
 import DashboardPage from '@/pages/DashboardPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { PluginsPage } from '@/pages/PluginsPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 
 /**
@@ -25,7 +26,7 @@ export const staticRoutes: RouteConfig[] = [
   },
   {
     path: '/plugins',
-    element: DashboardPage,
+    element: PluginsPage,
     layout: AuthenticatedLayout,
   },
   {
