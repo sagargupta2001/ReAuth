@@ -3,11 +3,11 @@ import type { ReactNode } from 'react'
 import { Outlet } from 'react-router-dom'
 
 import { LayoutProvider } from '@/app/providers/layoutProvider.tsx'
-import { SidebarInset, SidebarProvider } from '@/components/sidebar'
 import { SearchProvider } from '@/features/Search/model/searchContext.tsx'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 import { AppSidebar } from '@/widgets/Layout/components/app-sidebar.tsx'
+import { SidebarInset, SidebarProvider } from '@/widgets/Sidebar/Sidebar.tsx'
 
 type AuthenticatedLayoutProps = {
   children?: ReactNode

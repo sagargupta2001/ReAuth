@@ -14,6 +14,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
 import {
+  type NavCollapsible,
+  type NavGroup as NavGroupProps,
+  type NavItem,
+  type NavLink,
+} from '@/widgets/Layout/model/types'
+import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarMenu,
@@ -23,13 +29,7 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
   useSidebar,
-} from '@/components/sidebar'
-import {
-  type NavCollapsible,
-  type NavGroup as NavGroupProps,
-  type NavItem,
-  type NavLink,
-} from '@/widgets/Layout/model/types'
+} from '@/widgets/Sidebar/Sidebar.tsx'
 
 export function NavGroup({ title, items }: NavGroupProps) {
   const { state, isMobile } = useSidebar()

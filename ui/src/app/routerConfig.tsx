@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 
 import DashboardPage from '@/pages/DashboardPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -10,7 +10,7 @@ import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 export interface RouteConfig {
   path: string
   element: ComponentType
-  layout?: ComponentType<{ children: React.ReactNode }>
+  layout?: ComponentType<{ children: ReactNode }>
 }
 
 /**
@@ -20,6 +20,11 @@ export interface RouteConfig {
 export const staticRoutes: RouteConfig[] = [
   {
     path: '/',
+    element: DashboardPage,
+    layout: AuthenticatedLayout,
+  },
+  {
+    path: '/plugins',
     element: DashboardPage,
     layout: AuthenticatedLayout,
   },

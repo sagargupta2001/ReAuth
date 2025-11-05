@@ -24,8 +24,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/sheet'
-import { useSidebar } from '@/components/sidebar'
 import { cn } from '@/lib/utils'
+import { useSidebar } from '@/widgets/Sidebar/Sidebar.tsx'
 
 export function ConfigDrawer() {
   const { setOpen } = useSidebar()

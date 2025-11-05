@@ -5,7 +5,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from '@/components/sidebar'
+} from '@/widgets/Sidebar/Sidebar.tsx'
 import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data.ts'
 
 import { NavGroup } from './nav-group'

@@ -2,7 +2,7 @@ import { type HTMLAttributes, type Ref, useEffect, useState } from 'react'
 
 import { cn } from '@/lib/utils.ts'
 import { Separator } from '@/shared/ui/separator.tsx'
-import { SidebarTrigger } from '@/shared/ui/sidebar.tsx'
+import { SidebarTrigger } from '@/widgets/Sidebar/Sidebar.tsx'
 
 type HeaderProps = HTMLAttributes<HTMLElement> & {
   fixed?: boolean

@@ -11,9 +11,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/sidebar'
 import { SignOutDialog } from '@/features/auth/SignOutDialog.tsx'
 import useDialogState from '@/lib/hooks/useDialogState.ts'
+import {
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '@/widgets/Sidebar/Sidebar.tsx'
 
 type NavUserProps = {
   user: {
