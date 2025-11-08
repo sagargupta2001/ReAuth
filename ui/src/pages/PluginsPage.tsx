@@ -99,7 +99,7 @@ export function PluginsPage() {
         <div className="my-4 flex items-end justify-between sm:my-0 sm:items-center">
           <div className="flex flex-col gap-4 sm:my-4 sm:flex-row">
             <Input
-              placeholder="Filter plugins..."
+              placeholder={t('SEARCH_PLACEHOLDER')}
               className="h-9 w-40 lg:w-[250px]"
               value={searchTerm}
               onChange={handleSearch}
@@ -151,7 +151,7 @@ export function PluginsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className={`${'border border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900'}`}
+                  className={`border border-blue-300 bg-blue-50 hover:bg-blue-100 dark:border-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900`}
                   onClick={() => navigate(plugin.frontend.route)}
                 >
                   {'Connected'}
