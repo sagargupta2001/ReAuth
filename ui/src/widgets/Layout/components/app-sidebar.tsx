@@ -1,11 +1,6 @@
 import { useLayout } from '@/app/providers/layoutProvider.tsx'
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarHeader,
-  SidebarRail,
-} from '@/widgets/Sidebar/Sidebar.tsx'
+import { Sidebar } from '@/widgets/Sidebar/Sidebar.tsx'
+import { SidebarContent, SidebarFooter, SidebarHeader, SidebarRail, } from '@/widgets/Sidebar/components'
 import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data.ts'
 
 import { NavGroup } from './nav-group'

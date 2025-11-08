@@ -28,8 +28,8 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-  useSidebar,
-} from '@/widgets/Sidebar/Sidebar.tsx'
+} from '@/widgets/Sidebar/components'
+import { useSidebar } from '@/widgets/Sidebar/components/content.tsx'
 
 export function NavGroup({ title, items }: NavGroupProps) {
   const { state, isMobile } = useSidebar()

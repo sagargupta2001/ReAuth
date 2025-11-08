@@ -7,7 +7,8 @@ import { SearchProvider } from '@/features/Search/model/searchContext.tsx'
 import { getCookie } from '@/lib/cookies'
 import { cn } from '@/lib/utils'
 import { AppSidebar } from '@/widgets/Layout/components/app-sidebar.tsx'
-import { SidebarInset, SidebarProvider } from '@/widgets/Sidebar/Sidebar.tsx'
+import { SidebarInset } from '@/widgets/Sidebar/components'
+import { SidebarProvider } from '@/widgets/Sidebar/components/content.tsx'
 
 type AuthenticatedLayoutProps = {
   children?: ReactNode

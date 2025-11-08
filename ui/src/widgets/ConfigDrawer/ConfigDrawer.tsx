@@ -25,7 +25,7 @@ import {
   SheetTrigger,
 } from '@/components/sheet'
 import { cn } from '@/lib/utils'
-import { useSidebar } from '@/widgets/Sidebar/Sidebar.tsx'
+import { useSidebar } from '@/widgets/Sidebar/components/content.tsx'
 
 export function ConfigDrawer() {
   const { setOpen } = useSidebar()
@@ -91,7 +91,7 @@ function SectionTitle({
   return (
     <div
       className={cn(
-        'mb-2 flex items-center gap-2 text-sm font-semibold text-muted-foreground',
+        'text-muted-foreground mb-2 flex items-center gap-2 text-sm font-semibold',
         className,
       )}
     >
@@ -125,8 +125,8 @@ function RadioGroupItem({
     >
       <div
         className={cn(
-          'relative rounded-[6px] ring-[1px] ring-border',
-          'group-data-[state=checked]:shadow-2xl group-data-[state=checked]:ring-primary',
+          'ring-border relative rounded-[6px] ring-[1px]',
+          'group-data-[state=checked]:ring-primary group-data-[state=checked]:shadow-2xl',
           'group-focus-visible:ring-2',
         )}
         role="img"
@@ -135,9 +135,9 @@ function RadioGroupItem({
       >
         <CircleCheck
           className={cn(
-            'size-6 fill-primary stroke-white',
+            'fill-primary size-6 stroke-white',
             'group-data-[state=unchecked]:hidden',
-            'absolute right-0 top-0 -translate-y-1/2 translate-x-1/2',
+            'absolute top-0 right-0 translate-x-1/2 -translate-y-1/2',
           )}
           aria-hidden="true"
         />
