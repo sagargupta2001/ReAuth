@@ -1,15 +1,7 @@
-import { Suspense } from 'react'
-
 import { AppRouter } from './AppRouter'
 
 function App() {
-  return (
-    <>
-      <Suspense fallback={<div>Loading page...</div>}>
-        <AppRouter />
-      </Suspense>
-    </>
-  )
+  return <AppRouter />
 }
 
 export default App

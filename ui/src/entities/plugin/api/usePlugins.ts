@@ -1,16 +1,13 @@
-import { useQuery } from '@tanstack/react-query'
-
 import { loadPluginScript } from '@/entities/plugin/lib/pluginLoader'
 import type { PluginManifest, PluginModules } from '@/entities/plugin/model/types'
+import { useSuspenseQuery } from '@/shared/lib/hooks/useSuspenseQuery'
 
 const fetchAndLoadPlugins = async () => {
   // 1. Fetch manifests
   const res = await fetch('/api/plugins/manifests')
-  if (!res.ok) {
-    throw new Error(`Failed to fetch manifests: ${res.statusText}`)
-  }
+  if (!res.ok) throw new Error(`Failed to fetch manifests: ${res.statusText}`)
+
   const manifests: PluginManifest[] = await res.json()
-  console.log('[App] Plugin manifests fetched:', manifests)
 
   // 2. Load all plugin scripts concurrently
   const loadedModules: PluginModules = {}
@@ -30,7 +27,7 @@ const fetchAndLoadPlugins = async () => {
 }
 
 export function usePlugins() {
-  return useQuery({
+  return useSuspenseQuery({
     queryKey: ['plugins'],
     queryFn: fetchAndLoadPlugins,
     staleTime: Infinity, // Plugin list won't change in a session
