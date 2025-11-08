@@ -1,6 +1,7 @@
 import { type ChangeEvent, useMemo, useState } from 'react'
 
 import { ArrowDownAZ, ArrowUpAZ, SlidersHorizontal } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { IconDiscord } from '@/assets/brand-icons/icon-discord.tsx'
@@ -25,6 +26,7 @@ const pluginText = new Map<PluginType, string>([
 ])
 
 export function PluginsPage() {
+  const { t } = useTranslation('plugins')
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Read from URL params with defaults
@@ -40,8 +42,6 @@ export function PluginsPage() {
   const { data, isLoading: isPluginsLoading } = usePlugins()
 
   const plugins = useMemo(() => data?.manifests, [data, isPluginsLoading])
-
-  console.log(plugins, 'plugins')
 
   const filteredPlugins = useMemo(() => {
     if (!plugins) return []
@@ -92,10 +92,8 @@ export function PluginsPage() {
       {/* ===== Content ===== */}
       <Main fixed>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Plugin Integrations</h1>
-          <p className="text-muted-foreground">
-            Here&apos;s a list of your plugins for the integration!
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('TITLE')}</h1>
+          <p className="text-muted-foreground">{t('SUB_TITLE')}</p>
         </div>
 
         <div className="my-4 flex items-end justify-between sm:my-0 sm:items-center">

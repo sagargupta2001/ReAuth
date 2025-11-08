@@ -1,4 +1,4 @@
-import React, { StrictMode } from 'react'
+import React, { StrictMode, Suspense } from 'react'
 
 import * as ReactDOM from 'react-dom'
 
@@ -12,6 +12,7 @@ import { LayoutProvider } from '@/app/providers/layoutProvider.tsx'
 import { ThemeProvider } from '@/app/providers/themeProvider.tsx'
 import '@/app/style/index.css'
 import { SearchProvider } from '@/features/Search/model/searchContext.tsx'
+import '@/shared/config/i18n'
 import { DEFAULT_THEME } from '@/shared/config/theme.ts'
 
 // --- Expose React globals before loading any plugin ---
@@ -41,18 +42,21 @@ const queryClient = new QueryClient({
 })
 
 const root = ReactDOMClient.createRoot(document.getElementById('root')!)
+
 root.render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <ThemeProvider defaultTheme={DEFAULT_THEME}>
-          <SearchProvider>
-            <LayoutProvider>
-              <App />
-            </LayoutProvider>
-          </SearchProvider>
-        </ThemeProvider>
-      </Router>
-    </QueryClientProvider>
+    <Suspense fallback={<div>Loading translations...</div>}>
+      <QueryClientProvider client={queryClient}>
+        <Router>
+          <ThemeProvider defaultTheme={DEFAULT_THEME}>
+            <SearchProvider>
+              <LayoutProvider>
+                <App />
+              </LayoutProvider>
+            </SearchProvider>
+          </ThemeProvider>
+        </Router>
+      </QueryClientProvider>
+    </Suspense>
   </StrictMode>,
 )
