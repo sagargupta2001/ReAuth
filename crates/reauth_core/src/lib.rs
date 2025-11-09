@@ -1,31 +1,31 @@
+pub mod adapters;
+pub mod application;
 pub mod config;
 mod constants;
 pub mod domain;
-pub mod ports;
-pub mod application;
-pub mod adapters;
 pub mod error;
+pub mod ports;
 
 use std::env;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use once_cell::sync::Lazy;
-use tracing::info;
 use manager::{ManagerConfig, PluginManager};
+use once_cell::sync::Lazy;
 use tokio::fs;
+use tracing::info;
 
-use crate::adapters::logging::{banner::print_banner, logging::LOGGER};
-use crate::config::Settings;
-use crate::adapters::{init_db, run_migrations, start_server, PluginEventGateway};
 use crate::adapters::cache::cache_invalidator::CacheInvalidator;
 use crate::adapters::cache::moka_cache::MokaCacheService;
 use crate::adapters::eventing::in_memory_bus::InMemoryEventBus;
+use crate::adapters::logging::{banner::print_banner, logging::LOGGER};
 use crate::adapters::persistence::sqlite_rbac_repository::SqliteRbacRepository;
 use crate::adapters::SqliteUserRepository;
+use crate::adapters::{init_db, run_migrations, start_server, PluginEventGateway};
 use crate::application::rbac_service::RbacService;
 use crate::application::user_service::UserService;
+use crate::config::Settings;
 use crate::ports::event_bus::EventSubscriber;
 
 /// Represents the fully initialized application state,
@@ -65,7 +65,9 @@ pub async fn initialize() -> anyhow::Result<AppState> {
 
     info!(
         "Loading plugins from: {:?}",
-        plugins_path.canonicalize().unwrap_or_else(|_| plugins_path.clone())
+        plugins_path
+            .canonicalize()
+            .unwrap_or_else(|_| plugins_path.clone())
     );
 
     info!("Initializing database...");
@@ -81,7 +83,10 @@ pub async fn initialize() -> anyhow::Result<AppState> {
 
         if !db_path.exists() {
             info!("Creating database file at: {:?}", db_path);
-            OpenOptions::new().write(true).create_new(true).open(db_path)?;
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(db_path)?;
         }
     }
 
@@ -102,16 +107,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     ));
 
     // Spawn plugin discovery in the background
-    let plugin_manager = PluginManager::new(manager_config);
-    let manager_clone = plugin_manager.clone();
-
-    let plugins_path_for_task = plugins_path.clone();
-
-    tokio::spawn(async move {
-        if let Some(path_str) = plugins_path_for_task.to_str() {
-            manager_clone.discover_and_run(path_str).await;
-        }
-    });
+    let plugin_manager = PluginManager::new(manager_config, plugins_path.clone());
 
     // Initialize and Subscribe Listeners
     let cache_invalidator = Arc::new(CacheInvalidator::new(cache_service, rbac_repo));
@@ -154,7 +150,7 @@ pub async fn run() -> anyhow::Result<()> {
         app_state.user_service,
         app_state.rbac_service,
     )
-        .await?;
+    .await?;
 
     Ok(())
 }

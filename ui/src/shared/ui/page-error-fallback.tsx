@@ -1,10 +1,10 @@
-import React from 'react'
+import { type FC } from 'react'
 
 import { AlertTriangle } from 'lucide-react'
 
 import { Button } from '@/shared/ui/button'
 
-export const PageErrorFallback: React.FC<{
+export const PageErrorFallback: FC<{
   error: Error
   resetErrorBoundary: () => void
 }> = ({ error, resetErrorBoundary }) => {
