@@ -1,4 +1,7 @@
 {
-  "welcomeMessage": "Welcome to ReAuth Core",
-  "selectPlugin": "Select a plugin from the sidebar."
+  "NOT_FOUND_PAGE": {
+    "TITLE": "Oops! Lost in Cyberspace",
+    "SUBTITLE": "Looks like you've ventured into the unknown digital realm.",
+    "RETURN_TO_WEBSITE_BTN_TEXT": "Return to website"
+  }
 }
