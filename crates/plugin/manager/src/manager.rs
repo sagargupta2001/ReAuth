@@ -1,5 +1,6 @@
 //! The main implementation of the `PluginManager`.
 
+use crate::plugin::{PluginStatus, PluginStatusInfo};
 use crate::{
     constants,
     error::{Error, Result},
@@ -14,7 +15,7 @@ use tokio::{
     sync::Mutex,
 };
 use tonic::transport::Channel;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 /// Manages the lifecycle of all discovered plugins.
 ///
@@ -22,73 +23,147 @@ use tracing::{error, info};
 /// wrapped in `Arc<Mutex<...>>` to allow for safe concurrent access.
 #[derive(Clone, Debug)]
 pub struct PluginManager {
-    /// The in-memory "registry" of all active plugin instances.
-    pub instances: Arc<Mutex<HashMap<String, PluginInstance>>>,
+    /// The in-memory "registry" of all *active* (running) plugin instances.
+    pub active_plugins: Arc<Mutex<HashMap<String, PluginInstance>>>,
+    /// The path to the root plugin's directory.
+    plugins_dir: PathBuf,
+    /// Configuration for the manager's behavior.
     config: ManagerConfig,
 }
 
 impl PluginManager {
     /// Creates a new, empty `PluginManager`.
-    pub fn new(config: ManagerConfig) -> Self {
+    pub fn new(config: ManagerConfig, plugins_dir: PathBuf) -> Self {
         Self {
-            instances: Arc::new(Mutex::new(HashMap::new())),
+            active_plugins: Arc::new(Mutex::new(HashMap::new())),
+            plugins_dir,
             config,
         }
     }
 
-    /// Scans a directory for plugins, spawns them, and performs the handshake.
-    ///
-    /// # Arguments
-    ///
-    /// * `plugins_dir` - The path to the directory containing plugin subdirectories.
-    pub async fn discover_and_run(&self, plugins_dir: &str) {
-        let is_dev_run = match std::env::current_exe() {
-            Ok(exe_path) => exe_path
-                .ancestors()
-                .any(|p| p.ends_with(constants::DEV_ENVIRONMENT_DIR)),
-            Err(_) => false,
-        };
+    /// Gets the status of all plugins by scanning the disk and comparing
+    /// with the in-memory registry of active plugins.
+    pub async fn get_plugin_statuses(&self) -> Result<Vec<PluginStatusInfo>> {
+        let available_manifests = self.discover_available_plugins().await?;
+        let active_plugins = self.active_plugins.lock().await;
 
-        let entries = match std::fs::read_dir(plugins_dir) {
+        let statuses = available_manifests
+            .into_iter()
+            .map(|manifest| {
+                let status = if active_plugins.contains_key(&manifest.id) {
+                    PluginStatus::Active
+                } else {
+                    PluginStatus::Inactive
+                };
+                PluginStatusInfo { manifest, status }
+            })
+            .collect();
+
+        Ok(statuses)
+    }
+
+    /// Enables a plugin by its ID.
+    /// This finds, loads, and spawns the plugin process.
+    pub async fn enable_plugin(&self, plugin_id: &str) -> Result<()> {
+        // 1. Check if it's already active
+        {
+            if self.active_plugins.lock().await.contains_key(plugin_id) {
+                warn!("Plugin '{}' is already active.", plugin_id);
+                return Ok(());
+            }
+        }
+
+        // 2. Find its manifest on disk
+        let manifest = self
+            .find_manifest_by_id(plugin_id)
+            .await?
+            .ok_or_else(|| Error::PluginNotFound(plugin_id.to_string()))?;
+
+        // 3. Determine if we are in dev or prod
+        let is_dev_run = std::env::current_exe().map_or(false, |p| {
+            p.ancestors()
+                .any(|p| p.ends_with(constants::DEV_ENVIRONMENT_DIR))
+        });
+
+        // 4. Call the internal load/spawn logic
+        self.load_and_spawn_plugin(manifest, is_dev_run).await
+    }
+
+    /// Disables a running plugin by its ID.
+    /// This kills the process and removes it from the active registry.
+    pub async fn disable_plugin(&self, plugin_id: &str) -> Result<()> {
+        let mut active_plugins = self.active_plugins.lock().await;
+
+        if let Some(mut instance) = active_plugins.remove(plugin_id) {
+            info!("Disabling plugin '{}'...", plugin_id);
+            if let Err(e) = instance.process.kill().await {
+                error!("Failed to kill plugin process for '{}': {}", plugin_id, e);
+            }
+            info!("Plugin '{}' has been disabled.", plugin_id);
+            Ok(())
+        } else {
+            Err(Error::PluginNotActive(plugin_id.to_string()))
+        }
+    }
+
+    /// Returns the gRPC channel for a specific, *active* plugin.
+    /// Returns `None` if the plugin is not currently running.
+    pub async fn get_active_plugin_channel(&self, plugin_id: &str) -> Option<Channel> {
+        let active_plugins = self.active_plugins.lock().await;
+        active_plugins
+            .get(plugin_id)
+            .map(|instance| instance.grpc_channel.clone())
+    }
+
+    /// Returns a Vec of (Manifest, Channel) for all currently *active* plugins.
+    /// This is used by the EventGateway to fan-out events.
+    pub async fn get_all_active_plugins(&self) -> Vec<(Manifest, Channel)> {
+        let active_plugins = self.active_plugins.lock().await;
+        active_plugins
+            .values()
+            .map(|instance| (instance.manifest.clone(), instance.grpc_channel.clone()))
+            .collect()
+    }
+
+    async fn discover_available_plugins(&self) -> Result<Vec<Manifest>> {
+        let entries = match std::fs::read_dir(&self.plugins_dir) {
             Ok(entries) => entries,
             Err(_) => {
-                error!("Plugins directory not found: {}", plugins_dir);
-                return;
+                error!("Plugins directory not found: {:?}", self.plugins_dir);
+                return Err(Error::PluginsDirNotFound(self.plugins_dir.clone()));
             }
         };
 
+        let mut manifests = Vec::new();
         for entry in entries.flatten() {
             let path = entry.path();
             if !path.is_dir() {
                 continue;
             }
-
             let manifest_path = path.join(constants::MANIFEST_FILENAME);
             if !manifest_path.exists() {
                 continue;
             }
 
-            // The rest of the logic is fallible, so we wrap it.
-            let manager = self.clone();
-            tokio::spawn(async move {
-                if let Err(e) = manager.load_plugin(path, is_dev_run).await {
-                    error!("Failed to load plugin: {}", e);
-                }
-            });
+            let manifest_str = std::fs::read_to_string(manifest_path)?;
+            let manifest: Manifest = serde_json::from_str(&manifest_str)
+                .map_err(|e| Error::ManifestParse { path, source: e })?;
+            manifests.push(manifest);
         }
+        Ok(manifests)
     }
 
-    /// Loads, spawns, and handshakes a single plugin.
-    async fn load_plugin(&self, path: PathBuf, is_dev_run: bool) -> Result<()> {
-        let manifest_str = std::fs::read_to_string(path.join(constants::MANIFEST_FILENAME))?;
-        let manifest: Manifest =
-            serde_json::from_str(&manifest_str).map_err(|e| Error::ManifestParse {
-                path: path.clone(),
-                source: e,
-            })?;
+    /// Helper to find a single manifest by its ID.
+    async fn find_manifest_by_id(&self, plugin_id: &str) -> Result<Option<Manifest>> {
+        Ok(self
+            .discover_available_plugins()
+            .await?
+            .into_iter()
+            .find(|m| m.id == plugin_id))
+    }
 
-        info!("Found plugin: {}", manifest.name);
-
+    /// Internal function to load, spawn, and handshake a single plugin.
+    async fn load_and_spawn_plugin(&self, manifest: Manifest, is_dev_run: bool) -> Result<()> {
         let executable_from_json = if cfg!(target_os = "windows") {
             &manifest.executable.windows_amd64
         } else {
@@ -98,13 +173,16 @@ impl PluginManager {
         let executable_path = if is_dev_run {
             PathBuf::from(executable_from_json)
         } else {
-            path.join(executable_from_json)
+            // In production, path is relative to its own manifest.json
+            self.plugins_dir
+                .join(&manifest.id)
+                .join(executable_from_json)
         };
 
         self.spawn_and_handshake(manifest, executable_path).await
     }
 
-    /// Spawns a plugin executable and performs the gRPC handshake protocol.
+    // This function is identical to your previous version.
     async fn spawn_and_handshake(
         &self,
         manifest: Manifest,
@@ -125,7 +203,6 @@ impl PluginManager {
         let stderr = child.stderr.take().unwrap();
         let mut stdout_reader = BufReader::new(stdout).lines();
 
-        // Perform handshake within a timeout.
         let handshake_timeout_duration = Duration::from_secs(self.config.handshake_timeout_secs);
         let handshake_result = tokio::time::timeout(handshake_timeout_duration, async {
             if let Ok(Some(line)) = stdout_reader.next_line().await {
@@ -139,7 +216,6 @@ impl PluginManager {
                     }
                 }
             }
-            // If we reach here, the line was invalid or not received.
             Err(Error::HandshakeInvalid {
                 name: manifest.name.clone(),
                 reason: "Invalid format or no line received".into(),
@@ -149,8 +225,6 @@ impl PluginManager {
 
         match handshake_result {
             Ok(Ok(channel)) => {
-                // Timeout didn't occur and handshake parsing was OK
-                // Verify the gRPC connection is actually working.
                 let mut client = HandshakeClient::new(channel.clone());
                 client
                     .get_plugin_info(Empty {})
@@ -167,17 +241,17 @@ impl PluginManager {
                     manifest: manifest.clone(),
                     grpc_channel: channel,
                 };
-                self.instances
+
+                // Add the new instance to the active registry
+                self.active_plugins
                     .lock()
                     .await
                     .insert(manifest.id.clone(), instance);
-                
+
                 self.spawn_log_forwarders(manifest.name, stdout_reader, stderr);
-                
                 Ok(())
             }
             _ => {
-                // Timeout occurred or handshake parsing failed
                 error!(
                     "Plugin {} did not handshake in time or handshake was invalid.",
                     manifest.name
@@ -188,7 +262,7 @@ impl PluginManager {
         }
     }
 
-    /// Spawns background tasks to forward a plugin's stdout and stderr to the tracing system.
+    // This function is identical to your previous version.
     fn spawn_log_forwarders<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
         &self,
         name: String,

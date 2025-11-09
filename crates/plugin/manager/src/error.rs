@@ -43,8 +43,11 @@ pub enum Error {
     },
 
     #[error("gRPC handshake verification failed for plugin '{name}': {source}")]
-    GrpcVerification {
-        name: String,
-        source: tonic::Status,
-    },
+    GrpcVerification { name: String, source: tonic::Status },
+
+    #[error("Plugin not found on disk: {0}")]
+    PluginNotFound(String),
+
+    #[error("Plugin is not active (running): {0}")]
+    PluginNotActive(String),
 }

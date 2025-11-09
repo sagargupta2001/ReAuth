@@ -35,6 +35,27 @@ pub struct FrontendConfig {
     pub sidebar_label: String,
 }
 
+/// Represents the public-facing status of a plugin.
+#[derive(serde::Serialize, Debug, Clone)]
+pub struct PluginStatusInfo {
+    /// The full manifest data from plugin.json.
+    pub manifest: Manifest,
+    /// The current runtime status of the plugin.
+    pub status: PluginStatus,
+}
+
+/// Represents the runtime status of a plugin.
+#[derive(serde::Serialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PluginStatus {
+    /// The plugin is found on disk but is not running.
+    Inactive,
+    /// The plugin is running and has successfully handshaked.
+    Active,
+    /// The plugin failed to start or was stopped due to an error.
+    Failed(String),
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone, Default)]
 pub struct EventsConfig {
     /// A list of event type strings that the plugin wants to receive.

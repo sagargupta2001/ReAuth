@@ -1,36 +1,43 @@
-import { loadPluginScript } from '@/entities/plugin/lib/pluginLoader'
-import type { PluginManifest, PluginModules } from '@/entities/plugin/model/types'
-import { useSuspenseQuery } from '@/shared/lib/hooks/useSuspenseQuery'
+import { useQuery } from '@tanstack/react-query'
+
+import { loadPluginScript } from '../lib/pluginLoader'
+import type { PluginModules, PluginStatusInfo } from '../model/types'
 
 const fetchAndLoadPlugins = async () => {
-  // 1. Fetch manifests
+  // 1. Fetch the new status list from the API
   const res = await fetch('/api/plugins/manifests')
-  if (!res.ok) throw new Error(`Failed to fetch manifests: ${res.statusText}`)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch manifests: ${res.statusText}`)
+  }
+  const statuses: PluginStatusInfo[] = await res.json()
+  console.log('[App] Plugin statuses fetched:', statuses)
 
-  const manifests: PluginManifest[] = await res.json()
-
-  // 2. Load all plugin scripts concurrently
+  // 2. Load scripts ONLY for active plugins
   const loadedModules: PluginModules = {}
+  const activePlugins = statuses.filter((p) => p.status === 'active')
+
   await Promise.all(
-    manifests.map(async (plugin) => {
+    activePlugins.map(async (plugin) => {
       try {
         const Component = await loadPluginScript(plugin)
-        if (Component) loadedModules[plugin.id] = Component
+        if (Component) loadedModules[plugin.manifest.id] = Component
       } catch (err) {
-        console.error(`[App] Error loading plugin ${plugin.id}:`, err)
+        console.error(`[App] Error loading plugin ${plugin.manifest.id}:`, err)
       }
     }),
   )
 
-  console.log('[App] Loaded plugin modules:', loadedModules)
-  return { manifests, modules: loadedModules }
+  console.log('[App] Loaded active plugin modules:', loadedModules)
+
+  // 3. Return both the full list of statuses AND the loaded modules
+  return { statuses, modules: loadedModules }
 }
 
 export function usePlugins() {
-  return useSuspenseQuery({
+  return useQuery({
     queryKey: ['plugins'],
     queryFn: fetchAndLoadPlugins,
-    staleTime: Infinity, // Plugin list won't change in a session
+    staleTime: Infinity,
     gcTime: Infinity,
   })
 }
