@@ -41,9 +41,9 @@ export function PluginToolbar({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Plugins</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="all">{t('FILTER_OPTIONS.ALL_PLUGINS')}</SelectItem>
+            <SelectItem value="active">{t('FILTER_OPTIONS.ACTIVE')}</SelectItem>
+            <SelectItem value="inactive">{t('FILTER_OPTIONS.INACTIVE')}</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -58,13 +58,13 @@ export function PluginToolbar({
           <SelectItem value="asc">
             <div className="flex items-center gap-4">
               <ArrowUpAZ size={16} />
-              <span>Ascending</span>
+              <span>{t('SORT_OPTIONS.ASCENDING')}</span>
             </div>
           </SelectItem>
           <SelectItem value="desc">
             <div className="flex items-center gap-4">
               <ArrowDownAZ size={16} />
-              <span>Descending</span>
+              <span>{t('SORT_OPTIONS.DESCENDING')}</span>
             </div>
           </SelectItem>
         </SelectContent>
