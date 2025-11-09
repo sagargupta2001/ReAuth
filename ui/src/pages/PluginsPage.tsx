@@ -2,7 +2,7 @@ import { type ChangeEvent, useMemo, useState } from 'react'
 
 import { ArrowDownAZ, ArrowUpAZ, Package, SlidersHorizontal } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
@@ -215,7 +215,9 @@ export function PluginsPage() {
                     <PluginConnectButton plugin={plugin} />
                   </div>
                   <div>
-                    <h2 className="mb-1 font-semibold">{plugin.manifest.name}</h2>
+                    <Link to={plugin.manifest.frontend.route}>
+                      <h2 className="mb-1 font-semibold hover:underline">{plugin.manifest.name}</h2>
+                    </Link>
                     <p className="line-clamp-2 text-gray-500">{plugin.manifest.version}</p>
                   </div>
                 </li>

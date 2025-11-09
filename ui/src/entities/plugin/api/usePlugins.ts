@@ -19,10 +19,8 @@ const fetchAndLoadPlugins = async () => {
   await Promise.all(
     activePlugins.map(async (plugin) => {
       try {
-        const Component = await loadPluginScript(plugin.manifest)
-        if (Component) {
-          loadedModules[plugin.manifest.id] = Component
-        }
+        const Component = await loadPluginScript(plugin)
+        if (Component) loadedModules[plugin.manifest.id] = Component
       } catch (err) {
         console.error(`[App] Error loading plugin ${plugin.manifest.id}:`, err)
       }
