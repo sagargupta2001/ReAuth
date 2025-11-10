@@ -4,7 +4,7 @@ import { loadPluginScript } from '../lib/pluginLoader'
 import type { PluginModules, PluginStatusInfo } from '../model/types'
 
 const fetchAndLoadPlugins = async () => {
-  // 1. Fetch the new status list from the API
+  // Fetch the new status list from the API
   const res = await fetch('/api/plugins/manifests')
   if (!res.ok) {
     throw new Error(`Failed to fetch manifests: ${res.statusText}`)
@@ -12,7 +12,7 @@ const fetchAndLoadPlugins = async () => {
   const statuses: PluginStatusInfo[] = await res.json()
   console.log('[App] Plugin statuses fetched:', statuses)
 
-  // 2. Load scripts ONLY for active plugins
+  // Load scripts ONLY for active plugins
   const loadedModules: PluginModules = {}
   const activePlugins = statuses.filter((p) => p.status === 'active')
 
@@ -29,7 +29,7 @@ const fetchAndLoadPlugins = async () => {
 
   console.log('[App] Loaded active plugin modules:', loadedModules)
 
-  // 3. Return both the full list of statuses AND the loaded modules
+  // Return both the full list of statuses AND the loaded modules
   return { statuses, modules: loadedModules }
 }
 

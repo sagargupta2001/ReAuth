@@ -1,6 +1,5 @@
-import {useMutation, useQueryClient} from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
-// Helper function for making API calls
 const callPluginApi = async (pluginId: string, action: 'enable' | 'disable') => {
   const res = await fetch(`/api/plugins/${pluginId}/${action}`, {
     method: 'POST',
