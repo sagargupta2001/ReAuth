@@ -11,7 +11,7 @@ embed-ui = []      # prod mode (embed UI)
 manager = { path = "../plugin/manager" }
 config = { version = "0.15.18", features = ["toml"] }
 # Web Server
-axum = "0.8.4"
+axum = { version = "0.8.4", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
 
 # Serialization/Deserialization
@@ -32,9 +32,11 @@ reqwest = "0.12.23"
 tonic = "0.11.0"
 thiserror = "2.0.17"
 async-trait = "0.1.89"
-uuid = {version =  "1.18.1", features = ["v4", "serde"] }
+uuid = { version = "1.18.1", features = ["v4", "serde"] }
 serde_json = "1.0.145"
 moka = { version = "0.12", features = ["future"] }
+chrono = "0.4.42"
+futures = "0.3.31"
 
 # Database
 [dependencies.sqlx]

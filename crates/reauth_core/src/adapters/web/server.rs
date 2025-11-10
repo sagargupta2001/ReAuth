@@ -19,9 +19,10 @@ use tower_http::{
 };
 
 // Import the application services and handlers
-use crate::adapters::web::{plugin_handler, rbac_handler, user_handler};
+use crate::adapters::web::{log_stream_handler, plugin_handler, rbac_handler, user_handler};
 use crate::application::{rbac_service::RbacService, user_service::UserService};
 use crate::config::Settings;
+use crate::ports::log_bus::LogSubscriber;
 
 /// AppState is the single, shared state for the entire Axum application.
 /// It holds all necessary services and configurations.
@@ -31,6 +32,7 @@ pub struct AppState {
     settings: Settings,
     pub(crate) user_service: Arc<UserService>,
     pub(crate) rbac_service: Arc<RbacService>,
+    pub log_subscriber: Arc<dyn LogSubscriber>,
 }
 
 #[cfg(not(feature = "embed-ui"))]
@@ -104,6 +106,7 @@ pub async fn start_server(
     plugins_path: PathBuf,
     user_service: Arc<UserService>,
     rbac_service: Arc<RbacService>,
+    log_subscriber: Arc<dyn LogSubscriber>,
 ) -> anyhow::Result<()> {
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -116,6 +119,7 @@ pub async fn start_server(
         settings: settings.clone(),
         user_service,
         rbac_service,
+        log_subscriber,
     };
 
     // --- API Router Definition ---
@@ -139,6 +143,7 @@ pub async fn start_server(
     // Combine all API routers under the /api prefix
     let api_router = Router::new()
         .route("/health", get(|| async { "OK" }))
+        .route("/logs/ws", get(log_stream_handler::log_stream_handler))
         .nest("/users", user_api)
         .nest("/rbac", rbac_api)
         .nest("/plugins", plugin_api);
