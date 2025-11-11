@@ -35,7 +35,19 @@ const columns: ColumnDef<LogEntry>[] = [
   {
     accessorKey: 'timestamp',
     header: 'Timestamp',
-    cell: (info) => new Date(info.getValue() as string).toLocaleString(),
+    cell: (info) => {
+      const date = new Date(info.getValue() as string)
+      return date.toLocaleString('en-IN', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      })
+    },
   },
   {
     accessorKey: 'level',
