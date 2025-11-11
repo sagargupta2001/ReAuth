@@ -1,4 +1,4 @@
-use crate::domain::log_entry::LogEntry;
+use crate::manager::LogEntry;
 use async_trait::async_trait;
 use tokio::sync::broadcast;
 

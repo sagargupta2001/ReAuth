@@ -8,6 +8,7 @@ use sdk::{
     runner::run,
 };
 use tonic::{Request, Response, Status};
+use tracing::info;
 
 pub struct HelloWorldPlugin;
 impl Plugin for HelloWorldPlugin {
@@ -29,10 +30,7 @@ impl Greeter for GreeterService {
         request: Request<HelloRequest>,
     ) -> Result<Response<HelloReply>, Status> {
         let name = request.into_inner().name;
-        tracing::info!(
-            "[Plugin Backend] Received a 'say_hello' request for '{}'",
-            name
-        );
+        info!(request.name = %name, "Received 'say_hello' request");
         Ok(Response::new(HelloReply {
             message: format!(
                 "Hello, {}! This message is from the Rust plugin backend.",
@@ -53,10 +51,8 @@ impl EventListener for MyEventListener {
     ) -> Result<Response<EventResponse>, Status> {
         let event = request.into_inner();
 
-        tracing::info!(
-            "[Plugin Backend] RECEIVED EVENT FROM CORE: Type = {}, Payload = {}",
-            event.event_type,
-            event.event_payload_json
+        info!(event.type = %event.event_type, event.payload = %event.event_payload_json,
+            "Received event from Core"
         );
 
         Ok(Response::new(EventResponse {}))
@@ -68,9 +64,10 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
         .with_ansi(false)
+        .json()
         .init();
 
-    tracing::info!("Plugin backend starting up...");
+    info!("Plugin backend starting up...");
 
     let plugin = HelloWorldPlugin;
     let greeter_service = GreeterService::default();

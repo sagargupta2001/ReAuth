@@ -1,5 +1,7 @@
 //! Contains the reauth_core data structures for representing a plugin.
 
+use serde_json::Value;
+use std::collections::HashMap;
 use tokio::process::Child;
 use tonic::transport::Channel;
 
@@ -80,4 +82,19 @@ pub struct Manifest {
     /// Configuration for event subscriptions.
     #[serde(default = "EventsConfig::default")]
     pub events: EventsConfig,
+}
+
+/// A struct to deserialize the JSON log lines from a plugin's stderr.
+#[derive(serde::Deserialize, Debug)]
+pub struct PluginLogLine {
+    #[serde(default = "String::new")]
+    pub level: String,
+    #[serde(default = "String::new")]
+    pub target: String,
+    #[serde(default, alias = "msg")]
+    pub message: String,
+    #[serde(default)]
+    pub timestamp: String,
+    #[serde(default)]
+    pub fields: HashMap<String, Value>,
 }

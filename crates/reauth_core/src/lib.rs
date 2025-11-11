@@ -24,7 +24,7 @@ use crate::application::rbac_service::RbacService;
 use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::ports::event_bus::EventSubscriber;
-use crate::ports::log_bus::LogSubscriber;
+use manager::log_bus::LogSubscriber;
 use manager::{ManagerConfig, PluginManager};
 use once_cell::sync::Lazy;
 use tokio::fs;
@@ -124,7 +124,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     ));
 
     // Spawn plugin discovery in the background
-    let plugin_manager = PluginManager::new(manager_config, plugins_path.clone());
+    let plugin_manager = PluginManager::new(manager_config, plugins_path.clone(), log_bus.clone());
 
     // Initialize and Subscribe Listeners
     let cache_invalidator = Arc::new(CacheInvalidator::new(cache_service, rbac_repo));

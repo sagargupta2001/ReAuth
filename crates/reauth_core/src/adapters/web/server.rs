@@ -22,7 +22,7 @@ use tower_http::{
 use crate::adapters::web::{log_stream_handler, plugin_handler, rbac_handler, user_handler};
 use crate::application::{rbac_service::RbacService, user_service::UserService};
 use crate::config::Settings;
-use crate::ports::log_bus::LogSubscriber;
+use manager::log_bus::LogSubscriber;
 
 /// AppState is the single, shared state for the entire Axum application.
 /// It holds all necessary services and configurations.

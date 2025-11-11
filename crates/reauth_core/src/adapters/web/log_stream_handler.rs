@@ -1,8 +1,9 @@
-use crate::{adapters::web::server::AppState, ports::log_bus::LogSubscriber};
+use crate::adapters::web::server::AppState;
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use futures::stream::StreamExt;
+use manager::log_bus::LogSubscriber;
 use std::sync::Arc;
 use tracing::info;
 

@@ -10,6 +10,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/shared/ui/table.tsx'
+import { LogTarget } from '@/widgets/LogViewer/components/LogTarget.tsx'
+
+// A helper function to find the "best" message
+function getDisplayMessage(log: LogEntry): string {
+  // 1. Use the primary message if it exists
+  if (log.message) {
+    return log.message
+  }
+  // 2. Fallback to a field named "message" or "msg"
+  // This will now work because `log.fields` is an object.
+  if (log.fields?.message) {
+    return log.fields.message
+  }
+  if (log.fields?.msg) {
+    return log.fields.msg
+  }
+  // 3. Fallback to a generic message
+  return 'No message, view fields for details.'
+}
 
 // 1. Define the columns for your table
 const columns: ColumnDef<LogEntry>[] = [
@@ -32,25 +51,28 @@ const columns: ColumnDef<LogEntry>[] = [
   {
     accessorKey: 'message',
     header: 'Message',
+    cell: (info) => {
+      const row = info.row.original
+      return <span className="font-medium">{getDisplayMessage(row)}</span>
+    },
   },
   {
     accessorKey: 'target',
     header: 'Target',
-    cell: (info) => <span className="font-mono text-xs">{info.getValue() as string}</span>,
+    cell: (info) => <LogTarget target={info.getValue() as string} />,
   },
 ]
 
 interface LogTableProps {
   logs: LogEntry[]
-  // We'll add filters later
+  onRowClick: (log: LogEntry) => void
 }
 
-export function LogTable({ logs }: LogTableProps) {
+export function LogTable({ logs, onRowClick }: LogTableProps) {
   const table = useReactTable({
     data: logs,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    // We'll add filters and pagination later
   })
 
   return (
@@ -70,7 +92,11 @@ export function LogTable({ logs }: LogTableProps) {
         <TableBody>
           {table.getRowModel().rows.length ? (
             table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow
+                className="cursor-pointer"
+                key={row.id}
+                onClick={() => onRowClick(row.original)}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

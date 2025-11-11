@@ -1,8 +1,6 @@
-use crate::{
-    domain::log_entry::LogEntry,
-    ports::log_bus::{LogPublisher, LogSubscriber},
-};
 use async_trait::async_trait;
+use manager::log_bus::{LogPublisher, LogSubscriber};
+use manager::LogEntry;
 use tokio::sync::broadcast;
 
 #[derive(Clone)]

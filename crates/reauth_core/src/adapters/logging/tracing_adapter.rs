@@ -1,4 +1,5 @@
-use crate::{domain::log_entry::LogEntry, ports::log_bus::LogPublisher};
+use manager::log_bus::LogPublisher;
+use manager::LogEntry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::field::Field;

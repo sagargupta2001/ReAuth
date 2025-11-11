@@ -23,7 +23,9 @@ use tonic::{transport::Server, Request, Response, Status};
 pub async fn run<P, F>(plugin: P, add_services: F) -> anyhow::Result<()>
 where
     P: Plugin + Send + Sync + 'static,
-    F: FnOnce(tonic::transport::server::Router) -> tonic::transport::server::Router + Send + 'static,
+    F: FnOnce(tonic::transport::server::Router) -> tonic::transport::server::Router
+        + Send
+        + 'static,
 {
     let listener = tokio::net::TcpListener::bind(constants::PLUGIN_SERVER_BIND_ADDR).await?;
     let addr = listener.local_addr()?;
@@ -33,8 +35,7 @@ where
     };
 
     // Start the server builder, adding the mandatory handshake
-    let router = Server::builder()
-        .add_service(HandshakeServer::new(handshake_service));
+    let router = Server::builder().add_service(HandshakeServer::new(handshake_service));
 
     // Call the user's closure to add their custom services
     let router_with_services = add_services(router);
@@ -54,7 +55,7 @@ where
         constants::HANDSHAKE_PROTOCOL_TYPE
     );
     println!("{}", handshake_line);
-    tracing::info!("[Plugin SDK] Plugin listening on {}", addr);
+    tracing::info!("Plugin listening on {}", addr);
 
     server_task.await??;
     Ok(())
