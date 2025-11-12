@@ -10,13 +10,13 @@ import { LogTable } from './components/LogTable'
 import { useLogStream } from './hooks/useLogStream'
 
 export function LogViewerWidget() {
-  const { logs, isConnected, toggleConnection } = useLogStream()
+  const { logs, isConnected, connect, disconnect } = useLogStream()
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
 
   return (
     <div className="flex h-full flex-col">
       <div className="mb-4 flex justify-end">
-        <Button variant="outline" onClick={toggleConnection}>
+        <Button variant="outline" onClick={isConnected ? disconnect : connect}>
           {isConnected ? (
             <>
               <StopCircle className="mr-2 h-4 w-4 text-red-500" /> Stop Stream
