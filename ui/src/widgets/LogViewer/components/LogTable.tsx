@@ -2,6 +2,7 @@ import { useRef } from 'react'
 
 import { type ColumnDef, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/badge'
 import type { LogEntry } from '@/entities/log/model/types'
@@ -28,56 +29,58 @@ function getDisplayMessage(log: LogEntry): string {
   return 'No message, view fields for details.'
 }
 
-const columns: ColumnDef<LogEntry>[] = [
-  {
-    accessorKey: 'timestamp',
-    header: 'Timestamp',
-    cell: (info) => {
-      const date = new Date(info.getValue() as string)
-      // Optimized date formatting
-      return date.toLocaleString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
-    },
-    size: 150,
-  },
-  {
-    accessorKey: 'level',
-    header: 'Level',
-    cell: (info) => {
-      const level = info.getValue() as string
-      let variant: 'default' | 'destructive' | 'secondary' = 'secondary'
-      if (level === 'ERROR') variant = 'destructive'
-      if (level === 'INFO') variant = 'default'
-      return <Badge variant={variant}>{level}</Badge>
-    },
-    size: 100,
-  },
-  {
-    accessorKey: 'message',
-    header: 'Message',
-    cell: (info) => {
-      const row = info.row.original
-      return <span className="font-medium">{getDisplayMessage(row)}</span>
-    },
-    size: 350,
-  },
-  {
-    accessorKey: 'target',
-    header: 'Target',
-    cell: (info) => <LogTarget target={info.getValue() as string} />,
-    size: 450,
-  },
-]
-
 interface LogTableProps {
   logs: LogEntry[]
   onRowClick: (log: LogEntry) => void
 }
 
 export function LogTable({ logs, onRowClick }: LogTableProps) {
+  const { t } = useTranslation('logs')
+
+  const columns: ColumnDef<LogEntry>[] = [
+    {
+      accessorKey: 'timestamp',
+      header: t('LOG_TABLE.COLUMNS.TIMESTAMP'),
+      cell: (info) => {
+        const date = new Date(info.getValue() as string)
+        // Optimized date formatting
+        return date.toLocaleString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+      },
+      size: 150,
+    },
+    {
+      accessorKey: 'level',
+      header: t('LOG_TABLE.COLUMNS.LEVEL'),
+      cell: (info) => {
+        const level = info.getValue() as string
+        let variant: 'default' | 'destructive' | 'secondary' = 'secondary'
+        if (level === 'ERROR') variant = 'destructive'
+        if (level === 'INFO') variant = 'default'
+        return <Badge variant={variant}>{level}</Badge>
+      },
+      size: 100,
+    },
+    {
+      accessorKey: 'message',
+      header: t('LOG_TABLE.COLUMNS.MESSAGE'),
+      cell: (info) => {
+        const row = info.row.original
+        return <span className="font-medium">{getDisplayMessage(row)}</span>
+      },
+      size: 350,
+    },
+    {
+      accessorKey: 'target',
+      header: t('LOG_TABLE.COLUMNS.TARGET'),
+      cell: (info) => <LogTarget target={info.getValue() as string} />,
+      size: 450,
+    },
+  ]
+
   const table = useReactTable({
     data: logs,
     columns,
@@ -134,7 +137,7 @@ export function LogTable({ logs, onRowClick }: LogTableProps) {
           {virtualRows.length === 0 ? (
             <TableRow>
               <TableCell colSpan={columns.length} className="h-24 text-center">
-                No logs to display.
+                {t('LOG_TABLE.NO_LOGS_TEXT')}
               </TableCell>
             </TableRow>
           ) : (

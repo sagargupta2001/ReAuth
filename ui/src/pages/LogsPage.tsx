@@ -4,7 +4,7 @@ import { Main } from '@/widgets/Layout/Main'
 import { LogViewerWidget } from '@/widgets/LogViewer/LogViewerWidget.tsx'
 
 export function LogsPage() {
-  const { t } = useTranslation('log-and-analytics')
+  const { t } = useTranslation('logs')
 
   return (
     <Main fixed>

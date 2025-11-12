@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { Play, StopCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/button'
 import type { LogEntry } from '@/entities/log/model/types.ts'
@@ -10,6 +11,7 @@ import { LogTable } from './components/LogTable'
 import { useLogStream } from './hooks/useLogStream'
 
 export function LogViewerWidget() {
+  const { t } = useTranslation('logs')
   const { logs, isConnected, connect, disconnect } = useLogStream()
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
 
@@ -19,11 +21,13 @@ export function LogViewerWidget() {
         <Button variant="outline" onClick={isConnected ? disconnect : connect}>
           {isConnected ? (
             <>
-              <StopCircle className="mr-2 h-4 w-4 text-red-500" /> Stop Stream
+              <StopCircle className="mr-2 h-4 w-4 text-red-500" />{' '}
+              {t('LOG_VIEWER_WIDGET.STOP_STREAM_BTN_TEXT')}
             </>
           ) : (
             <>
-              <Play className="mr-2 h-4 w-4 text-green-500" /> Start Stream
+              <Play className="mr-2 h-4 w-4 text-green-500" />{' '}
+              {t('LOG_VIEWER_WIDGET.START_STREAM_BTN_TEXT')}
             </>
           )}
         </Button>

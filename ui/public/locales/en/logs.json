@@ -1,0 +1,25 @@
+{
+  "TITLE": "Logs and Analytics",
+  "LOG_VIEWER_WIDGET": {
+    "START_STREAM_BTN_TEXT": "Start Stream",
+    "STOP_STREAM_BTN_TEXT": "Stop Stream"
+  },
+  "LOG_TABLE": {
+    "COLUMNS": {
+      "TIMESTAMP": "Timestamp",
+      "LEVEL": "Level",
+      "MESSAGE": "Message",
+      "TARGET": "Target"
+    },
+    "NO_LOGS_TEXT": "No logs to display."
+  },
+  "LOG_ROW_DETAIL": {
+    "TITLE": "Log Detail",
+    "DESCRIPTION": "Full event details for the selected log entry.",
+    "TIMESTAMP_LABEL": "Timestamp",
+    "LEVEL_LABEL": "Level",
+    "TARGET_LABEL": "Target",
+    "MESSAGE_LABEL": "Message",
+    "FIELDS_LABEL": "Fields"
+  }
+}
