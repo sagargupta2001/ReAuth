@@ -6,7 +6,7 @@ import { usePlugins } from '@/entities/plugin/api/usePlugins'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout'
 
 // Assuming this is your main layout
-import { staticRoutes } from './routerConfig'
+import { staticRoutes } from './routerConfig.ts'
 
 export function AppRouter() {
   const { data } = usePlugins()

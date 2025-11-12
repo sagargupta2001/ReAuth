@@ -11,14 +11,11 @@ use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use manager::{ManagerConfig, PluginManager};
-use once_cell::sync::Lazy;
-use tokio::fs;
-use tracing::info;
-
 use crate::adapters::cache::cache_invalidator::CacheInvalidator;
 use crate::adapters::cache::moka_cache::MokaCacheService;
 use crate::adapters::eventing::in_memory_bus::InMemoryEventBus;
+use crate::adapters::eventing::log_broadcast_bus::LogBroadcastBus;
+use crate::adapters::logging::tracing_adapter::TracingLogAdapter;
 use crate::adapters::logging::{banner::print_banner, logging::LOGGER};
 use crate::adapters::persistence::sqlite_rbac_repository::SqliteRbacRepository;
 use crate::adapters::SqliteUserRepository;
@@ -27,6 +24,14 @@ use crate::application::rbac_service::RbacService;
 use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::ports::event_bus::EventSubscriber;
+use manager::log_bus::LogSubscriber;
+use manager::{ManagerConfig, PluginManager};
+use once_cell::sync::Lazy;
+use tokio::fs;
+use tracing::info;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 /// Represents the fully initialized application state,
 /// returned by `initialize()` and used by both run() and benchmark mode.
@@ -36,15 +41,27 @@ pub struct AppState {
     pub plugins_path: PathBuf,
     pub user_service: Arc<UserService>,
     pub rbac_service: Arc<RbacService>,
+    pub log_subscriber: Arc<dyn LogSubscriber>,
 }
 
 /// Performs all initialization logic: env, plugins, DB, migrations, and DI.
 pub async fn initialize() -> anyhow::Result<AppState> {
-    Lazy::force(&LOGGER);
+    let settings = Settings::new()?;
+
+    let log_bus = Arc::new(LogBroadcastBus::new());
+    let log_adapter = TracingLogAdapter::new(log_bus.clone());
+
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+    let fmt_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(fmt_layer)
+        .with(log_adapter)
+        .init();
+
     dotenvy::dotenv().ok();
     print_banner();
-
-    let settings = Settings::new()?;
 
     let manager_config = ManagerConfig {
         handshake_timeout_secs: settings.plugins.handshake_timeout_secs,
@@ -107,7 +124,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     ));
 
     // Spawn plugin discovery in the background
-    let plugin_manager = PluginManager::new(manager_config, plugins_path.clone());
+    let plugin_manager = PluginManager::new(manager_config, plugins_path.clone(), log_bus.clone());
 
     // Initialize and Subscribe Listeners
     let cache_invalidator = Arc::new(CacheInvalidator::new(cache_service, rbac_repo));
@@ -126,6 +143,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         plugins_path,
         user_service,
         rbac_service,
+        log_subscriber: log_bus,
     })
 }
 
@@ -149,6 +167,7 @@ pub async fn run() -> anyhow::Result<()> {
         app_state.plugins_path,
         app_state.user_service,
         app_state.rbac_service,
+        app_state.log_subscriber,
     )
     .await?;
 

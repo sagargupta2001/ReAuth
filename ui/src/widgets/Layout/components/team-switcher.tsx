@@ -1,6 +1,6 @@
 import * as React from 'react'
 
-import { ChevronsUpDown, Plus } from 'lucide-react'
+import { BoxesIcon, ChevronsUpDown, Plus } from 'lucide-react'
 
 import {
   DropdownMenu,
@@ -35,12 +35,9 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <activeTeam.logo className="size-4" />
-              </div>
+              <BoxesIcon />
               <div className="grid flex-1 text-start text-sm leading-tight">
                 <span className="truncate font-semibold">{activeTeam.name}</span>
-                <span className="truncate text-xs">{activeTeam.plan}</span>
               </div>
               <ChevronsUpDown className="ms-auto" />
             </SidebarMenuButton>

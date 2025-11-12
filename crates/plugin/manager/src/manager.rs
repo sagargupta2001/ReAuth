@@ -1,13 +1,14 @@
 //! The main implementation of the `PluginManager`.
 
-use crate::plugin::{PluginStatus, PluginStatusInfo};
+use crate::plugin::{PluginLogLine, PluginStatus, PluginStatusInfo};
 use crate::{
     constants,
     error::{Error, Result},
     grpc::plugin::v1::{handshake_client::HandshakeClient, Empty},
     plugin::{Manifest, PluginInstance},
-    ManagerConfig,
+    LogPublisher, ManagerConfig,
 };
+use serde::Serialize;
 use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
@@ -17,11 +18,21 @@ use tokio::{
 use tonic::transport::Channel;
 use tracing::{error, info, warn};
 
+/// Represents a structured log entry, used by the log bus.
+#[derive(Debug, Clone, Serialize)]
+pub struct LogEntry {
+    pub timestamp: String,
+    pub level: String,
+    pub target: String,
+    pub message: String,
+    pub fields: HashMap<String, String>,
+}
+
 /// Manages the lifecycle of all discovered plugins.
 ///
 /// The registry of running plugins is stored in `instances`, which is
 /// wrapped in `Arc<Mutex<...>>` to allow for safe concurrent access.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PluginManager {
     /// The in-memory "registry" of all *active* (running) plugin instances.
     pub active_plugins: Arc<Mutex<HashMap<String, PluginInstance>>>,
@@ -29,15 +40,21 @@ pub struct PluginManager {
     plugins_dir: PathBuf,
     /// Configuration for the manager's behavior.
     config: ManagerConfig,
+    log_publisher: Arc<dyn LogPublisher>,
 }
 
 impl PluginManager {
     /// Creates a new, empty `PluginManager`.
-    pub fn new(config: ManagerConfig, plugins_dir: PathBuf) -> Self {
+    pub fn new(
+        config: ManagerConfig,
+        plugins_dir: PathBuf,
+        log_publisher: Arc<dyn LogPublisher>,
+    ) -> Self {
         Self {
             active_plugins: Arc::new(Mutex::new(HashMap::new())),
             plugins_dir,
             config,
+            log_publisher,
         }
     }
 
@@ -248,7 +265,12 @@ impl PluginManager {
                     .await
                     .insert(manifest.id.clone(), instance);
 
-                self.spawn_log_forwarders(manifest.name, stdout_reader, stderr);
+                self.spawn_log_forwarders(
+                    manifest.name,
+                    stdout_reader,
+                    stderr,
+                    self.log_publisher.clone(),
+                );
                 Ok(())
             }
             _ => {
@@ -268,19 +290,80 @@ impl PluginManager {
         name: String,
         stdout_reader: tokio::io::Lines<BufReader<R>>,
         stderr: tokio::process::ChildStderr,
+        publisher: Arc<dyn LogPublisher>, // <-- Now accepts the publisher
     ) {
-        let out_name = name.clone();
+        // 1. Handle stdout (handshake)
+        let publisher_stdout = publisher.clone();
+        let stdout_target = format!("plugin:{}:handshake", name);
         tokio::spawn(async move {
             let mut lines = stdout_reader;
             while let Ok(Some(line)) = lines.next_line().await {
-                info!("[Plugin: {}] {}", out_name, line);
+                // Publish the handshake line as a log
+                publisher_stdout
+                    .publish(LogEntry {
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        level: "INFO".to_string(),
+                        target: stdout_target.clone(),
+                        message: line,
+                        fields: Default::default(),
+                    })
+                    .await;
             }
         });
 
+        // 2. Handle stderr (plugin's JSON logs)
+        let publisher_stderr = publisher.clone();
+        let stderr_target_prefix = format!("plugin:{}", name);
         tokio::spawn(async move {
             let mut lines = BufReader::new(stderr).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                info!("[Plugin: {}] {}", name, line);
+                // Try to parse the line as JSON
+                if let Ok(mut log_line) = serde_json::from_str::<PluginLogLine>(&line) {
+                    // It's a valid JSON log. Re-publish it as a clean LogEntry.
+                    let fields_clone = log_line.fields.clone();
+
+                    let message = log_line
+                        .fields
+                        .remove("message")
+                        .or_else(|| log_line.fields.remove("msg"))
+                        .map_or_else(String::new, |v| v.to_string().trim_matches('"').to_string());
+
+                    let fields = fields_clone
+                        .into_iter()
+                        .map(|(k, v)| (k, v.to_string().trim_matches('"').to_string()))
+                        .collect();
+
+                    if log_line.message.is_empty() {
+                        if let Some(msg) = log_line
+                            .fields
+                            .get("message")
+                            .or(log_line.fields.get("msg"))
+                        {
+                            log_line.message = msg.to_string().trim_matches('"').to_string();
+                        }
+                    }
+
+                    publisher_stderr
+                        .publish(LogEntry {
+                            timestamp: log_line.timestamp,
+                            level: log_line.level.to_uppercase(),
+                            target: format!("{}:{}", stderr_target_prefix, log_line.target),
+                            message,
+                            fields,
+                        })
+                        .await;
+                } else {
+                    // It's not JSON (e.g., a panic message). Publish the raw line.
+                    publisher_stderr
+                        .publish(LogEntry {
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                            level: "ERROR".to_string(),
+                            target: stderr_target_prefix.clone(),
+                            message: line, // Publish the raw, unparsed line
+                            fields: Default::default(),
+                        })
+                        .await;
+                }
             }
         });
     }

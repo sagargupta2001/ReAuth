@@ -1,19 +1,18 @@
 import { useTranslation } from 'react-i18next'
 
 import { Main } from '@/widgets/Layout/Main'
-import { PluginList } from '@/widgets/PluginList/PluginList'
+import { LogViewerWidget } from '@/widgets/LogViewer/LogViewerWidget.tsx'
 
-export function PluginsPage() {
-  const { t } = useTranslation('plugins')
+export function LogsPage() {
+  const { t } = useTranslation('logs')
 
   return (
     <Main fixed>
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">{t('TITLE')}</h1>
-        <p className="text-muted-foreground">{t('SUB_TITLE')}</p>
+        <p className="text-muted-foreground"></p>
       </div>
-
-      <PluginList />
+      <LogViewerWidget />
     </Main>
   )
 }

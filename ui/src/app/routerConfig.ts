@@ -1,6 +1,7 @@
 import type { ComponentType, ReactNode } from 'react'
 
 import DashboardPage from '@/pages/DashboardPage'
+import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PluginsPage } from '@/pages/PluginsPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
@@ -27,6 +28,11 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/plugins',
     element: PluginsPage,
+    layout: AuthenticatedLayout,
+  },
+  {
+    path: '/logs',
+    element: LogsPage,
     layout: AuthenticatedLayout,
   },
   {

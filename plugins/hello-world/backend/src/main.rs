@@ -3,12 +3,12 @@ use sdk::{
     prelude::v1::{
         event_listener_server::{EventListener, EventListenerServer},
         greeter_server::{Greeter, GreeterServer},
-        EventRequest, EventResponse,
-        HelloReply, HelloRequest, PluginInfo,
+        EventRequest, EventResponse, HelloReply, HelloRequest, PluginInfo,
     },
     runner::run,
 };
 use tonic::{Request, Response, Status};
+use tracing::info;
 
 pub struct HelloWorldPlugin;
 impl Plugin for HelloWorldPlugin {
@@ -25,11 +25,17 @@ pub struct GreeterService;
 
 #[tonic::async_trait]
 impl Greeter for GreeterService {
-    async fn say_hello(&self, request: Request<HelloRequest>) -> Result<Response<HelloReply>, Status> {
+    async fn say_hello(
+        &self,
+        request: Request<HelloRequest>,
+    ) -> Result<Response<HelloReply>, Status> {
         let name = request.into_inner().name;
-        tracing::info!("[Plugin Backend] Received a 'say_hello' request for '{}'", name);
+        info!(request.name = %name, "Received 'say_hello' request");
         Ok(Response::new(HelloReply {
-            message: format!("Hello, {}! This message is from the Rust plugin backend.", name),
+            message: format!(
+                "Hello, {}! This message is from the Rust plugin backend.",
+                name
+            ),
         }))
     }
 }
@@ -39,13 +45,14 @@ pub struct MyEventListener;
 
 #[tonic::async_trait]
 impl EventListener for MyEventListener {
-    async fn on_event(&self, request: Request<EventRequest>) -> Result<Response<EventResponse>, Status> {
+    async fn on_event(
+        &self,
+        request: Request<EventRequest>,
+    ) -> Result<Response<EventResponse>, Status> {
         let event = request.into_inner();
 
-        tracing::info!(
-            "[Plugin Backend] RECEIVED EVENT FROM CORE: Type = {}, Payload = {}",
-            event.event_type,
-            event.event_payload_json
+        info!(event.type = %event.event_type, event.payload = %event.event_payload_json,
+            "Received event from Core"
         );
 
         Ok(Response::new(EventResponse {}))
@@ -54,9 +61,13 @@ impl EventListener for MyEventListener {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt().with_writer(std::io::stderr).init();
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .with_ansi(false)
+        .json()
+        .init();
 
-    tracing::info!("Plugin backend starting up...");
+    info!("Plugin backend starting up...");
 
     let plugin = HelloWorldPlugin;
     let greeter_service = GreeterService::default();
@@ -66,7 +77,8 @@ async fn main() -> anyhow::Result<()> {
         router
             .add_service(GreeterServer::new(greeter_service))
             .add_service(EventListenerServer::new(event_listener_service))
-    }).await?;
+    })
+    .await?;
 
     Ok(())
 }

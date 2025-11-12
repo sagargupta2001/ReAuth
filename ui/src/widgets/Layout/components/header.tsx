@@ -1,8 +1,9 @@
 import { type HTMLAttributes, type Ref, useEffect, useState } from 'react'
 
+import { Slash } from '@/assets/header/slash.tsx'
 import { cn } from '@/lib/utils.ts'
-import { Separator } from '@/shared/ui/separator.tsx'
-import { SidebarTrigger } from '@/widgets/Sidebar/components'
+import { TeamSwitcher } from '@/widgets/Layout/components/team-switcher.tsx'
+import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data.ts'
 
 type HeaderProps = HTMLAttributes<HTMLElement> & {
   fixed?: boolean
@@ -28,7 +29,7 @@ export function Header({ className, fixed, children, ...props }: HeaderProps) {
     <header
       className={cn(
         'z-50 h-16',
-        fixed && 'header-fixed peer/header sticky top-0 w-[inherit]',
+        fixed && 'header-fixed peer/header sticky top-0 right-0 left-0 w-full',
         offset > 10 && fixed ? 'shadow' : 'shadow-none',
         className,
       )}
@@ -36,14 +37,20 @@ export function Header({ className, fixed, children, ...props }: HeaderProps) {
     >
       <div
         className={cn(
-          'relative flex h-full items-center gap-3 p-4 sm:gap-4',
+          'relative flex h-full w-full items-center justify-between gap-3 px-4 sm:px-6',
           offset > 10 &&
             fixed &&
             'after:bg-background/20 after:absolute after:inset-0 after:-z-10 after:backdrop-blur-lg',
         )}
       >
-        <SidebarTrigger variant="outline" className="max-md:scale-125" />
-        <Separator orientation="vertical" className="h-6" />
+        {/* Left side: logo + slash + sidebar trigger */}
+        <div className="flex items-center gap-2">
+          <img rel="icon" src="/reauth.svg" alt="logo" className="h-7 w-7" />
+          <Slash />
+          <TeamSwitcher teams={sidebarData.teams} />
+        </div>
+
+        {/* Right side: rest of header */}
         {children}
       </div>
     </header>

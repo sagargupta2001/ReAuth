@@ -5,6 +5,7 @@ import {
   GalleryVerticalEnd,
   HelpCircle,
   LayoutDashboard,
+  LucideLogs,
   Monitor,
   Package,
   Palette,
@@ -23,7 +24,7 @@ export const sidebarData: SidebarData = {
   },
   teams: [
     {
-      name: 'Shadcn Admin',
+      name: 'My New Realm',
       logo: Command,
       plan: 'Vite + ShadcnUI',
     },
@@ -51,6 +52,11 @@ export const sidebarData: SidebarData = {
           title: 'Plugins',
           url: '/plugins',
           icon: Package,
+        },
+        {
+          title: 'Logs',
+          url: '/logs',
+          icon: LucideLogs,
         },
       ],
     },
