@@ -1,11 +1,6 @@
 import type { HTMLAttributes, Ref } from 'react'
 
-import { Search } from '@/features/Search/components/Search.tsx'
-import { ThemeSwitch } from '@/features/ThemeSwitch/ThemeSwitch.tsx'
-import { ProfileDropdown } from '@/features/auth/ProfileDropdown.tsx'
 import { cn } from '@/lib/utils'
-import { ConfigDrawer } from '@/widgets/ConfigDrawer/ConfigDrawer.tsx'
-import { Header } from '@/widgets/Layout/components/header.tsx'
 
 type MainProps = HTMLAttributes<HTMLElement> & {
   fixed?: boolean
@@ -15,15 +10,7 @@ type MainProps = HTMLAttributes<HTMLElement> & {
 
 export function Main({ fixed, className, fluid, ...props }: MainProps) {
   return (
-    <>
-      <Header>
-        <Search />
-        <div className="ms-auto flex items-center gap-4">
-          <ThemeSwitch />
-          <ConfigDrawer />
-          <ProfileDropdown />
-        </div>
-      </Header>
+    <div className="w-full min-w-0 flex-1 overflow-x-hidden">
       <main
         data-layout={fixed ? 'fixed' : 'auto'}
         className={cn(
@@ -38,6 +25,6 @@ export function Main({ fixed, className, fluid, ...props }: MainProps) {
         )}
         {...props}
       />
-    </>
+    </div>
   )
 }

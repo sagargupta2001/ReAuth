@@ -2,12 +2,13 @@ import type { ReactNode } from 'react'
 
 import { Outlet } from 'react-router-dom'
 
-import { LayoutProvider } from '@/app/providers/layoutProvider.tsx'
+import { LayoutProvider } from '@/app/providers/layoutProvider'
 import { getCookie } from '@/lib/cookies'
-import { cn } from '@/lib/utils'
-import { AppSidebar } from '@/widgets/Layout/components/app-sidebar.tsx'
+import { cn } from '@/lib/utils.ts'
+import { AppHeader } from '@/widgets/Layout/components/app-header.tsx'
+import { AppSidebar } from '@/widgets/Layout/components/app-sidebar'
 import { SidebarInset } from '@/widgets/Sidebar/components'
-import { SidebarProvider } from '@/widgets/Sidebar/components/content.tsx'
+import { SidebarProvider } from '@/widgets/Sidebar/components/content'
 
 type AuthenticatedLayoutProps = {
   children?: ReactNode
@@ -15,9 +16,11 @@ type AuthenticatedLayoutProps = {
 
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
+
   return (
     <LayoutProvider>
       <SidebarProvider defaultOpen={defaultOpen}>
+        <AppHeader />
         <AppSidebar />
         <SidebarInset
           className={cn(
