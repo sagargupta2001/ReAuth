@@ -41,7 +41,7 @@ const columns: ColumnDef<LogEntry>[] = [
         second: '2-digit',
       })
     },
-    size: 150, // Adjusted size
+    size: 150,
   },
   {
     accessorKey: 'level',
