@@ -124,7 +124,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     ));
 
     // Spawn plugin discovery in the background
-    let plugin_manager = PluginManager::new(manager_config, plugins_path.clone(), log_bus.clone());
+    let plugin_manager = PluginManager::new(manager_config, plugins_path.clone());
 
     // Initialize and Subscribe Listeners
     let cache_invalidator = Arc::new(CacheInvalidator::new(cache_service, rbac_repo));

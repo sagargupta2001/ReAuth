@@ -1,12 +1,12 @@
 //! The main implementation of the `PluginManager`.
 
-use crate::plugin::{PluginLogLine, PluginStatus, PluginStatusInfo};
+use crate::plugin::{PluginStatus, PluginStatusInfo};
 use crate::{
     constants,
     error::{Error, Result},
     grpc::plugin::v1::{handshake_client::HandshakeClient, Empty},
     plugin::{Manifest, PluginInstance},
-    LogPublisher, ManagerConfig,
+    ManagerConfig,
 };
 use serde::Serialize;
 use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Arc, time::Duration};
@@ -16,7 +16,7 @@ use tokio::{
     sync::Mutex,
 };
 use tonic::transport::Channel;
-use tracing::{error, info, warn};
+use tracing::{error, event, info, warn, Level};
 
 /// Represents a structured log entry, used by the log bus.
 #[derive(Debug, Clone, Serialize)]
@@ -40,21 +40,15 @@ pub struct PluginManager {
     plugins_dir: PathBuf,
     /// Configuration for the manager's behavior.
     config: ManagerConfig,
-    log_publisher: Arc<dyn LogPublisher>,
 }
 
 impl PluginManager {
     /// Creates a new, empty `PluginManager`.
-    pub fn new(
-        config: ManagerConfig,
-        plugins_dir: PathBuf,
-        log_publisher: Arc<dyn LogPublisher>,
-    ) -> Self {
+    pub fn new(config: ManagerConfig, plugins_dir: PathBuf) -> Self {
         Self {
             active_plugins: Arc::new(Mutex::new(HashMap::new())),
             plugins_dir,
             config,
-            log_publisher,
         }
     }
 
@@ -265,12 +259,7 @@ impl PluginManager {
                     .await
                     .insert(manifest.id.clone(), instance);
 
-                self.spawn_log_forwarders(
-                    manifest.name,
-                    stdout_reader,
-                    stderr,
-                    self.log_publisher.clone(),
-                );
+                self.spawn_log_forwarders(manifest.name, stdout_reader, stderr);
                 Ok(())
             }
             _ => {
@@ -284,85 +273,112 @@ impl PluginManager {
         }
     }
 
-    // This function is identical to your previous version.
     fn spawn_log_forwarders<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
         &self,
         name: String,
         stdout_reader: tokio::io::Lines<BufReader<R>>,
         stderr: tokio::process::ChildStderr,
-        publisher: Arc<dyn LogPublisher>, // <-- Now accepts the publisher
     ) {
-        // 1. Handle stdout (handshake)
-        let publisher_stdout = publisher.clone();
-        let stdout_target = format!("plugin:{}:handshake", name);
+        // Handle stdout (handshake output)
+        let stdout_plugin_name = name.clone();
         tokio::spawn(async move {
             let mut lines = stdout_reader;
             while let Ok(Some(line)) = lines.next_line().await {
-                // Publish the handshake line as a log
-                publisher_stdout
-                    .publish(LogEntry {
-                        timestamp: chrono::Utc::now().to_rfc3339(),
-                        level: "INFO".to_string(),
-                        target: stdout_target.clone(),
-                        message: line,
-                        fields: Default::default(),
-                    })
-                    .await;
+                event!(
+                    target: "plugin_handshake",
+                    Level::INFO,
+                    plugin_name = %stdout_plugin_name,
+                    "{line}"
+                );
             }
         });
 
-        // 2. Handle stderr (plugin's JSON logs)
-        let publisher_stderr = publisher.clone();
-        let stderr_target_prefix = format!("plugin:{}", name);
+        // Handle stderr (plugin's structured JSON logs)
+        let stderr_plugin_name = name.clone();
         tokio::spawn(async move {
+            use tokio::io::{AsyncBufReadExt, BufReader};
+            use tracing::{debug, error, info, trace, warn};
+
             let mut lines = BufReader::new(stderr).lines();
+
             while let Ok(Some(line)) = lines.next_line().await {
-                // Try to parse the line as JSON
-                if let Ok(mut log_line) = serde_json::from_str::<PluginLogLine>(&line) {
-                    // It's a valid JSON log. Re-publish it as a clean LogEntry.
-                    let fields_clone = log_line.fields.clone();
+                match serde_json::from_str::<crate::plugin::PluginLogLine>(&line) {
+                    Ok(mut log_line) => {
+                        // Fallback: ensure message is present
+                        if log_line.message.is_empty() {
+                            if let Some(msg) = log_line
+                                .fields
+                                .remove("message")
+                                .or(log_line.fields.remove("msg"))
+                            {
+                                log_line.message = msg.to_string().trim_matches('"').to_string();
+                            }
+                        }
 
-                    let message = log_line
-                        .fields
-                        .remove("message")
-                        .or_else(|| log_line.fields.remove("msg"))
-                        .map_or_else(String::new, |v| v.to_string().trim_matches('"').to_string());
+                        // Normalize log level
+                        let level = log_line.level.to_uppercase();
 
-                    let fields = fields_clone
-                        .into_iter()
-                        .map(|(k, v)| (k, v.to_string().trim_matches('"').to_string()))
-                        .collect();
-
-                    if log_line.message.is_empty() {
-                        if let Some(msg) = log_line
-                            .fields
-                            .get("message")
-                            .or(log_line.fields.get("msg"))
-                        {
-                            log_line.message = msg.to_string().trim_matches('"').to_string();
+                        // Match on log level to call the correct macro variant
+                        match level.as_str() {
+                            "TRACE" => trace!(
+                                target: "plugin_log",
+                                plugin_name = %stderr_plugin_name,
+                                plugin_target = %log_line.target,
+                                plugin_fields = ?log_line.fields,
+                                "{}",
+                                log_line.message
+                            ),
+                            "DEBUG" => debug!(
+                                target: "plugin_log",
+                                plugin_name = %stderr_plugin_name,
+                                plugin_target = %log_line.target,
+                                plugin_fields = ?log_line.fields,
+                                "{}",
+                                log_line.message
+                            ),
+                            "INFO" => info!(
+                                target: "plugin_log",
+                                plugin_name = %stderr_plugin_name,
+                                plugin_target = %log_line.target,
+                                plugin_fields = ?log_line.fields,
+                                "{}",
+                                log_line.message
+                            ),
+                            "WARN" | "WARNING" => warn!(
+                                target: "plugin_log",
+                                plugin_name = %stderr_plugin_name,
+                                plugin_target = %log_line.target,
+                                plugin_fields = ?log_line.fields,
+                                "{}",
+                                log_line.message
+                            ),
+                            "ERROR" => error!(
+                                target: "plugin_log",
+                                plugin_name = %stderr_plugin_name,
+                                plugin_target = %log_line.target,
+                                plugin_fields = ?log_line.fields,
+                                "{}",
+                                log_line.message
+                            ),
+                            _ => info!(
+                                target: "plugin_log",
+                                plugin_name = %stderr_plugin_name,
+                                plugin_target = %log_line.target,
+                                plugin_fields = ?log_line.fields,
+                                "{}",
+                                log_line.message
+                            ),
                         }
                     }
-
-                    publisher_stderr
-                        .publish(LogEntry {
-                            timestamp: log_line.timestamp,
-                            level: log_line.level.to_uppercase(),
-                            target: format!("{}:{}", stderr_target_prefix, log_line.target),
-                            message,
-                            fields,
-                        })
-                        .await;
-                } else {
-                    // It's not JSON (e.g., a panic message). Publish the raw line.
-                    publisher_stderr
-                        .publish(LogEntry {
-                            timestamp: chrono::Utc::now().to_rfc3339(),
-                            level: "ERROR".to_string(),
-                            target: stderr_target_prefix.clone(),
-                            message: line, // Publish the raw, unparsed line
-                            fields: Default::default(),
-                        })
-                        .await;
+                    Err(_) => {
+                        // Non-JSON line (panic or plain stderr)
+                        error!(
+                            target: "plugin_panic",
+                            plugin_name = %stderr_plugin_name,
+                            "Invalid log line or panic: {}",
+                            line
+                        );
+                    }
                 }
             }
         });
