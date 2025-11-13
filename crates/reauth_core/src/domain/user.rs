@@ -6,5 +6,5 @@ pub struct User {
     #[sqlx(try_from = "String")] // Convert TEXT from DB to Uuid
     pub id: Uuid,
     pub username: String,
-    pub hashed_password: String, // Renamed from 'role'
+    pub hashed_password: String,
 }

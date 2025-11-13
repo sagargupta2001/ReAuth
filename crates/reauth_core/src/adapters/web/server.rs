@@ -1,14 +1,11 @@
 use axum::{
-    extract::{Path, State},
+    extract::State,
     http::{Request, StatusCode, Uri},
-    response::{IntoResponse, Json},
+    response::IntoResponse,
     routing::{get, get_service, post},
     Router,
 };
-use manager::{
-    grpc::plugin::v1::{greeter_client::GreeterClient, HelloRequest},
-    PluginManager,
-};
+use manager::PluginManager;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -19,7 +16,10 @@ use tower_http::{
 };
 
 // Import the application services and handlers
-use crate::adapters::web::{log_stream_handler, plugin_handler, rbac_handler, user_handler};
+use crate::adapters::web::{
+    auth_handler, log_stream_handler, plugin_handler, rbac_handler, user_handler,
+};
+use crate::application::auth_service::AuthService;
 use crate::application::{rbac_service::RbacService, user_service::UserService};
 use crate::config::Settings;
 use manager::log_bus::LogSubscriber;
@@ -32,6 +32,7 @@ pub struct AppState {
     settings: Settings,
     pub(crate) user_service: Arc<UserService>,
     pub(crate) rbac_service: Arc<RbacService>,
+    pub auth_service: Arc<AuthService>,
     pub log_subscriber: Arc<dyn LogSubscriber>,
 }
 
@@ -106,6 +107,7 @@ pub async fn start_server(
     plugins_path: PathBuf,
     user_service: Arc<UserService>,
     rbac_service: Arc<RbacService>,
+    auth_service: Arc<AuthService>,
     log_subscriber: Arc<dyn LogSubscriber>,
 ) -> anyhow::Result<()> {
     let cors = CorsLayer::new()
@@ -119,6 +121,7 @@ pub async fn start_server(
         settings: settings.clone(),
         user_service,
         rbac_service,
+        auth_service,
         log_subscriber,
     };
 
@@ -140,13 +143,16 @@ pub async fn start_server(
             post(plugin_handler::disable_plugin_handler),
         );
 
+    let auth_api = Router::new().route("/login", post(auth_handler::login_handler));
+
     // Combine all API routers under the /api prefix
     let api_router = Router::new()
         .route("/health", get(|| async { "OK" }))
         .route("/logs/ws", get(log_stream_handler::log_stream_handler))
         .nest("/users", user_api)
         .nest("/rbac", rbac_api)
-        .nest("/plugins", plugin_api);
+        .nest("/plugins", plugin_api)
+        .nest("/auth", auth_api);
 
     // --- Main Application Router ---
     let app = Router::new()

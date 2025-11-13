@@ -1,3 +1,4 @@
+pub mod crypto;
 pub mod events;
 pub mod group;
 pub mod role;

@@ -1,2 +1,3 @@
-pub mod user_service;
+pub mod auth_service;
 pub mod rbac_service;
+pub mod user_service;

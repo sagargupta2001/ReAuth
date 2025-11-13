@@ -15,18 +15,18 @@ use crate::adapters::cache::cache_invalidator::CacheInvalidator;
 use crate::adapters::cache::moka_cache::MokaCacheService;
 use crate::adapters::eventing::in_memory_bus::InMemoryEventBus;
 use crate::adapters::eventing::log_broadcast_bus::LogBroadcastBus;
+use crate::adapters::logging::banner::print_banner;
 use crate::adapters::logging::tracing_adapter::TracingLogAdapter;
-use crate::adapters::logging::{banner::print_banner, logging::LOGGER};
 use crate::adapters::persistence::sqlite_rbac_repository::SqliteRbacRepository;
 use crate::adapters::SqliteUserRepository;
 use crate::adapters::{init_db, run_migrations, start_server, PluginEventGateway};
+use crate::application::auth_service::AuthService;
 use crate::application::rbac_service::RbacService;
 use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::ports::event_bus::EventSubscriber;
 use manager::log_bus::LogSubscriber;
 use manager::{ManagerConfig, PluginManager};
-use once_cell::sync::Lazy;
 use tokio::fs;
 use tracing::info;
 use tracing_subscriber::layer::SubscriberExt;
@@ -41,6 +41,7 @@ pub struct AppState {
     pub plugins_path: PathBuf,
     pub user_service: Arc<UserService>,
     pub rbac_service: Arc<RbacService>,
+    pub auth_service: Arc<AuthService>,
     pub log_subscriber: Arc<dyn LogSubscriber>,
 }
 
@@ -116,12 +117,13 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     let event_bus = Arc::new(InMemoryEventBus::new());
 
     // Initialize Application Services
-    let user_service = Arc::new(UserService::new(user_repo, event_bus.clone()));
+    let user_service = Arc::new(UserService::new(user_repo.clone(), event_bus.clone()));
     let rbac_service = Arc::new(RbacService::new(
         rbac_repo.clone(),
         cache_service.clone(),
         event_bus.clone(),
     ));
+    let auth_service = Arc::new(AuthService::new(user_repo));
 
     // Spawn plugin discovery in the background
     let plugin_manager = PluginManager::new(manager_config, plugins_path.clone());
@@ -143,6 +145,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         plugins_path,
         user_service,
         rbac_service,
+        auth_service,
         log_subscriber: log_bus,
     })
 }
@@ -167,6 +170,7 @@ pub async fn run() -> anyhow::Result<()> {
         app_state.plugins_path,
         app_state.user_service,
         app_state.rbac_service,
+        app_state.auth_service,
         app_state.log_subscriber,
     )
     .await?;

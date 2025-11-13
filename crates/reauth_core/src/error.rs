@@ -6,24 +6,27 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// The primary error enum for the reauth_core application.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Configuration error: {0}")]
+    #[error("Configuration error: {0}.")]
     Config(#[from] config::ConfigError),
 
-    #[error("Database initialization failed: {0}")]
+    #[error("Database initialization failed: {0}.")]
     DatabaseInit(String),
 
-    #[error("A user with this username already exists")]
+    #[error("A user with this username already exists.")]
     UserAlreadyExists,
 
-    #[error("User not found")]
+    #[error("User not found.")]
     UserNotFound,
 
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 
-    #[error("A role with this name already exists")]
+    #[error("A role with this name already exists.")]
     RoleAlreadyExists,
 
-    #[error("A group with this name already exists")]
+    #[error("A group with this name already exists.")]
     GroupAlreadyExists,
+
+    #[error("The credentials provided are incorrect.")]
+    InvalidCredentials,
 }

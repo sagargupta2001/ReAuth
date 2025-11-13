@@ -1,3 +1,4 @@
+pub mod auth_handler;
 pub mod error;
 pub mod log_stream_handler;
 pub mod plugin_handler;
