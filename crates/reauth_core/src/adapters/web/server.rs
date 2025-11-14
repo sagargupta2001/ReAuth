@@ -17,10 +17,12 @@ use tower_http::{
 
 // Import the application services and handlers
 use crate::adapters::web::{
-    auth_handler, log_stream_handler, plugin_handler, rbac_handler, user_handler,
+    auth_handler, log_stream_handler, plugin_handler, rbac_handler, realm_handler, user_handler,
 };
 use crate::application::auth_service::AuthService;
-use crate::application::{rbac_service::RbacService, user_service::UserService};
+use crate::application::{
+    rbac_service::RbacService, realm_service::RealmService, user_service::UserService,
+};
 use crate::config::Settings;
 use manager::log_bus::LogSubscriber;
 
@@ -33,6 +35,7 @@ pub struct AppState {
     pub(crate) user_service: Arc<UserService>,
     pub(crate) rbac_service: Arc<RbacService>,
     pub auth_service: Arc<AuthService>,
+    pub realm_service: Arc<RealmService>,
     pub log_subscriber: Arc<dyn LogSubscriber>,
 }
 
@@ -108,6 +111,7 @@ pub async fn start_server(
     user_service: Arc<UserService>,
     rbac_service: Arc<RbacService>,
     auth_service: Arc<AuthService>,
+    realm_service: Arc<RealmService>,
     log_subscriber: Arc<dyn LogSubscriber>,
 ) -> anyhow::Result<()> {
     let cors = CorsLayer::new()
@@ -122,6 +126,7 @@ pub async fn start_server(
         user_service,
         rbac_service,
         auth_service,
+        realm_service,
         log_subscriber,
     };
 
@@ -145,12 +150,15 @@ pub async fn start_server(
 
     let auth_api = Router::new().route("/login", post(auth_handler::login_handler));
 
+    let realm_api = Router::new().route("/", post(realm_handler::create_realm_handler));
+
     // Combine all API routers under the /api prefix
     let api_router = Router::new()
         .route("/health", get(|| async { "OK" }))
         .route("/logs/ws", get(log_stream_handler::log_stream_handler))
         .nest("/users", user_api)
         .nest("/rbac", rbac_api)
+        .nest("/realms", realm_api)
         .nest("/plugins", plugin_api)
         .nest("/auth", auth_api);
 

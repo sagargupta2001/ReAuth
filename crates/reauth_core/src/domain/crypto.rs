@@ -23,6 +23,13 @@ impl HashedPassword {
         Ok(Self(hash))
     }
 
+    pub fn from_hash(hash: &str) -> Result<Self> {
+        // We parse the hash just to validate its format.
+        PasswordHash::new(hash).map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(Self(hash.to_string()))
+    }
+
     pub fn verify(&self, password: &str) -> Result<bool> {
         let parsed_hash = PasswordHash::new(self.0.as_str())
             .map_err(|e| Error::Unexpected(anyhow::Error::msg(e.to_string())))?;

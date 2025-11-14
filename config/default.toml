@@ -12,3 +12,9 @@ handshake_timeout_secs = 5
 [database]
 url = "sqlite:data/reauth.db"
 max_connections = 5
+
+[auth]
+jwt_secret = "a-very-secret-default-key-please-change-this-in-production"
+# You can also move token TTLs here
+access_token_ttl_secs = 900  # 15 minutes
+refresh_token_ttl_secs = 604800 # 7 days

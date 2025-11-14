@@ -29,8 +29,15 @@ pub struct Settings {
     pub ui: Ui,
     pub plugins: PluginsConfig,
     pub database: DatabaseConfig,
+    pub auth: AuthConfig,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct AuthConfig {
+    pub jwt_secret: String,
+    pub access_token_ttl_secs: i64,
+    pub refresh_token_ttl_secs: i64,
+}
 
 impl Settings {
     pub fn new() -> Result<Self, config::ConfigError> {

@@ -29,4 +29,10 @@ pub enum Error {
 
     #[error("The credentials provided are incorrect.")]
     InvalidCredentials,
+
+    #[error("A realm with this name already exists.")]
+    RealmAlreadyExists,
+
+    #[error("JWT error: {0}")]
+    Jwt(#[from] jsonwebtoken::errors::Error),
 }

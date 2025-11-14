@@ -13,15 +13,19 @@ use std::sync::Arc;
 
 use crate::adapters::cache::cache_invalidator::CacheInvalidator;
 use crate::adapters::cache::moka_cache::MokaCacheService;
+use crate::adapters::crypto::jwt_service::JwtService;
 use crate::adapters::eventing::in_memory_bus::InMemoryEventBus;
 use crate::adapters::eventing::log_broadcast_bus::LogBroadcastBus;
 use crate::adapters::logging::banner::print_banner;
 use crate::adapters::logging::tracing_adapter::TracingLogAdapter;
 use crate::adapters::persistence::sqlite_rbac_repository::SqliteRbacRepository;
+use crate::adapters::persistence::sqlite_realm_repository::SqliteRealmRepository;
+use crate::adapters::persistence::sqlite_session_repository::SqliteSessionRepository;
 use crate::adapters::SqliteUserRepository;
 use crate::adapters::{init_db, run_migrations, start_server, PluginEventGateway};
 use crate::application::auth_service::AuthService;
 use crate::application::rbac_service::RbacService;
+use crate::application::realm_service::RealmService;
 use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::ports::event_bus::EventSubscriber;
@@ -42,6 +46,7 @@ pub struct AppState {
     pub user_service: Arc<UserService>,
     pub rbac_service: Arc<RbacService>,
     pub auth_service: Arc<AuthService>,
+    pub realm_service: Arc<RealmService>,
     pub log_subscriber: Arc<dyn LogSubscriber>,
 }
 
@@ -113,7 +118,13 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     // Initialize Adapters
     let user_repo = Arc::new(SqliteUserRepository::new(db_pool.clone()));
     let rbac_repo = Arc::new(SqliteRbacRepository::new(db_pool.clone()));
+    let realm_repo = Arc::new(SqliteRealmRepository::new(db_pool.clone()));
+    let session_repo = Arc::new(SqliteSessionRepository::new(db_pool.clone()));
+
+    let realm_service = Arc::new(RealmService::new(realm_repo.clone()));
     let cache_service = Arc::new(MokaCacheService::new());
+    let token_service = Arc::new(JwtService::new(settings.auth.clone()));
+
     let event_bus = Arc::new(InMemoryEventBus::new());
 
     // Initialize Application Services
@@ -123,7 +134,14 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         cache_service.clone(),
         event_bus.clone(),
     ));
-    let auth_service = Arc::new(AuthService::new(user_repo));
+    let auth_service = Arc::new(AuthService::new(
+        user_repo,
+        realm_repo,
+        session_repo,
+        token_service,
+        rbac_service.clone(),
+        settings.auth.clone(),
+    ));
 
     // Spawn plugin discovery in the background
     let plugin_manager = PluginManager::new(manager_config, plugins_path.clone());
@@ -146,6 +164,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         user_service,
         rbac_service,
         auth_service,
+        realm_service,
         log_subscriber: log_bus,
     })
 }
@@ -171,6 +190,7 @@ pub async fn run() -> anyhow::Result<()> {
         app_state.user_service,
         app_state.rbac_service,
         app_state.auth_service,
+        app_state.realm_service,
         app_state.log_subscriber,
     )
     .await?;

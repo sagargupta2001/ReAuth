@@ -22,9 +22,10 @@ impl IntoResponse for Error {
             Error::InvalidCredentials => (StatusCode::UNAUTHORIZED, self.to_string()),
 
             // 409 Conflict
-            Error::UserAlreadyExists | Error::RoleAlreadyExists | Error::GroupAlreadyExists => {
-                (StatusCode::CONFLICT, self.to_string())
-            }
+            Error::UserAlreadyExists
+            | Error::RoleAlreadyExists
+            | Error::GroupAlreadyExists
+            | Error::RealmAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
 
             // 404 Not Found
             Error::UserNotFound => (StatusCode::NOT_FOUND, self.to_string()),
@@ -39,6 +40,11 @@ impl IntoResponse for Error {
                     "An unexpected error occurred.".to_string(),
                 )
             }
+
+            Error::Jwt(_) => (
+                StatusCode::UNAUTHORIZED,
+                "Invalid or expired token.".to_string(),
+            ),
         };
 
         (status, Json(json!({ "error": message }))).into_response()
