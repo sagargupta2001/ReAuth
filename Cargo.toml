@@ -2,9 +2,49 @@
 members = ["crates/reauth_core", "crates/plugin/sdk", "crates/plugin/manager", "plugins/hello-world/backend"]
 resolver = "2"
 
+[workspace.dependencies]
+# Web & gRPC
+axum = { version = "0.8.6", features = ["ws"] }
+tonic = "0.11.0"
+http = "1.1.0"
+tower-http = { version = "0.5.2", features = ["fs", "trace", "cors"] }
+reqwest = { version = "0.12.5", features = ["json"] }
+mime_guess = "2.0.5"
+
+# Async Runtime
+tokio = { version = "1.37.0", features = ["full"] }
+tokio-stream = "0.1.15"
+futures = "0.3.30"
+
+# Serde
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.116"
+
+# Config & Logging
+config = { version = "0.15.19", features = ["toml"] }
+dotenvy = "0.15.7"
+colored = "2.1.0"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+once_cell = "1.19.0"
+
+# DB & Crypto
+sqlx = { version = "0.7.4", features = ["sqlite", "runtime-tokio-rustls", "macros", "uuid"] }
+argon2 = { version = "0.5", features = ["std"] }
+password-hash = { version = "0.5.0", features = ["rand_core", "std"] }
+rand_core = { version = "0.6.4", features = ["std"] }
+
+# Utilities
+anyhow = "1.0.82"
+thiserror = "1.0.60"
+async-trait = "0.1.79"
+uuid = { version = "1.8.0", features = ["v4", "serde"] }
+moka = { version = "0.12.7", features = ["future"] }
+chrono = { version = "0.4.38", features = ["serde"] }
+validator = { version = "0.20.0", features = ["derive"] }
+rust-embed = "8.3.0"
+
+
 [profile.dev]
 incremental = true
 opt-level = 0
-
-[profile.release]
-debug = true

@@ -4,15 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-tonic = "0.11"
+tokio = { workspace = true, features = ["full"] }
+tonic = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+http = { workspace = true }
 prost = "0.12"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tracing = "0.1"
-thiserror = "2.0.17"
 async-trait = "0.1.89"
-chrono = "0.4.42"
 
 [build-dependencies]
 tonic-build = "0.11"
