@@ -13,7 +13,7 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             // 401 Unauthorized
-            Error::InvalidCredentials | Error::SessionRevoked => {
+            Error::InvalidCredentials | Error::SessionRevoked | Error::InvalidRefreshToken => {
                 (StatusCode::UNAUTHORIZED, self.to_string())
             }
 

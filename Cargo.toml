@@ -16,6 +16,7 @@ mime_guess = "2.0.5"
 tokio = { version = "1.37.0", features = ["full"] }
 tokio-stream = "0.1.15"
 futures = "0.3.30"
+time = "0.3.44"
 
 # Serde
 serde = { version = "1.0", features = ["derive"] }
@@ -45,7 +46,7 @@ moka = { version = "0.12.7", features = ["future"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 validator = { version = "0.20.0", features = ["derive"] }
 rust-embed = "8.3.0"
-
+cookie = "0.18.1"
 
 [profile.dev]
 incremental = true

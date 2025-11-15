@@ -10,6 +10,7 @@ use crate::{
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
+use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -75,8 +76,7 @@ impl AuthService {
             .unwrap();
 
         // Create the Stateful Refresh Token
-        let expires_at =
-            chrono::Utc::now() + chrono::Duration::seconds(realm.refresh_token_ttl_secs);
+        let expires_at = Utc::now() + Duration::seconds(realm.refresh_token_ttl_secs);
         let refresh_token = RefreshToken {
             id: Uuid::new_v4(),
             user_id: user.id,
@@ -117,10 +117,65 @@ impl AuthService {
         // 3. Fetch the user from the database
         let user = self
             .user_repo
-            .find_by_id(&claims.sub) // You will need to add `find_by_id` to your UserRepository
+            .find_by_id(&claims.sub)
             .await?
             .ok_or(Error::UserNotFound)?;
 
         Ok(user)
+    }
+
+    pub async fn refresh_session(
+        &self,
+        refresh_token_id: Uuid,
+    ) -> Result<(LoginResponse, RefreshToken)> {
+        // 1. Find and *immediately delete* the old refresh token.
+        // This is the core of "token rotation." The token is now single-use.
+        // We find and delete in one operation if possible, or two separate calls.
+        // Let's assume `find_by_id` checks expiry.
+        let old_token = self
+            .session_repo
+            .find_by_id(&refresh_token_id)
+            .await?
+            .ok_or(Error::InvalidRefreshToken)?;
+
+        // Invalidate the used token
+        self.session_repo.delete_by_id(&old_token.id).await?;
+
+        // 2. Get the associated user and realm
+        let user = self
+            .user_repo
+            .find_by_id(&old_token.user_id)
+            .await?
+            .ok_or(Error::UserNotFound)?; // The user was deleted
+
+        let realm = self
+            .realm_repo
+            .find_by_id(&old_token.realm_id)
+            .await?
+            .ok_or(Error::RealmNotFound("".to_string()))?; // The realm was deleted
+
+        // 3. Create a NEW Refresh Token
+        let expires_at = Utc::now() + Duration::seconds(self.settings.refresh_token_ttl_secs);
+        let new_refresh_token = RefreshToken {
+            id: Uuid::new_v4(), // New ID
+            user_id: user.id,
+            realm_id: realm.id,
+            expires_at,
+        };
+        self.session_repo.save(&new_refresh_token).await?;
+
+        // 4. Get *fresh* permissions (this is critical for RBAC)
+        let permissions = self
+            .rbac_service
+            .get_effective_permissions(&user.id)
+            .await?;
+
+        // 5. Create a new Access Token (JWT) linked to the *new* session
+        let access_token = self
+            .token_service
+            .create_access_token(&user, new_refresh_token.id, &permissions)
+            .await?;
+
+        Ok((LoginResponse { access_token }, new_refresh_token))
     }
 }

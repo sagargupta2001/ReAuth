@@ -61,7 +61,9 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
 // By breaking routes into small functions, this file stays clean and scalable.
 
 fn auth_routes() -> Router<AppState> {
-    Router::new().route("/login", post(auth_handler::login_handler))
+    Router::new()
+        .route("/login", post(auth_handler::login_handler))
+        .route("/refresh", post(auth_handler::refresh_handler))
 }
 
 fn public_user_routes() -> Router<AppState> {

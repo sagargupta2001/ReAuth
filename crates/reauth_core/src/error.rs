@@ -30,6 +30,9 @@ pub enum Error {
     #[error("The credentials provided are incorrect.")]
     InvalidCredentials,
 
+    #[error("Invalid or expired refresh token")]
+    InvalidRefreshToken,
+
     #[error("The session has been revoked.")]
     SessionRevoked,
 
