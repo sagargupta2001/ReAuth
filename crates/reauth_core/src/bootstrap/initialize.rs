@@ -8,9 +8,7 @@ use crate::adapters::logging::tracing_adapter::TracingLogAdapter;
 use crate::adapters::persistence::sqlite_rbac_repository::SqliteRbacRepository;
 use crate::adapters::persistence::sqlite_realm_repository::SqliteRealmRepository;
 use crate::adapters::persistence::sqlite_session_repository::SqliteSessionRepository;
-use crate::adapters::{
-    init_db, run_migrations, start_server, PluginEventGateway, SqliteUserRepository,
-};
+use crate::adapters::{init_db, run_migrations, PluginEventGateway, SqliteUserRepository};
 use crate::application::auth_service::AuthService;
 use crate::application::rbac_service::RbacService;
 use crate::application::realm_service::RealmService;
@@ -146,33 +144,4 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         realm_service,
         log_subscriber: log_bus,
     })
-}
-
-/// Starts the full ReAuth Core application (normal mode).
-pub async fn run() -> anyhow::Result<()> {
-    let app_state = initialize().await?;
-
-    let server_url = format!(
-        "{}://{}:{}",
-        app_state.settings.server.scheme,
-        app_state.settings.server.host,
-        app_state.settings.server.port
-    );
-
-    info!("Server started at: {}", server_url);
-    info!("Database status: {}", "Up & Running");
-
-    start_server(
-        app_state.settings,
-        app_state.plugin_manager,
-        app_state.plugins_path,
-        app_state.user_service,
-        app_state.rbac_service,
-        app_state.auth_service,
-        app_state.realm_service,
-        app_state.log_subscriber,
-    )
-    .await?;
-
-    Ok(())
 }
