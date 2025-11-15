@@ -36,6 +36,9 @@ pub enum Error {
     #[error("A realm with this name already exists.")]
     RealmAlreadyExists,
 
+    #[error("Realm not found: {0}")]
+    RealmNotFound(String),
+
     #[error("JWT error: {0}")]
     Jwt(#[from] jsonwebtoken::errors::Error),
 }

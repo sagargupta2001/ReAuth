@@ -50,4 +50,8 @@ impl UserService {
 
         Ok(user)
     }
+
+    pub async fn find_by_username(&self, username: &str) -> Result<Option<User>> {
+        self.user_repo.find_by_username(username).await
+    }
 }

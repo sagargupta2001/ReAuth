@@ -8,12 +8,6 @@ use serde_json::json;
 // Import the application's reauth_core error type
 use crate::error::Error;
 
-/// A simple struct to serialize error messages as JSON.
-#[derive(serde::Serialize)]
-struct ErrorResponse {
-    message: String,
-}
-
 /// This is the adapter's translation layer.
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
@@ -30,7 +24,9 @@ impl IntoResponse for Error {
             | Error::RealmAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
 
             // 404 Not Found
-            Error::UserNotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            Error::UserNotFound | Error::RealmNotFound(_) => {
+                (StatusCode::NOT_FOUND, self.to_string())
+            }
 
             // 500 Internal Server Error (for things the user can't fix)
             Error::Config(_) | Error::DatabaseInit(_) | Error::Unexpected(_) => {

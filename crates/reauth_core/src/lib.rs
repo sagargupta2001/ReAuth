@@ -25,14 +25,16 @@ use crate::adapters::SqliteUserRepository;
 use crate::adapters::{init_db, run_migrations, start_server, PluginEventGateway};
 use crate::application::auth_service::AuthService;
 use crate::application::rbac_service::RbacService;
-use crate::application::realm_service::RealmService;
+use crate::application::realm_service::{CreateRealmPayload, RealmService};
 use crate::application::user_service::UserService;
-use crate::config::Settings;
+use crate::config::{DefaultAdminConfig, Settings};
+use crate::constants::DEFAULT_REALM_NAME;
 use crate::ports::event_bus::EventSubscriber;
 use manager::log_bus::LogSubscriber;
 use manager::{ManagerConfig, PluginManager};
 use tokio::fs;
 use tracing::info;
+use tracing::warn;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -53,10 +55,8 @@ pub struct AppState {
 /// Performs all initialization logic: env, plugins, DB, migrations, and DI.
 pub async fn initialize() -> anyhow::Result<AppState> {
     let settings = Settings::new()?;
-
     let log_bus = Arc::new(LogBroadcastBus::new());
     let log_adapter = TracingLogAdapter::new(log_bus.clone());
-
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let fmt_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
 
@@ -120,11 +120,9 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     let rbac_repo = Arc::new(SqliteRbacRepository::new(db_pool.clone()));
     let realm_repo = Arc::new(SqliteRealmRepository::new(db_pool.clone()));
     let session_repo = Arc::new(SqliteSessionRepository::new(db_pool.clone()));
-
     let realm_service = Arc::new(RealmService::new(realm_repo.clone()));
     let cache_service = Arc::new(MokaCacheService::new());
     let token_service = Arc::new(JwtService::new(settings.auth.clone()));
-
     let event_bus = Arc::new(InMemoryEventBus::new());
 
     // Initialize Application Services
@@ -154,8 +152,11 @@ pub async fn initialize() -> anyhow::Result<AppState> {
 
     // Run Migrations
     if let Err(e) = run_migrations(&db_pool).await {
-        tracing::warn!("Migration warning: {}", e);
+        warn!("Migration warning: {}", e);
     }
+
+    info!("Running database seeding...");
+    seed_database(&realm_service, &user_service, &settings.default_admin).await?;
 
     Ok(AppState {
         settings,
@@ -169,6 +170,50 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     })
 }
 
+async fn seed_database(
+    realm_service: &Arc<RealmService>,
+    user_service: &Arc<UserService>,
+    admin_config: &DefaultAdminConfig,
+) -> anyhow::Result<()> {
+    // 1. Check for the default realm
+    if realm_service
+        .find_by_name(DEFAULT_REALM_NAME)
+        .await?
+        .is_none()
+    {
+        info!(
+            "No default realm found. Creating '{}' realm...",
+            DEFAULT_REALM_NAME
+        );
+        let payload = CreateRealmPayload {
+            name: DEFAULT_REALM_NAME.to_string(),
+        };
+        realm_service.create_realm(payload).await?;
+        info!("Default realm created successfully.");
+    }
+
+    // 2. Check for the admin user
+    if user_service
+        .find_by_username(&admin_config.username)
+        .await?
+        .is_none()
+    {
+        info!(
+            "No admin user found. Creating admin user '{}'...",
+            &admin_config.username
+        );
+        user_service
+            .create_user(&admin_config.username, &admin_config.password)
+            .await?;
+        info!("Admin user created successfully.");
+        warn!(
+            "SECURITY: Admin user created with the default password. Please log in and change it immediately."
+        );
+    }
+
+    Ok(())
+}
+
 /// Starts the full ReAuth Core application (normal mode).
 pub async fn run() -> anyhow::Result<()> {
     let app_state = initialize().await?;
@@ -180,7 +225,7 @@ pub async fn run() -> anyhow::Result<()> {
         app_state.settings.server.port
     );
 
-    info!("🖥 Server started at: {}", server_url);
+    info!("Server started at: {}", server_url);
     info!("Database status: {}", "Up & Running");
 
     start_server(

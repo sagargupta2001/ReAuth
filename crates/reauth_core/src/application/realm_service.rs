@@ -39,4 +39,8 @@ impl RealmService {
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<Realm>> {
         self.realm_repo.find_by_id(&id).await
     }
+
+    pub async fn find_by_name(&self, name: &str) -> Result<Option<Realm>> {
+        self.realm_repo.find_by_name(name).await
+    }
 }
