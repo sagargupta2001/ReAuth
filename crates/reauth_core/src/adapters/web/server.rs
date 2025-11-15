@@ -2,23 +2,14 @@ use axum::{
     extract::State,
     http::{Request, StatusCode, Uri},
     response::IntoResponse,
-    routing::{get, get_service, post},
-    Router,
 };
 use manager::PluginManager;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tower_http::{
-    cors::{Any, CorsLayer},
-    services::ServeDir,
-    trace::TraceLayer,
-};
 
 // Import the application services and handlers
-use crate::adapters::web::{
-    auth_handler, log_stream_handler, plugin_handler, rbac_handler, realm_handler, user_handler,
-};
+use crate::adapters::web::router::create_router;
 use crate::application::auth_service::AuthService;
 use crate::application::{
     rbac_service::RbacService, realm_service::RealmService, user_service::UserService,
@@ -40,7 +31,7 @@ pub struct AppState {
 }
 
 #[cfg(not(feature = "embed-ui"))]
-mod ui_handler {
+pub(crate) mod ui_handler {
     use super::*;
     use axum::body::Body;
     /// Proxies all UI requests to the React dev server (e.g., http://localhost:5173)
@@ -67,7 +58,7 @@ mod ui_handler {
 }
 
 #[cfg(feature = "embed-ui")]
-mod ui_handler {
+pub(crate) mod ui_handler {
     use super::*;
     use axum::http::{header, HeaderValue, StatusCode};
     use rust_embed::Embed;
@@ -114,11 +105,6 @@ pub async fn start_server(
     realm_service: Arc<RealmService>,
     log_subscriber: Arc<dyn LogSubscriber>,
 ) -> anyhow::Result<()> {
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
     // Create the single, unified AppState
     let app_state = AppState {
         plugin_manager,
@@ -130,46 +116,7 @@ pub async fn start_server(
         log_subscriber,
     };
 
-    // --- API Router Definition ---
-    // We create sub-routers for each part of the API for cleanliness.
-
-    let user_api = Router::new().route("/", post(user_handler::create_user_handler));
-
-    let rbac_api = Router::new()
-        .route("/roles", post(rbac_handler::create_role_handler))
-        .route("/groups", post(rbac_handler::create_group_handler));
-
-    let plugin_api = Router::new()
-        .route("/manifests", get(plugin_handler::get_plugin_manifests))
-        .route("/{id}/say-hello", get(plugin_handler::plugin_proxy_handler))
-        .route("/{id}/enable", post(plugin_handler::enable_plugin_handler))
-        .route(
-            "/{id}/disable",
-            post(plugin_handler::disable_plugin_handler),
-        );
-
-    let auth_api = Router::new().route("/login", post(auth_handler::login_handler));
-
-    let realm_api = Router::new().route("/", post(realm_handler::create_realm_handler));
-
-    // Combine all API routers under the /api prefix
-    let api_router = Router::new()
-        .route("/health", get(|| async { "OK" }))
-        .route("/logs/ws", get(log_stream_handler::log_stream_handler))
-        .nest("/users", user_api)
-        .nest("/rbac", rbac_api)
-        .nest("/realms", realm_api)
-        .nest("/plugins", plugin_api)
-        .nest("/auth", auth_api);
-
-    // --- Main Application Router ---
-    let app = Router::new()
-        .nest("/api", api_router)
-        .nest_service("/plugins", get_service(ServeDir::new(plugins_path)))
-        .fallback(ui_handler::static_handler)
-        .layer(cors)
-        .layer(TraceLayer::new_for_http())
-        .with_state(app_state);
+    let app = create_router(app_state, plugins_path);
 
     let addr = SocketAddr::from((
         settings.server.host.parse::<std::net::IpAddr>()?,

@@ -19,7 +19,9 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             // 401 Unauthorized
-            Error::InvalidCredentials => (StatusCode::UNAUTHORIZED, self.to_string()),
+            Error::InvalidCredentials | Error::SessionRevoked => {
+                (StatusCode::UNAUTHORIZED, self.to_string())
+            }
 
             // 409 Conflict
             Error::UserAlreadyExists

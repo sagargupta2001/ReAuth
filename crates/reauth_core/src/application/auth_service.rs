@@ -1,8 +1,9 @@
 use crate::application::rbac_service::RbacService;
 use crate::domain::session::RefreshToken;
+use crate::domain::user::User;
 use crate::ports::realm_repository::RealmRepository;
 use crate::ports::session_repository::SessionRepository;
-use crate::ports::token_service::TokenService;
+use crate::ports::token_service::{AccessTokenClaims, TokenService};
 use crate::{
     domain::crypto::HashedPassword,
     error::{Error, Result},
@@ -93,5 +94,28 @@ impl AuthService {
 
         // 5. Return the tokens
         Ok((LoginResponse { access_token }, refresh_token))
+    }
+
+    /// Validates an access token and returns the full User.
+    /// This is the core "use case" for the auth middleware.
+    pub async fn validate_token_and_get_user(&self, token: &str) -> Result<User> {
+        // 1. Validate the JWT
+        let claims: AccessTokenClaims = self.token_service.validate_access_token(token).await?;
+
+        // 2. Check if the session is still valid in the DB
+        let session_is_valid = self.session_repo.find_by_id(&claims.sid).await?.is_some();
+
+        if !session_is_valid {
+            return Err(Error::SessionRevoked);
+        }
+
+        // 3. Fetch the user from the database
+        let user = self
+            .user_repo
+            .find_by_id(&claims.sub) // You will need to add `find_by_id` to your UserRepository
+            .await?
+            .ok_or(Error::UserNotFound)?;
+
+        Ok(user)
     }
 }

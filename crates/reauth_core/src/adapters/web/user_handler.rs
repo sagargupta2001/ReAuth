@@ -1,7 +1,8 @@
+use crate::adapters::web::auth_middleware::AuthUser;
 use crate::adapters::web::server::AppState;
 use crate::adapters::web::validation::ValidatedJson;
 use crate::error::Result;
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::Deserialize;
 use validator::Validate;
 
@@ -27,4 +28,12 @@ pub async fn create_user_handler(
         .await?;
 
     Ok((StatusCode::CREATED, Json(user)))
+}
+
+pub async fn get_me_handler(
+    // Get the `AuthUser` that the middleware inserted
+    Extension(AuthUser(user)): Extension<AuthUser>,
+) -> Result<impl IntoResponse> {
+    // The user is already authenticated and fetched. Just return it.
+    Ok((StatusCode::OK, Json(user)))
 }
