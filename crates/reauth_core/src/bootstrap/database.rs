@@ -4,6 +4,7 @@ use crate::application::realm_service::RealmService;
 use crate::application::user_service::UserService;
 use crate::bootstrap::seed::seed_database;
 use crate::config::Settings;
+use crate::ports::flow_repository::FlowRepository;
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::sync::Arc;
@@ -44,6 +45,7 @@ pub async fn run_migrations_and_seed(
     db_pool: &sqlx::SqlitePool,
     realm_service: &Arc<RealmService>,
     user_service: &Arc<UserService>,
+    flow_repo: Arc<dyn FlowRepository>,
     settings: &Settings,
 ) -> anyhow::Result<()> {
     if let Err(e) = run_migrations(db_pool).await {
@@ -51,7 +53,13 @@ pub async fn run_migrations_and_seed(
     }
 
     info!("Running database seeding...");
-    seed_database(realm_service, user_service, &settings.default_admin).await?;
+    seed_database(
+        realm_service,
+        user_service,
+        &flow_repo,
+        &settings.default_admin,
+    )
+    .await?;
 
     Ok(())
 }

@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/avatar'
-import { Button } from '@/components/button'
+import useDialogState from '@/lib/hooks/useDialogState.ts'
+import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/avatar.tsx'
+import { Button } from '@/shared/ui/button.tsx'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,10 +12,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@/components/dropdown-menu'
-import useDialogState from '@/shared/lib/hooks/useDialogState'
+} from '@/shared/ui/dropdown-menu.tsx'
 
-import { SignOutDialog } from './SignOutDialog'
+import { SignOutDialog } from './SignOutDialog.tsx'
 
 export function ProfileDropdown() {
   const [open, setOpen] = useDialogState()
@@ -33,8 +33,8 @@ export function ProfileDropdown() {
         <DropdownMenuContent className="w-56" align="end" forceMount>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-1.5">
-              <p className="text-sm font-medium leading-none">satnaing</p>
-              <p className="text-xs leading-none text-muted-foreground">satnaingdev@gmail.com</p>
+              <p className="text-sm leading-none font-medium">satnaing</p>
+              <p className="text-muted-foreground text-xs leading-none">satnaingdev@gmail.com</p>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />

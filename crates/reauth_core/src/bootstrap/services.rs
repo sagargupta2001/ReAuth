@@ -1,46 +1,74 @@
-use crate::adapters::cache::moka_cache::MokaCacheService;
-use crate::adapters::crypto::jwt_service::JwtService;
-use crate::adapters::eventing::in_memory_bus::InMemoryEventBus;
-use crate::adapters::persistence::sqlite_rbac_repository::SqliteRbacRepository;
-use crate::adapters::persistence::sqlite_realm_repository::SqliteRealmRepository;
-use crate::adapters::persistence::sqlite_session_repository::SqliteSessionRepository;
-use crate::adapters::SqliteUserRepository;
-use crate::application::auth_service::AuthService;
-use crate::application::rbac_service::RbacService;
-use crate::application::realm_service::RealmService;
-use crate::application::user_service::UserService;
-use crate::config::Settings;
-use std::sync::Arc;
+use crate::{
+    adapters::{
+        auth::password_authenticator::PasswordAuthenticator, cache::moka_cache::MokaCacheService,
+        crypto::jwt_service::JwtService, eventing::in_memory_bus::InMemoryEventBus,
+    },
+    application::{
+        auth_service::AuthService,
+        flow_engine::{AuthenticatorRegistry, FlowEngine},
+        rbac_service::RbacService,
+        realm_service::RealmService,
+        user_service::UserService,
+    },
+    bootstrap::repositories::Repositories,
+    config::Settings,
+    ports::authenticator::Authenticator,
+};
+use std::{collections::HashMap, sync::Arc};
+
+/// A struct to hold all initialized application services.
+pub struct Services {
+    pub user_service: Arc<UserService>,
+    pub rbac_service: Arc<RbacService>,
+    pub realm_service: Arc<RealmService>,
+    pub auth_service: Arc<AuthService>,
+    pub flow_engine: Arc<FlowEngine>,
+}
 
 pub fn initialize_services(
     settings: &Settings,
-    user_repo: &Arc<SqliteUserRepository>,
-    rbac_repo: &Arc<SqliteRbacRepository>,
-    realm_repo: &Arc<SqliteRealmRepository>,
-    session_repo: &Arc<SqliteSessionRepository>,
+    repos: &Repositories,
     cache: &Arc<MokaCacheService>,
     event_bus: &Arc<InMemoryEventBus>,
-) -> (
-    Arc<UserService>,
-    Arc<RbacService>,
-    Arc<RealmService>,
-    Arc<AuthService>,
-) {
-    let user_service = Arc::new(UserService::new(user_repo.clone(), event_bus.clone()));
+    token_service: &Arc<JwtService>,
+) -> Services {
+    let user_service = Arc::new(UserService::new(repos.user_repo.clone(), event_bus.clone()));
     let rbac_service = Arc::new(RbacService::new(
-        rbac_repo.clone(),
+        repos.rbac_repo.clone(),
         cache.clone(),
         event_bus.clone(),
     ));
-    let realm_service = Arc::new(RealmService::new(realm_repo.clone()));
+    let realm_service = Arc::new(RealmService::new(repos.realm_repo.clone()));
     let auth_service = Arc::new(AuthService::new(
-        user_repo.clone(),
-        realm_repo.clone(),
-        session_repo.clone(),
-        Arc::new(JwtService::new(settings.auth.clone())),
+        repos.user_repo.clone(),
+        repos.realm_repo.clone(),
+        repos.session_repo.clone(),
+        token_service.clone(),
         rbac_service.clone(),
         settings.auth.clone(),
     ));
 
-    (user_service, rbac_service, realm_service, auth_service)
+    // Build the registry for the Flow Engine
+    let mut authenticator_map = HashMap::<String, Arc<dyn Authenticator>>::new();
+
+    let password_auth = Arc::new(PasswordAuthenticator::new(repos.user_repo.clone()));
+    authenticator_map.insert(password_auth.name().to_string(), password_auth);
+    // TODO: Load plugin authenticators and add them to the map
+    let authenticator_registry = Arc::new(AuthenticatorRegistry::new(authenticator_map));
+
+    let flow_engine = Arc::new(FlowEngine::new(
+        authenticator_registry,
+        repos.flow_repo.clone(),
+        repos.realm_repo.clone(),
+        auth_service.clone(),
+        repos.user_repo.clone(),
+    ));
+
+    Services {
+        user_service,
+        rbac_service,
+        realm_service,
+        auth_service,
+        flow_engine,
+    }
 }

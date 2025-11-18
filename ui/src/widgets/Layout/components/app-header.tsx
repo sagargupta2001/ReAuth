@@ -1,6 +1,6 @@
 import { Search } from '@/features/Search/components/Search'
 import { ThemeSwitch } from '@/features/ThemeSwitch/ThemeSwitch'
-import { ProfileDropdown } from '@/features/auth/ProfileDropdown'
+import { ProfileDropdown } from '@/features/auth/components/ProfileDropdown.tsx'
 import { cn } from '@/lib/utils'
 import { Header } from '@/widgets/Layout/components/header.tsx'
 

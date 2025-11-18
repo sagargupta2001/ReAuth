@@ -24,12 +24,19 @@ impl IntoResponse for Error {
             | Error::RealmAlreadyExists => (StatusCode::CONFLICT, self.to_string()),
 
             // 404 Not Found
-            Error::UserNotFound | Error::RealmNotFound(_) => {
-                (StatusCode::NOT_FOUND, self.to_string())
-            }
+            Error::UserNotFound
+            | Error::RealmNotFound(_)
+            | Error::FlowNotFound(_)
+            | Error::AuthenticatorNotFound(_)
+            | Error::InvalidLoginStep
+            | Error::InvalidLoginSession => (StatusCode::NOT_FOUND, self.to_string()),
 
             // 500 Internal Server Error (for things the user can't fix)
-            Error::Config(_) | Error::DatabaseInit(_) | Error::Unexpected(_) => {
+            Error::Config(_)
+            | Error::DatabaseInit(_)
+            | Error::Unexpected(_)
+            | Error::Uuid(_)
+            | Error::InvalidHeader(_) => {
                 // Log the detailed, internal error for developers
                 tracing::error!("Internal server error: {:?}", self);
                 // Return a generic, safe message to the client

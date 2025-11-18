@@ -1,5 +1,7 @@
+pub mod authenticator;
 pub mod cache_service;
 pub mod event_bus;
+pub mod flow_repository;
 pub mod rbac_repository;
 pub mod realm_repository;
 pub mod session_repository;

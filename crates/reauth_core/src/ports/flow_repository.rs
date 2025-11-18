@@ -1,0 +1,28 @@
+use crate::{
+    domain::auth_flow::{AuthFlow, AuthFlowStep, AuthenticatorConfig, LoginSession},
+    error::Result,
+};
+use async_trait::async_trait;
+use uuid::Uuid;
+
+#[async_trait]
+pub trait FlowRepository: Send + Sync {
+    // --- Flow Management (Read) ---
+    async fn find_flow_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<AuthFlow>>;
+    async fn find_steps_for_flow(&self, flow_id: &Uuid) -> Result<Vec<AuthFlowStep>>;
+    async fn find_config_for_authenticator(
+        &self,
+        realm_id: &Uuid,
+        authenticator_name: &str,
+    ) -> Result<Option<AuthenticatorConfig>>;
+
+    // --- Flow Management (Write) - ADD THESE ---
+    async fn create_flow(&self, flow: &AuthFlow) -> Result<()>;
+    async fn add_step_to_flow(&self, step: &AuthFlowStep) -> Result<()>;
+
+    // --- Login Session Management ---
+    async fn save_login_session(&self, session: &LoginSession) -> Result<()>;
+    async fn find_login_session_by_id(&self, id: &Uuid) -> Result<Option<LoginSession>>;
+    async fn update_login_session(&self, session: &LoginSession) -> Result<()>;
+    async fn delete_login_session(&self, id: &Uuid) -> Result<()>;
+}

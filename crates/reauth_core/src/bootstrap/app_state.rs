@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::application::flow_engine::FlowEngine;
 use crate::application::{
     auth_service::AuthService, rbac_service::RbacService, realm_service::RealmService,
     user_service::UserService,
@@ -17,4 +18,5 @@ pub struct AppState {
     pub auth_service: Arc<AuthService>,
     pub realm_service: Arc<RealmService>,
     pub log_subscriber: Arc<dyn LogSubscriber>,
+    pub flow_engine: Arc<FlowEngine>,
 }

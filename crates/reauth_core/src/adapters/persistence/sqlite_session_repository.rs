@@ -43,11 +43,16 @@ impl SessionRepository for SqliteSessionRepository {
         )
     }
     async fn delete_by_id(&self, id: &Uuid) -> Result<()> {
-        sqlx::query("DELETE FROM refresh_tokens WHERE id = ?")
+        let result = sqlx::query("DELETE FROM refresh_tokens WHERE id = ?")
             .bind(id.to_string())
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
+
+        if result.rows_affected() == 0 {
+            // We map this to InvalidRefreshToken so the service knows to stop.
+            return Err(Error::InvalidRefreshToken);
+        }
         Ok(())
     }
 }

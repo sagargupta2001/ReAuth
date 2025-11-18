@@ -1,3 +1,4 @@
+pub mod auth_flow;
 pub mod crypto;
 pub mod events;
 pub mod group;

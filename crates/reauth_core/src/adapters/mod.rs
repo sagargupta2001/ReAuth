@@ -1,3 +1,4 @@
+pub(crate) mod auth;
 pub mod cache;
 pub mod crypto;
 pub mod eventing;

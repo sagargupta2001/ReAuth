@@ -11,6 +11,7 @@ use std::sync::Arc;
 // Import the application services and handlers
 use crate::adapters::web::router::create_router;
 use crate::application::auth_service::AuthService;
+use crate::application::flow_engine::FlowEngine;
 use crate::application::{
     rbac_service::RbacService, realm_service::RealmService, user_service::UserService,
 };
@@ -28,6 +29,7 @@ pub struct AppState {
     pub auth_service: Arc<AuthService>,
     pub realm_service: Arc<RealmService>,
     pub log_subscriber: Arc<dyn LogSubscriber>,
+    pub flow_engine: Arc<FlowEngine>,
 }
 
 #[cfg(not(feature = "embed-ui"))]
@@ -104,6 +106,7 @@ pub async fn start_server(
     auth_service: Arc<AuthService>,
     realm_service: Arc<RealmService>,
     log_subscriber: Arc<dyn LogSubscriber>,
+    flow_engine: Arc<FlowEngine>,
 ) -> anyhow::Result<()> {
     // Create the single, unified AppState
     let app_state = AppState {
@@ -114,6 +117,7 @@ pub async fn start_server(
         auth_service,
         realm_service,
         log_subscriber,
+        flow_engine,
     };
 
     let app = create_router(app_state, plugins_path);

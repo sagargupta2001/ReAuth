@@ -62,7 +62,11 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
 
 fn auth_routes() -> Router<AppState> {
     Router::new()
-        .route("/login", post(auth_handler::login_handler))
+        .route("/login", get(auth_handler::start_login_flow_handler))
+        .route(
+            "/login/execute",
+            post(auth_handler::execute_login_step_handler),
+        )
         .route("/refresh", post(auth_handler::refresh_handler))
 }
 

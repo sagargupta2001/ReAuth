@@ -6,7 +6,6 @@ use crate::ports::realm_repository::RealmRepository;
 use crate::ports::session_repository::SessionRepository;
 use crate::ports::token_service::{AccessTokenClaims, TokenService};
 use crate::{
-    domain::crypto::HashedPassword,
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
@@ -54,29 +53,16 @@ impl AuthService {
         }
     }
 
-    pub async fn login(&self, payload: LoginPayload) -> Result<(LoginResponse, RefreshToken)> {
-        // Find user and verify password
-        let user = self
-            .user_repo
-            .find_by_username(&payload.username)
-            .await?
-            .ok_or(Error::InvalidCredentials)?;
-
-        let hashed_password = HashedPassword::from_hash(&user.hashed_password)?;
-
-        if !hashed_password.verify(&payload.password)? {
-            return Err(Error::InvalidCredentials);
-        }
-
-        // TODO: Get realm from user. For now, use a default.
+    pub async fn create_session(&self, user: &User) -> Result<(LoginResponse, RefreshToken)> {
+        // 1. Get realm from user. For now, use the default.
         let realm = self
             .realm_repo
             .find_by_name(DEFAULT_REALM_NAME)
             .await?
-            .unwrap();
+            .ok_or_else(|| Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
 
-        // Create the Stateful Refresh Token
-        let expires_at = Utc::now() + Duration::seconds(realm.refresh_token_ttl_secs);
+        // 2. Create the Stateful Refresh Token
+        let expires_at = Utc::now() + Duration::seconds(self.settings.refresh_token_ttl_secs);
         let refresh_token = RefreshToken {
             id: Uuid::new_v4(),
             user_id: user.id,
@@ -85,19 +71,18 @@ impl AuthService {
         };
         self.session_repo.save(&refresh_token).await?;
 
-        // Get user's permissions (from the service we already built)
+        // 3. Get user's fresh permissions
         let permissions = self
             .rbac_service
             .get_effective_permissions(&user.id)
             .await?;
 
-        // Create the Stateless Access Token (JWT)
+        // 4. Create the Stateless Access Token (JWT)
         let access_token = self
             .token_service
-            .create_access_token(&user, refresh_token.id, &permissions)
+            .create_access_token(user, refresh_token.id, &permissions)
             .await?;
 
-        // 5. Return the tokens
         Ok((LoginResponse { access_token }, refresh_token))
     }
 
@@ -138,7 +123,9 @@ impl AuthService {
             .await?
             .ok_or(Error::InvalidRefreshToken)?;
 
-        // Invalidate the used token
+        // If this fails (because another thread deleted it 1ms ago),
+        // the whole function returns Err(InvalidRefreshToken).
+        // The subsequent code (create new token) will NEVER run.
         self.session_repo.delete_by_id(&old_token.id).await?;
 
         // 2. Get the associated user and realm
