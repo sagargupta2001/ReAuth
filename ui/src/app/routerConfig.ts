@@ -6,6 +6,7 @@ import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PluginsPage } from '@/pages/PluginsPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
+import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
 
 /**
  * Defines the shape of a static route.
@@ -43,6 +44,7 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/login',
     element: LoginPage,
+    layout: LoginLayout,
     isProtected: false,
   },
   {

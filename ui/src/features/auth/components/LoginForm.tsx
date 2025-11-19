@@ -1,14 +1,18 @@
+import type { HTMLAttributes } from 'react'
+
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation } from '@tanstack/react-query'
+import { Loader2, LogIn } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/form'
 import { Input } from '@/components/input'
+import { PasswordInput } from '@/components/password-input'
 import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { type LoginSchema, loginSchema } from '@/features/auth/schema/loginSchema.ts'
+import { cn } from '@/lib/utils.ts'
 
 // This function handles the API call
 async function executeLogin(credentials: LoginSchema) {
@@ -26,7 +30,11 @@ async function executeLogin(credentials: LoginSchema) {
   return res.json()
 }
 
-export function LoginForm() {
+interface UserAuthFormProps extends HTMLAttributes<HTMLFormElement> {
+  redirectTo?: string
+}
+
+export function LoginForm({ className, redirectTo, ...props }: UserAuthFormProps) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const setSession = useSessionStore((state) => state.setSession)
@@ -59,48 +67,49 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-[350px]">
-      <CardHeader>
-        <CardTitle>Sign In</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="username"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Username</FormLabel>
-                  <FormControl>
-                    <Input placeholder="admin" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {mutation.isError && (
-              <p className="text-destructive text-sm font-medium">{mutation.error.message}</p>
-            )}
-            <Button type="submit" className="w-full" disabled={mutation.isPending}>
-              {mutation.isPending ? 'Signing In...' : 'Sign In'}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className={cn('grid gap-3', className)}
+        {...props}
+      >
+        <FormField
+          control={form.control}
+          name="username"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Email</FormLabel>
+              <FormControl>
+                <Input placeholder="name@example.com" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem className="relative">
+              <FormLabel>Password</FormLabel>
+              <FormControl>
+                <PasswordInput placeholder="********" {...field} />
+              </FormControl>
+              <FormMessage />
+              <Link
+                to="/forgot-password"
+                className="text-muted-foreground absolute end-0 -top-0.5 text-sm font-medium hover:opacity-75"
+              >
+                Forgot password?
+              </Link>
+            </FormItem>
+          )}
+        />
+        <Button className="mt-2" disabled={mutation.isPending}>
+          {mutation.isPending ? <Loader2 className="animate-spin" /> : <LogIn />}
+          Sign in
+        </Button>
+      </form>
+    </Form>
   )
 }

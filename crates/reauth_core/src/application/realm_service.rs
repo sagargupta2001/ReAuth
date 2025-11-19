@@ -1,3 +1,4 @@
+use crate::config::Settings;
 use crate::{
     domain::realm::Realm,
     error::{Error, Result},
@@ -22,6 +23,8 @@ impl RealmService {
     }
 
     pub async fn create_realm(&self, payload: CreateRealmPayload) -> Result<Realm> {
+        let settings = Settings::new()?;
+
         if self.realm_repo.find_by_name(&payload.name).await?.is_some() {
             return Err(Error::RealmAlreadyExists);
         }
@@ -29,8 +32,8 @@ impl RealmService {
             id: Uuid::new_v4(),
             name: payload.name,
             // Default TTLs, can be made configurable
-            access_token_ttl_secs: 900,
-            refresh_token_ttl_secs: 604800,
+            access_token_ttl_secs: settings.auth.access_token_ttl_secs,
+            refresh_token_ttl_secs: settings.auth.refresh_token_ttl_secs,
         };
         self.realm_repo.create(&realm).await?;
         Ok(realm)
