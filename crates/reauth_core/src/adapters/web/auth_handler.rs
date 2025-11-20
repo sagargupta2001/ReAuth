@@ -1,9 +1,7 @@
-use crate::domain::auth_flow::AuthStepResult;
-use crate::domain::oidc::OidcContext;
 use crate::{
-    adapters::web::server::AppState,
-    constants::REFRESH_TOKEN_COOKIE,
-    domain::session::RefreshToken,
+    adapters::web::server::AppState, // Import Payload and Response
+    constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
+    domain::{auth_flow::AuthStepResult, oidc::OidcContext, session::RefreshToken},
     error::{Error, Result},
 };
 use axum::{
@@ -12,39 +10,45 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use axum_extra::extract::cookie::{Cookie, CookieJar};
-use cookie::CookieBuilder;
+// Use only axum_extra's cookie types to avoid conflicts
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use serde::Deserialize;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+// --- Helper function for creating the refresh cookie ---
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
-    let expires_time = {
-        let system_time = std::time::SystemTime::from(token.expires_at);
-        time::OffsetDateTime::from(system_time)
-    };
+    let expires_time = time::OffsetDateTime::from_unix_timestamp(token.expires_at.timestamp())
+        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
 
     Cookie::build((REFRESH_TOKEN_COOKIE, token.id.to_string()))
         .path("/")
         .http_only(true)
-        .same_site(cookie::SameSite::Strict)
+        .same_site(SameSite::Strict)
         .expires(expires_time)
-        .into()
+        .into() // Convert Builder to Cookie
 }
 
+// --- Helper function for clearing the refresh cookie ---
 fn create_clear_cookie() -> Cookie<'static> {
     Cookie::build(REFRESH_TOKEN_COOKIE)
         .path("/")
         .http_only(true)
-        .same_site(cookie::SameSite::Strict)
+        .same_site(SameSite::Strict)
         .expires(time::OffsetDateTime::UNIX_EPOCH)
         .into()
 }
 
-const LOGIN_SESSION_COOKIE: &str = "reauth_login_session";
+// --- Helper function for clearing the login session cookie ---
+fn create_clear_login_cookie() -> Cookie<'static> {
+    Cookie::build(LOGIN_SESSION_COOKIE)
+        .path("/api")
+        .expires(time::OffsetDateTime::UNIX_EPOCH)
+        .into()
+}
 
 // ---
-// NEW: `GET /api/auth/login`
+// `GET /api/auth/login`
 // Starts the login flow
 // ---
 pub async fn start_login_flow_handler(State(state): State<AppState>) -> Result<impl IntoResponse> {
@@ -55,28 +59,30 @@ pub async fn start_login_flow_handler(State(state): State<AppState>) -> Result<i
             .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
 
     // Set a cookie to track this login attempt
-    let cookie: CookieBuilder = Cookie::build((LOGIN_SESSION_COOKIE, login_session.id.to_string()))
-        .path("/api/auth") // Only send to auth endpoints
-        .http_only(true)
-        .same_site(cookie::SameSite::Strict)
-        .expires(expires_time); // Use the converted time
+    let cookie: Cookie<'static> =
+        Cookie::build((LOGIN_SESSION_COOKIE, login_session.id.to_string()))
+            .path("/api") // Only send to auth endpoints
+            .http_only(true)
+            .same_site(SameSite::Strict)
+            .expires(expires_time)
+            .into();
 
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        HeaderValue::from_str(&cookie.to_string())?,
+        HeaderValue::from_str(&cookie.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
     );
 
     Ok((StatusCode::OK, headers, Json(first_challenge)))
 }
 
 // ---
-// NEW: `POST /api/auth/login/execute`
+// `POST /api/auth/login/execute`
 // Executes the current step of the flow
 // ---
 #[derive(Deserialize)]
 pub struct ExecutePayload {
-    credentials: HashMap<String, String>,
+    pub credentials: HashMap<String, String>,
 }
 
 pub async fn execute_login_step_handler(
@@ -96,13 +102,13 @@ pub async fn execute_login_step_handler(
         .await?
     {
         // --- Flow is 100% complete ---
-        // We now get `Some(session)` back thanks to the FlowEngine update
         (Some(final_session), AuthStepResult::Success, Some(user)) => {
-            let clear_cookie = create_clear_cookie();
+            let clear_cookie = create_clear_login_cookie();
             let mut headers = HeaderMap::new();
             headers.append(
                 header::SET_COOKIE,
-                HeaderValue::from_str(&clear_cookie.to_string())?,
+                HeaderValue::from_str(&clear_cookie.to_string())
+                    .map_err(|e| Error::Unexpected(e.into()))?,
             );
 
             // 1. Check for OIDC Context
@@ -124,7 +130,6 @@ pub async fn execute_login_step_handler(
                         .await?;
 
                     // Construct the callback URL
-                    // http://client-app.com/callback?code=XYZ&state=ABC
                     let mut url = url::Url::parse(&oidc_ctx.redirect_uri)
                         .map_err(|_| Error::OidcInvalidRedirect(oidc_ctx.redirect_uri))?;
 
@@ -146,36 +151,37 @@ pub async fn execute_login_step_handler(
             }
 
             // --- DIRECT LOGIN PATH (Fallback) ---
-            // If no OIDC context, do the standard behavior
             let (login_response, refresh_token) = state.auth_service.create_session(&user).await?;
             let refresh_cookie = create_refresh_cookie(&refresh_token);
 
             headers.append(
                 header::SET_COOKIE,
-                HeaderValue::from_str(&refresh_cookie.to_string())?,
+                HeaderValue::from_str(&refresh_cookie.to_string())
+                    .map_err(|e| Error::Unexpected(e.into()))?,
             );
 
             Ok((StatusCode::OK, headers, Json(login_response)).into_response())
         }
 
-        // --- Flow Advancing ---
+        // --- Flow is advancing to the next step ---
         (Some(new_login_session), result @ AuthStepResult::Challenge { .. }, _) => {
             let expires_time =
                 time::OffsetDateTime::from_unix_timestamp(new_login_session.expires_at.timestamp())
                     .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
 
-            let cookie: CookieBuilder =
+            let cookie: Cookie<'static> =
                 Cookie::build((LOGIN_SESSION_COOKIE, new_login_session.id.to_string()))
                     .path("/api")
                     .http_only(true)
-                    .same_site(cookie::SameSite::Strict)
+                    .same_site(SameSite::Strict)
                     .expires(expires_time)
                     .into();
 
             let mut headers = HeaderMap::new();
             headers.insert(
                 header::SET_COOKIE,
-                HeaderValue::from_str(&cookie.to_string())?,
+                HeaderValue::from_str(&cookie.to_string())
+                    .map_err(|e| Error::Unexpected(e.into()))?,
             );
 
             Ok((StatusCode::OK, headers, Json(result)).into_response())
@@ -184,6 +190,11 @@ pub async fn execute_login_step_handler(
         // --- Failures ---
         (_, result @ AuthStepResult::Failure { .. }, _) => {
             Ok((StatusCode::UNAUTHORIZED, Json(result)).into_response())
+        }
+
+        // --- Redirect (Should not happen here usually, but handle it) ---
+        (_, result @ AuthStepResult::Redirect { .. }, _) => {
+            Ok((StatusCode::OK, Json(result)).into_response())
         }
 
         _ => Err(Error::InvalidLoginStep),

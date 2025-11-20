@@ -1,26 +1,26 @@
+use super::{
+    auth_handler, auth_middleware, log_stream_handler, oidc_handler, plugin_handler, rbac_handler,
+    realm_handler, server::ui_handler, user_handler,
+};
+use crate::adapters::web::server::AppState;
 use axum::routing::get_service;
 use axum::{
     middleware,
     routing::{get, post},
     Router,
 };
+use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, COOKIE};
+use http::{HeaderValue, Method};
 use std::path::PathBuf;
+use tower_http::cors::AllowOrigin;
 use tower_http::{
     cors::{Any, CorsLayer},
     services::ServeDir,
     trace::TraceLayer,
 };
 
-use super::{
-    auth_handler, auth_middleware, log_stream_handler, oidc_handler, plugin_handler, rbac_handler,
-    realm_handler, server::ui_handler, user_handler,
-};
-use crate::adapters::web::server::AppState;
-
 /// Creates the complete, state-filled Axum router for the application.
 pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
-    // --- Define Your API Routers ---
-
     // 1. Public routes that ANYONE can access.
     let public_api = Router::new()
         .route("/health", get(|| async { "OK" }))
@@ -45,9 +45,20 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
 
     // --- Main Application Router ---
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        // 1. Allow specific origin (Your Frontend URL)
+        // This MUST match exactly. No trailing slash.
+        .allow_origin(AllowOrigin::mirror_request())
+        .allow_credentials(true)
+        // 3. Allow standard methods
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        // 4. Allow specific headers (Content-Type is needed for JSON)
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE, COOKIE, ACCEPT]);
 
     Router::new()
         .nest("/api", api_router)
