@@ -17,6 +17,8 @@ max_connections = 5
 jwt_secret = "a-very-secret-default-key-please-change-this-in-production"
 access_token_ttl_secs = 900  # 15 minutes
 refresh_token_ttl_secs = 604800 # 7 days
+# A unique signing ID for the JWKS endpoint
+jwt_key_id = "reauth-rs-v1"
 
 [default_admin]
 username = "admin"

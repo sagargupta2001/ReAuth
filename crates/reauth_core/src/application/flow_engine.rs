@@ -134,37 +134,35 @@ impl FlowEngine {
 
                 // --- Flow is 100% complete ---
                 if (context.login_session.current_step as usize) == steps.len() - 1 {
-                    // Delete the temporary login session
+                    // 1. Capture the session data before deletion
+                    let final_session = context.login_session.clone();
+
+                    // 2. Delete from DB
                     self.flow_repo
-                        .delete_login_session(&context.login_session.id)
+                        .delete_login_session(&final_session.id)
                         .await?;
 
-                    // Get the user_id that was attached to the session by the password step
-                    let user_id = context
-                        .login_session
-                        .user_id
-                        .ok_or(Error::InvalidLoginStep)?; // Should be impossible if flow is right
-
-                    // Fetch the full User object
+                    // 3. Get User
+                    let user_id = final_session.user_id.ok_or(Error::InvalidLoginStep)?;
                     let user = self
                         .user_repo
                         .find_by_id(&user_id)
                         .await?
                         .ok_or(Error::UserNotFound)?;
 
-                    Ok((None, AuthStepResult::Success, Some(user))) // Finished!
+                    // 4. Return `Some(final_session)` so the handler can read OIDC data
+                    Ok((Some(final_session), AuthStepResult::Success, Some(user)))
                 } else {
                     // --- Advance to the next step ---
                     login_session.current_step += 1;
                     self.flow_repo.update_login_session(&login_session).await?;
-
                     let challenge = self.challenge_current_step(&login_session).await?;
                     Ok((Some(login_session), challenge, None))
                 }
             }
-            result @ (AuthStepResult::Failure { .. } | AuthStepResult::Challenge { .. }) => {
-                Ok((Some(login_session), result, None))
-            }
+            result @ (AuthStepResult::Failure { .. }
+            | AuthStepResult::Challenge { .. }
+            | AuthStepResult::Redirect { .. }) => Ok((Some(login_session), result, None)),
         }
     }
 
@@ -192,5 +190,9 @@ impl FlowEngine {
         };
 
         authenticator.challenge(&context).await
+    }
+
+    pub async fn update_login_session(&self, session: &LoginSession) -> Result<()> {
+        self.flow_repo.update_login_session(session).await
     }
 }

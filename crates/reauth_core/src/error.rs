@@ -64,4 +64,16 @@ pub enum Error {
 
     #[error(transparent)]
     InvalidHeader(#[from] InvalidHeaderValue),
+
+    #[error("OIDC Client not found: {0}")]
+    OidcClientNotFound(String),
+
+    #[error("Invalid Redirect URI: {0}")]
+    OidcInvalidRedirect(String),
+
+    #[error("Invalid Authorization Code")]
+    OidcInvalidCode,
+
+    #[error("OIDC Request Error: {0}")]
+    OidcInvalidRequest(String),
 }

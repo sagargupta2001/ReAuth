@@ -13,9 +13,10 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             // 401 Unauthorized
-            Error::InvalidCredentials | Error::SessionRevoked | Error::InvalidRefreshToken => {
-                (StatusCode::UNAUTHORIZED, self.to_string())
-            }
+            Error::InvalidCredentials
+            | Error::SessionRevoked
+            | Error::InvalidRefreshToken
+            | Error::OidcInvalidCode => (StatusCode::UNAUTHORIZED, self.to_string()),
 
             // 409 Conflict
             Error::UserAlreadyExists
@@ -29,14 +30,17 @@ impl IntoResponse for Error {
             | Error::FlowNotFound(_)
             | Error::AuthenticatorNotFound(_)
             | Error::InvalidLoginStep
-            | Error::InvalidLoginSession => (StatusCode::NOT_FOUND, self.to_string()),
+            | Error::InvalidLoginSession
+            | Error::OidcClientNotFound(_)
+            | Error::OidcInvalidRedirect(_) => (StatusCode::NOT_FOUND, self.to_string()),
 
             // 500 Internal Server Error (for things the user can't fix)
             Error::Config(_)
             | Error::DatabaseInit(_)
             | Error::Unexpected(_)
             | Error::Uuid(_)
-            | Error::InvalidHeader(_) => {
+            | Error::InvalidHeader(_)
+            | Error::OidcInvalidRequest(_) => {
                 // Log the detailed, internal error for developers
                 tracing::error!("Internal server error: {:?}", self);
                 // Return a generic, safe message to the client

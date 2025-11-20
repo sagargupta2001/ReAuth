@@ -24,4 +24,7 @@ pub trait TokenService: Send + Sync {
 
     /// Validates an Access Token and returns its claims
     async fn validate_access_token(&self, token: &str) -> Result<AccessTokenClaims>;
+
+    /// Gets the unique ID used to sign tokens (for JWKS endpoint)
+    fn get_key_id(&self) -> &str;
 }

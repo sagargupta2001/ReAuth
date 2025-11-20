@@ -1,4 +1,5 @@
 use crate::domain::auth_flow::AuthStepResult;
+use crate::domain::oidc::OidcContext;
 use crate::{
     adapters::web::server::AppState,
     constants::REFRESH_TOKEN_COOKIE,
@@ -95,54 +96,96 @@ pub async fn execute_login_step_handler(
         .await?
     {
         // --- Flow is 100% complete ---
-        (None, AuthStepResult::Success, Some(user)) => {
-            // Flow succeeded, so we create the real user session
-            let (login_response, refresh_token) = state.auth_service.create_session(&user).await?;
-
-            let refresh_cookie = create_refresh_cookie(&refresh_token);
-            let clear_login_cookie: CookieBuilder = Cookie::build(LOGIN_SESSION_COOKIE)
-                .path("/api/auth")
-                .expires(time::OffsetDateTime::UNIX_EPOCH);
-
+        // We now get `Some(session)` back thanks to the FlowEngine update
+        (Some(final_session), AuthStepResult::Success, Some(user)) => {
+            let clear_cookie = create_clear_cookie();
             let mut headers = HeaderMap::new();
+            headers.append(
+                header::SET_COOKIE,
+                HeaderValue::from_str(&clear_cookie.to_string())?,
+            );
+
+            // 1. Check for OIDC Context
+            if let Some(state_data) = final_session.state_data {
+                if let Ok(oidc_ctx) = serde_json::from_str::<OidcContext>(&state_data) {
+                    // Generate Auth Code
+                    let auth_code = state
+                        .oidc_service
+                        .create_authorization_code(
+                            user.id,
+                            oidc_ctx.client_id,
+                            oidc_ctx.redirect_uri.clone(),
+                            oidc_ctx.nonce,
+                            oidc_ctx.code_challenge,
+                            oidc_ctx
+                                .code_challenge_method
+                                .unwrap_or_else(|| "plain".to_string()),
+                        )
+                        .await?;
+
+                    // Construct the callback URL
+                    // http://client-app.com/callback?code=XYZ&state=ABC
+                    let mut url = url::Url::parse(&oidc_ctx.redirect_uri)
+                        .map_err(|_| Error::OidcInvalidRedirect(oidc_ctx.redirect_uri))?;
+
+                    url.query_pairs_mut().append_pair("code", &auth_code.code);
+                    if let Some(s) = oidc_ctx.state {
+                        url.query_pairs_mut().append_pair("state", &s);
+                    }
+
+                    // Return the Redirect instruction to the UI
+                    return Ok((
+                        StatusCode::OK,
+                        headers,
+                        Json(AuthStepResult::Redirect {
+                            url: url.to_string(),
+                        }),
+                    )
+                        .into_response());
+                }
+            }
+
+            // --- DIRECT LOGIN PATH (Fallback) ---
+            // If no OIDC context, do the standard behavior
+            let (login_response, refresh_token) = state.auth_service.create_session(&user).await?;
+            let refresh_cookie = create_refresh_cookie(&refresh_token);
+
             headers.append(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&refresh_cookie.to_string())?,
             );
-            headers.append(
-                header::SET_COOKIE,
-                HeaderValue::from_str(&clear_login_cookie.to_string())?,
-            );
 
             Ok((StatusCode::OK, headers, Json(login_response)).into_response())
         }
-        // --- Flow is advancing to the next step ---
-        (Some(new_login_session), result @ AuthStepResult::Challenge { .. }, None) => {
+
+        // --- Flow Advancing ---
+        (Some(new_login_session), result @ AuthStepResult::Challenge { .. }, _) => {
             let expires_time =
                 time::OffsetDateTime::from_unix_timestamp(new_login_session.expires_at.timestamp())
                     .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
-            // The flow continues, update the session cookie
+
             let cookie: CookieBuilder =
                 Cookie::build((LOGIN_SESSION_COOKIE, new_login_session.id.to_string()))
-                    .path("/api/auth")
+                    .path("/api")
                     .http_only(true)
                     .same_site(cookie::SameSite::Strict)
-                    .expires(expires_time);
+                    .expires(expires_time)
+                    .into();
 
             let mut headers = HeaderMap::new();
             headers.insert(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&cookie.to_string())?,
             );
+
             Ok((StatusCode::OK, headers, Json(result)).into_response())
         }
 
-        // --- Step failed (e.g., wrong password) ---
-        (_, result @ AuthStepResult::Failure { .. }, None) => {
+        // --- Failures ---
+        (_, result @ AuthStepResult::Failure { .. }, _) => {
             Ok((StatusCode::UNAUTHORIZED, Json(result)).into_response())
         }
 
-        // --- Catch-all for invalid states ---
         _ => Err(Error::InvalidLoginStep),
     }
 }

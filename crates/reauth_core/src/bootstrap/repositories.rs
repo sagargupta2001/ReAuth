@@ -1,4 +1,6 @@
 use crate::adapters::persistence::connection::Database;
+use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
+use crate::ports::oidc_repository::OidcRepository;
 use crate::{
     adapters::persistence::{
         sqlite_flow_repository::SqliteFlowRepository, sqlite_rbac_repository::SqliteRbacRepository,
@@ -24,6 +26,7 @@ pub struct Repositories {
     pub realm_repo: Arc<dyn RealmRepository>,
     pub session_repo: Arc<dyn SessionRepository>,
     pub flow_repo: Arc<dyn FlowRepository>,
+    pub oidc_repo: Arc<dyn OidcRepository>,
 }
 
 pub fn initialize_repositories(db_pool: &Database) -> Repositories {
@@ -34,6 +37,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let realm_repo = Arc::new(SqliteRealmRepository::new(db_pool.clone()));
     let session_repo = Arc::new(SqliteSessionRepository::new(db_pool.clone()));
     let flow_repo = Arc::new(SqliteFlowRepository::new(db_pool.clone()));
+    let oidc_repo = Arc::new(SqliteOidcRepository::new(db_pool.clone()));
 
     Repositories {
         user_repo,
@@ -41,5 +45,6 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         realm_repo,
         session_repo,
         flow_repo,
+        oidc_repo,
     }
 }

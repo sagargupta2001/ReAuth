@@ -13,6 +13,7 @@ pub struct JwtService {
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
     access_token_ttl_secs: i64,
+    key_id: String,
 }
 
 impl JwtService {
@@ -21,6 +22,7 @@ impl JwtService {
             encoding_key: EncodingKey::from_secret(config.jwt_secret.as_ref()),
             decoding_key: DecodingKey::from_secret(config.jwt_secret.as_ref()),
             access_token_ttl_secs: config.access_token_ttl_secs,
+            key_id: config.jwt_key_id,
         }
     }
 }
@@ -45,12 +47,22 @@ impl TokenService for JwtService {
             exp: expiration,
         };
 
-        Ok(encode(&Header::default(), &claims, &self.encoding_key)?)
+        // Set the Key ID in the header
+        let header = Header {
+            kid: Some(self.key_id.clone()),
+            ..Header::default()
+        };
+
+        Ok(encode(&header, &claims, &self.encoding_key)?)
     }
 
     async fn validate_access_token(&self, token: &str) -> Result<AccessTokenClaims> {
         let token_data =
             decode::<AccessTokenClaims>(token, &self.decoding_key, &Validation::default())?;
         Ok(token_data.claims)
+    }
+
+    fn get_key_id(&self) -> &str {
+        &self.key_id
     }
 }

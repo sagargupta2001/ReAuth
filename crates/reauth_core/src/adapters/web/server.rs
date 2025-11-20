@@ -17,6 +17,7 @@ use crate::application::{
 };
 use crate::config::Settings;
 use manager::log_bus::LogSubscriber;
+use crate::application::oidc_service::OidcService;
 
 /// AppState is the single, shared state for the entire Axum application.
 /// It holds all necessary services and configurations.
@@ -30,6 +31,7 @@ pub struct AppState {
     pub realm_service: Arc<RealmService>,
     pub log_subscriber: Arc<dyn LogSubscriber>,
     pub flow_engine: Arc<FlowEngine>,
+    pub oidc_service: Arc<OidcService>,
 }
 
 #[cfg(not(feature = "embed-ui"))]
@@ -107,6 +109,7 @@ pub async fn start_server(
     realm_service: Arc<RealmService>,
     log_subscriber: Arc<dyn LogSubscriber>,
     flow_engine: Arc<FlowEngine>,
+    oidc_service: Arc<OidcService>,
 ) -> anyhow::Result<()> {
     // Create the single, unified AppState
     let app_state = AppState {
@@ -118,6 +121,7 @@ pub async fn start_server(
         realm_service,
         log_subscriber,
         flow_engine,
+        oidc_service
     };
 
     let app = create_router(app_state, plugins_path);

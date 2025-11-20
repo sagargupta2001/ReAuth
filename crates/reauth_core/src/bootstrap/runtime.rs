@@ -26,6 +26,7 @@ pub async fn run() -> anyhow::Result<()> {
         app_state.realm_service,
         app_state.log_subscriber,
         app_state.flow_engine,
+        app_state.oidc_service,
     )
     .await?;
 

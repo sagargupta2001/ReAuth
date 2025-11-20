@@ -2,6 +2,7 @@ pub mod auth_handler;
 pub mod auth_middleware;
 pub mod error;
 pub mod log_stream_handler;
+pub mod oidc_handler;
 pub mod plugin_handler;
 pub mod rbac_handler;
 mod realm_handler;

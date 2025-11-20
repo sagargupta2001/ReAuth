@@ -1,3 +1,4 @@
+use crate::application::oidc_service::OidcService;
 use crate::{
     adapters::{
         auth::password_authenticator::PasswordAuthenticator, cache::moka_cache::MokaCacheService,
@@ -23,6 +24,7 @@ pub struct Services {
     pub realm_service: Arc<RealmService>,
     pub auth_service: Arc<AuthService>,
     pub flow_engine: Arc<FlowEngine>,
+    pub oidc_service: Arc<OidcService>,
 }
 
 pub fn initialize_services(
@@ -47,6 +49,11 @@ pub fn initialize_services(
         rbac_service.clone(),
         settings.auth.clone(),
     ));
+    let oidc_service = Arc::new(OidcService::new(
+        repos.oidc_repo.clone(),
+        repos.user_repo.clone(),
+        auth_service.clone(),
+    ));
 
     // Build the registry for the Flow Engine
     let mut authenticator_map = HashMap::<String, Arc<dyn Authenticator>>::new();
@@ -70,5 +77,6 @@ pub fn initialize_services(
         realm_service,
         auth_service,
         flow_engine,
+        oidc_service,
     }
 }

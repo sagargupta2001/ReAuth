@@ -77,4 +77,6 @@ pub enum AuthStepResult {
         /// The frontend route to render (e.g., "/login", "/mfa-otp")
         challenge_page: String,
     },
+    /// The flow is complete, redirect the user to the OIDC callback.
+    Redirect { url: String },
 }

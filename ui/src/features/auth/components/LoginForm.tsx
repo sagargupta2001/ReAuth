@@ -51,6 +51,10 @@ export function LoginForm({ className, redirectTo, ...props }: UserAuthFormProps
       if (data.status === 'challenge') {
         // e.g., MFA step - redirect to the next page in the flow
         navigate(data.nextUrl)
+      } else if (data.status === 'redirect' && data.url) {
+        // The flow is done. The backend generated an Auth Code.
+        // We must redirect the browser to that URL (which is likely /?code=...)
+        window.location.href = data.url
       } else if (data.access_token) {
         // SUCCESS! Set the session in our global store
         setSession(data.access_token)

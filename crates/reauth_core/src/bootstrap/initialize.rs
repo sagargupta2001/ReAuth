@@ -43,6 +43,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         &services.user_service,
         repos.flow_repo,
         &settings,
+        &services.oidc_service,
     )
     .await?;
 
@@ -56,5 +57,6 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         realm_service: services.realm_service,
         log_subscriber: log_bus,
         flow_engine: services.flow_engine,
+        oidc_service: services.oidc_service,
     })
 }

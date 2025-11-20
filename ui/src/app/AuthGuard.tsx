@@ -1,91 +1,105 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { useQuery } from '@tanstack/react-query'
 import { Navigate, useLocation } from 'react-router-dom'
 
 import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { refreshAccessToken } from '@/features/auth/api/authApi'
-
-// Helper: Starts the login flow if we are definitely logged out
-const LoginFlowInitiator = () => {
-  const location = useLocation()
-
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['startLoginFlow'],
-    queryFn: async () => {
-      const res = await fetch('/api/auth/login')
-      if (!res.ok) throw new Error('Failed to start login flow')
-      return res.json()
-    },
-    retry: false,
-  })
-
-  if (isLoading)
-    return <div className="flex h-screen items-center justify-center">Initializing login...</div>
-
-  if (isError || !data?.challenge_page) {
-    return (
-      <div className="flex h-screen items-center justify-center text-red-500">
-        Authentication service unavailable.
-      </div>
-    )
-  }
-
-  return (
-    <Navigate
-      to={{
-        pathname: data.challenge_page,
-        search: `?redirect=${location.pathname}`,
-      }}
-      replace
-    />
-  )
-}
+import { oidcApi } from '@/features/auth/api/oidc'
+// <-- 1. Import this
+import { PKCE_STORAGE_KEY } from '@/shared/config/oidc'
+import { generateCodeChallenge, generateCodeVerifier } from '@/shared/lib/pkce'
 
 export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   const { accessToken, setSession } = useSessionStore()
-  const [isRestoringSession, setIsRestoringSession] = useState(true)
-  const isInitialized = useRef(false)
+  const location = useLocation()
+  const [isProcessing, setIsProcessing] = useState(true)
+  const initRan = useRef(false)
 
   useEffect(() => {
-    const restoreSession = async () => {
-      // 1. If we already have a token, we are good.
-      if (accessToken || isInitialized.current) {
-        setIsRestoringSession(false)
+    const handleAuth = async () => {
+      // 1. If we are already logged in (in memory), stop.
+      if (accessToken) {
+        setIsProcessing(false)
         return
       }
 
-      isInitialized.current = true
+      if (initRan.current) return
+      initRan.current = true
 
-      // 2. If not, try to refresh using the HttpOnly cookie
+      // 2. Check for OIDC Callback (Auth Code)
+      const searchParams = new URLSearchParams(window.location.search)
+      const authCode = searchParams.get('code')
+
+      if (authCode) {
+        // ... (Your existing code exchange logic is correct) ...
+        console.log('[AuthGuard] Auth code found. Exchanging for token...')
+        try {
+          const verifier = sessionStorage.getItem(PKCE_STORAGE_KEY)
+          if (!verifier) throw new Error('Missing PKCE verifier')
+
+          const data = await oidcApi.exchangeToken(authCode, verifier)
+          setSession(data.access_token)
+
+          const newUrl = window.location.pathname + window.location.hash
+          window.history.replaceState({}, document.title, newUrl)
+          sessionStorage.removeItem(PKCE_STORAGE_KEY)
+        } catch (err) {
+          console.error('[AuthGuard] Token exchange failed:', err)
+        } finally {
+          setIsProcessing(false)
+        }
+        return
+      }
+
+      // --- 3. THIS IS THE FIX: Try Silent Refresh ---
+      // Before we force them to login, let's see if they have a valid cookie.
       try {
-        console.log('[AuthGuard] Attempting to restore session via refresh token...')
-        const newToken = await refreshAccessToken()
-        setSession(newToken) // This decodes the JWT and sets the user
-        console.log('[AuthGuard] Session restored successfully.')
+        console.log('[AuthGuard] Attempting silent refresh via cookie...')
+        const token = await refreshAccessToken() // Calls /api/auth/refresh
+        setSession(token) // Restore the session in memory
+        setIsProcessing(false)
+        return // Stop here, we are logged in!
       } catch (err) {
-        console.log('[AuthGuard] Session restoration failed (user likely logged out).')
-        // This is fine, it just means the user needs to log in
-      } finally {
-        setIsRestoringSession(false)
+        console.log('[AuthGuard] Silent refresh failed (user truly logged out).')
+        // If this fails, we proceed to Step 4 (OIDC Flow)
+      }
+      // ---------------------------------------------
+
+      // 4. No code, no cookie? Start the OIDC Flow.
+      console.log('[AuthGuard] No session. Starting OIDC flow...')
+      try {
+        const verifier = generateCodeVerifier()
+        const challenge = await generateCodeChallenge(verifier)
+        sessionStorage.setItem(PKCE_STORAGE_KEY, verifier)
+
+        const response = await oidcApi.authorize(challenge)
+
+        if (response.status === 'challenge' && response.challenge_page) {
+          setIsProcessing(false)
+          return
+        }
+      } catch (err) {
+        console.error('[AuthGuard] Auth initialization failed:', err)
+        setIsProcessing(false)
       }
     }
 
-    restoreSession()
+    handleAuth()
   }, [accessToken, setSession])
 
   // --- RENDER STATES ---
 
-  if (isRestoringSession) {
-    // Show a loading screen while checking cookies
-    return <div className="flex h-screen items-center justify-center">Checking session...</div>
+  if (isProcessing) {
+    return <div className="flex h-screen items-center justify-center">Authenticating...</div>
   }
 
   if (accessToken) {
-    // User is authenticated (either preserved or restored)
     return <>{children}</>
   }
 
-  // Restoration failed, user is strictly unauthenticated
-  return <LoginFlowInitiator />
+  if (location.pathname === '/login') {
+    return <>{children}</>
+  }
+
+  return <Navigate to="/login" replace />
 }

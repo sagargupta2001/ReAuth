@@ -12,8 +12,8 @@ use tower_http::{
 };
 
 use super::{
-    auth_handler, auth_middleware, log_stream_handler, plugin_handler, rbac_handler, realm_handler,
-    server::ui_handler, user_handler,
+    auth_handler, auth_middleware, log_stream_handler, oidc_handler, plugin_handler, rbac_handler,
+    realm_handler, server::ui_handler, user_handler,
 };
 use crate::adapters::web::server::AppState;
 
@@ -26,6 +26,7 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .route("/health", get(|| async { "OK" }))
         .route("/logs/ws", get(log_stream_handler::log_stream_handler))
         .nest("/auth", auth_routes())
+        .nest("/oidc", oidc_routes())
         .nest("/plugins", plugin_routes())
         .nest("/users", public_user_routes());
 
@@ -97,4 +98,10 @@ fn plugin_routes() -> Router<AppState> {
             "/{id}/disable",
             post(plugin_handler::disable_plugin_handler),
         )
+}
+
+fn oidc_routes() -> Router<AppState> {
+    Router::new()
+        .route("/authorize", get(oidc_handler::authorize_handler))
+        .route("/token", post(oidc_handler::token_handler))
 }
