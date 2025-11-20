@@ -38,6 +38,12 @@ pub struct DefaultAdminConfig {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct DefaultOidcClientConfig {
+    pub client_id: String,
+    pub redirect_uris: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
     pub server: Server,
     pub ui: Ui,
@@ -45,6 +51,7 @@ pub struct Settings {
     pub database: DatabaseConfig,
     pub auth: AuthConfig,
     pub default_admin: DefaultAdminConfig,
+    pub default_oidc_client: DefaultOidcClientConfig,
 }
 
 impl Settings {

@@ -1,7 +1,7 @@
 use crate::application::oidc_service::OidcService;
 use crate::application::realm_service::{CreateRealmPayload, RealmService};
 use crate::application::user_service::UserService;
-use crate::config::DefaultAdminConfig;
+use crate::config::Settings;
 use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::{AuthFlow, AuthFlowStep};
 use crate::domain::oidc::OidcClient;
@@ -13,7 +13,7 @@ pub async fn seed_database(
     realm_service: &Arc<RealmService>,
     user_service: &Arc<UserService>,
     flow_repo: &Arc<dyn FlowRepository>,
-    admin_config: &DefaultAdminConfig,
+    settings: &Settings,
     oidc_service: &Arc<OidcService>,
 ) -> anyhow::Result<()> {
     // 1. Check for the default realm
@@ -35,16 +35,19 @@ pub async fn seed_database(
 
     // 2. Check for the admin user
     if user_service
-        .find_by_username(&admin_config.username)
+        .find_by_username(&settings.default_admin.username)
         .await?
         .is_none()
     {
         info!(
             "No admin user found. Creating admin user '{}'...",
-            &admin_config.username
+            &settings.default_admin.username
         );
         user_service
-            .create_user(&admin_config.username, &admin_config.password)
+            .create_user(
+                &settings.default_admin.username,
+                &settings.default_admin.password,
+            )
             .await?;
         info!("Admin user created successfully.");
         warn!(
@@ -98,10 +101,19 @@ pub async fn seed_database(
     // 4. --- SEED DEFAULT OIDC CLIENT ---
     let client_id = "reauth-admin";
     // Allow both dev and prod URLs
-    let redirect_uris = r#"["http://localhost:5173", "http://localhost:3000"]"#;
+    let check_uri = &settings
+        .default_oidc_client
+        .redirect_uris
+        .first()
+        .map(|s| s.as_str())
+        .unwrap_or("");
 
     if oidc_service
-        .validate_client(client_id, "http://localhost:3000")
+        .validate_client(
+            &realm.id,
+            &settings.default_oidc_client.client_id,
+            check_uri,
+        )
         .await
         .is_err()
     {
@@ -120,7 +132,7 @@ pub async fn seed_database(
             realm_id: realm.id,
             client_id: client_id.to_string(),
             client_secret: None, // Public client (SPA)
-            redirect_uris: redirect_uris.to_string(),
+            redirect_uris: serde_json::to_string(&settings.default_oidc_client.redirect_uris)?,
             scopes: "openid profile email".to_string(),
         };
 

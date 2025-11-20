@@ -26,7 +26,7 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .route("/health", get(|| async { "OK" }))
         .route("/logs/ws", get(log_stream_handler::log_stream_handler))
         .nest("/auth", auth_routes())
-        .nest("/oidc", oidc_routes())
+        .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/plugins", plugin_routes())
         .nest("/users", public_user_routes());
 

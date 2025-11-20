@@ -28,12 +28,17 @@ export const oidcApi = {
       code_challenge_method: OIDC_CONFIG.codeChallengeMethod,
     })
 
-    const res = await fetch(`/api/oidc/authorize?${params.toString()}`, {
-      method: 'GET',
-    })
+    const res = await fetch(
+      `/api/realms/${OIDC_CONFIG.realm}/oidc/authorize?${params.toString()}`,
+      { method: 'GET' },
+    )
 
-    if (!res.ok) throw new Error('Failed to initialize OIDC flow')
-    return res.json() as Promise<AuthorizeResponse>
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}))
+      // Throw the specific message from the backend (e.g., "OIDC Client not found")
+      throw new Error(errorData.error || `OIDC Error: ${res.statusText}`)
+    }
+    return (await res.json()) as Promise<AuthorizeResponse>
   },
 
   /**
@@ -47,19 +52,17 @@ export const oidcApi = {
     params.append('client_id', OIDC_CONFIG.clientId)
     params.append('code_verifier', verifier)
 
-    const res = await fetch('/api/oidc/token', {
+    const res = await fetch(`/api/realms/${OIDC_CONFIG.realm}/oidc/token`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: params,
     })
 
     if (!res.ok) {
-      const err = await res.text()
-      throw new Error(`Token exchange failed: ${err}`)
+      const errorData = await res.json().catch(() => ({}))
+      throw new Error(errorData.error || `Token exchange failed: ${res.statusText}`)
     }
 
-    return res.json() as Promise<TokenResponse>
+    return (await res.json()) as Promise<TokenResponse>
   },
 }

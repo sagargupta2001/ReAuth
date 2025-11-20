@@ -23,3 +23,7 @@ jwt_key_id = "reauth-rs-v1"
 [default_admin]
 username = "admin"
 password = "admin"
+
+[default_oidc_client]
+client_id = "reauth-admin"
+redirect_uris = ["http://localhost:5173", "http://localhost:3000"]

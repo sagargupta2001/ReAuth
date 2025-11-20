@@ -41,6 +41,7 @@ impl OidcService {
     /// Handles the `/authorize` endpoint logic (creating the authorization code).
     pub async fn create_authorization_code(
         &self,
+        realm_id: Uuid,
         user_id: Uuid,
         client_id: String,
         redirect_uri: String,
@@ -48,10 +49,12 @@ impl OidcService {
         code_challenge: Option<String>,
         code_challenge_method: String,
     ) -> Result<AuthCode> {
-        // 1. Validate Client
-        let _client = self.validate_client(&client_id, &redirect_uri).await?;
+        // 2. Pass realm_id to validation
+        // This ensures we are checking for a client that actually exists IN THIS REALM
+        let _client = self
+            .validate_client(&realm_id, &client_id, &redirect_uri)
+            .await?;
 
-        // 2. Create the code
         let code = Uuid::new_v4().to_string();
         let auth_code = AuthCode {
             code,
@@ -61,10 +64,12 @@ impl OidcService {
             nonce,
             code_challenge,
             code_challenge_method,
-            expires_at: Utc::now() + Duration::seconds(300), // Code valid for 5 minutes
+            expires_at: Utc::now() + Duration::seconds(300),
+            // Note: In a robust multi-tenant system, you might also want to store
+            // `realm_id` on the AuthCode itself, but for now this is sufficient
+            // to validate the creation request.
         };
 
-        // 3. Save and return
         self.oidc_repo.save_auth_code(&auth_code).await?;
         Ok(auth_code)
     }
@@ -117,10 +122,15 @@ impl OidcService {
     }
 
     /// Validates that a client exists and the redirect URI is allowed.
-    pub async fn validate_client(&self, client_id: &str, redirect_uri: &str) -> Result<OidcClient> {
+    pub async fn validate_client(
+        &self,
+        realm_id: &Uuid,
+        client_id: &str,
+        redirect_uri: &str,
+    ) -> Result<OidcClient> {
         let client = self
             .oidc_repo
-            .find_client_by_id(client_id)
+            .find_client_by_id(realm_id, client_id)
             .await?
             .ok_or_else(|| Error::OidcClientNotFound(client_id.to_string()))?;
 

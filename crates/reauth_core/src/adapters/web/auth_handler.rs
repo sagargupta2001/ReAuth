@@ -11,6 +11,7 @@ use axum::{
     Json,
 };
 // Use only axum_extra's cookie types to avoid conflicts
+use crate::constants::DEFAULT_REALM_NAME;
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -52,7 +53,13 @@ fn create_clear_login_cookie() -> Cookie<'static> {
 // Starts the login flow
 // ---
 pub async fn start_login_flow_handler(State(state): State<AppState>) -> Result<impl IntoResponse> {
-    let (login_session, first_challenge) = state.flow_engine.start_login_flow().await?;
+    let realm = state
+        .realm_service
+        .find_by_name(DEFAULT_REALM_NAME)
+        .await?
+        .ok_or(Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
+
+    let (login_session, first_challenge) = state.flow_engine.start_login_flow(realm.id).await?;
 
     let expires_time =
         time::OffsetDateTime::from_unix_timestamp(login_session.expires_at.timestamp())
@@ -118,6 +125,7 @@ pub async fn execute_login_step_handler(
                     let auth_code = state
                         .oidc_service
                         .create_authorization_code(
+                            final_session.realm_id,
                             user.id,
                             oidc_ctx.client_id,
                             oidc_ctx.redirect_uri.clone(),

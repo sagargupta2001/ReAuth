@@ -54,25 +54,18 @@ impl FlowEngine {
     }
 
     /// Starts a new login flow (e.g., "browser-login").
-    pub async fn start_login_flow(&self) -> Result<(LoginSession, AuthStepResult)> {
-        // 1. Find the default realm (for now)
-        let realm = self
-            .realm_repo
-            .find_by_name(DEFAULT_REALM_NAME)
-            .await?
-            .ok_or(Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
-
-        // 2. Find the flow for this realm
+    pub async fn start_login_flow(&self, realm_id: Uuid) -> Result<(LoginSession, AuthStepResult)> {
+        // Find the flow for this realm
         let flow = self
             .flow_repo
-            .find_flow_by_name(&realm.id, "browser-login")
+            .find_flow_by_name(&realm_id, "browser-login")
             .await?
-            .ok_or(Error::FlowNotFound("browser-login".to_string()))?; // Add to error.rs
+            .ok_or(Error::FlowNotFound("browser-login".to_string()))?;
 
-        // 3. Create and save a new login session
+        // Create and save a new login session
         let login_session = LoginSession {
             id: Uuid::new_v4(),
-            realm_id: realm.id,
+            realm_id,
             flow_id: flow.id,
             current_step: 0,
             user_id: None,
@@ -81,7 +74,7 @@ impl FlowEngine {
         };
         self.flow_repo.save_login_session(&login_session).await?;
 
-        // 4. Get the first step and call its `challenge` method
+        // Get the first step and call its `challenge` method
         let challenge = self.challenge_current_step(&login_session).await?;
         Ok((login_session, challenge))
     }

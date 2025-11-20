@@ -30,17 +30,14 @@ impl IntoResponse for Error {
             | Error::FlowNotFound(_)
             | Error::AuthenticatorNotFound(_)
             | Error::InvalidLoginStep
-            | Error::InvalidLoginSession
-            | Error::OidcClientNotFound(_)
-            | Error::OidcInvalidRedirect(_) => (StatusCode::NOT_FOUND, self.to_string()),
+            | Error::InvalidLoginSession => (StatusCode::NOT_FOUND, self.to_string()),
 
             // 500 Internal Server Error (for things the user can't fix)
             Error::Config(_)
             | Error::DatabaseInit(_)
             | Error::Unexpected(_)
             | Error::Uuid(_)
-            | Error::InvalidHeader(_)
-            | Error::OidcInvalidRequest(_) => {
+            | Error::InvalidHeader(_) => {
                 // Log the detailed, internal error for developers
                 tracing::error!("Internal server error: {:?}", self);
                 // Return a generic, safe message to the client
@@ -49,6 +46,10 @@ impl IntoResponse for Error {
                     "An unexpected error occurred.".to_string(),
                 )
             }
+
+            Error::OidcClientNotFound(_)
+            | Error::OidcInvalidRedirect(_)
+            | Error::OidcInvalidRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
 
             Error::Jwt(_) => (
                 StatusCode::UNAUTHORIZED,

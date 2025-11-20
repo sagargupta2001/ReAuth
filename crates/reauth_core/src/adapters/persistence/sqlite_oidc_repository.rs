@@ -6,6 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
+use uuid::Uuid;
 
 ///This repository handles the stateful, temporary data required by the OIDC protocol (Clients and Auth Codes).
 pub struct SqliteOidcRepository {
@@ -22,12 +23,18 @@ impl SqliteOidcRepository {
 impl OidcRepository for SqliteOidcRepository {
     // --- Client Management ---
 
-    async fn find_client_by_id(&self, client_id: &str) -> Result<Option<OidcClient>> {
-        let client = sqlx::query_as("SELECT * FROM oidc_clients WHERE client_id = ?")
-            .bind(client_id)
-            .fetch_optional(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+    async fn find_client_by_id(
+        &self,
+        realm_id: &Uuid,
+        client_id: &str,
+    ) -> Result<Option<OidcClient>> {
+        let client =
+            sqlx::query_as("SELECT * FROM oidc_clients WHERE realm_id = ? AND client_id = ?")
+                .bind(realm_id.to_string())
+                .bind(client_id)
+                .fetch_optional(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(client)
     }
 

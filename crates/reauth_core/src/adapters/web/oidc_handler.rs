@@ -5,6 +5,7 @@ use crate::{
     adapters::web::server::AppState,
     error::{Error, Result},
 };
+use axum::extract::Path;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -54,17 +55,24 @@ fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
 /// In a full implementation, this would create a LoginSession with OIDC context.
 pub async fn authorize_handler(
     State(state): State<AppState>,
+    Path(realm_name): Path<String>,
     Query(params): Query<AuthorizeParams>,
 ) -> Result<impl IntoResponse> {
-    // 1. Validate Client ID and Redirect URI
-    // Rename to `_client` to suppress unused warning
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    // 2. Validate Client (Now we scope it to the Realm!)
+    // You will need to update `validate_client` in OidcService to accept realm_id
     let _client = state
         .oidc_service
-        .validate_client(&params.client_id, &params.redirect_uri)
+        .validate_client(&realm.id, &params.client_id, &params.redirect_uri)
         .await?;
 
-    // 2. Start a Login Flow
-    let (mut login_session, challenge) = state.flow_engine.start_login_flow().await?;
+    // 3. Start Login Flow (Pass the resolved Realm ID)
+    let (mut login_session, challenge) = state.flow_engine.start_login_flow(realm.id).await?;
 
     // 3. Attach OIDC Context
     let oidc_context = OidcContext {
@@ -84,8 +92,7 @@ pub async fn authorize_handler(
         .update_login_session(&login_session)
         .await?;
 
-    // 4. Return Challenge & Set Cookie
-    // FIX: Convert timestamp correctly
+    // 4. Return Challenge & Set Cookietly
     let expires_time =
         time::OffsetDateTime::from_unix_timestamp(login_session.expires_at.timestamp())
             .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
@@ -112,6 +119,7 @@ pub async fn authorize_handler(
 /// Exchanges an Authorization Code for an Access Token.
 pub async fn token_handler(
     State(state): State<AppState>,
+    Path(_realm_name): Path<String>,
     Form(params): Form<TokenParams>,
 ) -> Result<impl IntoResponse> {
     if params.grant_type != "authorization_code" {
@@ -125,6 +133,7 @@ pub async fn token_handler(
         .oidc_service
         .exchange_code_for_token(&params.code, params.code_verifier.as_deref().unwrap_or(""))
         .await?;
+    // FIX: Convert timestamp correc
 
     // 2. Create the HttpOnly Cookie
     // (This uses the helper function defined earlier in this file)

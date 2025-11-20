@@ -59,7 +59,7 @@ pub async fn run_migrations_and_seed(
         realm_service,
         user_service,
         &flow_repo,
-        &settings.default_admin,
+        &settings,
         oidc_service,
     )
     .await?;

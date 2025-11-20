@@ -1,6 +1,7 @@
 export const OIDC_CONFIG = {
-  clientId: 'reauth-admin', // Must match the seeded client
-  redirectUri: window.location.origin, // e.g. http://localhost:5173
+  realm: 'master',
+  clientId: 'reauth-admin',
+  redirectUri: window.location.origin,
   scope: 'openid profile email',
   responseType: 'code',
   codeChallengeMethod: 'S256',

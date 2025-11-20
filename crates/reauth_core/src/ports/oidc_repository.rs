@@ -3,11 +3,17 @@ use crate::{
     error::Result,
 };
 use async_trait::async_trait;
+use uuid::Uuid;
 
 #[async_trait]
 pub trait OidcRepository: Send + Sync {
     // Client Management
-    async fn find_client_by_id(&self, client_id: &str) -> Result<Option<OidcClient>>;
+    // Change finding by ID to finding by Realm + Client ID
+    async fn find_client_by_id(
+        &self,
+        realm_id: &Uuid,
+        client_id: &str,
+    ) -> Result<Option<OidcClient>>;
     async fn create_client(&self, client: &OidcClient) -> Result<()>;
 
     // Auth Code Management
