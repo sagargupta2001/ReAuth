@@ -21,6 +21,8 @@ pub struct PluginsConfig {
 pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
+    #[serde(default = "default_data_dir")]
+    pub data_dir: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -63,4 +65,8 @@ impl Settings {
             .build()?;
         s.try_deserialize()
     }
+}
+
+fn default_data_dir() -> String {
+    "./data".to_string()
 }

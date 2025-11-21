@@ -23,7 +23,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
 
     let repos = initialize_repositories(&db_pool);
 
-    let (event_bus, cache_service, jwt_service) = initialize_core_infra(&settings);
+    let (event_bus, cache_service, jwt_service) = initialize_core_infra(&settings)?;
 
     let services = initialize_services(&settings, &repos, &cache_service, &event_bus, &jwt_service);
 
