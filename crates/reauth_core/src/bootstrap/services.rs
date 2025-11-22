@@ -53,6 +53,7 @@ pub fn initialize_services(
         repos.oidc_repo.clone(),
         repos.user_repo.clone(),
         auth_service.clone(),
+        token_service.clone(),
     ));
 
     // Build the registry for the Flow Engine

@@ -1,3 +1,4 @@
+use crate::ports::token_service::TokenService;
 use crate::{
     application::auth_service::AuthService,
     domain::{
@@ -22,7 +23,8 @@ pub struct TokenResponse {
 pub struct OidcService {
     oidc_repo: Arc<dyn OidcRepository>,
     user_repo: Arc<dyn UserRepository>,
-    auth_service: Arc<AuthService>, // Dependency to create sessions
+    auth_service: Arc<AuthService>,
+    token_service: Arc<dyn TokenService>,
 }
 
 impl OidcService {
@@ -30,11 +32,13 @@ impl OidcService {
         oidc_repo: Arc<dyn OidcRepository>,
         user_repo: Arc<dyn UserRepository>,
         auth_service: Arc<AuthService>,
+        token_service: Arc<dyn TokenService>,
     ) -> Self {
         Self {
             oidc_repo,
             user_repo,
             auth_service,
+            token_service,
         }
     }
 
@@ -150,5 +154,9 @@ impl OidcService {
     /// Registers a new OIDC client (used by seeder).
     pub async fn register_client(&self, client: &OidcClient) -> Result<()> {
         self.oidc_repo.create_client(client).await
+    }
+
+    pub fn get_jwks(&self) -> Result<serde_json::Value> {
+        self.token_service.get_jwks()
     }
 }

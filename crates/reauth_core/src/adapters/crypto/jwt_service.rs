@@ -7,7 +7,13 @@ use crate::{
     ports::token_service::{AccessTokenClaims, TokenService},
 };
 use async_trait::async_trait;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use rsa::pkcs8::DecodePublicKey;
+use rsa::traits::PublicKeyParts;
+use rsa::RsaPublicKey;
+use serde_json::json;
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -80,5 +86,31 @@ impl TokenService for JwtService {
 
     fn get_key_id(&self) -> &str {
         &self.key_id
+    }
+
+    fn get_jwks(&self) -> Result<serde_json::Value> {
+        // 1. Parse the PEM to get the raw RSA components
+        let public_key = RsaPublicKey::from_public_key_pem(&self.public_key_pem)
+            .map_err(|e| Error::Unexpected(anyhow::anyhow!("Failed to parse public key: {}", e)))?;
+
+        // 2. Extract Modulus (n) and Exponent (e)
+        let n = public_key.n();
+        let e = public_key.e();
+
+        // 3. Convert to Base64URL (Big Endian)
+        let n_b64 = URL_SAFE_NO_PAD.encode(n.to_bytes_be());
+        let e_b64 = URL_SAFE_NO_PAD.encode(e.to_bytes_be());
+
+        // 4. Construct the JWKS JSON
+        Ok(json!({
+            "keys": [{
+                "kty": "RSA",
+                "use": "sig",
+                "kid": self.key_id,
+                "alg": "RS256",
+                "n": n_b64,
+                "e": e_b64
+            }]
+        }))
     }
 }

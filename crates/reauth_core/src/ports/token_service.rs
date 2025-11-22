@@ -1,5 +1,9 @@
+use crate::error::Error;
 use crate::{domain::user::User, error::Result};
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use rsa::RsaPublicKey;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -27,4 +31,5 @@ pub trait TokenService: Send + Sync {
 
     /// Gets the unique ID used to sign tokens (for JWKS endpoint)
     fn get_key_id(&self) -> &str;
+    fn get_jwks(&self) -> Result<serde_json::Value>;
 }

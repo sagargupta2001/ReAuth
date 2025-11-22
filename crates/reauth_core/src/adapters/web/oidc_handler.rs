@@ -149,3 +149,9 @@ pub async fn token_handler(
     // 4. Return the tuple (Status, Headers, JSON Body)
     Ok((StatusCode::OK, headers, Json(token_response)))
 }
+
+/// Get /.well-known/jwks.json
+pub async fn jwks_handler(State(state): State<AppState>) -> Result<impl IntoResponse> {
+    let jwks = state.oidc_service.get_jwks()?;
+    Ok((StatusCode::OK, Json(jwks)))
+}

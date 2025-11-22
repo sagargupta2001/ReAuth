@@ -10,14 +10,10 @@ use axum::{
     Router,
 };
 use http::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, COOKIE};
-use http::{HeaderValue, Method};
+use http::Method;
 use std::path::PathBuf;
 use tower_http::cors::AllowOrigin;
-use tower_http::{
-    cors::{Any, CorsLayer},
-    services::ServeDir,
-    trace::TraceLayer,
-};
+use tower_http::{cors::CorsLayer, services::ServeDir, trace::TraceLayer};
 
 /// Creates the complete, state-filled Axum router for the application.
 pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
@@ -115,4 +111,5 @@ fn oidc_routes() -> Router<AppState> {
     Router::new()
         .route("/authorize", get(oidc_handler::authorize_handler))
         .route("/token", post(oidc_handler::token_handler))
+        .route("/.well-known/jwks.json", get(oidc_handler::jwks_handler))
 }
