@@ -1,5 +1,5 @@
 use crate::{
-    adapters::web::server::AppState, // Import Payload and Response
+    adapters::web::server::AppState,
     constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
     domain::{auth_flow::AuthStepResult, oidc::OidcContext, session::RefreshToken},
     error::{Error, Result},
@@ -158,8 +158,11 @@ pub async fn execute_login_step_handler(
                 }
             }
 
-            // --- DIRECT LOGIN PATH (Fallback) ---
-            let (login_response, refresh_token) = state.auth_service.create_session(&user).await?;
+            // Direct Login Path
+            // If this is the Admin Console logging in directly, you might want to
+            // hardcode the admin client ID, or pass None if you don't use ID tokens there.
+            let (login_response, refresh_token) =
+                state.auth_service.create_session(&user, None).await?;
             let refresh_cookie = create_refresh_cookie(&refresh_token);
 
             headers.append(

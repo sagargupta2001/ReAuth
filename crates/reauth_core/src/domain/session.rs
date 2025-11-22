@@ -9,5 +9,6 @@ pub struct RefreshToken {
     pub user_id: Uuid,
     #[sqlx(try_from = "String")]
     pub realm_id: Uuid,
+    pub client_id: Option<String>,
     pub expires_at: DateTime<Utc>,
 }

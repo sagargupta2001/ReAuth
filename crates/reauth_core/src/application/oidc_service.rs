@@ -114,17 +114,15 @@ impl OidcService {
         // 5. Create the Real Session
         // We delegate to AuthService. This calculates permissions, saves the RefreshToken
         // to the DB, and generates the JWT.
-        let (login_response, refresh_token) = self.auth_service.create_session(&user).await?;
-
-        let id_token = self
-            .token_service
-            .create_id_token(&user, &auth_code.client_id)
+        let (login_response, refresh_token) = self
+            .auth_service
+            .create_session(&user, Some(auth_code.client_id.clone()))
             .await?;
 
         // 6. Map to OIDC response format
         let token_response = TokenResponse {
             access_token: login_response.access_token,
-            id_token,
+            id_token: login_response.id_token.unwrap_or_default(),
             token_type: "Bearer".to_string(),
             expires_in: 900, // Should match your config/AuthService settings
         };

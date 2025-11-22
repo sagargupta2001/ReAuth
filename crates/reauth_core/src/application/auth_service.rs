@@ -23,6 +23,8 @@ pub struct LoginPayload {
 #[derive(Serialize)]
 pub struct LoginResponse {
     pub access_token: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_token: Option<String>,
 }
 
 pub struct AuthService {
@@ -53,7 +55,11 @@ impl AuthService {
         }
     }
 
-    pub async fn create_session(&self, user: &User) -> Result<(LoginResponse, RefreshToken)> {
+    pub async fn create_session(
+        &self,
+        user: &User,
+        client_id: Option<String>,
+    ) -> Result<(LoginResponse, RefreshToken)> {
         // 1. Get realm from user. For now, use the default.
         let realm = self
             .realm_repo
@@ -67,6 +73,7 @@ impl AuthService {
             id: Uuid::new_v4(),
             user_id: user.id,
             realm_id: realm.id,
+            client_id: client_id.clone(),
             expires_at,
         };
         self.session_repo.save(&refresh_token).await?;
@@ -83,7 +90,18 @@ impl AuthService {
             .create_access_token(user, refresh_token.id, &permissions)
             .await?;
 
-        Ok((LoginResponse { access_token }, refresh_token))
+        let mut id_token = None;
+        if let Some(cid) = client_id {
+            id_token = Some(self.token_service.create_id_token(user, &cid).await?);
+        }
+
+        Ok((
+            LoginResponse {
+                access_token,
+                id_token,
+            },
+            refresh_token,
+        ))
     }
 
     /// Validates an access token and returns the full User.
@@ -147,6 +165,7 @@ impl AuthService {
             id: Uuid::new_v4(), // New ID
             user_id: user.id,
             realm_id: realm.id,
+            client_id: old_token.client_id.clone(),
             expires_at,
         };
         self.session_repo.save(&new_refresh_token).await?;
@@ -163,6 +182,17 @@ impl AuthService {
             .create_access_token(&user, new_refresh_token.id, &permissions)
             .await?;
 
-        Ok((LoginResponse { access_token }, new_refresh_token))
+        let mut id_token = None;
+        if let Some(cid) = &new_refresh_token.client_id {
+            id_token = Some(self.token_service.create_id_token(&user, cid).await?);
+        }
+
+        Ok((
+            LoginResponse {
+                access_token,
+                id_token,
+            },
+            new_refresh_token,
+        ))
     }
 }

@@ -21,11 +21,12 @@ impl SqliteSessionRepository {
 impl SessionRepository for SqliteSessionRepository {
     async fn save(&self, token: &RefreshToken) -> Result<()> {
         sqlx::query(
-            "INSERT INTO refresh_tokens (id, user_id, realm_id, expires_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO refresh_tokens (id, user_id, realm_id, client_id, expires_at) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(token.id.to_string())
         .bind(token.user_id.to_string())
         .bind(token.realm_id.to_string())
+        .bind(&token.client_id)
         .bind(token.expires_at)
         .execute(&*self.pool)
         .await
