@@ -1,6 +1,7 @@
 use crate::adapters::crypto::key_manager::KeyPair;
 use crate::config::AuthConfig;
 use crate::error::Error;
+use crate::ports::token_service::IdTokenClaims;
 use crate::{
     domain::user::User,
     error::Result,
@@ -9,6 +10,7 @@ use crate::{
 use async_trait::async_trait;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use chrono::{Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use rsa::pkcs8::DecodePublicKey;
 use rsa::traits::PublicKeyParts;
@@ -23,6 +25,7 @@ pub struct JwtService {
     access_token_ttl_secs: i64,
     key_id: String,
     pub public_key_pem: String,
+    issuer: String,
 }
 
 impl JwtService {
@@ -41,6 +44,7 @@ impl JwtService {
             access_token_ttl_secs: config.access_token_ttl_secs,
             key_id: config.jwt_key_id,
             public_key_pem: keys.public_key_pem,
+            issuer: config.issuer,
         })
     }
 }
@@ -53,8 +57,8 @@ impl TokenService for JwtService {
         session_id: Uuid,
         permissions: &HashSet<String>,
     ) -> Result<String> {
-        let expiration = chrono::Utc::now()
-            .checked_add_signed(chrono::Duration::seconds(self.access_token_ttl_secs))
+        let expiration = Utc::now()
+            .checked_add_signed(Duration::seconds(self.access_token_ttl_secs))
             .expect("Failed to create expiration")
             .timestamp() as usize;
 
@@ -66,6 +70,28 @@ impl TokenService for JwtService {
         };
 
         // Set the Key ID in the header
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(self.key_id.clone());
+
+        Ok(
+            encode(&header, &claims, &self.encoding_key)
+                .map_err(|e| Error::Unexpected(e.into()))?,
+        )
+    }
+
+    async fn create_id_token(&self, user: &User, client_id: &str) -> Result<String> {
+        let now = Utc::now();
+        let expiration = (now + Duration::seconds(self.access_token_ttl_secs)).timestamp();
+
+        let claims = IdTokenClaims {
+            iss: self.issuer.clone(),
+            sub: user.id.to_string(),
+            aud: client_id.to_string(),
+            exp: expiration,
+            iat: now.timestamp(),
+            preferred_username: user.username.clone(),
+        };
+
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(self.key_id.clone());
 

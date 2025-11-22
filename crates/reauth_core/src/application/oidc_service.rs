@@ -16,6 +16,7 @@ use uuid::Uuid;
 #[derive(Serialize)]
 pub struct TokenResponse {
     pub access_token: String,
+    pub id_token: String,
     pub token_type: String, // e.g., "Bearer"
     pub expires_in: i64,    // e.g., 900 (seconds until expiry)
 }
@@ -115,9 +116,15 @@ impl OidcService {
         // to the DB, and generates the JWT.
         let (login_response, refresh_token) = self.auth_service.create_session(&user).await?;
 
+        let id_token = self
+            .token_service
+            .create_id_token(&user, &auth_code.client_id)
+            .await?;
+
         // 6. Map to OIDC response format
         let token_response = TokenResponse {
             access_token: login_response.access_token,
+            id_token,
             token_type: "Bearer".to_string(),
             expires_in: 900, // Should match your config/AuthService settings
         };

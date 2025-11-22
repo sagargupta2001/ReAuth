@@ -1,11 +1,20 @@
-use crate::error::Error;
 use crate::{domain::user::User, error::Result};
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use rsa::RsaPublicKey;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use std::collections::HashSet;
 use uuid::Uuid;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct IdTokenClaims {
+    pub iss: String, // Issuer
+    pub sub: String, // Subject (User ID)
+    pub aud: String, // Audience (Client ID)
+    pub exp: i64,    // Expiration
+    pub iat: i64,    // Issued At
+
+    // Profile Claims
+    pub preferred_username: String,
+    // You can add email, picture, etc. here later
+}
 
 /// The claims (payload) for our Access Token (JWT)
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,6 +33,12 @@ pub trait TokenService: Send + Sync {
         user: &User,
         session_id: Uuid,
         permissions: &HashSet<String>,
+    ) -> Result<String>;
+
+    async fn create_id_token(
+        &self,
+        user: &User,
+        client_id: &str, // ID Token needs to know who it's for
     ) -> Result<String>;
 
     /// Validates an Access Token and returns its claims

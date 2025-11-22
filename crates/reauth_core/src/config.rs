@@ -29,6 +29,7 @@ pub struct DatabaseConfig {
 pub struct AuthConfig {
     pub jwt_secret: String,
     pub jwt_key_id: String,
+    pub issuer: String,
     pub access_token_ttl_secs: i64,
     pub refresh_token_ttl_secs: i64,
 }
