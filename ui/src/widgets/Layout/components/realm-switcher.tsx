@@ -1,7 +1,7 @@
 import { ChevronsUpDown, GalleryVerticalEnd, Plus } from 'lucide-react'
 import { BoxesIcon, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import {
   DropdownMenu,
@@ -21,17 +21,11 @@ import { useSidebar } from '@/widgets/Sidebar/components/content.tsx'
 export function RealmSwitcher() {
   const { isMobile } = useSidebar()
   const navigate = useNavigate()
-  const location = useLocation()
   const currentRealm = useActiveRealm()
   const { data: realms, isLoading } = useRealms()
   const { t } = useTranslation('realm')
 
-  const handleSwitch = (newRealm: string) => {
-    // Replace the current realm segment in the URL
-    // /master/plugins -> /tenant-a/plugins
-    const newPath = location.pathname.replace(`/${currentRealm}`, `/${newRealm}`)
-    navigate(newPath)
-  }
+  const handleSwitch = (newRealm: string) => navigate(`/${newRealm}`)
 
   if (isLoading) {
     return (
