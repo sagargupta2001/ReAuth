@@ -37,24 +37,24 @@ export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
       if (authCode) {
         const verifier = sessionStorage.getItem(PKCE_STORAGE_KEY)
         if (verifier) {
-          exchangeToken.mutate(
-            { code: authCode, verifier },
-            {
-              onSuccess: (data) => {
-                setSession(data.access_token)
-                // Clean URL
-                const newUrl = window.location.pathname + window.location.hash
-                window.history.replaceState({}, document.title, newUrl)
-                sessionStorage.removeItem(PKCE_STORAGE_KEY)
-                setIsProcessing(false)
-              },
-              onError: (error) => {
-                console.error('Token exchange failed', error)
-                // If exchange fails, we will fall through to restoration/login below
-                // by NOT setting isProcessing to false here immediately
-              },
-            },
-          )
+          // We use .mutateAsync so we can await it properly
+          try {
+            const data = await exchangeToken.mutateAsync({ code: authCode, verifier })
+
+            setSession(data.access_token)
+            const newUrl = window.location.pathname + window.location.hash
+            window.history.replaceState({}, document.title, newUrl)
+            sessionStorage.removeItem(PKCE_STORAGE_KEY)
+          } catch (err) {
+            console.error('Token exchange failed', err)
+            // Fall through to login flow on error
+          } finally {
+            // Ensure we stop processing regardless of success/failure
+            setIsProcessing(false)
+          }
+        } else {
+          console.error('PKCE Verifier missing')
+          setIsProcessing(false)
         }
         return
       }
@@ -66,27 +66,26 @@ export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
         const token = await refreshAccessToken()
         setSession(token)
         setIsProcessing(false)
-        return // Stop here, we are logged in!
+        return
       } catch (e) {
-        console.log('[AuthGuard] Silent refresh failed, starting OIDC flow.')
+        console.log('[AuthGuard] Silent refresh failed.')
       }
-      // -------------------------------------------
 
-      // 4. Start OIDC Flow (If no session and no code)
+      // 3. Start OIDC Flow
       const verifier = generateCodeVerifier()
       const challenge = await generateCodeChallenge(verifier)
       sessionStorage.setItem(PKCE_STORAGE_KEY, verifier)
 
-      authorize.mutate(challenge, {
-        onSuccess: (response) => {
-          if (response.status === 'challenge' && response.challenge_page) {
-            // Backend says "User needs to login", let the UI render the login page
-            setIsProcessing(false)
-            return
-          }
-        },
-        onError: () => setIsProcessing(false),
-      })
+      try {
+        const response = await authorize.mutateAsync(challenge)
+        if (response.status === 'challenge' && response.challenge_page) {
+          setIsProcessing(false)
+        }
+      } catch (err) {
+        console.error('Auth init failed', err)
+        // Let the error state below handle the UI
+        setIsProcessing(false)
+      }
     }
 
     handleAuth()
@@ -113,7 +112,7 @@ export const AuthGuard = ({ children }: { children: React.ReactNode }) => {
   }
 
   // 2. Loading State
-  if (isProcessing || authorize.isPending || exchangeToken.isPending) {
+  if (isProcessing) {
     return <div className="flex h-screen items-center justify-center">Authenticating...</div>
   }
 
