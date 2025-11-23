@@ -1,13 +1,21 @@
-export const refreshAccessToken = async () => {
-  // The browser automatically sends the HttpOnly cookie
-  const res = await fetch('/api/auth/refresh', {
-    method: 'POST',
-  })
+import { apiClient } from '@/shared/api/client'
 
-  if (!res.ok) {
-    throw new Error('Failed to refresh token')
-  }
+import type { LoginResponse } from '../model/types'
+import type { LoginSchema } from '../schema/loginSchema'
 
-  const data = await res.json()
-  return data.access_token
+export const authApi = {
+  /**
+   * Refreshes the access token using the HttpOnly cookie.
+   */
+  refreshAccessToken: async () => {
+    const data = await apiClient.post<{ access_token: string }>('/api/auth/refresh', {})
+    return data.access_token
+  },
+
+  /**
+   * Executes a step in the login flow (Username/Password).
+   */
+  executeLogin: async (credentials: LoginSchema) => {
+    return apiClient.post<LoginResponse>('/api/auth/login/execute', { credentials })
+  },
 }

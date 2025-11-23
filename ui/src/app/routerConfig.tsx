@@ -57,7 +57,7 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/login',
+    path: '/login',
     element: LoginPage,
     layout: LoginLayout,
     isProtected: false,
