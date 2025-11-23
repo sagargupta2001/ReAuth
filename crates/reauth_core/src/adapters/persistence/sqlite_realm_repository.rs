@@ -41,4 +41,11 @@ impl RealmRepository for SqliteRealmRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?)
     }
+
+    async fn list_all(&self) -> Result<Vec<Realm>> {
+        Ok(sqlx::query_as("SELECT * FROM realms")
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?)
+    }
 }

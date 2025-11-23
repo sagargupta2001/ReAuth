@@ -87,7 +87,9 @@ fn protected_user_routes() -> Router<AppState> {
 }
 
 fn realm_routes() -> Router<AppState> {
-    Router::new().route("/", post(realm_handler::create_realm_handler))
+    Router::new()
+        .route("/", post(realm_handler::create_realm_handler))
+        .route("/", get(realm_handler::list_realms_handler))
 }
 
 fn rbac_routes() -> Router<AppState> {

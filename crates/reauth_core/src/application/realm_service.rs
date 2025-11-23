@@ -46,4 +46,8 @@ impl RealmService {
     pub async fn find_by_name(&self, name: &str) -> Result<Option<Realm>> {
         self.realm_repo.find_by_name(name).await
     }
+
+    pub async fn list_realms(&self) -> Result<Vec<Realm>> {
+        self.realm_repo.list_all().await
+    }
 }

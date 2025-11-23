@@ -1,6 +1,7 @@
-import * as React from 'react'
+import { useState } from 'react'
 
-import { BoxesIcon, ChevronsUpDown, Plus } from 'lucide-react'
+import { ChevronsUpDown, GalleryVerticalEnd, Plus } from 'lucide-react'
+import { BoxesIcon } from 'lucide-react'
 
 import {
   DropdownMenu,
@@ -11,20 +12,39 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
+import { Skeleton } from '@/components/skeleton'
+import { useRealms } from '@/entities/realm/api/useRealms'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/widgets/Sidebar/components'
 import { useSidebar } from '@/widgets/Sidebar/components/content.tsx'
 
-type TeamSwitcherProps = {
-  teams: {
-    name: string
-    logo: React.ElementType
-    plan: string
-  }[]
-}
-
-export function TeamSwitcher({ teams }: TeamSwitcherProps) {
+export function RealmSwitcher() {
   const { isMobile } = useSidebar()
-  const [activeTeam, setActiveTeam] = React.useState(teams[0])
+  const { data: realms, isLoading } = useRealms()
+
+  // In a real app, this state might come from a global store or URL param.
+  // For now, we default to the first one (usually "master").
+  const [selectedRealmName, setSelectedRealmName] = useState<string>('master')
+
+  // Handle Loading State
+  if (isLoading) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <div className="flex h-12 items-center px-2">
+            <Skeleton className="h-8 w-8 rounded-lg" />
+            <div className="ml-2 space-y-1">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          </div>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
+  }
+
+  const activeRealm = realms?.find((r) => r.name === selectedRealmName) || realms?.[0]
+
+  if (!activeRealm) return null
 
   return (
     <SidebarMenu>
@@ -37,7 +57,7 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
             >
               <BoxesIcon />
               <div className="grid flex-1 text-start text-sm leading-tight">
-                <span className="truncate font-semibold">{activeTeam.name}</span>
+                <span className="truncate font-semibold">{activeRealm.name}</span>
               </div>
               <ChevronsUpDown className="ms-auto" />
             </SidebarMenuButton>
@@ -48,17 +68,17 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
             side={isMobile ? 'bottom' : 'right'}
             sideOffset={4}
           >
-            <DropdownMenuLabel className="text-muted-foreground text-xs">Teams</DropdownMenuLabel>
-            {teams.map((team, index) => (
+            <DropdownMenuLabel className="text-muted-foreground text-xs">Realms</DropdownMenuLabel>
+            {realms?.map((realm, index) => (
               <DropdownMenuItem
-                key={team.name}
-                onClick={() => setActiveTeam(team)}
+                key={realm.id}
+                onClick={() => setSelectedRealmName(realm.name)}
                 className="gap-2 p-2"
               >
                 <div className="flex size-6 items-center justify-center rounded-sm border">
-                  <team.logo className="size-4 shrink-0" />
+                  <GalleryVerticalEnd className="size-4 shrink-0" />
                 </div>
-                {team.name}
+                {realm.name}
                 <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
               </DropdownMenuItem>
             ))}
@@ -67,7 +87,7 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
               <div className="bg-background flex size-6 items-center justify-center rounded-md border">
                 <Plus className="size-4" />
               </div>
-              <div className="text-muted-foreground font-medium">Add team</div>
+              <div className="text-muted-foreground font-medium">Create Realm</div>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

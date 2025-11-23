@@ -8,12 +8,6 @@ type User = {
   avatar: string
 }
 
-type Team = {
-  name: string
-  logo: ElementType
-  plan: string
-}
-
 type BaseNavItem = {
   title: string
   badge?: string
@@ -39,7 +33,6 @@ type NavGroup = {
 
 type SidebarData = {
   user: User
-  teams: Team[]
   navGroups: NavGroup[]
 }
 

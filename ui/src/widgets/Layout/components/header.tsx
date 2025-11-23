@@ -2,8 +2,7 @@ import { type HTMLAttributes, type Ref, useEffect, useState } from 'react'
 
 import { Slash } from '@/assets/header/slash.tsx'
 import { cn } from '@/lib/utils.ts'
-import { TeamSwitcher } from '@/widgets/Layout/components/team-switcher.tsx'
-import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data.ts'
+import { RealmSwitcher } from '@/widgets/Layout/components/realm-switcher.tsx'
 
 type HeaderProps = HTMLAttributes<HTMLElement> & {
   fixed?: boolean
@@ -47,7 +46,7 @@ export function Header({ className, fixed, children, ...props }: HeaderProps) {
         <div className="flex items-center gap-2">
           <img rel="icon" src="/reauth.svg" alt="logo" className="h-7 w-7" />
           <Slash />
-          <TeamSwitcher teams={sidebarData.teams} />
+          <RealmSwitcher />
         </div>
 
         {/* Right side: rest of header */}

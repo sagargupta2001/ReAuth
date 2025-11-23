@@ -1,8 +1,5 @@
 import {
-  AudioWaveform,
   Bell,
-  Command,
-  GalleryVerticalEnd,
   HelpCircle,
   LayoutDashboard,
   LucideLogs,
@@ -22,23 +19,6 @@ export const sidebarData: SidebarData = {
     email: 'satnaingdev@gmail.com',
     avatar: '/avatars/shadcn.jpg',
   },
-  teams: [
-    {
-      name: 'My New Realm',
-      logo: Command,
-      plan: 'Vite + ShadcnUI',
-    },
-    {
-      name: 'Acme Inc',
-      logo: GalleryVerticalEnd,
-      plan: 'Enterprise',
-    },
-    {
-      name: 'Acme Corp.',
-      logo: AudioWaveform,
-      plan: 'Startup',
-    },
-  ],
   navGroups: [
     {
       title: 'General',
