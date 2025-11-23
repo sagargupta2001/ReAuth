@@ -18,4 +18,12 @@ export const authApi = {
   executeLogin: async (credentials: LoginSchema) => {
     return apiClient.post<LoginResponse>('/api/auth/login/execute', { credentials })
   },
+
+  /**
+   * Logs out the user by invalidating the session on the server.
+   */
+  logout: async () => {
+    // We use void because we don't care about the response body, just the cookie clearing
+    return apiClient.post<void>('/api/auth/logout', {})
+  },
 }

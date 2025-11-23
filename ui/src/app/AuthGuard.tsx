@@ -25,6 +25,7 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
       // If we are already logged in (in memory), stop.
       if (accessToken) {
         setIsProcessing(false)
+        initRan.current = false
         return
       }
 

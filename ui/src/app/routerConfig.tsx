@@ -60,7 +60,7 @@ export const staticRoutes: RouteConfig[] = [
     path: '/login',
     element: LoginPage,
     layout: LoginLayout,
-    isProtected: false,
+    isProtected: true,
   },
   {
     path: '*',

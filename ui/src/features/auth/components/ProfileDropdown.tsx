@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 
-import useDialogState from '@/lib/hooks/useDialogState.ts'
+import { useLogout } from '@/features/auth/api/useLogout.ts'
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/avatar.tsx'
 import { Button } from '@/shared/ui/button.tsx'
 import {
@@ -14,10 +14,13 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu.tsx'
 
-import { SignOutDialog } from './SignOutDialog.tsx'
-
 export function ProfileDropdown() {
-  const [open, setOpen] = useDialogState()
+  const logoutMutation = useLogout()
+
+  const handleSignOut = () => {
+    // Execute the mutation
+    logoutMutation.mutate()
+  }
 
   return (
     <>
@@ -60,14 +63,12 @@ export function ProfileDropdown() {
             <DropdownMenuItem>New Team</DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={() => setOpen(true)}>
+          <DropdownMenuItem variant="destructive" onClick={handleSignOut}>
             Sign out
             <DropdownMenuShortcut className="text-current">⇧⌘Q</DropdownMenuShortcut>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <SignOutDialog open={!!open} onOpenChange={setOpen} />
     </>
   )
 }

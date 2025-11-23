@@ -247,3 +247,35 @@ pub async fn refresh_handler(
         Err(e) => Err(e),
     }
 }
+
+pub async fn logout_handler(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Result<impl IntoResponse> {
+    let mut headers = HeaderMap::new();
+
+    // 1. Clear cookies immediately
+    let clear_refresh = create_clear_cookie();
+    let clear_login = create_clear_login_cookie();
+
+    headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&clear_refresh.to_string())
+            .map_err(|e| Error::Unexpected(e.into()))?,
+    );
+    headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&clear_login.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
+    );
+
+    // 2. Try to delete from DB (Best effort)
+    if let Some(cookie) = jar.get(REFRESH_TOKEN_COOKIE) {
+        if let Ok(token_id) = Uuid::parse_str(cookie.value()) {
+            // We ignore errors here because if the token is invalid,
+            // the user is effectively logged out anyway.
+            let _ = state.auth_service.logout(token_id).await;
+        }
+    }
+
+    Ok((StatusCode::OK, headers, Json("Logged out")))
+}

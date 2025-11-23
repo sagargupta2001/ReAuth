@@ -76,6 +76,7 @@ fn auth_routes() -> Router<AppState> {
             post(auth_handler::execute_login_step_handler),
         )
         .route("/refresh", post(auth_handler::refresh_handler))
+        .route("/logout", post(auth_handler::logout_handler))
 }
 
 fn public_user_routes() -> Router<AppState> {
