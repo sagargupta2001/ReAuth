@@ -14,6 +14,7 @@ manager = { path = "../plugin/manager" }
 validator = { workspace = true, features = ["derive"] }
 config = { workspace = true, features = ["toml"] }
 axum = { workspace = true, features = ["ws"] }
+axum-extra = { workspace = true, features = ["typed-header", "cookie"] }
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true, features = ["derive"] }
 dotenvy = { workspace = true }
@@ -31,7 +32,7 @@ async-trait = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 serde_json = { workspace = true }
 moka = { workspace = true, features = ["future"] }
-chrono = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
 futures = { workspace = true }
 argon2 = { workspace = true }
 password-hash = { workspace = true }
@@ -39,3 +40,11 @@ rand_core = { workspace = true }
 http = { workspace = true }
 sqlx = { workspace = true }
 tower-http = { workspace = true }
+jsonwebtoken = { workspace = true }
+cookie = { workspace = true }
+time = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+url = { workspace = true }
+rsa = { workspace = true }
+rand = { workspace = true }

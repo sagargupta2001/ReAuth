@@ -1,7 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { sessionStore } from '@/entities/session/model/sessionStore'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog.tsx'
 
 interface SignOutDialogProps {
   open: boolean
@@ -11,11 +10,8 @@ interface SignOutDialogProps {
 export function SignOutDialog({ open, onOpenChange }: SignOutDialogProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { auth } = sessionStore()
 
   const handleSignOut = () => {
-    auth.reset()
-
     // Preserve current location for redirect after sign-in
     const currentPath = location.pathname + location.search
     navigate(`/sign-in?redirect=${encodeURIComponent(currentPath)}`, { replace: true })

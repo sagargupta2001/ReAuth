@@ -2,8 +2,9 @@ import { Fragment } from 'react'
 
 import { Route, Routes } from 'react-router-dom'
 
+import { AuthGuard } from '@/app/AuthGuard.tsx'
 import { usePlugins } from '@/entities/plugin/api/usePlugins'
-import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout'
+import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 
 // Assuming this is your main layout
 import { staticRoutes } from './routerConfig.ts'
@@ -11,11 +12,11 @@ import { staticRoutes } from './routerConfig.ts'
 export function AppRouter() {
   const { data } = usePlugins()
 
-  // 1. Get the correct data from the hook
+  // Get the correct data from the hook
   const pluginStatuses = data?.statuses || []
   const pluginModules = data?.modules || {}
 
-  // 2. Filter for plugins that are 'active' and have a module loaded
+  // Filter for plugins that are 'active' and have a module loaded
   const activePlugins = pluginStatuses.filter(
     (p) => p.status === 'active' && pluginModules[p.manifest.id],
   )
@@ -23,17 +24,19 @@ export function AppRouter() {
   return (
     <Routes>
       {/* Render all static routes from the config */}
-      {staticRoutes.map(({ path, element: Element, layout: Layout }) => {
+      {staticRoutes.map(({ path, element: Element, layout: Layout, isProtected }) => {
         const LayoutComponent = Layout ?? Fragment
+        const page = (
+          <LayoutComponent>
+            <Element />
+          </LayoutComponent>
+        )
+
         return (
           <Route
             key={path}
             path={path}
-            element={
-              <LayoutComponent>
-                <Element />
-              </LayoutComponent>
-            }
+            element={isProtected ? <AuthGuard>{page}</AuthGuard> : page}
           />
         )
       })}
@@ -50,15 +53,18 @@ export function AppRouter() {
           ? manifest.frontend.route
           : '/' + manifest.frontend.route
 
+        const page = (
+          <AuthenticatedLayout>
+            <Component />
+          </AuthenticatedLayout>
+        )
+
         return (
           <Route
             key={manifest.id}
             path={routePath}
-            element={
-              <AuthenticatedLayout>
-                <Component />
-              </AuthenticatedLayout>
-            }
+            // All plugin routes are protected by default
+            element={<AuthGuard>{page}</AuthGuard>}
           />
         )
       })}

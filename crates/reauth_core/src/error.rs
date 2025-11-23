@@ -1,5 +1,7 @@
 //! Defines the custom `Error` and `Result` types for the reauth_core application.
 
+use http::header::InvalidHeaderValue;
+
 /// A specialized `Result` type for reauth_core operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -29,4 +31,49 @@ pub enum Error {
 
     #[error("The credentials provided are incorrect.")]
     InvalidCredentials,
+
+    #[error("Invalid or expired refresh token")]
+    InvalidRefreshToken,
+
+    #[error("The session has been revoked.")]
+    SessionRevoked,
+
+    #[error("A realm with this name already exists.")]
+    RealmAlreadyExists,
+
+    #[error("Realm not found: {0}")]
+    RealmNotFound(String),
+
+    #[error("JWT error: {0}")]
+    Jwt(#[from] jsonwebtoken::errors::Error),
+
+    #[error("Flow not found: {0}")]
+    FlowNotFound(String),
+
+    #[error("Invalid login session.")]
+    InvalidLoginSession,
+
+    #[error("Invalid login step.")]
+    InvalidLoginStep,
+
+    #[error("Authenticator not found: {0}")]
+    AuthenticatorNotFound(String),
+
+    #[error(transparent)]
+    Uuid(#[from] uuid::Error),
+
+    #[error(transparent)]
+    InvalidHeader(#[from] InvalidHeaderValue),
+
+    #[error("OIDC Client not found: {0}")]
+    OidcClientNotFound(String),
+
+    #[error("Invalid Redirect URI: {0}")]
+    OidcInvalidRedirect(String),
+
+    #[error("Invalid Authorization Code")]
+    OidcInvalidCode,
+
+    #[error("OIDC Request Error: {0}")]
+    OidcInvalidRequest(String),
 }

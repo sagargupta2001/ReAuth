@@ -1,52 +1,42 @@
+import { jwtDecode } from 'jwt-decode'
 import { create } from 'zustand'
 
-import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
-import { ACCESS_TOKEN_COOKIE } from '@/shared/config/auth.ts'
-
-interface AuthUser {
-  accountNo: string
-  email: string
-  role: string[]
+// This is the shape of the *payload* inside your Access Token (JWT)
+// We get this by decoding the token
+export interface AuthUser {
+  sub: string // The User ID
+  sid: string // The Session ID
+  perms: string[] // The user's permissions
   exp: number
 }
 
 interface AuthState {
-  auth: {
-    user: AuthUser | null
-    setUser: (user: AuthUser | null) => void
-    accessToken: string
-    setAccessToken: (accessToken: string) => void
-    resetAccessToken: () => void
-    reset: () => void
-  }
+  user: AuthUser | null
+  accessToken: string | null
+
+  // Action to set the full session (called after login)
+  setSession: (token: string) => void
+
+  // Action to clear the session (called on logout)
+  clearSession: () => void
 }
 
-export const sessionStore = create<AuthState>()((set) => {
-  const cookieState = getCookie(ACCESS_TOKEN_COOKIE)
-  const initToken = cookieState ? JSON.parse(cookieState) : ''
-  return {
-    auth: {
-      user: null,
-      setUser: (user) => set((state) => ({ ...state, auth: { ...state.auth, user } })),
-      accessToken: initToken,
-      setAccessToken: (accessToken) =>
-        set((state) => {
-          setCookie(ACCESS_TOKEN_COOKIE, JSON.stringify(accessToken))
-          return { ...state, auth: { ...state.auth, accessToken } }
-        }),
-      resetAccessToken: () =>
-        set((state) => {
-          removeCookie(ACCESS_TOKEN_COOKIE)
-          return { ...state, auth: { ...state.auth, accessToken: '' } }
-        }),
-      reset: () =>
-        set((state) => {
-          removeCookie(ACCESS_TOKEN_COOKIE)
-          return {
-            ...state,
-            auth: { ...state.auth, user: null, accessToken: '' },
-          }
-        }),
-    },
-  }
-})
+export const useSessionStore = create<AuthState>((set) => ({
+  user: null,
+  accessToken: null,
+
+  setSession: (token: string) => {
+    try {
+      // Decode the JWT to get the user payload
+      const user = jwtDecode<AuthUser>(token)
+      set({ accessToken: token, user })
+    } catch (e) {
+      console.error('Failed to decode JWT:', e)
+      set({ accessToken: null, user: null })
+    }
+  },
+
+  clearSession: () => {
+    set({ accessToken: null, user: null })
+  },
+}))

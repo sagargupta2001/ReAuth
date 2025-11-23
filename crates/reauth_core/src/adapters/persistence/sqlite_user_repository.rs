@@ -1,10 +1,11 @@
+use crate::adapters::persistence::connection::Database;
 use crate::{
     domain::user::User,
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
 use async_trait::async_trait;
-use crate::adapters::persistence::connection::Database;
+use uuid::Uuid;
 
 /// The SQLx "Adapter" for the UserRepository port.
 pub struct SqliteUserRepository {
@@ -25,6 +26,15 @@ impl UserRepository for SqliteUserRepository {
         let user = sqlx::query_as("SELECT * FROM users WHERE username = ?")
             .bind(username)
             .fetch_optional(&*self.pool) // You can still use &self.pool here
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(user)
+    }
+
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<User>> {
+        let user = sqlx::query_as("SELECT * FROM users WHERE id = ?")
+            .bind(id.to_string())
+            .fetch_optional(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(user)

@@ -21,6 +21,29 @@ pub struct PluginsConfig {
 pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
+    #[serde(default = "default_data_dir")]
+    pub data_dir: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct AuthConfig {
+    pub jwt_secret: String,
+    pub jwt_key_id: String,
+    pub issuer: String,
+    pub access_token_ttl_secs: i64,
+    pub refresh_token_ttl_secs: i64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct DefaultAdminConfig {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct DefaultOidcClientConfig {
+    pub client_id: String,
+    pub redirect_uris: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -29,8 +52,10 @@ pub struct Settings {
     pub ui: Ui,
     pub plugins: PluginsConfig,
     pub database: DatabaseConfig,
+    pub auth: AuthConfig,
+    pub default_admin: DefaultAdminConfig,
+    pub default_oidc_client: DefaultOidcClientConfig,
 }
-
 
 impl Settings {
     pub fn new() -> Result<Self, config::ConfigError> {
@@ -41,4 +66,8 @@ impl Settings {
             .build()?;
         s.try_deserialize()
     }
+}
+
+fn default_data_dir() -> String {
+    "./data".to_string()
 }
