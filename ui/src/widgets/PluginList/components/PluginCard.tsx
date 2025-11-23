@@ -1,7 +1,7 @@
 import { Package } from 'lucide-react'
-import { Link } from 'react-router-dom'
 
 import type { PluginStatusInfo } from '@/entities/plugin/model/types'
+import { RealmLink } from '@/entities/realm/lib/navigation.tsx'
 import { PluginConnectButton } from '@/features/plugin/components/PluginConnectButton'
 
 interface Props {
@@ -18,9 +18,12 @@ export function PluginCard({ plugin }: Props) {
         <PluginConnectButton plugin={plugin} />
       </div>
       <div>
-        <Link to={plugin.manifest.frontend.route} className="underline-offset-4 hover:underline">
+        <RealmLink
+          to={plugin.manifest.frontend.route}
+          className="underline-offset-4 hover:underline"
+        >
           <h2 className="mb-1 font-semibold">{plugin.manifest.name}</h2>
-        </Link>
+        </RealmLink>
         <p className="text-muted-foreground line-clamp-2 text-sm">
           Version: {plugin.manifest.version}
         </p>

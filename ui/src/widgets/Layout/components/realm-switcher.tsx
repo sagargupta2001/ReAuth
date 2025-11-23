@@ -1,7 +1,6 @@
-import { useState } from 'react'
-
 import { ChevronsUpDown, GalleryVerticalEnd, Plus } from 'lucide-react'
 import { BoxesIcon, Check } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import {
   DropdownMenu,
@@ -14,16 +13,23 @@ import {
 } from '@/components/dropdown-menu'
 import { Skeleton } from '@/components/skeleton'
 import { useRealms } from '@/entities/realm/api/useRealms'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/widgets/Sidebar/components'
 import { useSidebar } from '@/widgets/Sidebar/components/content.tsx'
 
 export function RealmSwitcher() {
   const { isMobile } = useSidebar()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const currentRealm = useActiveRealm()
   const { data: realms, isLoading } = useRealms()
 
-  // In a real app, this state might come from a global store or URL param.
-  // For now, we default to the first one (usually "master").
-  const [selectedRealmName, setSelectedRealmName] = useState<string>('master')
+  const handleSwitch = (newRealm: string) => {
+    // Replace the current realm segment in the URL
+    // /master/plugins -> /tenant-a/plugins
+    const newPath = location.pathname.replace(`/${currentRealm}`, `/${newRealm}`)
+    navigate(newPath)
+  }
 
   // Handle Loading State
   if (isLoading) {
@@ -42,7 +48,7 @@ export function RealmSwitcher() {
     )
   }
 
-  const activeRealm = realms?.find((r) => r.name === selectedRealmName) || realms?.[0]
+  const activeRealm = realms?.find((r) => r.name === currentRealm) || realms?.[0]
 
   if (!activeRealm) return null
 
@@ -70,12 +76,12 @@ export function RealmSwitcher() {
           >
             <DropdownMenuLabel className="text-muted-foreground text-xs">Realms</DropdownMenuLabel>
             {realms?.map((realm) => {
-              const isSelected = realm.name === selectedRealmName
+              const isSelected = realm.name === currentRealm
 
               return (
                 <DropdownMenuItem
                   key={realm.id}
-                  onClick={() => setSelectedRealmName(realm.name)}
+                  onClick={() => handleSwitch(realm.name)}
                   className="gap-2 p-2"
                 >
                   <div className="flex size-6 items-center justify-center rounded-sm border">
@@ -91,12 +97,14 @@ export function RealmSwitcher() {
               )
             })}
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="gap-2 p-2">
-              <div className="bg-background flex size-6 items-center justify-center rounded-md border">
-                <Plus className="size-4" />
-              </div>
-              <div className="text-muted-foreground font-medium">Create Realm</div>
-            </DropdownMenuItem>
+            <Link to="/create-realm">
+              <DropdownMenuItem className="cursor-pointer gap-2 p-2">
+                <div className="bg-background flex size-6 items-center justify-center rounded-md border">
+                  <Plus className="size-4" />
+                </div>
+                <div className="text-muted-foreground font-medium">Create Realm</div>
+              </DropdownMenuItem>
+            </Link>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

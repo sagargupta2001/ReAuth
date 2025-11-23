@@ -24,7 +24,7 @@ export const sidebarData: SidebarData = {
       title: 'General',
       items: [
         {
-          title: 'Dashboard',
+          title: 'Realm Overview',
           url: '/',
           icon: LayoutDashboard,
         },

@@ -1,12 +1,16 @@
 import type { ComponentType, ReactNode } from 'react'
 
+import { Navigate } from 'react-router-dom'
+
 import DashboardPage from '@/pages/DashboardPage'
 import { LoginPage } from '@/pages/LoginPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PluginsPage } from '@/pages/PluginsPage.tsx'
+import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
+import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx'
 
 /**
  * Defines the shape of a static route.
@@ -25,24 +29,35 @@ export interface RouteConfig {
 export const staticRoutes: RouteConfig[] = [
   {
     path: '/',
+    element: () => <Navigate to="/master" replace />,
+    isProtected: true,
+  },
+  {
+    path: '/:realm',
     element: DashboardPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
   {
-    path: '/plugins',
+    path: '/:realm/plugins',
     element: PluginsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
   {
-    path: '/logs',
+    path: '/:realm/logs',
     element: LogsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
   {
-    path: '/login',
+    path: '/create-realm',
+    element: CreateRealmPage,
+    layout: MinimalLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/login',
     element: LoginPage,
     layout: LoginLayout,
     isProtected: false,
