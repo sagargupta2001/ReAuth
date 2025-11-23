@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 import { ChevronsUpDown, GalleryVerticalEnd, Plus } from 'lucide-react'
-import { BoxesIcon } from 'lucide-react'
+import { BoxesIcon, Check } from 'lucide-react'
 
 import {
   DropdownMenu,
@@ -69,19 +69,27 @@ export function RealmSwitcher() {
             sideOffset={4}
           >
             <DropdownMenuLabel className="text-muted-foreground text-xs">Realms</DropdownMenuLabel>
-            {realms?.map((realm, index) => (
-              <DropdownMenuItem
-                key={realm.id}
-                onClick={() => setSelectedRealmName(realm.name)}
-                className="gap-2 p-2"
-              >
-                <div className="flex size-6 items-center justify-center rounded-sm border">
-                  <GalleryVerticalEnd className="size-4 shrink-0" />
-                </div>
-                {realm.name}
-                <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
-              </DropdownMenuItem>
-            ))}
+            {realms?.map((realm) => {
+              const isSelected = realm.name === selectedRealmName
+
+              return (
+                <DropdownMenuItem
+                  key={realm.id}
+                  onClick={() => setSelectedRealmName(realm.name)}
+                  className="gap-2 p-2"
+                >
+                  <div className="flex size-6 items-center justify-center rounded-sm border">
+                    <GalleryVerticalEnd className="size-4 shrink-0" />
+                  </div>
+
+                  {realm.name}
+
+                  <DropdownMenuShortcut>
+                    <Check className={isSelected ? 'opacity-100' : 'opacity-0'} />
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+              )
+            })}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="gap-2 p-2">
               <div className="bg-background flex size-6 items-center justify-center rounded-md border">
