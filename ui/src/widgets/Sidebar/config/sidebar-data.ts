@@ -1,22 +1,11 @@
-import {
-  Bell,
-  HelpCircle,
-  LayoutDashboard,
-  LucideLogs,
-  Monitor,
-  Package,
-  Palette,
-  Settings,
-  UserCog,
-  Wrench,
-} from 'lucide-react'
+import { LucideHome, LucideLogs, Package, Settings, UserCog, Wrench } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
 export const sidebarData: SidebarData = {
   user: {
-    name: 'satnaing',
-    email: 'satnaingdev@gmail.com',
+    name: 'sagar',
+    email: 'sagar@gmail.com',
     avatar: '/avatars/shadcn.jpg',
   },
   navGroups: [
@@ -26,7 +15,7 @@ export const sidebarData: SidebarData = {
         {
           title: 'Realm Overview',
           url: '/',
-          icon: LayoutDashboard,
+          icon: LucideHome,
         },
         {
           title: 'Plugins',
@@ -44,7 +33,7 @@ export const sidebarData: SidebarData = {
       title: 'Other',
       items: [
         {
-          title: 'Settings',
+          title: 'Realm Settings',
           icon: Settings,
           items: [
             {
@@ -57,27 +46,7 @@ export const sidebarData: SidebarData = {
               url: '/settings/account',
               icon: Wrench,
             },
-            {
-              title: 'Appearance',
-              url: '/settings/appearance',
-              icon: Palette,
-            },
-            {
-              title: 'Notifications',
-              url: '/settings/notifications',
-              icon: Bell,
-            },
-            {
-              title: 'Display',
-              url: '/settings/display',
-              icon: Monitor,
-            },
           ],
-        },
-        {
-          title: 'Help Center',
-          url: '/help-center',
-          icon: HelpCircle,
         },
       ],
     },
