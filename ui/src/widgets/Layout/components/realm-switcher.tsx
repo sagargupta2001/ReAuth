@@ -1,5 +1,6 @@
 import { ChevronsUpDown, GalleryVerticalEnd, Plus } from 'lucide-react'
 import { BoxesIcon, Check } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import {
@@ -23,6 +24,7 @@ export function RealmSwitcher() {
   const location = useLocation()
   const currentRealm = useActiveRealm()
   const { data: realms, isLoading } = useRealms()
+  const { t } = useTranslation('realm')
 
   const handleSwitch = (newRealm: string) => {
     // Replace the current realm segment in the URL
@@ -31,7 +33,6 @@ export function RealmSwitcher() {
     navigate(newPath)
   }
 
-  // Handle Loading State
   if (isLoading) {
     return (
       <SidebarMenu>
@@ -74,7 +75,9 @@ export function RealmSwitcher() {
             side={isMobile ? 'bottom' : 'right'}
             sideOffset={4}
           >
-            <DropdownMenuLabel className="text-muted-foreground text-xs">Realms</DropdownMenuLabel>
+            <DropdownMenuLabel className="text-muted-foreground text-xs">
+              {t('REALM_SWITCHER.TITLE')}
+            </DropdownMenuLabel>
             {realms?.map((realm) => {
               const isSelected = realm.name === currentRealm
 
@@ -102,7 +105,9 @@ export function RealmSwitcher() {
                 <div className="bg-background flex size-6 items-center justify-center rounded-md border">
                   <Plus className="size-4" />
                 </div>
-                <div className="text-muted-foreground font-medium">Create Realm</div>
+                <div className="text-muted-foreground font-medium">
+                  {t('REALM_SWITCHER.CREATE_REALM_BTN')}
+                </div>
               </DropdownMenuItem>
             </Link>
           </DropdownMenuContent>
