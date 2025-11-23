@@ -16,7 +16,7 @@ export function MinimalLayout({ children }: MinimalLayoutProps) {
         leftSlot={
           <div className="flex items-center gap-2">
             <img rel="icon" src="/reauth.svg" alt="logo" className="h-7 w-7" />
-            <Slash />
+            <Slash className="inline-block h-5 w-5 shrink-0 leading-none" />
             <span className="text-sm font-semibold">New Realm</span>
           </div>
         }

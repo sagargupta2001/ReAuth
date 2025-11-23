@@ -51,7 +51,7 @@ export function Header({ className, fixed, children, leftSlot, ...props }: Heade
           ) : (
             <>
               <img rel="icon" src="/reauth.svg" alt="logo" className="h-7 w-7" />
-              <Slash />
+              <Slash className="inline-block h-5 w-5 shrink-0 leading-none" />
               <RealmSwitcher />
             </>
           )}
