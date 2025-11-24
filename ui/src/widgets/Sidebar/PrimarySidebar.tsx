@@ -46,12 +46,9 @@ export function PrimarySidebar() {
 
   return (
     <div
-      // Width matches the parent container's width logic
       className={cn(
         'bg-sidebar z-20 flex h-full shrink-0 flex-col items-center gap-2 border-r py-4 transition-all duration-200 ease-linear',
         state === 'collapsed' ? 'w-[var(--sidebar-width-icon)]' : 'w-[var(--sidebar-width)]',
-        // Note: --sidebar-width here refers to the expanded primary width (e.g., 16rem),
-        // NOT the combined width. You might need to adjust your CSS variables if they conflict.
       )}
     >
       {/* Navigation Items */}
@@ -60,25 +57,34 @@ export function PrimarySidebar() {
           const Icon = item.icon
           const active = isItemActive(item)
 
+          // 1. Define the Button UI (Shared)
+          const button = (
+            <Button
+              variant="ghost"
+              // If expanded, allow button to stretch and show text
+              className={cn(
+                'h-10 justify-start rounded-lg transition-all',
+                state === 'collapsed' ? 'w-10 justify-center px-0' : 'w-full px-3',
+                active && 'bg-sidebar-accent text-sidebar-accent-foreground',
+              )}
+              onClick={() => handleItemClick(item)}
+            >
+              <Icon className="h-5 w-5 shrink-0" />
+              {state === 'expanded' && <span className="ml-3 truncate">{item.title}</span>}
+            </Button>
+          )
+
+          // 2. Conditional Rendering:
+          // If Expanded: Just show the button (No Tooltip)
+          if (state === 'expanded') {
+            return <div key={item.title}>{button}</div>
+          }
+
+          // If Collapsed: Wrap in Tooltip
           return (
             <Tooltip key={item.title} delayDuration={0}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  // If expanded, allow button to stretch and show text
-                  className={cn(
-                    'h-10 justify-start rounded-lg transition-all',
-                    state === 'collapsed' ? 'w-10 justify-center px-0' : 'w-full px-3',
-                    active && 'bg-sidebar-accent text-sidebar-accent-foreground',
-                  )}
-                  onClick={() => handleItemClick(item)}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  {state === 'expanded' && <span className="ml-3 truncate">{item.title}</span>}
-                </Button>
-              </TooltipTrigger>
-              {/* Only show tooltip if collapsed */}
-              {state === 'collapsed' && <TooltipContent side="right">{item.title}</TooltipContent>}
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent side="right">{item.title}</TooltipContent>
             </Tooltip>
           )
         })}
