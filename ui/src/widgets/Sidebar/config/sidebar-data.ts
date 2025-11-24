@@ -1,52 +1,45 @@
-import { LucideHome, LucideLogs, Package, Settings, UserCog, Wrench } from 'lucide-react'
+import { LayoutDashboard, Package, ScrollText, Settings, UserCog, Wrench } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
 export const sidebarData: SidebarData = {
   user: {
-    name: 'sagar',
-    email: 'sagar@gmail.com',
-    avatar: '/avatars/shadcn.jpg',
+    name: 'Admin User',
+    email: 'admin@reauth.io',
+    avatar: '/avatars/default.jpg',
   },
-  navGroups: [
+  // Top-level items for the Primary Sidebar
+  navMain: [
     {
-      title: 'General',
-      items: [
-        {
-          title: 'Realm Overview',
-          url: '/',
-          icon: LucideHome,
-        },
-        {
-          title: 'Plugins',
-          url: '/plugins',
-          icon: Package,
-        },
-        {
-          title: 'Logs',
-          url: '/logs',
-          icon: LucideLogs,
-        },
-      ],
+      title: 'Realm Overview',
+      url: '/',
+      icon: LayoutDashboard,
     },
     {
-      title: 'Other',
+      title: 'Plugins',
+      url: '/plugins',
+      icon: Package,
+    },
+    {
+      title: 'System Logs',
+      url: '/logs',
+      icon: ScrollText,
+    },
+    {
+      title: 'Realm Settings',
+      url: '/settings',
+      icon: Settings,
+      // These children will appear in Secondary Sidebar
       items: [
         {
-          title: 'Realm Settings',
-          icon: Settings,
-          items: [
-            {
-              title: 'Profile',
-              url: '/settings',
-              icon: UserCog,
-            },
-            {
-              title: 'Account',
-              url: '/settings/account',
-              icon: Wrench,
-            },
-          ],
+          title: 'General',
+          url: '/settings/general',
+          icon: UserCog,
+        },
+        {
+          title: 'Token',
+          url: '/settings/token',
+          icon: Wrench,
         },
       ],
     },

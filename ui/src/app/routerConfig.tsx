@@ -8,6 +8,7 @@ import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PluginsPage } from '@/pages/PluginsPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
+import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
 import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx'
@@ -47,6 +48,12 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/logs',
     element: LogsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/settings/general',
+    element: GeneralSettingsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
