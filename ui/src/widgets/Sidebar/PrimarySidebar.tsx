@@ -23,8 +23,7 @@ export function PrimarySidebar() {
     if (item.items && activeItemId === item.title) return true
     const scopedUrl = `/${realm}${item.url === '/' ? '' : item.url}`
     if (location.pathname === scopedUrl) return true
-    if (location.pathname.startsWith(scopedUrl) && item.url !== '/') return true
-    return false
+    return location.pathname.startsWith(scopedUrl) && item.url !== '/'
   }
 
   const handleItemClick = (item: (typeof sidebarData.navMain)[0]) => {
