@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, ScrollText, Settings, UserCog, Wrench } from 'lucide-react'
+import { LayoutDashboard, Package, ScrollText, Settings } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
@@ -34,12 +34,10 @@ export const sidebarData: SidebarData = {
         {
           title: 'General',
           url: '/settings/general',
-          icon: UserCog,
         },
         {
           title: 'Token',
           url: '/settings/token',
-          icon: Wrench,
         },
       ],
     },

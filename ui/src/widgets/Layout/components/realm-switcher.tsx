@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
 import { Skeleton } from '@/components/skeleton'
-import { useRealms } from '@/entities/realm/api/useRealms'
+import { useRealms } from '@/entities/realm/api/useRealms.ts'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/widgets/Sidebar/components'
 import { useSidebar } from '@/widgets/Sidebar/components/content.tsx'
@@ -43,9 +43,24 @@ export function RealmSwitcher() {
     )
   }
 
-  const activeRealm = realms?.find((r) => r.name === currentRealm) || realms?.[0]
+  const activeRealm = realms?.find((r) => r.name === currentRealm)
 
-  if (!activeRealm) return null
+  if (!activeRealm) {
+    // This prevents falling back to master for 1 render
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <div className="flex h-12 items-center px-2">
+            <Skeleton className="h-8 w-8 rounded-lg" />
+            <div className="ml-2 space-y-1">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          </div>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
+  }
 
   return (
     <SidebarMenu>

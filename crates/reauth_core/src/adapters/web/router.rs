@@ -91,6 +91,10 @@ fn realm_routes() -> Router<AppState> {
     Router::new()
         .route("/", post(realm_handler::create_realm_handler))
         .route("/", get(realm_handler::list_realms_handler))
+        .route(
+            "/{id}",
+            axum::routing::put(realm_handler::update_realm_handler),
+        )
 }
 
 fn rbac_routes() -> Router<AppState> {

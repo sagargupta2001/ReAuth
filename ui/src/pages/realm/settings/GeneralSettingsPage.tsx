@@ -1,5 +1,9 @@
+import { GeneralSettingsForm } from '@/features/realm/settings/components/GeneralSettingsForm'
+
 export function GeneralSettingsPage() {
   return (
-    <div className="bg-muted/30 flex flex-1 items-center justify-center p-4">Realm Settings</div>
+    <div className="max-w-4xl">
+      <GeneralSettingsForm />
+    </div>
   )
 }
