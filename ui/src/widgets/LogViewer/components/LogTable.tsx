@@ -104,11 +104,7 @@ export function LogTable({ logs, onRowClick }: LogTableProps) {
 
   return (
     // This is the scrolling container with a fixed height
-    <div
-      ref={tableContainerRef}
-      className="overflow-auto rounded-md border" // The container itself scrolls
-      style={{ height: '600px' }}
-    >
+    <div ref={tableContainerRef} className="absolute inset-0 overflow-auto rounded-md">
       <Table className="w-full table-fixed" noWrapper>
         <TableHeader className="bg-background sticky top-0 z-10">
           {table.getHeaderGroups().map((headerGroup) => (

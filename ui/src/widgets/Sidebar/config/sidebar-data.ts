@@ -21,7 +21,7 @@ export const sidebarData: SidebarData = {
       icon: Package,
     },
     {
-      title: 'System Logs',
+      title: 'Logs',
       url: '/logs',
       icon: ScrollText,
     },
