@@ -7,7 +7,6 @@ export function LogsPage() {
   const { t } = useTranslation('logs')
 
   return (
-    // 1. H-full is crucial here
     <Main fixed className="flex h-full flex-col">
       <div className="mb-4 shrink-0">
         <h1 className="text-2xl font-bold tracking-tight">{t('TITLE')}</h1>
