@@ -1,5 +1,6 @@
 {
   "TITLE": "Logs and Analytics",
+  "DESCRIPTION": "Real-time system events and plugin logs.",
   "LOG_VIEWER_WIDGET": {
     "START_STREAM_BTN_TEXT": "Start Stream",
     "STOP_STREAM_BTN_TEXT": "Stop Stream"

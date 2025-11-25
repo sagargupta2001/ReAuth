@@ -1,17 +1,62 @@
 import type { ReactNode } from 'react'
 
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 
 import { LayoutProvider } from '@/app/providers/layoutProvider'
 import { getCookie } from '@/lib/cookies'
-import { cn } from '@/lib/utils.ts'
+import {
+  UnsavedChangesProvider,
+  useUnsavedChanges,
+} from '@/shared/context/UnsavedChangesContext.tsx'
+import { FloatingActionBar } from '@/shared/ui/floating-action-bar.tsx'
 import { AppHeader } from '@/widgets/Layout/components/app-header.tsx'
 import { AppSidebar } from '@/widgets/Layout/components/app-sidebar'
-import { SidebarInset } from '@/widgets/Sidebar/components'
-import { SidebarProvider } from '@/widgets/Sidebar/components/content'
+import { SidebarProvider, useSidebar } from '@/widgets/Sidebar/components/content'
+import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data.ts'
+import { useSidebarStore } from '@/widgets/Sidebar/model/sidebarStore.ts'
 
 type AuthenticatedLayoutProps = {
   children?: ReactNode
+}
+
+function LayoutContent({ children }: { children: ReactNode }) {
+  const { state } = useSidebar()
+  const { activeItemId } = useSidebarStore()
+  const { isDirty, isPending, triggerSave, triggerReset } = useUnsavedChanges()
+  const location = useLocation()
+
+  const activeItem = sidebarData.navMain.find((i) => i.title === activeItemId)
+  const showSecondary = !!activeItem?.items
+
+  const primaryWidth = state === 'collapsed' ? 'var(--sidebar-width-icon)' : 'var(--sidebar-width)'
+
+  return (
+    <div className="bg-background flex min-h-screen w-full pt-14">
+      <AppHeader />
+      <AppSidebar />
+      <div
+        className="flex flex-1 flex-col transition-[padding] duration-200 ease-linear"
+        style={{
+          paddingLeft: showSecondary
+            ? `calc(${primaryWidth} + var(--sidebar-width-secondary))`
+            : primaryWidth,
+        }}
+      >
+        <main className="flex flex-1 flex-col overflow-x-hidden p-6">
+          <div key={location.pathname} className="flex h-full flex-1 flex-col">
+            {children ?? <Outlet />}
+          </div>
+        </main>
+      </div>
+      <FloatingActionBar
+        isOpen={isDirty}
+        isPending={isPending}
+        onSave={triggerSave}
+        onReset={triggerReset}
+        className="md:right-8 md:left-[calc(var(--sidebar-width)+2rem)]"
+      />
+    </div>
+  )
 }
 
 export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
@@ -20,24 +65,9 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   return (
     <LayoutProvider>
       <SidebarProvider defaultOpen={defaultOpen}>
-        <AppHeader />
-        <AppSidebar />
-        <SidebarInset
-          className={cn(
-            // Set content container, so we can use container queries
-            '@container/content',
-
-            // If layout is fixed, set the height
-            // to 100svh to prevent overflow
-            'has-[[data-layout=fixed]]:h-svh',
-
-            // If layout is fixed and sidebar is inset,
-            // set the height to 100svh - spacing (total margins) to prevent overflow
-            'peer-data-[variant=inset]:has-[[data-layout=fixed]]:h-[calc(100svh-(var(--spacing)*4))]',
-          )}
-        >
-          {children ?? <Outlet />}
-        </SidebarInset>
+        <UnsavedChangesProvider>
+          <LayoutContent>{children}</LayoutContent>
+        </UnsavedChangesProvider>
       </SidebarProvider>
     </LayoutProvider>
   )

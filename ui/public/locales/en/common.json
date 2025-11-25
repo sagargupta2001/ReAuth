@@ -3,5 +3,17 @@
     "TITLE": "Oops! Lost in Cyberspace",
     "SUBTITLE": "Looks like you've ventured into the unknown digital realm.",
     "RETURN_TO_WEBSITE_BTN_TEXT": "Return to website"
+  },
+  "LOGIN_PAGE": {
+    "TITLE": "Sign in",
+    "DESCRIPTION": " Enter your email and password below to log into your account",
+    "FIELDS": {
+      "EMAIL": "Email",
+      "EMAIL_PLACEHOLDER": "name@example.com",
+      "PASSWORD": "Password",
+      "PASSWORD_PLACEHOLDER": "********"
+    },
+    "SIGN_IN_BTN": "Sign in",
+    "FORGOT_PASSWORD_LINK": "Forgot password?"
   }
 }

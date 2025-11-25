@@ -13,6 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import {
   type NavCollapsible,
   type NavGroup as NavGroupProps,
@@ -35,6 +36,15 @@ export function NavGroup({ title, items }: NavGroupProps) {
   const { state, isMobile } = useSidebar()
   const location = useLocation()
   const currentPath = location.pathname as string
+  const realm = useActiveRealm()
+
+  // Helper to prefix URLs
+  const resolveUrl = (url: any) => {
+    if (typeof url !== 'string') return ''
+    if (url.startsWith('http')) return url
+    const cleanUrl = url === '/' ? '' : url
+    return `/${realm}${cleanUrl}`
+  }
 
   return (
     <SidebarGroup>
@@ -42,14 +52,44 @@ export function NavGroup({ title, items }: NavGroupProps) {
       <SidebarMenu>
         {items.map((item) => {
           const key = `${item.title}-${item.url}`
+          const resolvedUrl = resolveUrl(item.url)
 
-          if (!item.items)
-            return <SidebarMenuLink key={key} item={item} currentPath={currentPath} />
+          // --- BRANCH 1: Item has children (Collapsible) ---
+          if (item.items && item.items.length > 0) {
+            // FIX: Ensure 'url' is undefined for the parent, as per NavCollapsible type
+            const collapsibleItem = {
+              ...item,
+              url: undefined,
+              items: item.items.map((sub) => ({
+                ...sub,
+                url: resolveUrl(sub.url),
+              })),
+            }
 
-          if (state === 'collapsed' && !isMobile)
-            return <SidebarMenuCollapsedDropdown key={key} item={item} currentPath={currentPath} />
+            if (state === 'collapsed' && !isMobile) {
+              return (
+                <SidebarMenuCollapsedDropdown
+                  key={key}
+                  item={collapsibleItem}
+                  currentPath={currentPath}
+                />
+              )
+            }
 
-          return <SidebarMenuCollapsible key={key} item={item} currentPath={currentPath} />
+            return (
+              <SidebarMenuCollapsible key={key} item={collapsibleItem} currentPath={currentPath} />
+            )
+          }
+
+          // --- BRANCH 2: Item is a single link ---
+          // We explicitly set items to undefined to satisfy the NavLink type
+          const linkItem = {
+            ...item,
+            url: resolvedUrl,
+            items: undefined,
+          }
+
+          return <SidebarMenuLink key={key} item={linkItem} currentPath={currentPath} />
         })}
       </SidebarMenu>
     </SidebarGroup>

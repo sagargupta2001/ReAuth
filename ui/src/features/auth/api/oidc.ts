@@ -1,3 +1,4 @@
+import { apiClient } from '@/shared/api/client'
 import { OIDC_CONFIG } from '@/shared/config/oidc'
 
 export interface AuthorizeResponse {
@@ -18,7 +19,7 @@ export const oidcApi = {
   /**
    * Call /authorize to start the flow or check status
    */
-  authorize: async (codeChallenge: string) => {
+  authorize: (codeChallenge: string) => {
     const params = new URLSearchParams({
       client_id: OIDC_CONFIG.clientId,
       redirect_uri: OIDC_CONFIG.redirectUri,
@@ -28,17 +29,10 @@ export const oidcApi = {
       code_challenge_method: OIDC_CONFIG.codeChallengeMethod,
     })
 
-    const res = await fetch(
+    // Use apiClient for automatic error handling and JSON parsing.
+    return apiClient.get<AuthorizeResponse>(
       `/api/realms/${OIDC_CONFIG.realm}/oidc/authorize?${params.toString()}`,
-      { method: 'GET' },
     )
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}))
-      // Throw the specific message from the backend (e.g., "OIDC Client not found")
-      throw new Error(errorData.error || `OIDC Error: ${res.statusText}`)
-    }
-    return (await res.json()) as Promise<AuthorizeResponse>
   },
 
   /**
@@ -52,6 +46,9 @@ export const oidcApi = {
     params.append('client_id', OIDC_CONFIG.clientId)
     params.append('code_verifier', verifier)
 
+    // We use raw fetch here because the OIDC spec specifically requires
+    // 'application/x-www-form-urlencoded', and our apiClient is built
+    // for 'application/json'.
     const res = await fetch(`/api/realms/${OIDC_CONFIG.realm}/oidc/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

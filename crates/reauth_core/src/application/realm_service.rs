@@ -13,6 +13,13 @@ pub struct CreateRealmPayload {
     pub name: String,
 }
 
+#[derive(Deserialize)]
+pub struct UpdateRealmPayload {
+    pub name: Option<String>,
+    pub access_token_ttl_secs: Option<i64>,
+    pub refresh_token_ttl_secs: Option<i64>,
+}
+
 pub struct RealmService {
     realm_repo: Arc<dyn RealmRepository>,
 }
@@ -45,5 +52,30 @@ impl RealmService {
 
     pub async fn find_by_name(&self, name: &str) -> Result<Option<Realm>> {
         self.realm_repo.find_by_name(name).await
+    }
+
+    pub async fn list_realms(&self) -> Result<Vec<Realm>> {
+        self.realm_repo.list_all().await
+    }
+
+    pub async fn update_realm(&self, id: Uuid, payload: UpdateRealmPayload) -> Result<Realm> {
+        let mut realm = self
+            .realm_repo
+            .find_by_id(&id)
+            .await?
+            .ok_or(Error::RealmNotFound(id.to_string()))?;
+
+        if let Some(name) = payload.name {
+            realm.name = name;
+        }
+        if let Some(ttl) = payload.access_token_ttl_secs {
+            realm.access_token_ttl_secs = ttl;
+        }
+        if let Some(ttl) = payload.refresh_token_ttl_secs {
+            realm.refresh_token_ttl_secs = ttl;
+        }
+
+        self.realm_repo.update(&realm).await?;
+        Ok(realm)
     }
 }

@@ -1,0 +1,20 @@
+{
+  "MINIMAL_LAYOUT_HEADER": "New Realm",
+  "REALM_SWITCHER": {
+    "TITLE": "Realms",
+    "CREATE_REALM_BTN": "Create Realm"
+  },
+  "FORMS": {
+    "CREATE_REALM": {
+      "TITLE": "Create Realm",
+      "DESCRIPTION": "A realm is a fully isolated environment. Create a new one to manage its own users, roles, and applications.",
+      "FIELDS": {
+        "REALM_NAME": "Realm Name",
+        "REALM_NAME_PLACEHOLDER": "e.g., my-realm"
+      },
+      "CANCEL_BTN": "Cancel",
+      "CREATE_BTN": "Create Realm",
+      "CREATE_BTN_LOADING": "Creating..."
+    }
+  }
+}

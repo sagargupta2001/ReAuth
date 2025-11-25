@@ -41,4 +41,25 @@ impl RealmRepository for SqliteRealmRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?)
     }
+
+    async fn list_all(&self) -> Result<Vec<Realm>> {
+        Ok(sqlx::query_as("SELECT * FROM realms")
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?)
+    }
+
+    async fn update(&self, realm: &Realm) -> Result<()> {
+        sqlx::query(
+            "UPDATE realms SET name = ?, access_token_ttl_secs = ?, refresh_token_ttl_secs = ? WHERE id = ?"
+        )
+            .bind(&realm.name)
+            .bind(realm.access_token_ttl_secs)
+            .bind(realm.refresh_token_ttl_secs)
+            .bind(realm.id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
 }

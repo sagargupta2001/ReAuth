@@ -7,12 +7,15 @@ export function LogsPage() {
   const { t } = useTranslation('logs')
 
   return (
-    <Main fixed>
-      <div className="mb-6">
+    <Main fixed className="flex h-full flex-col">
+      <div className="mb-4 shrink-0">
         <h1 className="text-2xl font-bold tracking-tight">{t('TITLE')}</h1>
-        <p className="text-muted-foreground"></p>
+        <p className="text-muted-foreground">{t('DESCRIPTION')}</p>
       </div>
-      <LogViewerWidget />
+
+      <div className="bg-background relative min-h-0 flex-1 rounded-md border">
+        <LogViewerWidget />
+      </div>
     </Main>
   )
 }

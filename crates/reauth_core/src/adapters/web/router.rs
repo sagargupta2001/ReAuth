@@ -76,6 +76,7 @@ fn auth_routes() -> Router<AppState> {
             post(auth_handler::execute_login_step_handler),
         )
         .route("/refresh", post(auth_handler::refresh_handler))
+        .route("/logout", post(auth_handler::logout_handler))
 }
 
 fn public_user_routes() -> Router<AppState> {
@@ -87,7 +88,13 @@ fn protected_user_routes() -> Router<AppState> {
 }
 
 fn realm_routes() -> Router<AppState> {
-    Router::new().route("/", post(realm_handler::create_realm_handler))
+    Router::new()
+        .route("/", post(realm_handler::create_realm_handler))
+        .route("/", get(realm_handler::list_realms_handler))
+        .route(
+            "/{id}",
+            axum::routing::put(realm_handler::update_realm_handler),
+        )
 }
 
 fn rbac_routes() -> Router<AppState> {

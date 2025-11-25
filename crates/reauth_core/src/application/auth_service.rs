@@ -195,4 +195,12 @@ impl AuthService {
             new_refresh_token,
         ))
     }
+
+    /// Logs out a user by deleting their specific refresh token session.
+    pub async fn logout(&self, refresh_token_id: Uuid) -> Result<()> {
+        // We delete the token from the database.
+        // If it fails (e.g., database down), we return the error.
+        // If it doesn't exist (already deleted), the repo usually returns Ok(()).
+        self.session_repo.delete_by_id(&refresh_token_id).await
+    }
 }

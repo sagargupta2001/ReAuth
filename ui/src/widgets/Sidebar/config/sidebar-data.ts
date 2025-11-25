@@ -1,103 +1,43 @@
-import {
-  AudioWaveform,
-  Bell,
-  Command,
-  GalleryVerticalEnd,
-  HelpCircle,
-  LayoutDashboard,
-  LucideLogs,
-  Monitor,
-  Package,
-  Palette,
-  Settings,
-  UserCog,
-  Wrench,
-} from 'lucide-react'
+import { LayoutDashboard, Package, ScrollText, Settings } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
 export const sidebarData: SidebarData = {
   user: {
-    name: 'satnaing',
-    email: 'satnaingdev@gmail.com',
-    avatar: '/avatars/shadcn.jpg',
+    name: 'Admin User',
+    email: 'admin@reauth.io',
+    avatar: '/avatars/default.jpg',
   },
-  teams: [
+  // Top-level items for the Primary Sidebar
+  navMain: [
     {
-      name: 'My New Realm',
-      logo: Command,
-      plan: 'Vite + ShadcnUI',
+      title: 'Realm Overview',
+      url: '/',
+      icon: LayoutDashboard,
     },
     {
-      name: 'Acme Inc',
-      logo: GalleryVerticalEnd,
-      plan: 'Enterprise',
+      title: 'Plugins',
+      url: '/plugins',
+      icon: Package,
     },
     {
-      name: 'Acme Corp.',
-      logo: AudioWaveform,
-      plan: 'Startup',
+      title: 'Logs',
+      url: '/logs',
+      icon: ScrollText,
     },
-  ],
-  navGroups: [
     {
-      title: 'General',
+      title: 'Realm Settings',
+      url: '/settings',
+      icon: Settings,
+      // These children will appear in Secondary Sidebar
       items: [
         {
-          title: 'Dashboard',
-          url: '/',
-          icon: LayoutDashboard,
+          title: 'General',
+          url: '/settings/general',
         },
         {
-          title: 'Plugins',
-          url: '/plugins',
-          icon: Package,
-        },
-        {
-          title: 'Logs',
-          url: '/logs',
-          icon: LucideLogs,
-        },
-      ],
-    },
-    {
-      title: 'Other',
-      items: [
-        {
-          title: 'Settings',
-          icon: Settings,
-          items: [
-            {
-              title: 'Profile',
-              url: '/settings',
-              icon: UserCog,
-            },
-            {
-              title: 'Account',
-              url: '/settings/account',
-              icon: Wrench,
-            },
-            {
-              title: 'Appearance',
-              url: '/settings/appearance',
-              icon: Palette,
-            },
-            {
-              title: 'Notifications',
-              url: '/settings/notifications',
-              icon: Bell,
-            },
-            {
-              title: 'Display',
-              url: '/settings/display',
-              icon: Monitor,
-            },
-          ],
-        },
-        {
-          title: 'Help Center',
-          url: '/help-center',
-          icon: HelpCircle,
+          title: 'Token',
+          url: '/settings/token',
         },
       ],
     },

@@ -7,7 +7,7 @@ import { usePlugins } from '@/entities/plugin/api/usePlugins'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 
 // Assuming this is your main layout
-import { staticRoutes } from './routerConfig.ts'
+import { staticRoutes } from './routerConfig.tsx'
 
 export function AppRouter() {
   const { data } = usePlugins()
@@ -62,7 +62,7 @@ export function AppRouter() {
         return (
           <Route
             key={manifest.id}
-            path={routePath}
+            path={`/:realm${routePath}`}
             // All plugin routes are protected by default
             element={<AuthGuard>{page}</AuthGuard>}
           />

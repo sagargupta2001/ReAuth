@@ -7,4 +7,6 @@ pub trait RealmRepository: Send + Sync {
     async fn create(&self, realm: &Realm) -> Result<()>;
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Realm>>;
     async fn find_by_name(&self, name: &str) -> Result<Option<Realm>>;
+    async fn list_all(&self) -> Result<Vec<Realm>>;
+    async fn update(&self, realm: &Realm) -> Result<()>;
 }

@@ -1,46 +1,24 @@
 import type { ElementType } from 'react'
 
-import type { LinkProps } from 'react-router-dom'
-
-type User = {
-  name: string
-  email: string
-  avatar: string
-}
-
-type Team = {
-  name: string
-  logo: ElementType
-  plan: string
-}
-
-type BaseNavItem = {
+export interface NavItem {
   title: string
-  badge?: string
+  url: string
   icon?: ElementType
+  badge?: string
 }
 
-type NavLink = BaseNavItem & {
-  url: LinkProps['to'] | (string & {})
-  items?: never
-}
-
-type NavCollapsible = BaseNavItem & {
-  items: (BaseNavItem & { url: LinkProps['to'] | (string & {}) })[]
-  url?: never
-}
-
-type NavItem = NavCollapsible | NavLink
-
-type NavGroup = {
+export interface PrimaryNavItem {
   title: string
-  items: NavItem[]
+  url: string // Base URL for highlighting (e.g. "/settings")
+  icon: ElementType // Mandatory for primary rail
+  items?: NavItem[] // If present, triggers Secondary Sidebar
 }
 
-type SidebarData = {
-  user: User
-  teams: Team[]
-  navGroups: NavGroup[]
+export interface SidebarData {
+  user: {
+    name: string
+    email: string
+    avatar: string
+  }
+  navMain: PrimaryNavItem[] // Renamed from navGroups
 }
-
-export type { SidebarData, NavGroup, NavItem, NavCollapsible, NavLink }

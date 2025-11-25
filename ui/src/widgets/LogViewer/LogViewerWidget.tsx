@@ -16,8 +16,8 @@ export function LogViewerWidget() {
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="mb-4 flex justify-end">
+    <div className="absolute inset-0 flex flex-col p-4">
+      <div className="mb-4 flex shrink-0 justify-end">
         <Button variant="outline" onClick={isConnected ? disconnect : connect}>
           {isConnected ? (
             <>
@@ -33,18 +33,11 @@ export function LogViewerWidget() {
         </Button>
       </div>
 
-      <div className="flex-1">
+      <div className="relative min-h-0 flex-1">
         <LogTable logs={logs} onRowClick={setSelectedLog} />
       </div>
 
-      <LogRowDetail
-        log={selectedLog}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedLog(null)
-          }
-        }}
-      />
+      <LogRowDetail log={selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)} />
     </div>
   )
 }

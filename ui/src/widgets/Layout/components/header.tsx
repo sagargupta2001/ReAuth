@@ -1,16 +1,16 @@
-import { type HTMLAttributes, type Ref, useEffect, useState } from 'react'
+import { type HTMLAttributes, type ReactNode, type Ref, useEffect, useState } from 'react'
 
 import { Slash } from '@/assets/header/slash.tsx'
 import { cn } from '@/lib/utils.ts'
-import { TeamSwitcher } from '@/widgets/Layout/components/team-switcher.tsx'
-import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data.ts'
+import { RealmSwitcher } from '@/widgets/Layout/components/realm-switcher.tsx'
 
 type HeaderProps = HTMLAttributes<HTMLElement> & {
   fixed?: boolean
   ref?: Ref<HTMLElement>
+  leftSlot?: ReactNode
 }
 
-export function Header({ className, fixed, children, ...props }: HeaderProps) {
+export function Header({ className, fixed, children, leftSlot, ...props }: HeaderProps) {
   const [offset, setOffset] = useState(0)
 
   useEffect(() => {
@@ -43,13 +43,19 @@ export function Header({ className, fixed, children, ...props }: HeaderProps) {
             'after:bg-background/20 after:absolute after:inset-0 after:-z-10 after:backdrop-blur-lg',
         )}
       >
-        {/* Left side: logo + slash + sidebar trigger */}
+        {/* If the Layout provides a slot (like SidebarTrigger), use it. */}
+        {/* Otherwise, show the default Logo + RealmSwitcher. */}
         <div className="flex items-center gap-2">
-          <img rel="icon" src="/reauth.svg" alt="logo" className="h-7 w-7" />
-          <Slash />
-          <TeamSwitcher teams={sidebarData.teams} />
+          {leftSlot ? (
+            leftSlot
+          ) : (
+            <>
+              <img rel="icon" src="/reauth.svg" alt="logo" className="h-7 w-7" />
+              <Slash className="inline-block h-5 w-5 shrink-0 leading-none" />
+              <RealmSwitcher />
+            </>
+          )}
         </div>
-
         {/* Right side: rest of header */}
         {children}
       </div>
