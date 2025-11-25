@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 
-import gsap from 'gsap'
 import { Loader2, RotateCcw, Save } from 'lucide-react'
 
 import { Button } from '@/components/button'
+import { getAnimationEngine } from '@/lib/animations/animation.engine'
 import { cn } from '@/lib/utils'
 
 interface FloatingActionBarProps {
@@ -22,43 +22,28 @@ export function FloatingActionBar({
   className,
 }: FloatingActionBarProps) {
   const barRef = useRef<HTMLDivElement | null>(null)
+  const animation = getAnimationEngine()
 
   useEffect(() => {
-    if (!barRef.current) return
+    const el = barRef.current
+    if (!el) return
 
     if (isOpen) {
-      // animate in
-      gsap.fromTo(
-        barRef.current,
-        { y: 100, opacity: 0 },
-        {
-          y: 0,
-          opacity: 1,
-          duration: 0.35,
-          ease: 'power3.out',
-        },
-      )
+      animation.fadeSlideIn(el)
     } else {
-      // animate out
-      gsap.to(barRef.current, {
-        y: 100,
-        opacity: 0,
-        duration: 0.25,
-        ease: 'power3.in',
-      })
+      void animation.fadeSlideOut(el)
     }
   }, [isOpen])
-
-  if (!isOpen) {
-    // do NOT render to DOM, GSAP handles exit animation before unmount happens
-    return null
-  }
 
   return (
     <div
       ref={barRef}
+      // always rendered
+      style={{
+        pointerEvents: isOpen ? 'auto' : 'none',
+      }}
       className={cn(
-        'bg-background/80 fixed right-0 bottom-6 left-0 z-50 mx-auto flex w-fit items-center gap-4 rounded-full border p-2 px-4 shadow-lg backdrop-blur-md',
+        'bg-background/80 fixed right-0 bottom-6 left-0 z-50 mx-auto flex w-fit translate-y-6 items-center gap-4 rounded-full border p-2 px-4 opacity-0 shadow-lg backdrop-blur-md',
         className,
       )}
     >
