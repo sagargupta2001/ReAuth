@@ -4,6 +4,11 @@ import { Outlet } from 'react-router-dom'
 
 import { LayoutProvider } from '@/app/providers/layoutProvider'
 import { getCookie } from '@/lib/cookies'
+import {
+  UnsavedChangesProvider,
+  useUnsavedChanges,
+} from '@/shared/context/UnsavedChangesContext.tsx'
+import { FloatingActionBar } from '@/shared/ui/floating-action-bar.tsx'
 import { AppHeader } from '@/widgets/Layout/components/app-header.tsx'
 import { AppSidebar } from '@/widgets/Layout/components/app-sidebar'
 import { SidebarProvider, useSidebar } from '@/widgets/Sidebar/components/content'
@@ -15,9 +20,10 @@ type AuthenticatedLayoutProps = {
 }
 
 // We extract the inner content to a sub-component so we can use the `useSidebar` hook
-function LayoutContent({ children }: { children: React.ReactNode }) {
+function LayoutContent({ children }: { children: ReactNode }) {
   const { state } = useSidebar()
   const { activeItemId } = useSidebarStore()
+  const { isDirty, isPending, triggerSave, triggerReset } = useUnsavedChanges()
 
   const activeItem = sidebarData.navMain.find((i) => i.title === activeItemId)
   const showSecondary = !!activeItem?.items
@@ -41,6 +47,14 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
       >
         <main className="flex flex-1 flex-col overflow-x-hidden p-6">{children ?? <Outlet />}</main>
       </div>
+      <FloatingActionBar
+        isOpen={isDirty}
+        isPending={isPending}
+        onSave={triggerSave}
+        onReset={triggerReset}
+        // Optional: Center it relative to the content area
+        className="md:right-8 md:left-[calc(var(--sidebar-width)+2rem)]"
+      />
     </div>
   )
 }
@@ -51,7 +65,9 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   return (
     <LayoutProvider>
       <SidebarProvider defaultOpen={defaultOpen}>
-        <LayoutContent>{children}</LayoutContent>
+        <UnsavedChangesProvider>
+          <LayoutContent>{children}</LayoutContent>
+        </UnsavedChangesProvider>
       </SidebarProvider>
     </LayoutProvider>
   )

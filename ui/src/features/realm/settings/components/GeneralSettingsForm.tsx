@@ -1,18 +1,9 @@
 import { useEffect } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Save } from 'lucide-react'
 import { type Resolver, useForm } from 'react-hook-form'
 
-import { Button } from '@/components/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
 import { Form } from '@/components/form'
 import { useCurrentRealm } from '@/entities/realm/api/useRealm'
 import { useUpdateRealm } from '@/entities/realm/api/useUpdateRealm.ts'
@@ -20,6 +11,7 @@ import {
   type GeneralSettingsSchema,
   generalSettingsSchema,
 } from '@/features/realm/settings/schema.ts'
+import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { FormInput } from '@/shared/ui/form-input'
 
 export function GeneralSettingsForm() {
@@ -33,17 +25,22 @@ export function GeneralSettingsForm() {
     },
   })
 
+  const onSubmit = (values: GeneralSettingsSchema) => {
+    updateMutation.mutate(values, {
+      // RHF needs to know the form is "clean" after save
+      onSuccess: (data) => form.reset(data),
+    })
+  }
+
+  // Plug into the Global Bar
+  useFormPersistence(form, onSubmit, updateMutation.isPending)
+
   useEffect(() => {
-    if (realm) {
+    if (realm)
       form.reset({
         name: realm.name,
       })
-    }
   }, [realm, form])
-
-  const onSubmit = (values: GeneralSettingsSchema) => {
-    updateMutation.mutate(values)
-  }
 
   if (isLoading) return null
 
@@ -66,16 +63,6 @@ export function GeneralSettingsForm() {
               />
             </div>
           </CardContent>
-          <CardFooter className="border-t px-6 py-4">
-            <Button type="submit" disabled={updateMutation.isPending}>
-              {updateMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              Save
-            </Button>
-          </CardFooter>
         </Card>
       </form>
     </Form>
