@@ -1,12 +1,9 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import type { UseFormReturn } from 'react-hook-form'
 
 import { useUnsavedChanges } from '@/shared/context/UnsavedChangesContext'
 
-/**
- * Connects a React Hook Form instance to the Global Floating Action Bar.
- */
 export function useFormPersistence<T extends import('react-hook-form').FieldValues>(
   form: UseFormReturn<T>,
   onSubmit: (data: T) => void,
@@ -15,21 +12,39 @@ export function useFormPersistence<T extends import('react-hook-form').FieldValu
   const { registerForm, unregisterForm } = useUnsavedChanges()
   const { isDirty } = form.formState
 
+  // 1. Store the latest 'onSubmit' in a ref.
+  // This allows us to access the *current* function inside the callback
+  // without adding it to the dependency array.
+  const onSubmitRef = useRef(onSubmit)
+  useEffect(() => {
+    onSubmitRef.current = onSubmit
+  }, [onSubmit])
+
+  // 2. Create stable handlers that don't change on every render
+  const handleSubmit = useCallback(() => {
+    // Always use the latest version of the submit handler
+    form.handleSubmit(onSubmitRef.current)()
+  }, [form])
+
+  const handleReset = useCallback(() => {
+    form.reset()
+  }, [form])
+
+  // 3. Register/Unregister Effect
+  // Notice: 'onSubmit' is NOT in the dependency array anymore.
   useEffect(() => {
     if (isDirty) {
       registerForm({
-        submit: form.handleSubmit(onSubmit),
-        reset: () => form.reset(), // Reset to default values
+        submit: handleSubmit,
+        reset: handleReset,
         isPending,
       })
     } else {
       unregisterForm()
     }
 
-    // Cleanup on unmount
     return () => {
-      // Only unregister if WE were the ones who registered (simple check)
-      if (isDirty) unregisterForm()
+      unregisterForm()
     }
-  }, [isDirty, isPending, form, registerForm, unregisterForm, onSubmit])
+  }, [isDirty, isPending, registerForm, unregisterForm, handleSubmit, handleReset])
 }

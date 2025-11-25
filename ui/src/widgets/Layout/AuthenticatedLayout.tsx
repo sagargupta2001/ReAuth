@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 
 import { LayoutProvider } from '@/app/providers/layoutProvider'
 import { getCookie } from '@/lib/cookies'
@@ -24,6 +24,7 @@ function LayoutContent({ children }: { children: ReactNode }) {
   const { state } = useSidebar()
   const { activeItemId } = useSidebarStore()
   const { isDirty, isPending, triggerSave, triggerReset } = useUnsavedChanges()
+  const location = useLocation()
 
   const activeItem = sidebarData.navMain.find((i) => i.title === activeItemId)
   const showSecondary = !!activeItem?.items
@@ -45,7 +46,16 @@ function LayoutContent({ children }: { children: ReactNode }) {
             : primaryWidth,
         }}
       >
-        <main className="flex flex-1 flex-col overflow-x-hidden p-6">{children ?? <Outlet />}</main>
+        <main className="flex flex-1 flex-col overflow-x-hidden p-6">
+          {/* --- ADD KEY HERE ---
+              This forces React to unmount the old page and mount the new one
+              whenever the URL changes. This clears all local form state
+              and ensures the new page renders correctly.
+           */}
+          <div key={location.pathname} className="flex h-full flex-1 flex-col">
+            {children ?? <Outlet />}
+          </div>
+        </main>
       </div>
       <FloatingActionBar
         isOpen={isDirty}
