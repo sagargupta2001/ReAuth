@@ -19,7 +19,6 @@ type AuthenticatedLayoutProps = {
   children?: ReactNode
 }
 
-// We extract the inner content to a sub-component so we can use the `useSidebar` hook
 function LayoutContent({ children }: { children: ReactNode }) {
   const { state } = useSidebar()
   const { activeItemId } = useSidebarStore()
@@ -29,15 +28,12 @@ function LayoutContent({ children }: { children: ReactNode }) {
   const activeItem = sidebarData.navMain.find((i) => i.title === activeItemId)
   const showSecondary = !!activeItem?.items
 
-  // Logic must match AppSidebar
   const primaryWidth = state === 'collapsed' ? 'var(--sidebar-width-icon)' : 'var(--sidebar-width)'
 
   return (
     <div className="bg-background flex min-h-screen w-full pt-14">
       <AppHeader />
       <AppSidebar />
-
-      {/* Dynamic Padding */}
       <div
         className="flex flex-1 flex-col transition-[padding] duration-200 ease-linear"
         style={{
@@ -47,11 +43,6 @@ function LayoutContent({ children }: { children: ReactNode }) {
         }}
       >
         <main className="flex flex-1 flex-col overflow-x-hidden p-6">
-          {/* --- ADD KEY HERE ---
-              This forces React to unmount the old page and mount the new one
-              whenever the URL changes. This clears all local form state
-              and ensures the new page renders correctly.
-           */}
           <div key={location.pathname} className="flex h-full flex-1 flex-col">
             {children ?? <Outlet />}
           </div>
@@ -62,7 +53,6 @@ function LayoutContent({ children }: { children: ReactNode }) {
         isPending={isPending}
         onSave={triggerSave}
         onReset={triggerReset}
-        // Optional: Center it relative to the content area
         className="md:right-8 md:left-[calc(var(--sidebar-width)+2rem)]"
       />
     </div>
