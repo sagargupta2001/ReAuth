@@ -5,8 +5,8 @@ import { useSearchParams } from 'react-router-dom'
 
 import { useClients } from '@/features/client/api/useClients'
 import { clientColumns } from '@/features/client/listing/components/ClientColumns.tsx'
+import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
 import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
-import { Skeleton } from '@/shared/ui/skeleton.tsx'
 
 export function ClientsTable() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -87,7 +87,13 @@ export function ClientsTable() {
     setSearchParams(params)
   }
 
-  if (isLoading) return <Skeleton className="h-64 w-full" />
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <DataTableSkeleton columnCount={4} rowCount={10} />
+      </div>
+    )
+  }
 
   return (
     <DataTable
@@ -104,6 +110,7 @@ export function ClientsTable() {
       searchPlaceholder="Filter by Client ID..."
       searchValue={searchTerm}
       onSearch={setSearchTerm}
+      className="h-[calc(100vh-328px)]"
     />
   )
 }

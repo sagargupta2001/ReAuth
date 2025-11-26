@@ -34,6 +34,8 @@ interface DataTableProps<TData, TValue> {
 
   searchValue?: string
   onSearch?: (value: string) => void
+
+  className?: string
 }
 
 export function DataTable<TData, TValue>({
@@ -48,6 +50,7 @@ export function DataTable<TData, TValue>({
   onSearch,
   searchKey = 'name',
   searchPlaceholder = 'Filter...',
+  className,
 }: DataTableProps<TData, TValue>) {
   // These remain client-side as they don't usually affect the API fetch
   const [rowSelection, setRowSelection] = useState({})
@@ -71,7 +74,6 @@ export function DataTable<TData, TValue>({
     manualPagination: true,
     manualSorting: true,
     manualFiltering: true, // If you handle search on server
-    // -----------------------
 
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
@@ -96,9 +98,9 @@ export function DataTable<TData, TValue>({
         searchValue={searchValue}
         onSearch={onSearch}
       />
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
+      <div className={`relative overflow-auto rounded-md border ${className}`}>
+        <Table className="w-full table-fixed" noWrapper>
+          <TableHeader className="bg-background sticky top-0 z-10 shadow-sm">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
