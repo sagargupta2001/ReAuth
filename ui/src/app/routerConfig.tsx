@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/LoginPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PluginsPage } from '@/pages/PluginsPage.tsx'
+import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
@@ -68,6 +69,12 @@ export const staticRoutes: RouteConfig[] = [
     path: '/create-realm',
     element: CreateRealmPage,
     layout: MinimalLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/clients',
+    element: ClientsPage,
+    layout: AuthenticatedLayout,
     isProtected: true,
   },
   {

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, ScrollText, Settings } from 'lucide-react'
+import { AppWindow, LayoutDashboard, Package, ScrollText, Settings } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
@@ -24,6 +24,11 @@ export const sidebarData: SidebarData = {
       title: 'Logs',
       url: '/logs',
       icon: ScrollText,
+    },
+    {
+      title: 'Clients',
+      url: '/clients',
+      icon: AppWindow,
     },
     {
       title: 'Realm Settings',
