@@ -1,5 +1,5 @@
 use crate::constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE};
-use crate::domain::oidc::OidcContext;
+use crate::domain::oidc::{OidcClient, OidcContext};
 use crate::domain::pagination::PageRequest;
 use crate::domain::session::RefreshToken;
 use crate::{
@@ -16,6 +16,7 @@ use axum::{
 use cookie::{Cookie, CookieBuilder, SameSite};
 use http::{header, HeaderMap, HeaderValue};
 use serde::Deserialize;
+use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct AuthorizeParams {
@@ -171,4 +172,46 @@ pub async fn list_clients_handler(
     let response = state.oidc_service.list_clients(realm.id, page_req).await?;
 
     Ok((StatusCode::OK, Json(response)))
+}
+
+#[derive(Deserialize)]
+pub struct CreateClientRequest {
+    pub client_id: String,
+    pub redirect_uris: Vec<String>,
+}
+
+pub async fn create_client_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Json(payload): Json<CreateClientRequest>,
+) -> Result<impl IntoResponse> {
+    // Resolve Realm
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    // Validate Client ID (Ensure it's unique, handled by DB constraint usually, but good to check)
+    // For now, we rely on the DB unique constraint error.
+
+    // Serialize Redirect URIs to String (for DB storage)
+    let redirect_uris_json =
+        serde_json::to_string(&payload.redirect_uris).map_err(|e| Error::Unexpected(e.into()))?;
+
+    // Create Domain Entity
+    let client = OidcClient {
+        id: Uuid::new_v4(),
+        realm_id: realm.id,
+        client_id: payload.client_id,
+        client_secret: None, // Public client for now
+        redirect_uris: redirect_uris_json,
+        scopes: "openid profile email".to_string(), // Default scopes
+    };
+
+    // 5. Save to DB
+    state.oidc_service.register_client(&client).await?;
+
+    // 6. Return Success
+    Ok((StatusCode::CREATED, Json(client)))
 }

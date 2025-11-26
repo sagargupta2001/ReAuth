@@ -122,5 +122,7 @@ fn oidc_routes() -> Router<AppState> {
         .route("/.well-known/jwks.json", get(oidc_handler::jwks_handler))
 }
 fn client_routes() -> Router<AppState> {
-    Router::new().route("/", get(oidc_handler::list_clients_handler))
+    Router::new()
+        .route("/", get(oidc_handler::list_clients_handler))
+        .route("/", post(oidc_handler::create_client_handler))
 }
