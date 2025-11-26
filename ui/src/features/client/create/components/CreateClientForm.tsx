@@ -1,108 +1,133 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Save } from 'lucide-react'
-import { useForm } from 'react-hook-form'
+import { Plus, Trash2 } from 'lucide-react'
+import { useFieldArray, useForm } from 'react-hook-form'
 
 import { Button } from '@/components/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/card'
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/form'
-import { Textarea } from '@/components/textarea'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/form'
+import { Input } from '@/components/input'
+import { Separator } from '@/components/separator'
 import { useCreateClient } from '@/features/client/api/useCreateClient.ts'
 import { type CreateClientSchema, createClientSchema } from '@/features/client/create/schema.ts'
+import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { FormInput } from '@/shared/ui/form-input'
 
 export function CreateClientForm() {
-  const navigate = useRealmNavigate()
   const mutation = useCreateClient()
 
   const form = useForm<CreateClientSchema>({
     resolver: zodResolver(createClientSchema),
     defaultValues: {
       client_id: '',
-      redirect_uris: '',
+      redirect_uris: [{ value: '' }],
     },
   })
 
-  const onSubmit = (values: CreateClientSchema) => {
-    // Convert newline-separated string to array
-    const uriArray = values.redirect_uris
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean)
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'redirect_uris',
+  })
 
-    mutation.mutate({
-      client_id: values.client_id,
-      redirect_uris: uriArray,
-    })
+  const onSubmit = (values: CreateClientSchema) => {
+    const flatUris = values.redirect_uris.map((u) => u.value)
+
+    mutation.mutate(
+      {
+        client_id: values.client_id,
+        redirect_uris: flatUris,
+      },
+      {
+        onSuccess: () => {
+          form.reset()
+        },
+      },
+    )
   }
 
-  return (
-    <Card className="w-full max-w-lg">
-      <CardHeader>
-        <CardTitle>Create OIDC Client</CardTitle>
-        <CardDescription>
-          Register a new application that can authenticate with this realm.
-        </CardDescription>
-      </CardHeader>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
-          <CardContent className="space-y-4">
-            <FormInput
-              control={form.control}
-              name="client_id"
-              label="Client ID"
-              placeholder="e.g. my-react-app"
-              description="The unique identifier for your application."
-            />
+  useFormPersistence(form, onSubmit, mutation.isPending)
 
-            <FormField
-              control={form.control}
-              name="redirect_uris"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Valid Redirect URIs</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder={'http://localhost:3000/callback\nhttps://myapp.com/callback'}
-                      className="min-h-[100px] font-mono text-sm"
-                      {...field}
-                    />
-                  </FormControl>
-                  <p className="text-muted-foreground text-[0.8rem]">
-                    Enter one URI per line. These are the allowed callback URLs.
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </CardContent>
-          <CardFooter className="flex justify-between border-t px-6 py-4">
+  return (
+    <div className="max-w-2xl space-y-8">
+      <div>
+        <h3 className="text-lg font-medium">Create OIDC Client</h3>
+        <p className="text-muted-foreground text-sm">
+          Register a new application that can authenticate with this realm.
+        </p>
+      </div>
+
+      <Separator />
+
+      <Form {...form}>
+        {/* --- SECTION 1: Basic Info --- */}
+        <div className="grid gap-4">
+          <FormInput
+            control={form.control}
+            name="client_id"
+            label="Client ID"
+            placeholder="e.g. my-react-app"
+            description="The unique identifier for your application. Only lowercase letters, numbers, and hyphens."
+          />
+        </div>
+
+        {/* --- SECTION 2: Redirect URIs --- */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-base leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              Valid Redirect URIs
+            </label>
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/clients')}
-              disabled={mutation.isPending}
+              size="sm"
+              onClick={() => append({ value: '' })}
+              className="h-8"
             >
-              Cancel
+              <Plus className="mr-2 h-3.5 w-3.5" />
+              Add URI
             </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="mr-2 h-4 w-4" />
-              )}
-              Create Client
-            </Button>
-          </CardFooter>
-        </form>
+          </div>
+
+          <p className="text-muted-foreground text-sm">
+            After login, ReAuth can only redirect users to these specific URLs.
+          </p>
+
+          <div className="space-y-3">
+            {fields.map((field, index) => (
+              <FormField
+                key={field.id}
+                control={form.control}
+                name={`redirect_uris.${index}.value`}
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Input placeholder="https://myapp.com/callback" {...field} />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => remove(index)}
+                        // Prevent removing the last item if you want to enforce at least one
+                        disabled={fields.length === 1 && index === 0}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ))}
+            {/* Show global array error */}
+            {form.formState.errors.redirect_uris?.root && (
+              <p className="text-destructive text-sm font-medium">
+                {form.formState.errors.redirect_uris.root.message}
+              </p>
+            )}
+          </div>
+        </div>
       </Form>
-    </Card>
+    </div>
   )
 }
