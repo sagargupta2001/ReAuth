@@ -1,9 +1,10 @@
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct OidcClient {
     #[sqlx(try_from = "String")]
     pub id: Uuid,
@@ -15,7 +16,7 @@ pub struct OidcClient {
     pub scopes: String,        // Stored as JSON array string
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct AuthCode {
     pub code: String,
     #[sqlx(try_from = "String")]

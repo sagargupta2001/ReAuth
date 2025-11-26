@@ -1,5 +1,6 @@
 use crate::constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE};
 use crate::domain::oidc::OidcContext;
+use crate::domain::pagination::PageRequest;
 use crate::domain::session::RefreshToken;
 use crate::{
     adapters::web::server::AppState,
@@ -154,4 +155,20 @@ pub async fn token_handler(
 pub async fn jwks_handler(State(state): State<AppState>) -> Result<impl IntoResponse> {
     let jwks = state.oidc_service.get_jwks()?;
     Ok((StatusCode::OK, Json(jwks)))
+}
+
+pub async fn list_clients_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Query(page_req): Query<PageRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let response = state.oidc_service.list_clients(realm.id, page_req).await?;
+
+    Ok((StatusCode::OK, Json(response)))
 }

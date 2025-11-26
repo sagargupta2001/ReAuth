@@ -1,4 +1,5 @@
 use crate::adapters::persistence::connection::Database;
+use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::{
     domain::oidc::{AuthCode, OidcClient},
     error::{Error, Result},
@@ -6,6 +7,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
+use sqlx::{QueryBuilder, Sqlite};
 use uuid::Uuid;
 
 ///This repository handles the stateful, temporary data required by the OIDC protocol (Clients and Auth Codes).
@@ -16,6 +18,26 @@ pub struct SqliteOidcRepository {
 impl SqliteOidcRepository {
     pub fn new(pool: Database) -> Self {
         Self { pool }
+    }
+
+    /// Helper: Applies the standard filters (Realm ID + Search) to any query builder.
+    /// This ensures `COUNT(*)` and `SELECT *` always use the same criteria.
+    fn apply_filters<'a>(
+        builder: &mut QueryBuilder<'a, Sqlite>,
+        realm_id: &Uuid,
+        q: &Option<String>,
+    ) {
+        // 1. Base Constraint
+        builder.push(" WHERE realm_id = ");
+        builder.push_bind(realm_id.to_string());
+
+        // 2. Search Filter
+        if let Some(query_text) = q {
+            if !query_text.is_empty() {
+                builder.push(" AND client_id LIKE ");
+                builder.push_bind(format!("%{}%", query_text));
+            }
+        }
     }
 }
 
@@ -53,6 +75,63 @@ impl OidcRepository for SqliteOidcRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
+    }
+
+    async fn find_clients_by_realm(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<OidcClient>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        // We create a builder just for counting
+        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM oidc_clients");
+
+        // Apply the shared filters
+        Self::apply_filters(&mut count_builder, realm_id, &req.q);
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        // We create a new builder for the actual data
+        let mut query_builder = QueryBuilder::new("SELECT * FROM oidc_clients");
+
+        // Apply the SAME shared filters
+        Self::apply_filters(&mut query_builder, realm_id, &req.q);
+
+        // Apply Sorting
+        // Whitelist sort columns to prevent SQL injection
+        let sort_col = match req.sort_by.as_deref() {
+            Some("client_id") => "client_id",
+            // Add "created_at" here if you add that column to your DB schema later
+            _ => "client_id",
+        };
+
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        // Apply Pagination
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        // Execute
+        let clients: Vec<OidcClient> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(clients, total, req.page, limit))
     }
 
     // --- Auth Code Management ---

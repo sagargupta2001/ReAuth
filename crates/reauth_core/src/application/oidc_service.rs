@@ -1,3 +1,4 @@
+use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::ports::token_service::TokenService;
 use crate::{
     application::auth_service::AuthService,
@@ -70,7 +71,7 @@ impl OidcService {
             code_challenge,
             code_challenge_method,
             expires_at: Utc::now() + Duration::seconds(300),
-            // Note: In a robust multi-tenant system, you might also want to store
+            // Note: todo In a robust multi-tenant system, you might also want to store
             // `realm_id` on the AuthCode itself, but for now this is sufficient
             // to validate the creation request.
         };
@@ -159,6 +160,16 @@ impl OidcService {
     /// Registers a new OIDC client (used by seeder).
     pub async fn register_client(&self, client: &OidcClient) -> Result<()> {
         self.oidc_repo.create_client(client).await
+    }
+
+    pub async fn list_clients(
+        &self,
+        realm_id: Uuid,
+        page_req: PageRequest,
+    ) -> Result<PageResponse<OidcClient>> {
+        self.oidc_repo
+            .find_clients_by_realm(&realm_id, &page_req)
+            .await
     }
 
     pub fn get_jwks(&self) -> Result<serde_json::Value> {

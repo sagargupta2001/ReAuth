@@ -3,6 +3,7 @@ pub mod crypto;
 pub mod events;
 pub mod group;
 pub mod oidc;
+pub mod pagination;
 pub mod realm;
 pub mod role;
 pub mod session;

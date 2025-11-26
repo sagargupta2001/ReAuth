@@ -237,6 +237,7 @@ impl PluginManager {
         match handshake_result {
             Ok(Ok(channel)) => {
                 let mut client = HandshakeClient::new(channel.clone());
+
                 client
                     .get_plugin_info(Empty {})
                     .await
