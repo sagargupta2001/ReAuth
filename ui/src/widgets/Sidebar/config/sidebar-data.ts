@@ -11,7 +11,7 @@ export const sidebarData: SidebarData = {
   // Top-level items for the Primary Sidebar
   navMain: [
     {
-      title: 'Realm Overview',
+      title: 'Overview',
       url: '/',
       icon: LayoutDashboard,
     },
@@ -31,7 +31,7 @@ export const sidebarData: SidebarData = {
       icon: AppWindow,
     },
     {
-      title: 'Realm Settings',
+      title: 'Settings',
       url: '/settings',
       icon: Settings,
       // These children will appear in Secondary Sidebar

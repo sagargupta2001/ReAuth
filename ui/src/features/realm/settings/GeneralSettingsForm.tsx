@@ -3,16 +3,16 @@ import { useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { type Resolver, useForm } from 'react-hook-form'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
-import { Form } from '@/components/form'
-import { useCurrentRealm } from '@/entities/realm/api/useRealm'
+import { useCurrentRealm } from '@/entities/realm/api/useRealm.ts'
 import { useUpdateRealm } from '@/entities/realm/api/useUpdateRealm.ts'
 import {
   type GeneralSettingsSchema,
   generalSettingsSchema,
 } from '@/features/realm/settings/schema.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
-import { FormInput } from '@/shared/ui/form-input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
+import { FormInput } from '@/shared/ui/form-input.tsx'
+import { Form } from '@/shared/ui/form.tsx'
 
 export function GeneralSettingsForm() {
   const { data: realm, isLoading } = useCurrentRealm()

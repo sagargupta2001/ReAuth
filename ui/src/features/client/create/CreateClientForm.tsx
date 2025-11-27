@@ -1,21 +1,25 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { useFieldArray, useForm } from 'react-hook-form'
+import { useTranslation } from 'react-i18next'
 
-import { Button } from '@/components/button'
-import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/form'
-import { Input } from '@/components/input'
-import { Separator } from '@/components/separator'
 import { useCreateClient } from '@/features/client/api/useCreateClient.ts'
 import { type CreateClientSchema, createClientSchema } from '@/features/client/create/schema.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
-import { FormInput } from '@/shared/ui/form-input'
+import { Button } from '@/shared/ui/button.tsx'
+import { FormInput } from '@/shared/ui/form-input.tsx'
+import { Form, FormControl, FormField, FormItem, FormMessage } from '@/shared/ui/form.tsx'
+import { Input } from '@/shared/ui/input.tsx'
+import { Separator } from '@/shared/ui/separator.tsx'
 
 export function CreateClientForm() {
+  const { t } = useTranslation('client')
   const mutation = useCreateClient()
 
+  const schema = createClientSchema()
+
   const form = useForm<CreateClientSchema>({
-    resolver: zodResolver(createClientSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       client_id: '',
       redirect_uris: [{ value: '' }],
@@ -48,31 +52,27 @@ export function CreateClientForm() {
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <h3 className="text-lg font-medium">Create OIDC Client</h3>
-        <p className="text-muted-foreground text-sm">
-          Register a new application that can authenticate with this realm.
-        </p>
+        <h3 className="text-lg font-medium">{t('FORMS.CREATE_CLIENT.TITLE')}</h3>
+        <p className="text-muted-foreground text-sm">{t('FORMS.CREATE_CLIENT.DESCRIPTION')}</p>
       </div>
 
       <Separator />
 
       <Form {...form}>
-        {/* --- SECTION 1: Basic Info --- */}
         <div className="grid gap-4">
           <FormInput
             control={form.control}
             name="client_id"
-            label="Client ID"
-            placeholder="e.g. my-react-app"
-            description="The unique identifier for your application. Only lowercase letters, numbers, and hyphens."
+            label={t('FORMS.CREATE_CLIENT.FIELDS.CLIENT_ID')}
+            placeholder={t('FORMS.CREATE_CLIENT.FIELDS.CLIENT_ID_PLACEHOLDER')}
+            description={t('FORMS.CREATE_CLIENT.FIELDS.CLIENT_ID_HELPER_TEXT')}
           />
         </div>
 
-        {/* --- SECTION 2: Redirect URIs --- */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <label className="text-base leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Valid Redirect URIs
+              {t('FORMS.CREATE_CLIENT.FIELDS.VALID_REDIRECT_URIS')}
             </label>
             <Button
               type="button"
@@ -82,12 +82,12 @@ export function CreateClientForm() {
               className="h-8"
             >
               <Plus className="mr-2 h-3.5 w-3.5" />
-              Add URI
+              {t('FORMS.CREATE_CLIENT.ADD_URI_BTN')}
             </Button>
           </div>
 
           <p className="text-muted-foreground text-sm">
-            After login, ReAuth can only redirect users to these specific URLs.
+            {t('FORMS.CREATE_CLIENT.FIELDS.VALID_REDIRECT_URIS_HELPER_TEXT')}
           </p>
 
           <div className="space-y-3">
@@ -100,7 +100,12 @@ export function CreateClientForm() {
                   <FormItem>
                     <div className="flex items-center gap-2">
                       <FormControl>
-                        <Input placeholder="https://myapp.com/callback" {...field} />
+                        <Input
+                          placeholder={t(
+                            'FORMS.CREATE_CLIENT.FIELDS.VALID_REDIRECT_URIS_PLACEHOLDER',
+                          )}
+                          {...field}
+                        />
                       </FormControl>
                       <Button
                         type="button"
@@ -119,7 +124,6 @@ export function CreateClientForm() {
                 )}
               />
             ))}
-            {/* Show global array error */}
             {form.formState.errors.redirect_uris?.root && (
               <p className="text-destructive text-sm font-medium">
                 {form.formState.errors.redirect_uris.root.message}

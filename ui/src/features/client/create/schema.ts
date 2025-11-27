@@ -1,19 +1,29 @@
+// schema.ts
+import i18n from 'i18next'
 import { z } from 'zod'
 
-export const createClientSchema = z.object({
-  client_id: z
-    .string()
-    .min(3, 'Client ID must be at least 3 characters')
-    .regex(/^[a-z0-9-]+$/, 'Only lowercase letters, numbers, and hyphens allowed'),
-
-  // We use an array of objects for the form state (better for useFieldArray)
-  redirect_uris: z
-    .array(
-      z.object({
-        value: z.string().url({ message: 'Must be a valid URL (http/https)' }),
+export const createClientSchema = () =>
+  z.object({
+    client_id: z
+      .string()
+      .min(3, {
+        message: i18n.t('client:FORMS.CREATE_CLIENT.VALIDATIONS.CLIENT_ID_MIN_THREE_CHARS'),
+      })
+      .regex(/^[a-z0-9-]+$/, {
+        message: i18n.t('client:FORMS.CREATE_CLIENT.VALIDATIONS.CLIENT_ID_REGEX'),
       }),
-    )
-    .min(1, { message: 'At least one redirect URI is required' }),
-})
 
-export type CreateClientSchema = z.infer<typeof createClientSchema>
+    redirect_uris: z
+      .array(
+        z.object({
+          value: z.string().url({
+            message: i18n.t('client:FORMS.CREATE_CLIENT.VALIDATIONS.VALID_REDIRECT_URI'),
+          }),
+        }),
+      )
+      .min(1, {
+        message: i18n.t('client:FORMS.CREATE_CLIENT.VALIDATIONS.VALID_REDIRECT_URI_MIN_COUNT'),
+      }),
+  })
+
+export type CreateClientSchema = ReturnType<typeof createClientSchema>
