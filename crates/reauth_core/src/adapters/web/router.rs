@@ -23,6 +23,7 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .route("/logs/ws", get(log_stream_handler::log_stream_handler))
         .nest("/auth", auth_routes())
         .nest("/realms/{realm}/oidc", oidc_routes())
+        .nest("/realms/{realm}/clients", client_routes())
         .nest("/plugins", plugin_routes())
         .nest("/users", public_user_routes());
 
@@ -41,11 +42,11 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
 
     // --- Main Application Router ---
     let cors = CorsLayer::new()
-        // 1. Allow specific origin (Your Frontend URL)
+        // Allow specific origin (Your Frontend URL)
         // This MUST match exactly. No trailing slash.
         .allow_origin(AllowOrigin::mirror_request())
         .allow_credentials(true)
-        // 3. Allow standard methods
+        // Allow standard methods
         .allow_methods([
             Method::GET,
             Method::POST,
@@ -53,7 +54,7 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
             Method::DELETE,
             Method::OPTIONS,
         ])
-        // 4. Allow specific headers (Content-Type is needed for JSON)
+        // Allow specific headers (Content-Type is needed for JSON)
         .allow_headers([AUTHORIZATION, CONTENT_TYPE, COOKIE, ACCEPT]);
 
     Router::new()
@@ -119,4 +120,14 @@ fn oidc_routes() -> Router<AppState> {
         .route("/authorize", get(oidc_handler::authorize_handler))
         .route("/token", post(oidc_handler::token_handler))
         .route("/.well-known/jwks.json", get(oidc_handler::jwks_handler))
+}
+fn client_routes() -> Router<AppState> {
+    Router::new()
+        .route("/", get(oidc_handler::list_clients_handler))
+        .route("/", post(oidc_handler::create_client_handler))
+        .route("/{id}", get(oidc_handler::get_client_handler))
+        .route(
+            "/{id}",
+            axum::routing::put(oidc_handler::update_client_handler),
+        )
 }

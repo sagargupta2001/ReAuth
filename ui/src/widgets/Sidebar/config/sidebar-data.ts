@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, ScrollText, Settings } from 'lucide-react'
+import { AppWindow, LayoutDashboard, Package, ScrollText, Settings } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
@@ -11,7 +11,7 @@ export const sidebarData: SidebarData = {
   // Top-level items for the Primary Sidebar
   navMain: [
     {
-      title: 'Realm Overview',
+      title: 'Overview',
       url: '/',
       icon: LayoutDashboard,
     },
@@ -26,7 +26,12 @@ export const sidebarData: SidebarData = {
       icon: ScrollText,
     },
     {
-      title: 'Realm Settings',
+      title: 'Clients',
+      url: '/clients',
+      icon: AppWindow,
+    },
+    {
+      title: 'Settings',
       url: '/settings',
       icon: Settings,
       // These children will appear in Secondary Sidebar

@@ -1,3 +1,4 @@
+use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::{
     domain::oidc::{AuthCode, OidcClient},
     error::Result,
@@ -15,6 +16,14 @@ pub trait OidcRepository: Send + Sync {
         client_id: &str,
     ) -> Result<Option<OidcClient>>;
     async fn create_client(&self, client: &OidcClient) -> Result<()>;
+    async fn find_clients_by_realm(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<OidcClient>>;
+
+    async fn find_client_by_uuid(&self, id: &Uuid) -> Result<Option<OidcClient>>;
+    async fn update_client(&self, client: &OidcClient) -> Result<()>;
 
     // Auth Code Management
     async fn save_auth_code(&self, code: &AuthCode) -> Result<()>;

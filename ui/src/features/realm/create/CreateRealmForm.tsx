@@ -2,9 +2,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
-import { z } from 'zod'
 
-import { Button } from '@/components/button'
+import { useCreateRealm } from '@/entities/realm/api/useCreateRealm.ts'
+import { type FormValues, formSchema } from '@/features/realm/create/schema.ts'
+import { Button } from '@/shared/ui/button.tsx'
 import {
   Card,
   CardContent,
@@ -12,22 +13,9 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/card'
-import { Form } from '@/components/form'
-import { useCreateRealm } from '@/entities/realm/api/useCreateRealm.ts'
+} from '@/shared/ui/card.tsx'
 import { FormInput } from '@/shared/ui/form-input.tsx'
-
-const formSchema = z.object({
-  name: z
-    .string()
-    .min(3, { message: 'Realm name must be at least 3 characters.' })
-    .max(30, { message: 'Realm name must be less than 30 characters.' })
-    .regex(/^[a-z0-9-]+$/, {
-      message: 'Only lowercase letters, numbers, and hyphens allowed.',
-    }),
-})
-
-type FormValues = z.infer<typeof formSchema>
+import { Form } from '@/shared/ui/form.tsx'
 
 export function CreateRealmForm() {
   const navigate = useNavigate()

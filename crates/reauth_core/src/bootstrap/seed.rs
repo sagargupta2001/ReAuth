@@ -6,6 +6,8 @@ use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::{AuthFlow, AuthFlowStep};
 use crate::domain::oidc::OidcClient;
 use crate::ports::flow_repository::FlowRepository;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
 use std::sync::Arc;
 use tracing::{info, warn};
 
@@ -127,17 +129,23 @@ pub async fn seed_database(
         // *TEMPORARY FIX*: Use the repo directly via a new Service method or just
         // assume the service has a create method. Let's add it to OidcService below.
 
-        let client = OidcClient {
+        let secret: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
+
+        let mut client = OidcClient {
             id: uuid::Uuid::new_v4(),
             realm_id: realm.id,
             client_id: client_id.to_string(),
-            client_secret: None, // Public client (SPA)
+            client_secret: Some(secret), // Public client (SPA)
             redirect_uris: serde_json::to_string(&settings.default_oidc_client.redirect_uris)?,
             scopes: "openid profile email".to_string(),
         };
 
         // You need to expose a create method in OidcService, see Step 5 below.
-        oidc_service.register_client(&client).await?;
+        oidc_service.register_client(&mut client).await?;
         info!("Default OIDC client created.");
     }
 
