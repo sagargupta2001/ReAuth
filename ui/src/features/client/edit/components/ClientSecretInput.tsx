@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { Copy, Eye, EyeOff } from 'lucide-react'
+import { Check, Copy, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/button'
@@ -9,19 +9,23 @@ import { Label } from '@/components/label'
 
 export function ClientSecretInput({ secret }: { secret?: string | null }) {
   const [show, setShow] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
     if (!secret) return
     void navigator.clipboard.writeText(secret)
+    setCopied(true)
     toast.success('Client secret copied to clipboard')
+
+    setTimeout(() => setCopied(false), 1000)
   }
 
-  // If public client (no secret)
   if (!secret) return null
 
   return (
     <div className="space-y-2">
       <Label>Client Secret</Label>
+
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Input
@@ -30,6 +34,7 @@ export function ClientSecretInput({ secret }: { secret?: string | null }) {
             value={secret}
             className="pr-10 font-mono text-sm"
           />
+
           <Button
             type="button"
             variant="ghost"
@@ -41,13 +46,26 @@ export function ClientSecretInput({ secret }: { secret?: string | null }) {
             <span className="sr-only">Toggle secret visibility</span>
           </Button>
         </div>
-        <Button variant="outline" size="icon" type="button" onClick={handleCopy}>
-          <Copy className="h-4 w-4" />
+
+        <Button
+          variant="outline"
+          size="icon"
+          type="button"
+          onClick={handleCopy}
+          disabled={copied}
+          className={`relative transition-all ${!copied ? 'hover:bg-accent hover:scale-105' : ''} ${copied ? 'animate-copyPulse theme-copy' : ''} `}
+        >
+          {copied ? (
+            <Check className="text-accent-foreground h-4 w-4" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
           <span className="sr-only">Copy secret</span>
         </Button>
       </div>
+
       <p className="text-muted-foreground text-[0.8rem]">
-        Keep this secret secure. Do not share it with public applications.
+        Keep this secret secure. Never expose it in frontend code or public repositories.
       </p>
     </div>
   )

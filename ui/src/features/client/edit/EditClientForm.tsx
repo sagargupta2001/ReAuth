@@ -76,9 +76,10 @@ export function EditClientForm({ clientId }: Props) {
   return (
     <div className="max-w-2xl space-y-8">
       <div>
-        <h3 className="text-lg font-medium">Create OIDC Client</h3>
+        <h3 className="text-lg font-medium">Client Details</h3>
         <p className="text-muted-foreground text-sm">
-          Register a new application that can authenticate with this realm.
+          This section contains sensitive configuration for your application. Use the client secret
+          only in secure, trusted environments.
         </p>
       </div>
 
