@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { Check, Copy, Eye, EyeOff } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/button'
@@ -8,6 +9,8 @@ import { Input } from '@/components/input'
 import { Label } from '@/components/label'
 
 export function ClientSecretInput({ secret }: { secret?: string | null }) {
+  const { t } = useTranslation('client')
+
   const [show, setShow] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -24,7 +27,7 @@ export function ClientSecretInput({ secret }: { secret?: string | null }) {
 
   return (
     <div className="space-y-2">
-      <Label>Client Secret</Label>
+      <Label>{t('FORMS.EDIT_CLIENT.FIELDS.CLIENT_SECRET')}</Label>
 
       <div className="flex gap-2">
         <div className="relative flex-1">
@@ -65,7 +68,7 @@ export function ClientSecretInput({ secret }: { secret?: string | null }) {
       </div>
 
       <p className="text-muted-foreground text-[0.8rem]">
-        Keep this secret secure. Never expose it in frontend code or public repositories.
+        {t('FORMS.EDIT_CLIENT.FIELDS.CLIENT_SECRET_HELPER_TEXT')}
       </p>
     </div>
   )

@@ -26,4 +26,4 @@ export const createClientSchema = () =>
       }),
   })
 
-export type CreateClientSchema = ReturnType<typeof createClientSchema>
+export type CreateClientSchema = z.infer<ReturnType<typeof createClientSchema>>

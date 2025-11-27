@@ -1,4 +1,5 @@
 import { ArrowLeft } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 
 import { buttonVariants } from '@/components/button'
@@ -7,6 +8,8 @@ import { EditClientForm } from '@/features/client/edit/EditClientForm'
 import { cn } from '@/lib/utils'
 
 export function EditClientPage() {
+  const { t } = useTranslation('client')
+
   const { clientId } = useParams<{ clientId: string }>()
 
   if (!clientId) return null
@@ -22,7 +25,7 @@ export function EditClientPage() {
           )}
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to Clients
+          {t('FORMS.EDIT_CLIENT.BACK_TO_CLIENTS_BUTTON')}
         </RealmLink>
       </div>
       <EditClientForm clientId={clientId} />

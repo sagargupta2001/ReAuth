@@ -20,6 +20,19 @@
         "VALID_REDIRECT_URI_MIN_COUNT": "At least one redirect URI is required"
       }
     },
-    "EDIT_CLIENT": {}
+    "EDIT_CLIENT": {
+      "BACK_TO_CLIENTS_BUTTON": "Back to Clients",
+      "TITLE": "Client Details",
+      "DESCRIPTION": "This section contains sensitive configuration for your application. Use the client secret only in secure, trusted environments.",
+      "FIELDS": {
+        "CLIENT_ID": "Client ID",
+        "CLIENT_ID_HELPER_TEXT": "Unique identifier for this client.",
+        "CLIENT_SECRET": "Client Secret",
+        "CLIENT_SECRET_HELPER_TEXT": "Keep this secret secure. Never expose it in frontend code or public repositories.",
+        "VALID_REDIRECT_URIS": "Valid Redirect URIs",
+        "VALID_REDIRECT_URIS_HELPER_TEXT": "After login, ReAuth can only redirect users to these specific URLs."
+      },
+      "ADD_URI_BTN": "Add URI"
+    }
   }
 }
