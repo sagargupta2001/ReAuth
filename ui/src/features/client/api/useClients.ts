@@ -8,11 +8,11 @@ export function useClients(params: ClientSearchParams) {
   const realm = useActiveRealm()
 
   return useQuery({
-    // 1. Include params in the query key so it refetches when they change
+    // Include params in the query key so it refetches when they change
     queryKey: ['clients', realm, params],
 
     queryFn: async () => {
-      // 2. Convert params object to URLSearchParams
+      // Convert params object to URLSearchParams
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
       query.set('per_page', String(params.per_page || 10))
@@ -24,7 +24,7 @@ export function useClients(params: ClientSearchParams) {
         `/api/realms/${realm}/clients?${query.toString()}`,
       )
     },
-    // 3. Keep previous data while fetching new page (prevents table flicker)
+    // Keep previous data while fetching new page (prevents table flicker)
     placeholderData: keepPreviousData,
   })
 }

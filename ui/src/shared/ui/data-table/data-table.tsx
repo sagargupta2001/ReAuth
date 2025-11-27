@@ -18,6 +18,8 @@ import { DataTablePagination } from '@/shared/ui/data-table/pagination.tsx'
 import { DataTableToolbar } from '@/shared/ui/data-table/toolbar.tsx'
 
 interface DataTableProps<TData, TValue> {
+  onRowClick?: (row: TData) => void
+
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
 
@@ -39,6 +41,7 @@ interface DataTableProps<TData, TValue> {
 }
 
 export function DataTable<TData, TValue>({
+  onRowClick,
   columns,
   data,
   pageCount,
@@ -118,7 +121,12 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  onClick={() => onRowClick?.(row.original)}
+                  className="hover:cursor-pointer"
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

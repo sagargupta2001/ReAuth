@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router-dom'
 
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.tsx'
 import { useClients } from '@/features/client/api/useClients'
 import { clientColumns } from '@/features/client/listing/components/ClientColumns.tsx'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
@@ -10,6 +11,7 @@ import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
 
 export function ClientsTable() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useRealmNavigate()
 
   // 1. URL Params
   const page = Number(searchParams.get('page')) || 1
@@ -97,6 +99,7 @@ export function ClientsTable() {
 
   return (
     <DataTable
+      onRowClick={(row) => navigate(`/clients/${row.id}`)}
       columns={clientColumns}
       data={data?.data || []}
       // Server-Side Props

@@ -10,7 +10,9 @@ use crate::{
     ports::{oidc_repository::OidcRepository, user_repository::UserRepository},
 };
 use chrono::{Duration, Utc};
-use serde::Serialize;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -27,6 +29,12 @@ pub struct OidcService {
     user_repo: Arc<dyn UserRepository>,
     auth_service: Arc<AuthService>,
     token_service: Arc<dyn TokenService>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdateClientRequest {
+    pub client_id: Option<String>,
+    pub redirect_uris: Option<Vec<String>>,
 }
 
 impl OidcService {
@@ -158,7 +166,17 @@ impl OidcService {
     }
 
     /// Registers a new OIDC client (used by seeder).
-    pub async fn register_client(&self, client: &OidcClient) -> Result<()> {
+    pub async fn register_client(&self, client: &mut OidcClient) -> Result<()> {
+        if client.client_secret.is_none() {
+            let secret: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(32)
+                .map(char::from)
+                .collect();
+
+            client.client_secret = Some(secret);
+        }
+
         self.oidc_repo.create_client(client).await
     }
 
@@ -170,6 +188,33 @@ impl OidcService {
         self.oidc_repo
             .find_clients_by_realm(&realm_id, &page_req)
             .await
+    }
+
+    pub async fn get_client(&self, id: Uuid) -> Result<OidcClient> {
+        self.oidc_repo
+            .find_client_by_uuid(&id)
+            .await?
+            .ok_or(Error::OidcClientNotFound(id.to_string()))
+    }
+
+    pub async fn update_client(
+        &self,
+        id: Uuid,
+        payload: UpdateClientRequest,
+    ) -> Result<OidcClient> {
+        let mut client = self.get_client(id).await?;
+
+        if let Some(new_id) = payload.client_id {
+            client.client_id = new_id;
+        }
+
+        if let Some(uris) = payload.redirect_uris {
+            client.redirect_uris =
+                serde_json::to_string(&uris).map_err(|e| Error::Unexpected(e.into()))?;
+        }
+
+        self.oidc_repo.update_client(&client).await?;
+        Ok(client)
     }
 
     pub fn get_jwks(&self) -> Result<serde_json::Value> {

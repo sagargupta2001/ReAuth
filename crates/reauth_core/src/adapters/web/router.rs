@@ -125,4 +125,9 @@ fn client_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(oidc_handler::list_clients_handler))
         .route("/", post(oidc_handler::create_client_handler))
+        .route("/{id}", get(oidc_handler::get_client_handler))
+        .route(
+            "/{id}",
+            axum::routing::put(oidc_handler::update_client_handler),
+        )
 }

@@ -134,6 +134,29 @@ impl OidcRepository for SqliteOidcRepository {
         Ok(PageResponse::new(clients, total, req.page, limit))
     }
 
+    async fn find_client_by_uuid(&self, id: &Uuid) -> Result<Option<OidcClient>> {
+        let client = sqlx::query_as("SELECT * FROM oidc_clients WHERE id = ?")
+            .bind(id.to_string())
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|_| Error::OidcClientNotFound(id.to_string()))?;
+        Ok(client)
+    }
+
+    async fn update_client(&self, client: &OidcClient) -> Result<()> {
+        sqlx::query(
+            "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ? WHERE id = ?",
+        )
+        .bind(&client.client_id)
+        .bind(&client.redirect_uris)
+        .bind(&client.scopes)
+        .bind(client.id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
     // --- Auth Code Management ---
 
     async fn save_auth_code(&self, code: &AuthCode) -> Result<()> {

@@ -22,6 +22,9 @@ pub trait OidcRepository: Send + Sync {
         req: &PageRequest,
     ) -> Result<PageResponse<OidcClient>>;
 
+    async fn find_client_by_uuid(&self, id: &Uuid) -> Result<Option<OidcClient>>;
+    async fn update_client(&self, client: &OidcClient) -> Result<()>;
+
     // Auth Code Management
     async fn save_auth_code(&self, code: &AuthCode) -> Result<()>;
     async fn find_auth_code_by_code(&self, code: &str) -> Result<Option<AuthCode>>;

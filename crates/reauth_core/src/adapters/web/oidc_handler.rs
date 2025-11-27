@@ -185,7 +185,6 @@ pub async fn create_client_handler(
     Path(realm_name): Path<String>,
     Json(payload): Json<CreateClientRequest>,
 ) -> Result<impl IntoResponse> {
-    // Resolve Realm
     let realm = state
         .realm_service
         .find_by_name(&realm_name)
@@ -209,9 +208,26 @@ pub async fn create_client_handler(
         scopes: "openid profile email".to_string(), // Default scopes
     };
 
-    // 5. Save to DB
-    state.oidc_service.register_client(&client).await?;
-
-    // 6. Return Success
+    state
+        .oidc_service
+        .register_client(&mut client.clone())
+        .await?;
     Ok((StatusCode::CREATED, Json(client)))
+}
+
+pub async fn get_client_handler(
+    State(state): State<AppState>,
+    Path((_realm, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let client = state.oidc_service.get_client(id).await?;
+    Ok((StatusCode::OK, Json(client)))
+}
+
+pub async fn update_client_handler(
+    State(state): State<AppState>,
+    Path((_realm, id)): Path<(String, Uuid)>,
+    Json(payload): Json<crate::application::oidc_service::UpdateClientRequest>,
+) -> Result<impl IntoResponse> {
+    let client = state.oidc_service.update_client(id, payload).await?;
+    Ok((StatusCode::OK, Json(client)))
 }
