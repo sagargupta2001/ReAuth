@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import type { User } from '@/entities/user/model/types'
 import { apiClient } from '@/shared/api/client'
 
@@ -13,8 +14,10 @@ export interface UserSearchParams {
 }
 
 export function useUsers(params: UserSearchParams) {
+  const realm = useActiveRealm()
+
   return useQuery({
-    queryKey: ['users', params],
+    queryKey: ['users', realm, params],
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
@@ -23,7 +26,9 @@ export function useUsers(params: UserSearchParams) {
       if (params.sort_by) query.set('sort_by', params.sort_by)
       if (params.sort_dir) query.set('sort_dir', params.sort_dir)
 
-      return apiClient.get<PaginatedResponse<User>>(`/api/users?${query.toString()}`)
+      return apiClient.get<PaginatedResponse<User>>(
+        `/api/realms/${realm}/users?${query.toString()}`,
+      )
     },
     placeholderData: keepPreviousData,
   })

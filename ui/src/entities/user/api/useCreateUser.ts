@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import { apiClient } from '@/shared/api/client'
 
 interface CreateUserPayload {
@@ -11,11 +12,13 @@ interface CreateUserPayload {
 
 export function useCreateUser() {
   const queryClient = useQueryClient()
+  const realm = useActiveRealm()
+
   const navigate = useRealmNavigate()
 
   return useMutation({
     mutationFn: (data: CreateUserPayload) => {
-      return apiClient.post('/api/users', data)
+      return apiClient.post(`/api/realms/${realm}/users`, data)
     },
     onSuccess: () => {
       toast.success('User created successfully')

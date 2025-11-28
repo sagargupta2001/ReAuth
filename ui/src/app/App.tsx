@@ -1,7 +1,14 @@
+import { Toaster } from 'sonner'
+
 import { AppRouter } from './AppRouter'
 
 function App() {
-  return <AppRouter />
+  return (
+    <>
+      <AppRouter />
+      <Toaster />
+    </>
+  )
 }
 
 export default App

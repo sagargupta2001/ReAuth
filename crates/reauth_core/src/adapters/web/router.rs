@@ -25,11 +25,11 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/realms/{realm}/clients", client_routes())
         .nest("/plugins", plugin_routes())
-        .nest("/users", public_user_routes());
+        .nest("/realms/{realm}/users", public_user_routes());
 
     // 2. Protected routes that require the `auth_guard` middleware.
     let protected_api = Router::new()
-        .nest("/users", protected_user_routes())
+        .nest("/realms/{realm}/users", protected_user_routes())
         .nest("/rbac", rbac_routes())
         .nest("/realms", realm_routes())
         .route_layer(middleware::from_fn_with_state(
