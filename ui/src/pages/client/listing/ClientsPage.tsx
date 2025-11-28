@@ -1,5 +1,5 @@
+import { ClientsTable } from '@/features/client/listing/ClientsTable.tsx'
 import { ClientsPrimaryButtons } from '@/features/client/listing/components/ClientsPrimaryButtons.tsx'
-import { ClientsTable } from '@/features/client/listing/components/ClientsTable.tsx'
 import { Main } from '@/widgets/Layout/Main.tsx'
 
 export function ClientsPage() {

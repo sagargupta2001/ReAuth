@@ -85,7 +85,14 @@ fn public_user_routes() -> Router<AppState> {
 }
 
 fn protected_user_routes() -> Router<AppState> {
-    Router::new().route("/me", get(user_handler::get_me_handler))
+    Router::new()
+        .route("/me", get(user_handler::get_me_handler))
+        .route("/", get(user_handler::list_users_handler))
+        .route("/{id}", get(user_handler::get_user_handler))
+        .route(
+            "/{id}",
+            axum::routing::put(user_handler::update_user_handler),
+        )
 }
 
 fn realm_routes() -> Router<AppState> {

@@ -1,65 +1,41 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router-dom'
 
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.tsx'
-import { useClients } from '@/features/client/api/useClients'
-import { clientColumns } from '@/features/client/listing/components/ClientColumns.tsx'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useUsers } from '@/entities/user/api/useUsers.ts'
+import { userColumns } from '@/features/user/listing/components/UserColumns.tsx'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
 import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
 
-export function ClientsTable() {
-  const [searchParams, setSearchParams] = useSearchParams()
+export function UsersTable() {
   const navigate = useRealmNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
-  // 1. URL Params
+  // Initialize State from URL
   const page = Number(searchParams.get('page')) || 1
   const perPage = Number(searchParams.get('per_page')) || 10
-  const sortBy = searchParams.get('sort_by') || 'client_id'
+  const sortBy = searchParams.get('sort_by') || 'username'
   const sortDir = (searchParams.get('sort_dir') as 'asc' | 'desc') || 'asc'
   const queryFromUrl = searchParams.get('q') || ''
 
-  // 2. Local Search State (for Debouncing)
-  // We initialize it with the URL value so it persists on refresh
   const [searchTerm, setSearchTerm] = useState(queryFromUrl)
 
-  // 3. React Table State
+  // React Table State
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: page - 1,
     pageSize: perPage,
   })
   const [sorting, setSorting] = useState<SortingState>([{ id: sortBy, desc: sortDir === 'desc' }])
 
-  // DEBOUNCE EFFECT
-  // Sync local searchTerm to URL after 500ms delay
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      // Only update URL if the value actually changed from what's in the URL
-      if (searchTerm !== queryFromUrl) {
-        const params = new URLSearchParams(searchParams)
-        if (searchTerm) {
-          params.set('q', searchTerm)
-        } else {
-          params.delete('q')
-        }
-        // Reset to page 1 on new search
-        params.set('page', '1')
-        setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-        setSearchParams(params)
-      }
-    }, 500)
-
-    return () => clearTimeout(timer)
-  }, [searchTerm, searchParams, setSearchParams, queryFromUrl])
-
-  // Fetch Data (Uses URL param, not local state, to avoid rapid fetching)
-  const { data, isLoading } = useClients({
+  // 4. Fetch Data
+  const { data, isLoading } = useUsers({
     page: pagination.pageIndex + 1,
     per_page: pagination.pageSize,
     sort_by: sorting[0]?.id,
     sort_dir: sorting[0]?.desc ? 'desc' : 'asc',
-    q: queryFromUrl, // Use the committed URL value
+    q: searchTerm, // Pass local term if debouncing is handled in DataTable or here
   })
 
   // Sync Pagination to URL
@@ -89,9 +65,23 @@ export function ClientsTable() {
     setSearchParams(params)
   }
 
+  // Sync Search to URL (Simple implementation)
+  const handleSearch = (value: string) => {
+    setSearchTerm(value)
+    const params = new URLSearchParams(searchParams)
+    if (value) {
+      params.set('q', value)
+      params.set('page', '1') // Reset page on search
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+    } else {
+      params.delete('q')
+    }
+    setSearchParams(params)
+  }
+
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="h-[calc(100vh-240px)]">
         <DataTableSkeleton columnCount={4} rowCount={10} />
       </div>
     )
@@ -99,20 +89,22 @@ export function ClientsTable() {
 
   return (
     <DataTable
-      onRowClick={(row) => navigate(`/clients/${row.id}`)}
-      columns={clientColumns}
+      columns={userColumns}
       data={data?.data || []}
-      // Server-Side Props
       pageCount={data?.meta.total_pages || 0}
+      // State Passing
       pagination={pagination}
       onPaginationChange={handlePaginationChange}
       sorting={sorting}
       onSortingChange={handleSortingChange}
-      // Search Config
-      searchKey="client_id"
-      searchPlaceholder="Filter by Client ID..."
+      // Search
+      searchKey="username"
+      searchPlaceholder="Filter users..."
       searchValue={searchTerm}
-      onSearch={setSearchTerm}
+      onSearch={handleSearch}
+      // Row Click -> Edit Page
+      onRowClick={(user) => navigate(`/users/${user.id}`)}
+      // Layout
       className="h-[calc(100vh-328px)]"
     />
   )

@@ -1,4 +1,4 @@
-import { AppWindow, LayoutDashboard, Package, ScrollText, Settings } from 'lucide-react'
+import { AppWindow, LayoutDashboard, Package, ScrollText, Settings, Users } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
@@ -14,6 +14,11 @@ export const sidebarData: SidebarData = {
       title: 'Overview',
       url: '/',
       icon: LayoutDashboard,
+    },
+    {
+      title: 'Users',
+      url: '/users',
+      icon: Users,
     },
     {
       title: 'Plugins',
