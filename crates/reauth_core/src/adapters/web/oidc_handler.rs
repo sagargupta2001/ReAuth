@@ -122,6 +122,7 @@ pub async fn authorize_handler(
 pub async fn token_handler(
     State(state): State<AppState>,
     Path(_realm_name): Path<String>,
+    headers: HeaderMap,
     Form(params): Form<TokenParams>,
 ) -> Result<impl IntoResponse> {
     if params.grant_type != "authorization_code" {
@@ -130,25 +131,40 @@ pub async fn token_handler(
         ));
     }
 
-    // 1. Call the service (now returns a tuple)
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    // Simple IP extraction (X-Forwarded-For is standard for proxies/load balancers)
+    let ip_address = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
+
+    // Call the service (now returns a tuple)
     let (token_response, refresh_token) = state
         .oidc_service
-        .exchange_code_for_token(&params.code, params.code_verifier.as_deref().unwrap_or(""))
+        .exchange_code_for_token(
+            &params.code,
+            params.code_verifier.as_deref().unwrap_or(""),
+            ip_address,
+            user_agent,
+        )
         .await?;
-    // FIX: Convert timestamp correc
 
-    // 2. Create the HttpOnly Cookie
+    // Create the HttpOnly Cookie
     // (This uses the helper function defined earlier in this file)
     let cookie = create_refresh_cookie(&refresh_token);
 
-    // 3. Set the header
+    // Set the header
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
         HeaderValue::from_str(&cookie.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
     );
 
-    // 4. Return the tuple (Status, Headers, JSON Body)
+    // Return the tuple (Status, Headers, JSON Body)
     Ok((StatusCode::OK, headers, Json(token_response)))
 }
 

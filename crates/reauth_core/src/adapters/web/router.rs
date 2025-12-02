@@ -1,6 +1,6 @@
 use super::{
     auth_handler, auth_middleware, log_stream_handler, oidc_handler, plugin_handler, rbac_handler,
-    realm_handler, server::ui_handler, user_handler,
+    realm_handler, server::ui_handler, session_handler, user_handler,
 };
 use crate::adapters::web::server::AppState;
 use axum::routing::get_service;
@@ -102,6 +102,14 @@ fn realm_routes() -> Router<AppState> {
         .route(
             "/{id}",
             axum::routing::put(realm_handler::update_realm_handler),
+        )
+        .route(
+            "/{realm}/sessions",
+            get(session_handler::list_sessions_handler),
+        )
+        .route(
+            "/{realm}/sessions/{id}",
+            axum::routing::delete(session_handler::revoke_session_handler),
         )
 }
 

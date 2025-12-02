@@ -94,6 +94,8 @@ impl OidcService {
         &self,
         code: &str,
         code_verifier: &str,
+        ip_address: Option<String>,
+        user_agent: Option<String>,
     ) -> Result<(TokenResponse, RefreshToken)> {
         // 1. Find the code
         let auth_code = self
@@ -125,7 +127,12 @@ impl OidcService {
         // to the DB, and generates the JWT.
         let (login_response, refresh_token) = self
             .auth_service
-            .create_session(&user, Some(auth_code.client_id.clone()))
+            .create_session(
+                &user,
+                Some(auth_code.client_id.clone()),
+                ip_address,
+                user_agent,
+            )
             .await?;
 
         // 6. Map to OIDC response format

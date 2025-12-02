@@ -95,6 +95,7 @@ pub struct ExecutePayload {
 pub async fn execute_login_step_handler(
     State(state): State<AppState>,
     jar: CookieJar,
+    headers: HeaderMap,
     Json(payload): Json<ExecutePayload>,
 ) -> Result<impl IntoResponse> {
     let login_session_id = jar
@@ -103,22 +104,23 @@ pub async fn execute_login_step_handler(
         .transpose()?
         .ok_or(Error::InvalidLoginSession)?;
 
+    let req_headers = headers;
+
     match state
         .flow_engine
         .process_login_step(login_session_id, payload.credentials)
         .await?
     {
-        // --- Flow is 100% complete ---
         (Some(final_session), AuthStepResult::Success, Some(user)) => {
             let clear_cookie = create_clear_login_cookie();
-            let mut headers = HeaderMap::new();
-            headers.append(
+            let mut res_headers = HeaderMap::new();
+            res_headers.append(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&clear_cookie.to_string())
                     .map_err(|e| Error::Unexpected(e.into()))?,
             );
 
-            // 1. Check for OIDC Context
+            // Check for OIDC Context
             if let Some(state_data) = final_session.state_data {
                 if let Ok(oidc_ctx) = serde_json::from_str::<OidcContext>(&state_data) {
                     // Generate Auth Code
@@ -149,7 +151,7 @@ pub async fn execute_login_step_handler(
                     // Return the Redirect instruction to the UI
                     return Ok((
                         StatusCode::OK,
-                        headers,
+                        res_headers,
                         Json(AuthStepResult::Redirect {
                             url: url.to_string(),
                         }),
@@ -158,20 +160,33 @@ pub async fn execute_login_step_handler(
                 }
             }
 
+            let user_agent = req_headers
+                .get(header::USER_AGENT)
+                .and_then(|v| v.to_str().ok())
+                .map(String::from);
+
+            // Simple IP extraction (X-Forwarded-For is standard for proxies/load balancers)
+            let ip_address = req_headers
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
+
             // Direct Login Path
             // If this is the Admin Console logging in directly, you might want to
             // hardcode the admin client ID, or pass None if you don't use ID tokens there.
-            let (login_response, refresh_token) =
-                state.auth_service.create_session(&user, None).await?;
+            let (login_response, refresh_token) = state
+                .auth_service
+                .create_session(&user, None, ip_address, user_agent)
+                .await?;
             let refresh_cookie = create_refresh_cookie(&refresh_token);
 
-            headers.append(
+            res_headers.append(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&refresh_cookie.to_string())
                     .map_err(|e| Error::Unexpected(e.into()))?,
             );
 
-            Ok((StatusCode::OK, headers, Json(login_response)).into_response())
+            Ok((StatusCode::OK, res_headers, Json(login_response)).into_response())
         }
 
         // --- Flow is advancing to the next step ---
@@ -188,14 +203,14 @@ pub async fn execute_login_step_handler(
                     .expires(expires_time)
                     .into();
 
-            let mut headers = HeaderMap::new();
-            headers.insert(
+            let mut res_headers = HeaderMap::new();
+            res_headers.insert(
                 header::SET_COOKIE,
                 HeaderValue::from_str(&cookie.to_string())
                     .map_err(|e| Error::Unexpected(e.into()))?,
             );
 
-            Ok((StatusCode::OK, headers, Json(result)).into_response())
+            Ok((StatusCode::OK, res_headers, Json(result)).into_response())
         }
 
         // --- Failures ---

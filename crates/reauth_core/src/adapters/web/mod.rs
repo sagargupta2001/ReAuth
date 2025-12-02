@@ -8,5 +8,6 @@ pub mod rbac_handler;
 mod realm_handler;
 pub mod router;
 pub mod server;
+mod session_handler;
 pub mod user_handler;
 pub mod validation;
