@@ -6,6 +6,7 @@ import {
   ScrollText,
   Settings,
   Users,
+  Workflow,
 } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
@@ -49,10 +50,16 @@ export const sidebarData: SidebarData = {
       icon: AppWindow,
     },
     {
+      title: 'Flows', // This Key will trigger the custom sidebar
+      url: '/flows',
+      icon: Workflow,
+      segment: 'flows',
+    },
+    {
       title: 'Settings',
       url: '/settings',
       icon: Settings,
-      // These children will appear in Secondary Sidebar
+      segment: 'settings', // Maps to /:realm/settings
       items: [
         {
           title: 'General',

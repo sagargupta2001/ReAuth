@@ -12,8 +12,7 @@ import { FloatingActionBar } from '@/shared/ui/floating-action-bar.tsx'
 import { AppHeader } from '@/widgets/Layout/components/app-header.tsx'
 import { AppSidebar } from '@/widgets/Layout/components/app-sidebar'
 import { SidebarProvider, useSidebar } from '@/widgets/Sidebar/components/content'
-import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data.ts'
-import { useSidebarStore } from '@/widgets/Sidebar/model/sidebarStore.ts'
+import { useActivePrimaryNavItem } from '@/widgets/Sidebar/hooks/useActivePrimaryNavItem.ts'
 
 type AuthenticatedLayoutProps = {
   children?: ReactNode
@@ -21,12 +20,12 @@ type AuthenticatedLayoutProps = {
 
 function LayoutContent({ children }: { children: ReactNode }) {
   const { state } = useSidebar()
-  const { activeItemId } = useSidebarStore()
   const { isDirty, isPending, triggerSave, triggerReset } = useUnsavedChanges()
   const location = useLocation()
 
-  const activeItem = sidebarData.navMain.find((i) => i.title === activeItemId)
-  const showSecondary = !!activeItem?.items
+  const activeItem = useActivePrimaryNavItem()
+  const showSecondary =
+    !!activeItem && (!!activeItem.items || !!activeItem.segment) && state !== 'collapsed'
 
   const primaryWidth = state === 'collapsed' ? 'var(--sidebar-width-icon)' : 'var(--sidebar-width)'
 

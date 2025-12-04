@@ -12,6 +12,9 @@ export interface PrimaryNavItem {
   url: string // Base URL for highlighting (e.g. "/settings")
   icon: ElementType // Mandatory for primary rail
   items?: NavItem[] // If present, triggers Secondary Sidebar
+  // This matches the URL path segment (e.g. "flows", "settings")
+  // If present, it implies this item owns a Secondary Sidebar view.
+  segment?: string
 }
 
 export interface SidebarData {
@@ -20,5 +23,5 @@ export interface SidebarData {
     email: string
     avatar: string
   }
-  navMain: PrimaryNavItem[] // Renamed from navGroups
+  navMain: PrimaryNavItem[]
 }

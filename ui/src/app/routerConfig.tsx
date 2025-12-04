@@ -10,6 +10,7 @@ import { PluginsPage } from '@/pages/PluginsPage.tsx'
 import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
+import { FlowsIndexPage } from '@/pages/flow/FlowsIndexPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
@@ -114,7 +115,18 @@ export const staticRoutes: RouteConfig[] = [
     layout: AuthenticatedLayout,
     isProtected: true,
   },
-
+  {
+    path: '/:realm/flows',
+    element: FlowsIndexPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/flows/:flowId',
+    element: FlowsIndexPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
   {
     path: '/login',
     element: LoginPage,
