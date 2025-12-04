@@ -6,7 +6,7 @@ use crate::{
     adapters::web::server::AppState,
     error::{Error, Result},
 };
-use axum::extract::Path;
+use axum::extract::{ConnectInfo, Path};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -16,6 +16,7 @@ use axum::{
 use cookie::{Cookie, CookieBuilder, SameSite};
 use http::{header, HeaderMap, HeaderValue};
 use serde::Deserialize;
+use std::net::SocketAddr;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -123,6 +124,7 @@ pub async fn token_handler(
     State(state): State<AppState>,
     Path(_realm_name): Path<String>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Form(params): Form<TokenParams>,
 ) -> Result<impl IntoResponse> {
     if params.grant_type != "authorization_code" {
@@ -140,7 +142,8 @@ pub async fn token_handler(
     let ip_address = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
-        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
+        .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+        .unwrap_or_else(|| addr.ip().to_string()); // <-- Fallback
 
     // Call the service (now returns a tuple)
     let (token_response, refresh_token) = state
@@ -148,7 +151,7 @@ pub async fn token_handler(
         .exchange_code_for_token(
             &params.code,
             params.code_verifier.as_deref().unwrap_or(""),
-            ip_address,
+            Some(ip_address),
             user_agent,
         )
         .await?;

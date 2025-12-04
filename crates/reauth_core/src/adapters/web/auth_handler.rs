@@ -12,9 +12,11 @@ use axum::{
 };
 // Use only axum_extra's cookie types to avoid conflicts
 use crate::constants::DEFAULT_REALM_NAME;
+use axum::extract::ConnectInfo;
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use uuid::Uuid;
 
 // --- Helper function for creating the refresh cookie ---
@@ -96,6 +98,7 @@ pub async fn execute_login_step_handler(
     State(state): State<AppState>,
     jar: CookieJar,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(payload): Json<ExecutePayload>,
 ) -> Result<impl IntoResponse> {
     let login_session_id = jar
@@ -165,18 +168,21 @@ pub async fn execute_login_step_handler(
                 .and_then(|v| v.to_str().ok())
                 .map(String::from);
 
-            // Simple IP extraction (X-Forwarded-For is standard for proxies/load balancers)
+            // Robust IP Extraction Logic
+            // Priority 1: X-Forwarded-For (if behind proxy)
+            // Priority 2: Direct Connection IP (localhost)
             let ip_address = req_headers
                 .get("x-forwarded-for")
                 .and_then(|v| v.to_str().ok())
-                .map(|s| s.split(',').next().unwrap_or(s).trim().to_string());
+                .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
+                .unwrap_or_else(|| addr.ip().to_string()); // <-- Fallback to direct IP
 
             // Direct Login Path
             // If this is the Admin Console logging in directly, you might want to
             // hardcode the admin client ID, or pass None if you don't use ID tokens there.
             let (login_response, refresh_token) = state
                 .auth_service
-                .create_session(&user, None, ip_address, user_agent)
+                .create_session(&user, None, Some(ip_address), user_agent)
                 .await?;
             let refresh_cookie = create_refresh_cookie(&refresh_token);
 

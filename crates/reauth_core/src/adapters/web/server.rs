@@ -7,17 +7,17 @@ use manager::PluginManager;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-
+use tower_http::cors::CorsLayer;
 // Import the application services and handlers
 use crate::adapters::web::router::create_router;
 use crate::application::auth_service::AuthService;
 use crate::application::flow_engine::FlowEngine;
+use crate::application::oidc_service::OidcService;
 use crate::application::{
     rbac_service::RbacService, realm_service::RealmService, user_service::UserService,
 };
 use crate::config::Settings;
 use manager::log_bus::LogSubscriber;
-use crate::application::oidc_service::OidcService;
 
 /// AppState is the single, shared state for the entire Axum application.
 /// It holds all necessary services and configurations.
@@ -121,7 +121,7 @@ pub async fn start_server(
         realm_service,
         log_subscriber,
         flow_engine,
-        oidc_service
+        oidc_service,
     };
 
     let app = create_router(app_state, plugins_path);
@@ -133,7 +133,11 @@ pub async fn start_server(
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("Server listening on {}", addr);
 
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }
