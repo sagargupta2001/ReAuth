@@ -13,6 +13,10 @@ import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
+import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx'
+import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx'
+import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
+import { UsersPage } from '@/pages/user/listing/UsersPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
 import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx'
@@ -91,6 +95,26 @@ export const staticRoutes: RouteConfig[] = [
     layout: AuthenticatedLayout,
     isProtected: true,
   },
+  { path: '/:realm/users', element: UsersPage, layout: AuthenticatedLayout, isProtected: true },
+  {
+    path: '/:realm/users/new',
+    element: CreateUserPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/users/:userId',
+    element: EditUserPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/sessions',
+    element: SessionsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+
   {
     path: '/login',
     element: LoginPage,

@@ -35,27 +35,7 @@ pub async fn seed_database(
         info!("Default realm created successfully.");
     }
 
-    // 2. Check for the admin user
-    if user_service
-        .find_by_username(&settings.default_admin.username)
-        .await?
-        .is_none()
-    {
-        info!(
-            "No admin user found. Creating admin user '{}'...",
-            &settings.default_admin.username
-        );
-        user_service
-            .create_user(
-                &settings.default_admin.username,
-                &settings.default_admin.password,
-            )
-            .await?;
-        info!("Admin user created successfully.");
-        warn!(
-            "SECURITY: Admin user created with the default password. Please log in and change it immediately."
-        );
-    }
+    let realm = realm_service.find_by_name(DEFAULT_REALM_NAME).await?;
 
     let realm = if let Some(r) = realm_service.find_by_name(DEFAULT_REALM_NAME).await? {
         r
@@ -71,6 +51,30 @@ pub async fn seed_database(
         info!("Default realm created successfully.");
         r
     };
+
+    // Check for the admin user
+    if user_service
+        .find_by_username(&realm.id, &settings.default_admin.username)
+        .await?
+        .is_none()
+    {
+        info!(
+            "No admin user found. Creating admin user '{}'...",
+            &settings.default_admin.username
+        );
+        user_service
+            .create_user(
+                realm.id,
+                &settings.default_admin.username,
+                &settings.default_admin.password,
+            )
+            .await?;
+
+        info!("Admin user created successfully.");
+        warn!(
+            "SECURITY: Admin user created with the default password. Please log in and change it immediately."
+        );
+    }
 
     // 3. Check/Create Default Flow (NEW LOGIC)
     if flow_repo

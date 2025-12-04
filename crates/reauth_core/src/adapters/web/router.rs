@@ -1,6 +1,6 @@
 use super::{
     auth_handler, auth_middleware, log_stream_handler, oidc_handler, plugin_handler, rbac_handler,
-    realm_handler, server::ui_handler, user_handler,
+    realm_handler, server::ui_handler, session_handler, user_handler,
 };
 use crate::adapters::web::server::AppState;
 use axum::routing::get_service;
@@ -25,11 +25,11 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/realms/{realm}/clients", client_routes())
         .nest("/plugins", plugin_routes())
-        .nest("/users", public_user_routes());
+        .nest("/realms/{realm}/users", public_user_routes());
 
     // 2. Protected routes that require the `auth_guard` middleware.
     let protected_api = Router::new()
-        .nest("/users", protected_user_routes())
+        .nest("/realms/{realm}/users", protected_user_routes())
         .nest("/rbac", rbac_routes())
         .nest("/realms", realm_routes())
         .route_layer(middleware::from_fn_with_state(
@@ -85,7 +85,14 @@ fn public_user_routes() -> Router<AppState> {
 }
 
 fn protected_user_routes() -> Router<AppState> {
-    Router::new().route("/me", get(user_handler::get_me_handler))
+    Router::new()
+        .route("/me", get(user_handler::get_me_handler))
+        .route("/", get(user_handler::list_users_handler))
+        .route("/{id}", get(user_handler::get_user_handler))
+        .route(
+            "/{id}",
+            axum::routing::put(user_handler::update_user_handler),
+        )
 }
 
 fn realm_routes() -> Router<AppState> {
@@ -95,6 +102,14 @@ fn realm_routes() -> Router<AppState> {
         .route(
             "/{id}",
             axum::routing::put(realm_handler::update_realm_handler),
+        )
+        .route(
+            "/{realm}/sessions",
+            get(session_handler::list_sessions_handler),
+        )
+        .route(
+            "/{realm}/sessions/{id}",
+            axum::routing::delete(session_handler::revoke_session_handler),
         )
 }
 

@@ -1,5 +1,6 @@
 use crate::application::rbac_service::RbacService;
 use crate::constants::DEFAULT_REALM_NAME;
+use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::session::RefreshToken;
 use crate::domain::user::User;
 use crate::ports::realm_repository::RealmRepository;
@@ -59,6 +60,8 @@ impl AuthService {
         &self,
         user: &User,
         client_id: Option<String>,
+        ip_address: Option<String>,
+        user_agent: Option<String>,
     ) -> Result<(LoginResponse, RefreshToken)> {
         // 1. Get realm from user. For now, use the default.
         let realm = self
@@ -69,12 +72,17 @@ impl AuthService {
 
         // 2. Create the Stateful Refresh Token
         let expires_at = Utc::now() + Duration::seconds(self.settings.refresh_token_ttl_secs);
+        let now = Utc::now();
         let refresh_token = RefreshToken {
             id: Uuid::new_v4(),
             user_id: user.id,
             realm_id: realm.id,
             client_id: client_id.clone(),
             expires_at,
+            ip_address,
+            user_agent,
+            created_at: now,
+            last_used_at: now,
         };
         self.session_repo.save(&refresh_token).await?;
 
@@ -161,12 +169,17 @@ impl AuthService {
 
         // 3. Create a NEW Refresh Token
         let expires_at = Utc::now() + Duration::seconds(self.settings.refresh_token_ttl_secs);
+        let now = Utc::now();
         let new_refresh_token = RefreshToken {
             id: Uuid::new_v4(), // New ID
             user_id: user.id,
             realm_id: realm.id,
             client_id: old_token.client_id.clone(),
             expires_at,
+            ip_address: old_token.ip_address.clone(),
+            user_agent: old_token.user_agent.clone(),
+            created_at: now,
+            last_used_at: now,
         };
         self.session_repo.save(&new_refresh_token).await?;
 
@@ -202,5 +215,13 @@ impl AuthService {
         // If it fails (e.g., database down), we return the error.
         // If it doesn't exist (already deleted), the repo usually returns Ok(()).
         self.session_repo.delete_by_id(&refresh_token_id).await
+    }
+
+    pub async fn list_sessions(
+        &self,
+        realm_id: Uuid,
+        req: PageRequest,
+    ) -> Result<PageResponse<RefreshToken>> {
+        self.session_repo.list(&realm_id, &req).await
     }
 }

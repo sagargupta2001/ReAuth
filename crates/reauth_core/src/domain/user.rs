@@ -5,6 +5,9 @@ use uuid::Uuid;
 pub struct User {
     #[sqlx(try_from = "String")] // Convert TEXT from DB to Uuid
     pub id: Uuid,
+    #[sqlx(try_from = "String")]
+    pub realm_id: Uuid,
     pub username: String,
+    #[serde(skip_serializing)] // Don't send hash to UI
     pub hashed_password: String,
 }

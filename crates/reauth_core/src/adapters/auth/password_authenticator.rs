@@ -46,7 +46,11 @@ impl Authenticator for PasswordAuthenticator {
             .get("password")
             .ok_or(Error::InvalidCredentials)?;
 
-        let user = match self.user_repo.find_by_username(username).await? {
+        let user = match self
+            .user_repo
+            .find_by_username(&context.realm_id, username)
+            .await?
+        {
             Some(user) => user,
             None => {
                 warn!("Authentication failed: User not found '{}'", username);
