@@ -1,3 +1,4 @@
+use crate::application::flow_service::FlowService;
 use crate::config::Settings;
 use crate::{
     domain::realm::Realm,
@@ -26,11 +27,15 @@ pub struct UpdateRealmPayload {
 
 pub struct RealmService {
     realm_repo: Arc<dyn RealmRepository>,
+    flow_service: Arc<FlowService>,
 }
 
 impl RealmService {
-    pub fn new(realm_repo: Arc<dyn RealmRepository>) -> Self {
-        Self { realm_repo }
+    pub fn new(realm_repo: Arc<dyn RealmRepository>, flow_service: Arc<FlowService>) -> Self {
+        Self {
+            realm_repo,
+            flow_service,
+        }
     }
 
     pub async fn create_realm(&self, payload: CreateRealmPayload) -> Result<Realm> {
@@ -39,10 +44,19 @@ impl RealmService {
         if self.realm_repo.find_by_name(&payload.name).await?.is_some() {
             return Err(Error::RealmAlreadyExists);
         }
-        let realm = Realm {
-            id: Uuid::new_v4(),
+
+        // Generate ID first
+        let realm_id = Uuid::new_v4();
+
+        // Create Default Flows ---
+        // We create the flows *before* inserting the realm so we can link them immediately.
+        // (Or create realm first, then flows, then update realm - but immediate link is cleaner)
+        // Note: FK constraints might require Realm to exist first.
+        // Let's assume we create Realm -> Create Flows -> Update Realm (safest)
+
+        let mut realm = Realm {
+            id: realm_id,
             name: payload.name,
-            // Default TTLs, can be made configurable
             access_token_ttl_secs: settings.auth.access_token_ttl_secs,
             refresh_token_ttl_secs: settings.auth.refresh_token_ttl_secs,
             browser_flow_id: None,
@@ -50,7 +64,25 @@ impl RealmService {
             direct_grant_flow_id: None,
             reset_credentials_flow_id: None,
         };
+
+        // Save Realm (so FKs work)
         self.realm_repo.create(&realm).await?;
+
+        // Create Flows
+        let default_flows = self
+            .flow_service
+            .setup_default_flows_for_realm(realm_id)
+            .await?;
+
+        // Link Flows to Realm
+        realm.browser_flow_id = Some(default_flows.browser_flow_id.to_string());
+        realm.registration_flow_id = Some(default_flows.registration_flow_id.to_string());
+        realm.direct_grant_flow_id = Some(default_flows.direct_grant_flow_id.to_string());
+        realm.reset_credentials_flow_id = Some(default_flows.reset_credentials_flow_id.to_string());
+
+        // Update Realm with links
+        self.realm_repo.update(&realm).await?;
+
         Ok(realm)
     }
 

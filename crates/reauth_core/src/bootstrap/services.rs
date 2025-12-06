@@ -42,7 +42,12 @@ pub fn initialize_services(
         cache.clone(),
         event_bus.clone(),
     ));
-    let realm_service = Arc::new(RealmService::new(repos.realm_repo.clone()));
+    let flow_service = Arc::new(FlowService::new(repos.flow_repo.clone()));
+
+    let realm_service = Arc::new(RealmService::new(
+        repos.realm_repo.clone(),
+        flow_service.clone(),
+    ));
     let auth_service = Arc::new(AuthService::new(
         repos.user_repo.clone(),
         repos.realm_repo.clone(),
@@ -57,8 +62,6 @@ pub fn initialize_services(
         auth_service.clone(),
         token_service.clone(),
     ));
-
-    let flow_service = Arc::new(FlowService::new(repos.flow_repo.clone()));
 
     // Build the registry for the Flow Engine
     let mut authenticator_map = HashMap::<String, Arc<dyn Authenticator>>::new();
