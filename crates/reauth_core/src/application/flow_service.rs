@@ -1,4 +1,5 @@
 use crate::domain::auth_flow::AuthFlowStep;
+use crate::ports::transaction_manager::Transaction;
 use crate::{domain::auth_flow::AuthFlow, error::Result, ports::flow_repository::FlowRepository};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -25,7 +26,12 @@ impl FlowService {
     }
 
     /// Creates standard built-in flows (Browser, Direct, etc.) for a specific realm.
-    pub async fn setup_default_flows_for_realm(&self, realm_id: Uuid) -> Result<DefaultFlows> {
+    pub async fn setup_default_flows_for_realm<'a>(
+        &self,
+        realm_id: Uuid,
+        // Accept the mutable transaction reference
+        mut tx: Option<&'a mut dyn Transaction>,
+    ) -> Result<DefaultFlows> {
         let browser_flow_id = self
             .create_builtin_flow(
                 realm_id,
@@ -33,6 +39,8 @@ impl FlowService {
                 "Browser Login",
                 "browser",
                 vec!["builtin-password-auth"],
+                // Re-borrow the transaction for this call
+                tx.as_mut().map(|t| &mut **t),
             )
             .await?;
 
@@ -43,6 +51,7 @@ impl FlowService {
                 "Direct Grant",
                 "direct",
                 vec!["builtin-password-auth"],
+                tx.as_mut().map(|t| &mut **t),
             )
             .await?;
 
@@ -53,6 +62,7 @@ impl FlowService {
                 "Registration",
                 "registration",
                 vec![],
+                tx.as_mut().map(|t| &mut **t),
             )
             .await?;
 
@@ -63,6 +73,7 @@ impl FlowService {
                 "Reset Credentials",
                 "reset",
                 vec![],
+                tx.as_mut().map(|t| &mut **t),
             )
             .await?;
 
@@ -75,15 +86,19 @@ impl FlowService {
     }
 
     // Helper to create flow + steps
-    async fn create_builtin_flow(
+    async fn create_builtin_flow<'a>(
         &self,
         realm_id: Uuid,
         name: &str,
         alias: &str,
         type_: &str,
         steps: Vec<&str>,
+        // Accept the transaction here
+        mut tx: Option<&'a mut dyn Transaction>,
     ) -> Result<Uuid> {
-        // Idempotency check: If it exists, return ID
+        // 1. Idempotency check
+        // (Reads usually don't need the Write TX unless you need Read-Your-Writes consistency.
+        // SQLite lock might block this read if TX is exclusive, but find_flow is usually safe on pool)
         if let Some(flow) = self.flow_repo.find_flow_by_name(&realm_id, name).await? {
             return Ok(flow.id);
         }
@@ -98,7 +113,11 @@ impl FlowService {
             r#type: type_.to_string(),
             built_in: true,
         };
-        self.flow_repo.create_flow(&flow).await?;
+
+        // 2. Pass transaction to create_flow
+        self.flow_repo
+            .create_flow(&flow, tx.as_mut().map(|t| &mut **t))
+            .await?;
 
         for (i, auth_name) in steps.iter().enumerate() {
             let step = AuthFlowStep {
@@ -110,7 +129,10 @@ impl FlowService {
                 config: None,
                 parent_step_id: None,
             };
-            self.flow_repo.add_step_to_flow(&step).await?;
+            // 3. Pass transaction to add_step_to_flow
+            self.flow_repo
+                .add_step_to_flow(&step, tx.as_mut().map(|t| &mut **t))
+                .await?;
         }
 
         Ok(id)

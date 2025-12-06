@@ -7,4 +7,5 @@ pub mod rbac_repository;
 pub mod realm_repository;
 pub mod session_repository;
 pub mod token_service;
+pub mod transaction_manager;
 pub mod user_repository;

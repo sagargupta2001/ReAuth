@@ -38,9 +38,22 @@ where
         // Publish to the event bus.
         // We must spawn a task because on_event is synchronous.
         let publisher = self.publisher.clone();
-        tokio::spawn(async move {
-            publisher.publish(log_entry).await;
-        });
+
+        // --- FIX: Check if we are in a Tokio context ---
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            // We are in a Tokio thread (e.g., API request handler). Spawn normally.
+            handle.spawn(async move {
+                publisher.publish(log_entry).await;
+            });
+        } else {
+            // We are in a non-Tokio thread (e.g., SQLx background worker).
+            // We cannot await the publisher here without blocking.
+            // Fallback: Print to stderr so we don't lose the error log.
+            eprintln!(
+                "[Non-Async Log] {} {}: {}",
+                log_entry.timestamp, log_entry.level, log_entry.message
+            );
+        }
     }
 }
 
@@ -54,5 +67,4 @@ impl Visit for FieldVisitor<'_> {
         self.0
             .insert(field.name().to_string(), format!("{:?}", value));
     }
-    // ... you can add more `record_` types (u64, i64, bool) here
 }

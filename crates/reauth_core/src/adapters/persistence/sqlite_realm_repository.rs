@@ -1,5 +1,7 @@
 use crate::adapters::persistence::connection::Database;
+use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::auth_flow::AuthFlow;
+use crate::ports::transaction_manager::Transaction;
 use crate::{
     domain::realm::Realm,
     error::{Error, Result},
@@ -19,8 +21,9 @@ impl SqliteRealmRepository {
 
 #[async_trait]
 impl RealmRepository for SqliteRealmRepository {
-    async fn create(&self, realm: &Realm) -> Result<()> {
-        sqlx::query(
+    async fn create<'a>(&self, realm: &Realm, tx: Option<&'a mut dyn Transaction>) -> Result<()> {
+        // Build the query object, but DO NOT execute it yet.
+        let query = sqlx::query(
             "INSERT INTO realms (
                 id, name, access_token_ttl_secs, refresh_token_ttl_secs,
                 browser_flow_id, registration_flow_id, direct_grant_flow_id, reset_credentials_flow_id
@@ -33,11 +36,22 @@ impl RealmRepository for SqliteRealmRepository {
             .bind(&realm.browser_flow_id)
             .bind(&realm.registration_flow_id)
             .bind(&realm.direct_grant_flow_id)
-            .bind(&realm.reset_credentials_flow_id)
-            .execute(&*self.pool).await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(&realm.reset_credentials_flow_id);
+
+        // Choose the executor and run it
+        if let Some(t) = tx {
+            // Case A: Use the Transaction
+            let sql_tx = SqliteTransaction::from_trait(t).expect("Invalid TX type");
+            query.execute(&mut **sql_tx).await
+        } else {
+            // Case B: Use the Pool
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
         Ok(())
     }
+
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Realm>> {
         Ok(sqlx::query_as("SELECT * FROM realms WHERE id = ?")
             .bind(id.to_string())
@@ -60,8 +74,8 @@ impl RealmRepository for SqliteRealmRepository {
             .map_err(|e| Error::Unexpected(e.into()))?)
     }
 
-    async fn update(&self, realm: &Realm) -> Result<()> {
-        sqlx::query(
+    async fn update<'a>(&self, realm: &Realm, tx: Option<&'a mut dyn Transaction>) -> Result<()> {
+        let query = sqlx::query(
             "UPDATE realms SET
                 name = ?,
                 access_token_ttl_secs = ?,
@@ -79,10 +93,17 @@ impl RealmRepository for SqliteRealmRepository {
         .bind(&realm.registration_flow_id)
         .bind(&realm.direct_grant_flow_id)
         .bind(&realm.reset_credentials_flow_id)
-        .bind(realm.id.to_string())
-        .execute(&*self.pool)
-        .await
+        .bind(realm.id.to_string());
+
+        // Execute on correct target
+        if let Some(t) = tx {
+            let sql_tx = SqliteTransaction::from_trait(t).expect("Invalid TX type");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
         .map_err(|e| Error::Unexpected(e.into()))?;
+
         Ok(())
     }
 

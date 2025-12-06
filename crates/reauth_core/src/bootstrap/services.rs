@@ -1,5 +1,6 @@
 use crate::application::flow_service::FlowService;
 use crate::application::oidc_service::OidcService;
+use crate::ports::transaction_manager::TransactionManager;
 use crate::{
     adapters::{
         auth::password_authenticator::PasswordAuthenticator, cache::moka_cache::MokaCacheService,
@@ -35,6 +36,7 @@ pub fn initialize_services(
     cache: &Arc<MokaCacheService>,
     event_bus: &Arc<InMemoryEventBus>,
     token_service: &Arc<JwtService>,
+    tx_manager: &Arc<dyn TransactionManager>,
 ) -> Services {
     let user_service = Arc::new(UserService::new(repos.user_repo.clone(), event_bus.clone()));
     let rbac_service = Arc::new(RbacService::new(
@@ -47,6 +49,7 @@ pub fn initialize_services(
     let realm_service = Arc::new(RealmService::new(
         repos.realm_repo.clone(),
         flow_service.clone(),
+        tx_manager.clone(),
     ));
     let auth_service = Arc::new(AuthService::new(
         repos.user_repo.clone(),

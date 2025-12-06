@@ -1,4 +1,5 @@
 use crate::adapters::logging::banner::print_banner;
+use crate::adapters::persistence::transaction::SqliteTransactionManager;
 use crate::bootstrap::database::{initialize_database, run_migrations_and_seed};
 use crate::bootstrap::events::subscribe_event_listeners;
 use crate::bootstrap::infrastructure::initialize_core_infra;
@@ -7,7 +8,9 @@ use crate::bootstrap::plugins::{determine_plugins_path, initialize_plugins};
 use crate::bootstrap::repositories::initialize_repositories;
 use crate::bootstrap::services::initialize_services;
 use crate::config::Settings;
+use crate::ports::transaction_manager::TransactionManager;
 use crate::AppState;
+use std::sync::Arc;
 
 /// Performs all initialization logic: env, plugins, DB, migrations, and DI.
 pub async fn initialize() -> anyhow::Result<AppState> {
@@ -25,7 +28,17 @@ pub async fn initialize() -> anyhow::Result<AppState> {
 
     let (event_bus, cache_service, jwt_service) = initialize_core_infra(&settings)?;
 
-    let services = initialize_services(&settings, &repos, &cache_service, &event_bus, &jwt_service);
+    let tx_manager: Arc<dyn TransactionManager> =
+        Arc::new(SqliteTransactionManager::new(db_pool.clone()));
+
+    let services = initialize_services(
+        &settings,
+        &repos,
+        &cache_service,
+        &event_bus,
+        &jwt_service,
+        &tx_manager,
+    );
 
     let plugin_manager = initialize_plugins(&settings, &plugins_path);
 

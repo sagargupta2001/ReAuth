@@ -208,12 +208,12 @@ pub async fn seed_database(
 }
 
 async fn ensure_flow(
-    flow_repo: &Arc<dyn crate::ports::flow_repository::FlowRepository>,
+    flow_repo: &Arc<dyn FlowRepository>,
     realm_id: &uuid::Uuid,
     name: &str,
     alias: &str,
     type_: &str,
-    default_steps: Vec<&str>, // <-- New Argument
+    default_steps: Vec<&str>,
 ) -> anyhow::Result<uuid::Uuid> {
     // 1. Check if flow exists
     if let Some(flow) = flow_repo.find_flow_by_name(realm_id, name).await? {
@@ -233,9 +233,8 @@ async fn ensure_flow(
         r#type: type_.to_string(),
         built_in: true,
     };
-    flow_repo.create_flow(&flow).await?;
-
-    // 3. --- FIX: Create Default Steps ---
+    flow_repo.create_flow(&flow, None).await?;
+    // Create Default Steps
     for (index, authenticator_name) in default_steps.iter().enumerate() {
         let step = AuthFlowStep {
             id: uuid::Uuid::new_v4(),
@@ -246,10 +245,9 @@ async fn ensure_flow(
             config: None,
             parent_step_id: None,
         };
-        flow_repo.add_step_to_flow(&step).await?;
+        flow_repo.add_step_to_flow(&step, None).await?;
         info!(" - Added step: {}", authenticator_name);
     }
-    // ------------------------------------
 
     Ok(flow_id)
 }

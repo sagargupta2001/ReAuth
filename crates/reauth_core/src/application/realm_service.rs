@@ -1,5 +1,6 @@
 use crate::application::flow_service::FlowService;
 use crate::config::Settings;
+use crate::ports::transaction_manager::TransactionManager;
 use crate::{
     domain::realm::Realm,
     error::{Error, Result},
@@ -28,62 +29,82 @@ pub struct UpdateRealmPayload {
 pub struct RealmService {
     realm_repo: Arc<dyn RealmRepository>,
     flow_service: Arc<FlowService>,
+    tx_manager: Arc<dyn TransactionManager>,
 }
 
 impl RealmService {
-    pub fn new(realm_repo: Arc<dyn RealmRepository>, flow_service: Arc<FlowService>) -> Self {
+    pub fn new(
+        realm_repo: Arc<dyn RealmRepository>,
+        flow_service: Arc<FlowService>,
+        tx_manager: Arc<dyn TransactionManager>,
+    ) -> Self {
         Self {
             realm_repo,
             flow_service,
+            tx_manager,
         }
     }
 
     pub async fn create_realm(&self, payload: CreateRealmPayload) -> Result<Realm> {
         let settings = Settings::new()?;
 
+        // 1. Check existence (Read can be done via Pool, no TX needed yet)
         if self.realm_repo.find_by_name(&payload.name).await?.is_some() {
             return Err(Error::RealmAlreadyExists);
         }
 
-        // Generate ID first
-        let realm_id = Uuid::new_v4();
+        // 2. Start Transaction
+        let mut tx = self.tx_manager.begin().await?;
 
-        // Create Default Flows ---
-        // We create the flows *before* inserting the realm so we can link them immediately.
-        // (Or create realm first, then flows, then update realm - but immediate link is cleaner)
-        // Note: FK constraints might require Realm to exist first.
-        // Let's assume we create Realm -> Create Flows -> Update Realm (safest)
+        // 3. Define the atomic operation block
+        let result = async {
+            let realm_id = Uuid::new_v4();
 
-        let mut realm = Realm {
-            id: realm_id,
-            name: payload.name,
-            access_token_ttl_secs: settings.auth.access_token_ttl_secs,
-            refresh_token_ttl_secs: settings.auth.refresh_token_ttl_secs,
-            browser_flow_id: None,
-            registration_flow_id: None,
-            direct_grant_flow_id: None,
-            reset_credentials_flow_id: None,
-        };
+            let mut realm = Realm {
+                id: realm_id,
+                name: payload.name,
+                access_token_ttl_secs: settings.auth.access_token_ttl_secs,
+                refresh_token_ttl_secs: settings.auth.refresh_token_ttl_secs,
+                browser_flow_id: None,
+                registration_flow_id: None,
+                direct_grant_flow_id: None,
+                reset_credentials_flow_id: None,
+            };
 
-        // Save Realm (so FKs work)
-        self.realm_repo.create(&realm).await?;
+            // A. Create Realm (Pass TX)
+            self.realm_repo.create(&realm, Some(&mut *tx)).await?;
 
-        // Create Flows
-        let default_flows = self
-            .flow_service
-            .setup_default_flows_for_realm(realm_id)
-            .await?;
+            // B. Create Flows (Pass TX)
+            let default_flows = self
+                .flow_service
+                .setup_default_flows_for_realm(realm_id, Some(&mut *tx))
+                .await?;
 
-        // Link Flows to Realm
-        realm.browser_flow_id = Some(default_flows.browser_flow_id.to_string());
-        realm.registration_flow_id = Some(default_flows.registration_flow_id.to_string());
-        realm.direct_grant_flow_id = Some(default_flows.direct_grant_flow_id.to_string());
-        realm.reset_credentials_flow_id = Some(default_flows.reset_credentials_flow_id.to_string());
+            // C. Link Flows to Realm
+            realm.browser_flow_id = Some(default_flows.browser_flow_id.to_string());
+            realm.registration_flow_id = Some(default_flows.registration_flow_id.to_string());
+            realm.direct_grant_flow_id = Some(default_flows.direct_grant_flow_id.to_string());
+            realm.reset_credentials_flow_id =
+                Some(default_flows.reset_credentials_flow_id.to_string());
 
-        // Update Realm with links
-        self.realm_repo.update(&realm).await?;
+            // D. Update Realm (Pass TX)
+            self.realm_repo.update(&realm, Some(&mut *tx)).await?;
 
-        Ok(realm)
+            Ok(realm)
+        }
+        .await;
+
+        // 4. Commit or Rollback based on result
+        match result {
+            Ok(realm) => {
+                self.tx_manager.commit(tx).await?;
+                Ok(realm)
+            }
+            Err(e) => {
+                self.tx_manager.rollback(tx).await?;
+                Err(e)
+            }
+        }
     }
 
     pub async fn find_by_id(&self, id: Uuid) -> Result<Option<Realm>> {
@@ -128,7 +149,10 @@ impl RealmService {
             realm.reset_credentials_flow_id = val.map(|id| id.to_string());
         }
 
-        self.realm_repo.update(&realm).await?;
+        // We pass `None` for transaction here as it's a single atomic update.
+        // If your repo trait requires the argument, passing None tells it to use the pool.
+        self.realm_repo.update(&realm, None).await?;
+
         Ok(realm)
     }
 }
