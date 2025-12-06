@@ -1,23 +1,22 @@
-use axum::{
-    extract::State,
-    http::{Request, StatusCode, Uri},
-    response::IntoResponse,
-};
-use manager::PluginManager;
-use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tower_http::cors::CorsLayer;
-// Import the application services and handlers
 use crate::adapters::web::router::create_router;
 use crate::application::auth_service::AuthService;
 use crate::application::flow_engine::FlowEngine;
+use crate::application::flow_service::FlowService;
 use crate::application::oidc_service::OidcService;
 use crate::application::{
     rbac_service::RbacService, realm_service::RealmService, user_service::UserService,
 };
 use crate::config::Settings;
+use axum::{
+    extract::State,
+    http::{Request, StatusCode, Uri},
+    response::IntoResponse,
+};
 use manager::log_bus::LogSubscriber;
+use manager::PluginManager;
+use std::net::SocketAddr;
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// AppState is the single, shared state for the entire Axum application.
 /// It holds all necessary services and configurations.
@@ -32,6 +31,7 @@ pub struct AppState {
     pub log_subscriber: Arc<dyn LogSubscriber>,
     pub flow_engine: Arc<FlowEngine>,
     pub oidc_service: Arc<OidcService>,
+    pub flow_service: Arc<FlowService>,
 }
 
 #[cfg(not(feature = "embed-ui"))]
@@ -110,6 +110,7 @@ pub async fn start_server(
     log_subscriber: Arc<dyn LogSubscriber>,
     flow_engine: Arc<FlowEngine>,
     oidc_service: Arc<OidcService>,
+    flow_service: Arc<FlowService>,
 ) -> anyhow::Result<()> {
     // Create the single, unified AppState
     let app_state = AppState {
@@ -122,6 +123,7 @@ pub async fn start_server(
         log_subscriber,
         flow_engine,
         oidc_service,
+        flow_service,
     };
 
     let app = create_router(app_state, plugins_path);

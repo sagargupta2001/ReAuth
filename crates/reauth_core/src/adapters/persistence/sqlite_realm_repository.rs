@@ -1,4 +1,5 @@
 use crate::adapters::persistence::connection::Database;
+use crate::domain::auth_flow::AuthFlow;
 use crate::{
     domain::realm::Realm,
     error::{Error, Result},
@@ -19,12 +20,22 @@ impl SqliteRealmRepository {
 #[async_trait]
 impl RealmRepository for SqliteRealmRepository {
     async fn create(&self, realm: &Realm) -> Result<()> {
-        sqlx::query("INSERT INTO realms (id, name, access_token_ttl_secs, refresh_token_ttl_secs) VALUES (?, ?, ?, ?)")
+        sqlx::query(
+            "INSERT INTO realms (
+                id, name, access_token_ttl_secs, refresh_token_ttl_secs,
+                browser_flow_id, registration_flow_id, direct_grant_flow_id, reset_credentials_flow_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
             .bind(realm.id.to_string())
             .bind(&realm.name)
             .bind(realm.access_token_ttl_secs)
             .bind(realm.refresh_token_ttl_secs)
-            .execute(&*self.pool).await.map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(&realm.browser_flow_id)
+            .bind(&realm.registration_flow_id)
+            .bind(&realm.direct_grant_flow_id)
+            .bind(&realm.reset_credentials_flow_id)
+            .execute(&*self.pool).await
+            .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Realm>> {
@@ -51,15 +62,37 @@ impl RealmRepository for SqliteRealmRepository {
 
     async fn update(&self, realm: &Realm) -> Result<()> {
         sqlx::query(
-            "UPDATE realms SET name = ?, access_token_ttl_secs = ?, refresh_token_ttl_secs = ? WHERE id = ?"
+            "UPDATE realms SET
+                name = ?,
+                access_token_ttl_secs = ?,
+                refresh_token_ttl_secs = ?,
+                browser_flow_id = ?,
+                registration_flow_id = ?,
+                direct_grant_flow_id = ?,
+                reset_credentials_flow_id = ?
+             WHERE id = ?",
         )
-            .bind(&realm.name)
-            .bind(realm.access_token_ttl_secs)
-            .bind(realm.refresh_token_ttl_secs)
-            .bind(realm.id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        .bind(&realm.name)
+        .bind(realm.access_token_ttl_secs)
+        .bind(realm.refresh_token_ttl_secs)
+        .bind(&realm.browser_flow_id)
+        .bind(&realm.registration_flow_id)
+        .bind(&realm.direct_grant_flow_id)
+        .bind(&realm.reset_credentials_flow_id)
+        .bind(realm.id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
+    }
+
+    async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>> {
+        let flows =
+            sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ASC")
+                .bind(realm_id.to_string())
+                .fetch_all(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(flows)
     }
 }

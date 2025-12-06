@@ -58,13 +58,21 @@ impl FlowRepository for SqliteFlowRepository {
     }
 
     async fn create_flow(&self, flow: &AuthFlow) -> Result<()> {
-        sqlx::query("INSERT INTO auth_flows (id, realm_id, name) VALUES (?, ?, ?)")
-            .bind(flow.id.to_string())
-            .bind(flow.realm_id.to_string())
-            .bind(&flow.name)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        sqlx::query(
+            "INSERT INTO auth_flows
+            (id, realm_id, name, alias, type, built_in, description)
+            VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(flow.id.to_string())
+        .bind(flow.realm_id.to_string())
+        .bind(&flow.name)
+        .bind(&flow.alias)
+        .bind(&flow.r#type)
+        .bind(flow.built_in)
+        .bind(&flow.description)
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
@@ -134,5 +142,15 @@ impl FlowRepository for SqliteFlowRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
+    }
+
+    async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>> {
+        let flows =
+            sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ASC")
+                .bind(realm_id.to_string())
+                .fetch_all(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(flows)
     }
 }

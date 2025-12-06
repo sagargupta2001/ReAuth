@@ -1,6 +1,6 @@
 use super::{
-    auth_handler, auth_middleware, log_stream_handler, oidc_handler, plugin_handler, rbac_handler,
-    realm_handler, server::ui_handler, session_handler, user_handler,
+    auth_handler, auth_middleware, flow_handler, log_stream_handler, oidc_handler, plugin_handler,
+    rbac_handler, realm_handler, server::ui_handler, session_handler, user_handler,
 };
 use crate::adapters::web::server::AppState;
 use axum::routing::get_service;
@@ -25,7 +25,8 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/realms/{realm}/clients", client_routes())
         .nest("/plugins", plugin_routes())
-        .nest("/realms/{realm}/users", public_user_routes());
+        .nest("/realms/{realm}/users", public_user_routes())
+        .nest("/realms/{realm}/flows", flow_routes());
 
     // 2. Protected routes that require the `auth_guard` middleware.
     let protected_api = Router::new()
@@ -145,4 +146,8 @@ fn client_routes() -> Router<AppState> {
             "/{id}",
             axum::routing::put(oidc_handler::update_client_handler),
         )
+}
+
+fn flow_routes() -> Router<AppState> {
+    Router::new().route("/", get(flow_handler::list_flows_handler))
 }

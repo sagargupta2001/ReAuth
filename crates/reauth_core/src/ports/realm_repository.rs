@@ -1,3 +1,4 @@
+use crate::domain::auth_flow::AuthFlow;
 use crate::{domain::realm::Realm, error::Result};
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -9,4 +10,5 @@ pub trait RealmRepository: Send + Sync {
     async fn find_by_name(&self, name: &str) -> Result<Option<Realm>>;
     async fn list_all(&self) -> Result<Vec<Realm>>;
     async fn update(&self, realm: &Realm) -> Result<()>;
+    async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>>;
 }

@@ -1,3 +1,4 @@
+use crate::application::flow_service::FlowService;
 use crate::application::oidc_service::OidcService;
 use crate::{
     adapters::{
@@ -25,6 +26,7 @@ pub struct Services {
     pub auth_service: Arc<AuthService>,
     pub flow_engine: Arc<FlowEngine>,
     pub oidc_service: Arc<OidcService>,
+    pub flow_service: Arc<FlowService>,
 }
 
 pub fn initialize_services(
@@ -56,6 +58,8 @@ pub fn initialize_services(
         token_service.clone(),
     ));
 
+    let flow_service = Arc::new(FlowService::new(repos.flow_repo.clone()));
+
     // Build the registry for the Flow Engine
     let mut authenticator_map = HashMap::<String, Arc<dyn Authenticator>>::new();
 
@@ -79,5 +83,6 @@ pub fn initialize_services(
         auth_service,
         flow_engine,
         oidc_service,
+        flow_service,
     }
 }

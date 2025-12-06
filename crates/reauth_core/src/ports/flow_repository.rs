@@ -1,3 +1,4 @@
+use crate::error::Error;
 use crate::{
     domain::auth_flow::{AuthFlow, AuthFlowStep, AuthenticatorConfig, LoginSession},
     error::Result,
@@ -25,4 +26,5 @@ pub trait FlowRepository: Send + Sync {
     async fn find_login_session_by_id(&self, id: &Uuid) -> Result<Option<LoginSession>>;
     async fn update_login_session(&self, session: &LoginSession) -> Result<()>;
     async fn delete_login_session(&self, id: &Uuid) -> Result<()>;
+    async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>>;
 }

@@ -58,5 +58,6 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         log_subscriber: log_bus,
         flow_engine: services.flow_engine,
         oidc_service: services.oidc_service,
+        flow_service: services.flow_service,
     })
 }

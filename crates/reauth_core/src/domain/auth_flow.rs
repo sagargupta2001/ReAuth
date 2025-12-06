@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -19,17 +19,21 @@ pub struct LoginSession {
 }
 
 /// Represents a configured flow (e.g., "browser-login")
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct AuthFlow {
     #[sqlx(try_from = "String")]
     pub id: Uuid,
     #[sqlx(try_from = "String")]
     pub realm_id: Uuid,
     pub name: String,
+    pub description: Option<String>,
+    pub alias: String,
+    pub r#type: String, // "type" is a reserved keyword
+    pub built_in: bool,
 }
 
 /// Represents a single step in a flow
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
 pub struct AuthFlowStep {
     #[sqlx(try_from = "String")]
     pub id: Uuid,
@@ -37,6 +41,9 @@ pub struct AuthFlowStep {
     pub flow_id: Uuid,
     pub authenticator_name: String,
     pub priority: i64,
+    pub requirement: String,    // 'REQUIRED', 'ALTERNATIVE', etc.
+    pub config: Option<String>, // JSON
+    pub parent_step_id: Option<String>,
 }
 
 /// Represents the configuration for a specific authenticator

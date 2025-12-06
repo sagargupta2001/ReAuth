@@ -18,6 +18,10 @@ pub struct UpdateRealmPayload {
     pub name: Option<String>,
     pub access_token_ttl_secs: Option<i64>,
     pub refresh_token_ttl_secs: Option<i64>,
+    pub browser_flow_id: Option<Option<Uuid>>,
+    pub registration_flow_id: Option<Option<Uuid>>,
+    pub direct_grant_flow_id: Option<Option<Uuid>>,
+    pub reset_credentials_flow_id: Option<Option<Uuid>>,
 }
 
 pub struct RealmService {
@@ -41,6 +45,10 @@ impl RealmService {
             // Default TTLs, can be made configurable
             access_token_ttl_secs: settings.auth.access_token_ttl_secs,
             refresh_token_ttl_secs: settings.auth.refresh_token_ttl_secs,
+            browser_flow_id: None,
+            registration_flow_id: None,
+            direct_grant_flow_id: None,
+            reset_credentials_flow_id: None,
         };
         self.realm_repo.create(&realm).await?;
         Ok(realm)
@@ -73,6 +81,19 @@ impl RealmService {
         }
         if let Some(ttl) = payload.refresh_token_ttl_secs {
             realm.refresh_token_ttl_secs = ttl;
+        }
+
+        if let Some(val) = payload.browser_flow_id {
+            realm.browser_flow_id = val.map(|id| id.to_string());
+        }
+        if let Some(val) = payload.registration_flow_id {
+            realm.registration_flow_id = val.map(|id| id.to_string());
+        }
+        if let Some(val) = payload.direct_grant_flow_id {
+            realm.direct_grant_flow_id = val.map(|id| id.to_string());
+        }
+        if let Some(val) = payload.reset_credentials_flow_id {
+            realm.reset_credentials_flow_id = val.map(|id| id.to_string());
         }
 
         self.realm_repo.update(&realm).await?;
