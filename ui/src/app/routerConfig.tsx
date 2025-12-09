@@ -11,6 +11,7 @@ import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
 import { FlowsIndexPage } from '@/pages/flow/FlowsIndexPage.tsx'
+import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
@@ -19,6 +20,7 @@ import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx'
 import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
 import { UsersPage } from '@/pages/user/listing/UsersPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
+import { FlowBuilderLayout } from '@/widgets/Layout/FlowBuilderLayout.tsx'
 import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
 import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx'
 
@@ -125,6 +127,18 @@ export const staticRoutes: RouteConfig[] = [
     path: '/:realm/flows/:flowId',
     element: FlowsIndexPage,
     layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/flows/builder',
+    element: FlowBuilderPage,
+    layout: FlowBuilderLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/flows/:flowId/builder',
+    element: FlowBuilderPage,
+    layout: FlowBuilderLayout,
     isProtected: true,
   },
   {
