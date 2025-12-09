@@ -1,4 +1,6 @@
+use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
+use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::{
@@ -28,6 +30,8 @@ pub struct Services {
     pub flow_engine: Arc<FlowEngine>,
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
+    pub flow_manager: Arc<FlowManager>,
+    pub node_registry: Arc<NodeRegistryService>,
 }
 
 pub fn initialize_services(
@@ -82,6 +86,13 @@ pub fn initialize_services(
         repos.user_repo.clone(),
     ));
 
+    let node_registry = Arc::new(NodeRegistryService::new());
+
+    let flow_manager = Arc::new(FlowManager::new(
+        repos.flow_store.clone(),
+        repos.realm_repo.clone(),
+    ));
+
     Services {
         user_service,
         rbac_service,
@@ -90,5 +101,7 @@ pub fn initialize_services(
         flow_engine,
         oidc_service,
         flow_service,
+        flow_manager,
+        node_registry,
     }
 }

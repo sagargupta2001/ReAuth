@@ -72,5 +72,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         flow_engine: services.flow_engine,
         oidc_service: services.oidc_service,
         flow_service: services.flow_service,
+        flow_manager: services.flow_manager,
+        node_registry: services.node_registry,
     })
 }

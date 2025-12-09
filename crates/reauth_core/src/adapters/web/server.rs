@@ -1,7 +1,9 @@
 use crate::adapters::web::router::create_router;
 use crate::application::auth_service::AuthService;
 use crate::application::flow_engine::FlowEngine;
+use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
+use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
 use crate::application::{
     rbac_service::RbacService, realm_service::RealmService, user_service::UserService,
@@ -32,6 +34,8 @@ pub struct AppState {
     pub flow_engine: Arc<FlowEngine>,
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
+    pub flow_manager: Arc<FlowManager>,
+    pub node_registry: Arc<NodeRegistryService>,
 }
 
 #[cfg(not(feature = "embed-ui"))]
@@ -111,6 +115,8 @@ pub async fn start_server(
     flow_engine: Arc<FlowEngine>,
     oidc_service: Arc<OidcService>,
     flow_service: Arc<FlowService>,
+    flow_manager: Arc<FlowManager>,
+    node_registry: Arc<NodeRegistryService>,
 ) -> anyhow::Result<()> {
     // Create the single, unified AppState
     let app_state = AppState {
@@ -124,6 +130,8 @@ pub async fn start_server(
         flow_engine,
         oidc_service,
         flow_service,
+        flow_manager,
+        node_registry,
     };
 
     let app = create_router(app_state, plugins_path);

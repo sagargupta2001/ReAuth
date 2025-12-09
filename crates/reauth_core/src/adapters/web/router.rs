@@ -149,5 +149,16 @@ fn client_routes() -> Router<AppState> {
 }
 
 fn flow_routes() -> Router<AppState> {
-    Router::new().route("/", get(flow_handler::list_flows_handler))
+    Router::new()
+        .route("/", get(flow_handler::list_flows_handler))
+        // Node Registry
+        .route("/nodes", get(flow_handler::list_nodes_handler))
+        // Draft CRUD
+        .route("/drafts", get(flow_handler::list_drafts_handler))
+        .route("/drafts", post(flow_handler::create_draft_handler))
+        .route("/drafts/{id}", get(flow_handler::get_draft_handler))
+        .route(
+            "/drafts/{id}",
+            axum::routing::put(flow_handler::update_draft_handler),
+        )
 }

@@ -1,6 +1,8 @@
 pub mod auth_service;
 pub mod flow_engine;
+pub mod flow_manager;
 pub mod flow_service;
+pub mod node_registry;
 pub mod oidc_service;
 pub mod rbac_service;
 pub mod realm_service;

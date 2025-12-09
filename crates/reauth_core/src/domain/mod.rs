@@ -1,6 +1,7 @@
 pub mod auth_flow;
 pub mod crypto;
 pub mod events;
+pub mod flow;
 pub mod group;
 pub mod oidc;
 pub mod pagination;

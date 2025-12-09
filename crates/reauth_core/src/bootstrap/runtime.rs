@@ -28,6 +28,8 @@ pub async fn run() -> anyhow::Result<()> {
         app_state.flow_engine,
         app_state.oidc_service,
         app_state.flow_service,
+        app_state.flow_manager,
+        app_state.node_registry,
     )
     .await?;
 

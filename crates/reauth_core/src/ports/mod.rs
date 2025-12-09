@@ -2,6 +2,7 @@ pub mod authenticator;
 pub mod cache_service;
 pub mod event_bus;
 pub mod flow_repository;
+pub mod flow_store;
 pub mod oidc_repository;
 pub mod rbac_repository;
 pub mod realm_repository;
