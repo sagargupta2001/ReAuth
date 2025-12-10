@@ -214,3 +214,12 @@ pub async fn publish_flow_handler(
 
     Ok((StatusCode::CREATED, Json(version)))
 }
+
+/// GET /api/realms/{realm}/flows/{id}/versions
+pub async fn list_versions_handler(
+    State(state): State<AppState>,
+    Path((_realm, flow_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let versions = state.flow_manager.list_flow_versions(flow_id).await?;
+    Ok((StatusCode::OK, Json(versions)))
+}

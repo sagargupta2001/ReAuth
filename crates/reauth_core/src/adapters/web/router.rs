@@ -162,4 +162,5 @@ fn flow_routes() -> Router<AppState> {
             axum::routing::put(flow_handler::update_draft_handler),
         )
         .route("/{id}/publish", post(flow_handler::publish_flow_handler))
+        .route("/{id}/versions", get(flow_handler::list_versions_handler))
 }
