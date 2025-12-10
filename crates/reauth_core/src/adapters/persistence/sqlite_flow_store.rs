@@ -156,13 +156,14 @@ impl FlowStore for SqliteFlowStore {
 
     async fn create_version(&self, version: &FlowVersion) -> Result<()> {
         sqlx::query(
-            "INSERT INTO flow_versions (id, draft_id, version_number, execution_artifact, checksum, created_at)
-             VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO flow_versions (id, flow_id, version_number, execution_artifact, graph_json, checksum, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
         )
-            .bind(version.id.to_string())
-            .bind(version.draft_id.to_string())
+            .bind(&version.id)
+            .bind(&version.flow_id)
             .bind(version.version_number)
             .bind(&version.execution_artifact)
+            .bind(&version.graph_json)
             .bind(&version.checksum)
             .bind(version.created_at)
             .execute(&*self.pool)
@@ -182,7 +183,7 @@ impl FlowStore for SqliteFlowStore {
 
     async fn list_versions(&self, draft_id: &Uuid) -> Result<Vec<FlowVersion>> {
         let versions = sqlx::query_as(
-            "SELECT * FROM flow_versions WHERE draft_id = ? ORDER BY version_number DESC",
+            "SELECT * FROM flow_versions WHERE flow_id = ? ORDER BY version_number DESC",
         )
         .bind(draft_id.to_string())
         .fetch_all(&*self.pool)
@@ -202,10 +203,10 @@ impl FlowStore for SqliteFlowStore {
              active_version_id = excluded.active_version_id,
              updated_at = excluded.updated_at",
         )
-        .bind(deployment.id.to_string())
+        .bind(&deployment.id)
         .bind(deployment.realm_id.to_string())
         .bind(&deployment.flow_type)
-        .bind(deployment.active_version_id.to_string())
+        .bind(&deployment.active_version_id)
         .bind(deployment.updated_at)
         .execute(&*self.pool)
         .await
@@ -226,5 +227,53 @@ impl FlowStore for SqliteFlowStore {
                 .await
                 .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(dep)
+    }
+
+    async fn get_latest_version_number(&self, flow_id: &Uuid) -> Result<Option<i32>> {
+        // We use query_scalar to get a single value
+        let result: Option<i32> =
+            sqlx::query_scalar("SELECT MAX(version_number) FROM flow_versions WHERE flow_id = ?")
+                .bind(flow_id.to_string())
+                .fetch_optional(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(result)
+    }
+
+    async fn get_latest_version(&self, flow_id: &Uuid) -> Result<Option<FlowVersion>> {
+        sqlx::query_as(
+            "SELECT * FROM flow_versions WHERE flow_id = ? ORDER BY version_number DESC LIMIT 1",
+        )
+        .bind(flow_id.to_string())
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))
+    }
+
+    async fn get_deployed_version_number(
+        &self,
+        realm_id: &Uuid,
+        flow_type: &str,
+        flow_id: &Uuid,
+    ) -> Result<Option<i32>> {
+        let version_number: Option<i32> = sqlx::query_scalar(
+            r#"
+            SELECT v.version_number
+            FROM flow_deployments d
+            JOIN flow_versions v ON d.active_version_id = v.id
+            WHERE d.realm_id = ?
+              AND d.flow_type = ?
+              AND v.flow_id = ?   -- ✅ CRITICAL CHECK: Ensure version belongs to THIS flow
+            "#,
+        )
+        .bind(realm_id.to_string())
+        .bind(flow_type)
+        .bind(flow_id.to_string()) // Bind the flow ID
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(version_number)
     }
 }

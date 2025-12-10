@@ -90,6 +90,7 @@ pub fn initialize_services(
 
     let flow_manager = Arc::new(FlowManager::new(
         repos.flow_store.clone(),
+        repos.flow_repo.clone(),
         repos.realm_repo.clone(),
     ));
 

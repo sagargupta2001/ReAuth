@@ -32,6 +32,9 @@ impl IntoResponse for Error {
             | Error::InvalidLoginStep
             | Error::InvalidLoginSession => (StatusCode::NOT_FOUND, self.to_string()),
 
+            // 422 Unprocessable Entity
+            Error::Validation(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+
             // 500 Internal Server Error (for things the user can't fix)
             Error::Config(_)
             | Error::DatabaseInit(_)

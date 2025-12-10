@@ -33,6 +33,16 @@ impl FlowRepository for SqliteFlowRepository {
         Ok(flow)
     }
 
+    async fn find_flow_by_id(&self, flow_id: &Uuid) -> Result<Option<AuthFlow>> {
+        let flow = sqlx::query_as("SELECT * FROM auth_flows WHERE id = ?")
+            .bind(flow_id.to_string())
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(flow)
+    }
+
     async fn find_steps_for_flow(&self, flow_id: &Uuid) -> Result<Vec<AuthFlowStep>> {
         let steps =
             sqlx::query_as("SELECT * FROM auth_flow_steps WHERE flow_id = ? ORDER BY priority ASC")

@@ -54,7 +54,11 @@ export function FlowBuilderPage() {
   return (
     <ReactFlowProvider>
       <div className="flex h-full w-full flex-col">
-        <BuilderHeader flowName={draft?.name || 'Untitled Flow'} flowId={draftId} />
+        <BuilderHeader
+          flowName={draft?.name || 'Untitled Flow'}
+          flowId={draftId}
+          activeVersion={draft?.active_version_number}
+        />
 
         <div className="relative flex flex-1 overflow-hidden">
           <NodePalette />

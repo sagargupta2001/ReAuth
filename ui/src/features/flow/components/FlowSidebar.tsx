@@ -1,35 +1,14 @@
 import { useMemo, useState } from 'react'
 
-import {
-  Copy,
-  EditIcon,
-  GitBranch,
-  Globe,
-  Lock,
-  MoreHorizontal,
-  Plus,
-  Search,
-  ShieldCheck,
-  User,
-  Zap,
-} from 'lucide-react'
+import { GitBranch, Globe, Lock, Plus, Search, ShieldCheck, User, Zap } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/dropdown-menu'
 import { Input } from '@/components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import { Separator } from '@/components/separator'
 import type { FlowType, UnifiedFlowDto } from '@/entities/flow/model/types'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.tsx'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useFlows } from '@/features/flow/api/useFlows.ts'
 import { CreateFlowDialog } from '@/features/flow/components/CreateFlowDialog.tsx'
@@ -66,7 +45,6 @@ const flowTypeOptions: { value: FlowType | 'all'; label: string; icon?: any }[] 
 ]
 
 export function FlowsSidebar() {
-  const navigate = useRealmNavigate()
   const realm = useActiveRealm()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<FlowType | 'all'>('all')
@@ -157,7 +135,7 @@ export function FlowsSidebar() {
               </h3>
               <div className="flex flex-col gap-1">
                 {systemFlows.map((flow) => (
-                  <FlowSidebarItem key={flow.id} flow={flow} realm={realm} navigate={navigate} />
+                  <FlowSidebarItem key={flow.id} flow={flow} realm={realm} />
                 ))}
               </div>
             </div>
@@ -171,7 +149,7 @@ export function FlowsSidebar() {
               </h3>
               <div className="flex flex-col gap-1">
                 {customFlows.map((flow) => (
-                  <FlowSidebarItem key={flow.id} flow={flow} realm={realm} navigate={navigate} />
+                  <FlowSidebarItem key={flow.id} flow={flow} realm={realm} />
                 ))}
               </div>
             </div>
@@ -196,15 +174,7 @@ export function FlowsSidebar() {
 }
 
 // Sub-component for individual list items to keep main component clean
-function FlowSidebarItem({
-  flow,
-  realm,
-  navigate,
-}: {
-  flow: UnifiedFlowDto
-  realm: string
-  navigate: ReturnType<typeof useRealmNavigate>
-}) {
+function FlowSidebarItem({ flow, realm }: { flow: UnifiedFlowDto; realm: string }) {
   const TypeIcon = getFlowIcon(flow.type)
 
   return (
@@ -247,37 +217,6 @@ function FlowSidebarItem({
           )}
         </div>
       </NavLink>
-
-      {/* Context Menu */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute top-2 right-1 h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
-            <Copy className="mr-2 h-4 w-4" /> Clone Flow
-          </DropdownMenuItem>
-          {/* Logic for default setting would check realm config, omitted for brevity */}
-          {!flow.built_in && (
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
-              Delete
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => navigate(`/flows/${flow.id}/builder`)}>
-            <EditIcon className="mr-2 h-4 w-4" />
-            {flow.is_draft ? 'Edit Draft' : 'New Draft'}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   )
 }

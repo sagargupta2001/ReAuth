@@ -33,7 +33,7 @@ export function FlowDetailsPage() {
   // We default to the 'overview' tab
   const [activeTab, setActiveTab] = useState('overview')
 
-  // Fetch the Draft (which now exists for everything due to seeding)
+  // Fetch the Draft (now includes active_version and built_in from backend)
   const { data: draft, isLoading, isError } = useFlowDraft(flowId!)
 
   // Parse the graph JSON safely for the viewer
@@ -65,10 +65,7 @@ export function FlowDetailsPage() {
     )
   }
 
-  // Determine flow status for UI
-  // Note: We might need to pass 'built_in' from the sidebar or fetch it here.
-  // For now, assuming standard types are built-in for the UI logic.
-  const isSystemFlow = ['browser', 'registration', 'direct', 'reset'].includes(draft.flow_type)
+  const isSystemFlow = draft.built_in
 
   return (
     <div className="bg-background flex h-full w-full flex-col">
@@ -103,13 +100,25 @@ export function FlowDetailsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Status Indicator */}
+          {/* ✅ FIX: Dynamic Status Indicator */}
           <div className="text-muted-foreground mr-2 flex items-center gap-2 border-r px-3 text-xs">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
-            </span>
-            Active Version: <span className="text-foreground font-semibold">v1.0</span>
+            {draft.active_version ? (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                </span>
+                Active Version:{' '}
+                <span className="text-foreground font-semibold">v{draft.active_version}</span>
+              </>
+            ) : (
+              <>
+                <span className="relative flex h-2 w-2">
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-yellow-500"></span>
+                </span>
+                Status: <span className="text-foreground font-semibold">Unpublished Draft</span>
+              </>
+            )}
           </div>
 
           <Button onClick={() => navigate(`/flows/${flowId}/builder`)} className="gap-2">
@@ -191,7 +200,13 @@ export function FlowDetailsPage() {
             </div>
             <div className="text-muted-foreground flex flex-col items-center justify-center gap-2 p-12 text-center">
               <ShieldCheck className="h-10 w-10 opacity-20" />
-              <p>No version history available yet.</p>
+              {draft.active_version ? (
+                // If we have an active version, we likely have history
+                // For now, placeholder text, but logic ready for table
+                <p>Latest version: v{draft.active_version}</p>
+              ) : (
+                <p>No version history available yet.</p>
+              )}
               <p className="text-xs">Publish your first draft to see versions here.</p>
             </div>
           </div>

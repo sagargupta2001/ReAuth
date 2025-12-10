@@ -24,12 +24,12 @@ pub struct FlowDraft {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct FlowVersion {
     #[sqlx(try_from = "String")]
-    pub id: Uuid,
-    #[sqlx(try_from = "String")]
-    pub draft_id: Uuid,
-    pub version_number: i64,
+    pub id: String,
+    pub flow_id: String,
+    pub version_number: i32,
     // This holds the linearized instruction set for the engine
     pub execution_artifact: String,
+    pub graph_json: String,
     pub checksum: String,
     pub created_at: DateTime<Utc>,
 }
@@ -37,13 +37,12 @@ pub struct FlowVersion {
 // --- DEPLOYMENT (Active Pointer) ---
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct FlowDeployment {
-    #[sqlx(try_from = "String")]
-    pub id: Uuid,
+    pub id: String,
     #[sqlx(try_from = "String")]
     pub realm_id: Uuid,
     pub flow_type: String, // e.g. "browser", "api", "registration"
     #[sqlx(try_from = "String")]
-    pub active_version_id: Uuid,
+    pub active_version_id: String,
     pub updated_at: DateTime<Utc>,
 }
 

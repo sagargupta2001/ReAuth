@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react'
+import { type DragEvent, useCallback, useRef } from 'react'
 
 import { Background, Controls, ReactFlow, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
@@ -21,16 +21,16 @@ export function FlowCanvas() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
-  const onDragOver = useCallback((event: React.DragEvent) => {
+  const onDragOver = useCallback((event: DragEvent) => {
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
   }, [])
 
   const onDrop = useCallback(
-    (event: React.DragEvent) => {
+    (event: DragEvent) => {
       event.preventDefault()
 
-      // 1. ✅ FIX: Read the correct keys set in NodePalette
+      // Read the correct keys set in NodePalette
       const droppedId = event.dataTransfer.getData('application/reactflow/type') // e.g., "authenticator.password"
       const droppedCategory = event.dataTransfer.getData('application/reactflow/category') // e.g., "authenticator"
 
@@ -45,10 +45,13 @@ export function FlowCanvas() {
       // Use the category to determine the React Flow component type
       let nodeComponentType = 'default'
 
-      if (droppedCategory === 'authenticator') {
+      if (droppedCategory === 'Authenticator') {
         nodeComponentType = 'authenticator'
-      } else if (droppedCategory === 'logic') {
-        nodeComponentType = 'default' // Update this once you have a LogicNode component
+      } else if (droppedCategory === 'Terminal') {
+        // This is CRITICAL. The backend validator looks for exactly "terminal"
+        nodeComponentType = 'terminal'
+      } else if (droppedCategory === 'Logic') {
+        nodeComponentType = 'default' // Or 'logic' if you have that component
       }
 
       const newNode = {

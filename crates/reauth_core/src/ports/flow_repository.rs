@@ -10,6 +10,7 @@ use uuid::Uuid;
 #[async_trait]
 pub trait FlowRepository: Send + Sync {
     async fn find_flow_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<AuthFlow>>;
+    async fn find_flow_by_id(&self, flow_id: &Uuid) -> Result<Option<AuthFlow>>;
     async fn find_steps_for_flow(&self, flow_id: &Uuid) -> Result<Vec<AuthFlowStep>>;
     async fn find_config_for_authenticator(
         &self,

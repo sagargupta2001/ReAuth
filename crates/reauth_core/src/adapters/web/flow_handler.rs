@@ -1,4 +1,5 @@
 use crate::application::flow_manager::{CreateDraftRequest, UpdateDraftRequest};
+use crate::domain::flow::FlowDraft;
 use crate::domain::pagination::PageRequest;
 use crate::{
     adapters::web::server::AppState,
@@ -143,14 +144,44 @@ pub async fn create_draft_handler(
     Ok((StatusCode::CREATED, Json(draft)))
 }
 
+#[derive(serde::Serialize)]
+pub struct FlowDraftResponse {
+    #[serde(flatten)]
+    pub draft: FlowDraft,
+    pub active_version: Option<i32>,
+    pub built_in: bool,
+}
+
 /// GET /api/realms/{realm}/flows/drafts/{id}
 /// Gets a specific draft (including the graph JSON).
 pub async fn get_draft_handler(
     State(state): State<AppState>,
-    Path((_realm, id)): Path<(String, Uuid)>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
 ) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
     let draft = state.flow_manager.get_draft(id).await?;
-    Ok((StatusCode::OK, Json(draft)))
+
+    let active_version = state
+        .flow_manager
+        .get_deployed_version(&realm.id, &draft.flow_type, &id)
+        .await?;
+
+    let built_in = state.flow_manager.is_flow_built_in(&id).await?;
+
+    // 4. Return the enriched response
+    Ok((
+        StatusCode::OK,
+        Json(FlowDraftResponse {
+            draft,
+            active_version,
+            built_in,
+        }),
+    ))
 }
 
 /// PUT /api/realms/{realm}/flows/drafts/{id}
@@ -162,4 +193,24 @@ pub async fn update_draft_handler(
 ) -> Result<impl IntoResponse> {
     let draft = state.flow_manager.update_draft(id, payload).await?;
     Ok((StatusCode::OK, Json(draft)))
+}
+
+#[derive(serde::Deserialize)]
+pub struct PublishFlowRequest {
+    // Empty for now, ID is in path
+}
+
+pub async fn publish_flow_handler(
+    State(state): State<AppState>,
+    Path((realm_name, flow_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let version = state.flow_manager.publish_flow(realm.id, flow_id).await?;
+
+    Ok((StatusCode::CREATED, Json(version)))
 }

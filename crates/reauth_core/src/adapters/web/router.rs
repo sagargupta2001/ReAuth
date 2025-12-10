@@ -25,14 +25,14 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/realms/{realm}/clients", client_routes())
         .nest("/plugins", plugin_routes())
-        .nest("/realms/{realm}/users", public_user_routes())
-        .nest("/realms/{realm}/flows", flow_routes());
+        .nest("/realms/{realm}/users", public_user_routes());
 
     // 2. Protected routes that require the `auth_guard` middleware.
     let protected_api = Router::new()
         .nest("/realms/{realm}/users", protected_user_routes())
         .nest("/rbac", rbac_routes())
         .nest("/realms", realm_routes())
+        .nest("/realms/{realm}/flows", flow_routes())
         .route_layer(middleware::from_fn_with_state(
             app_state.clone(),
             auth_middleware::auth_guard,
@@ -161,4 +161,5 @@ fn flow_routes() -> Router<AppState> {
             "/drafts/{id}",
             axum::routing::put(flow_handler::update_draft_handler),
         )
+        .route("/{id}/publish", post(flow_handler::publish_flow_handler))
 }

@@ -1,3 +1,4 @@
+use crate::application::flow_manager::FlowManager;
 use crate::application::oidc_service::OidcService;
 use crate::application::realm_service::{CreateRealmPayload, RealmService, UpdateRealmPayload};
 use crate::application::user_service::UserService;
@@ -263,7 +264,7 @@ async fn ensure_flow(
     if flow_store.get_draft_by_id(&flow_id).await?.is_none() {
         info!("Seeding visual graph for flow: {}", alias);
 
-        let graph_json = generate_default_graph(type_);
+        let graph_json = FlowManager::generate_default_graph(type_);
 
         let draft = FlowDraft {
             id: flow_id, // Use SAME ID as the runtime flow
@@ -280,34 +281,4 @@ async fn ensure_flow(
     }
 
     Ok(flow_id)
-}
-
-fn generate_default_graph(flow_type: &str) -> String {
-    // Basic templates
-    match flow_type {
-        "browser" => r#"{
-            "nodes": [
-                { "id": "start", "type": "terminal", "position": { "x": 250, "y": 0 }, "data": { "label": "Start", "config": {} } },
-                { "id": "auth-1", "type": "authenticator", "position": { "x": 250, "y": 150 }, "data": { "label": "Username Password", "config": {} } },
-                { "id": "end", "type": "terminal", "position": { "x": 250, "y": 300 }, "data": { "label": "Success", "config": {} } }
-            ],
-            "edges": [
-                { "id": "e1", "source": "start", "target": "auth-1" },
-                { "id": "e2", "source": "auth-1", "target": "end" }
-            ]
-        }"#.to_string(),
-
-        "direct" => r#"{
-            "nodes": [
-                { "id": "auth-1", "type": "authenticator", "position": { "x": 250, "y": 50 }, "data": { "label": "Direct Grant Auth", "config": {} } },
-                { "id": "end", "type": "terminal", "position": { "x": 250, "y": 200 }, "data": { "label": "Success", "config": {} } }
-            ],
-            "edges": [
-                { "id": "e1", "source": "auth-1", "target": "end" }
-            ]
-        }"#.to_string(),
-
-        // Default empty structure
-        _ => r#"{ "nodes": [], "edges": [] }"#.to_string(),
-    }
 }
