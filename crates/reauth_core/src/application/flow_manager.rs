@@ -15,6 +15,7 @@ use uuid::Uuid;
 pub struct CreateDraftRequest {
     pub name: String,
     pub description: Option<String>,
+    pub flow_type: String,
 }
 
 #[derive(Deserialize)]
@@ -54,7 +55,8 @@ impl FlowManager {
             realm_id,
             name: req.name,
             description: req.description,
-            graph_json: "{}".to_string(), // Empty graph initially
+            graph_json: "{}".to_string(),
+            flow_type: req.flow_type,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -86,5 +88,9 @@ impl FlowManager {
 
         self.flow_store.update_draft(&draft).await?;
         Ok(draft)
+    }
+
+    pub async fn list_all_drafts(&self, realm_id: Uuid) -> Result<Vec<FlowDraft>> {
+        self.flow_store.list_all_drafts(&realm_id).await
     }
 }

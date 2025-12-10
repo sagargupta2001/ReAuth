@@ -55,6 +55,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         &services.realm_service,
         &services.user_service,
         repos.flow_repo,
+        repos.flow_store,
         &settings,
         &services.oidc_service,
     )

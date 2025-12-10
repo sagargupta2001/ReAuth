@@ -19,6 +19,8 @@ pub trait FlowStore: Send + Sync {
         realm_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<FlowDraft>>;
+
+    async fn list_all_drafts(&self, realm_id: &Uuid) -> Result<Vec<FlowDraft>>;
     async fn delete_draft(&self, id: &Uuid) -> Result<()>;
 
     // --- Versions ---

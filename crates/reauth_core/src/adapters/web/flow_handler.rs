@@ -11,7 +11,19 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use std::collections::HashMap;
 use uuid::Uuid;
+
+// A unified DTO for the frontend
+#[derive(serde::Serialize)]
+pub struct UnifiedFlowDto {
+    pub id: Uuid,
+    pub alias: String,
+    pub description: Option<String>,
+    pub r#type: String,
+    pub built_in: bool,
+    pub is_draft: bool,
+}
 
 pub async fn list_flows_handler(
     State(state): State<AppState>,
@@ -23,9 +35,68 @@ pub async fn list_flows_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    let flows = state.flow_service.list_flows(realm.id).await?;
+    // 1. Fetch Runtime Flows (The "Live" truth)
+    let runtime_flows = state.flow_service.list_flows(realm.id).await?;
 
-    Ok((StatusCode::OK, Json(flows)))
+    // 2. Fetch Drafts (The "Work in Progress" truth)
+    let drafts = state.flow_manager.list_all_drafts(realm.id).await?;
+
+    // 3. Merge Strategy: Use a Map to deduplicate by ID
+    let mut flows_map: HashMap<Uuid, UnifiedFlowDto> = HashMap::new();
+
+    // Step A: Populate with Runtime flows first
+    for flow in runtime_flows {
+        flows_map.insert(
+            flow.id,
+            UnifiedFlowDto {
+                id: flow.id,
+                alias: flow.alias,
+                description: flow.description,
+                r#type: flow.r#type,
+                built_in: flow.built_in,
+                is_draft: false, // Will be updated if a draft is found
+            },
+        );
+    }
+
+    // Step B: Overlay Drafts
+    for draft in drafts {
+        flows_map
+            .entry(draft.id)
+            .and_modify(|existing| {
+                // If it exists, it means we have a draft OF a runtime flow.
+                // We update the name/desc to match the draft (latest version),
+                // but keep 'built_in' from the existing entry.
+                existing.alias = draft.name.clone();
+                existing.description = draft.description.clone();
+                existing.is_draft = true;
+            })
+            .or_insert_with(|| {
+                // If it doesn't exist, it's a pure draft (new custom flow)
+                UnifiedFlowDto {
+                    id: draft.id,
+                    alias: draft.name,
+                    description: draft.description,
+                    r#type: draft.flow_type,
+                    built_in: false, // Drafts are never "built-in" until published
+                    is_draft: true,
+                }
+            });
+    }
+
+    // 4. Convert to List & Sort
+    let mut unified_list: Vec<UnifiedFlowDto> = flows_map.into_values().collect();
+
+    // Sort: Built-in first, then by Name
+    unified_list.sort_by(|a, b| {
+        match (a.built_in, b.built_in) {
+            (true, false) => std::cmp::Ordering::Less, // Built-in comes first
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.alias.cmp(&b.alias), // Alphabetical otherwise
+        }
+    });
+
+    Ok((StatusCode::OK, Json(unified_list)))
 }
 
 // --- Node Registry (The Palette) ---

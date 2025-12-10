@@ -47,7 +47,10 @@ export function useSaveDraft() {
       })
     },
     onSuccess: (_, { draftId }) => {
+      // Invalidate the cache so next fetch gets latest
       void queryClient.invalidateQueries({ queryKey: ['flow-draft', realm, draftId] })
+      // Also refresh list in sidebar
+      void queryClient.invalidateQueries({ queryKey: ['flow-drafts', realm] })
     },
   })
 }

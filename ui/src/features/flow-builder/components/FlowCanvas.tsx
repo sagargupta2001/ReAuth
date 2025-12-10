@@ -1,6 +1,6 @@
-import { useCallback, useRef } from 'react'
+import React, { useCallback, useRef } from 'react'
 
-import { Background, Controls, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react'
+import { Background, Controls, ReactFlow, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 import { useTheme } from '@/app/providers/themeProvider.tsx'
@@ -12,10 +12,11 @@ const nodeTypes = {
   // we will add 'logic' and 'terminal' later
 }
 
-function FlowCanvasInternal() {
+export function FlowCanvas() {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const { nodes, edges, onNodesChange, onEdgesChange, onConnect, addNode, selectNode } =
     useFlowBuilderStore()
+
   const { screenToFlowPosition } = useReactFlow()
   const { theme } = useTheme()
   const isDark = theme === 'dark'
@@ -29,28 +30,34 @@ function FlowCanvasInternal() {
     (event: React.DragEvent) => {
       event.preventDefault()
 
-      const droppedType = event.dataTransfer.getData('application/reactflow')
-      if (!droppedType) return
+      // 1. ✅ FIX: Read the correct keys set in NodePalette
+      const droppedId = event.dataTransfer.getData('application/reactflow/type') // e.g., "authenticator.password"
+      const droppedCategory = event.dataTransfer.getData('application/reactflow/category') // e.g., "authenticator"
+
+      // If we don't have an ID, we can't create a node
+      if (!droppedId) return
 
       const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
       })
 
+      // Use the category to determine the React Flow component type
       let nodeComponentType = 'default'
-      if (droppedType.startsWith('authenticator.')) {
+
+      if (droppedCategory === 'authenticator') {
         nodeComponentType = 'authenticator'
-      } else if (droppedType.startsWith('logic.')) {
-        nodeComponentType = 'default' // Change to 'logic' when you have the component
+      } else if (droppedCategory === 'logic') {
+        nodeComponentType = 'default' // Update this once you have a LogicNode component
       }
 
       const newNode = {
         id: crypto.randomUUID(),
-        type: nodeComponentType, // Use the mapped type
+        type: nodeComponentType,
         position,
         data: {
-          label: droppedType, // e.g. "authenticator.password"
-          config: {}, // Empty config to start
+          label: droppedId, // Store the specific ID (e.g. "authenticator.password") for logic later
+          config: {},
         },
       }
 
@@ -82,13 +89,5 @@ function FlowCanvasInternal() {
         <Controls />
       </ReactFlow>
     </div>
-  )
-}
-
-export function FlowCanvas() {
-  return (
-    <ReactFlowProvider>
-      <FlowCanvasInternal />
-    </ReactFlowProvider>
   )
 }

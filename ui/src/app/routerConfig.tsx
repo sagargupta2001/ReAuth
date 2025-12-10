@@ -10,6 +10,7 @@ import { PluginsPage } from '@/pages/PluginsPage.tsx'
 import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
+import { FlowDetailsPage } from '@/pages/flow/FlowDetailsPage.tsx'
 import { FlowsIndexPage } from '@/pages/flow/FlowsIndexPage.tsx'
 import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
@@ -125,7 +126,7 @@ export const staticRoutes: RouteConfig[] = [
   },
   {
     path: '/:realm/flows/:flowId',
-    element: FlowsIndexPage,
+    element: FlowDetailsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

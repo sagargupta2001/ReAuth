@@ -6,6 +6,7 @@ use crate::application::user_service::UserService;
 use crate::bootstrap::seed::seed_database;
 use crate::config::Settings;
 use crate::ports::flow_repository::FlowRepository;
+use crate::ports::flow_store::FlowStore;
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::sync::Arc;
@@ -47,6 +48,7 @@ pub async fn run_migrations_and_seed(
     realm_service: &Arc<RealmService>,
     user_service: &Arc<UserService>,
     flow_repo: Arc<dyn FlowRepository>,
+    flow_store: Arc<dyn FlowStore>,
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
 ) -> anyhow::Result<()> {
@@ -59,6 +61,7 @@ pub async fn run_migrations_and_seed(
         realm_service,
         user_service,
         &flow_repo,
+        &flow_store,
         &settings,
         oidc_service,
     )

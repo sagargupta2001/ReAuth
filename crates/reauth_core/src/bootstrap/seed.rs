@@ -4,17 +4,22 @@ use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::{AuthFlow, AuthFlowStep};
+use crate::domain::flow::FlowDraft;
 use crate::domain::oidc::OidcClient;
 use crate::ports::flow_repository::FlowRepository;
+use crate::ports::flow_store::FlowStore;
+use chrono::Utc;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::sync::Arc;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 pub async fn seed_database(
     realm_service: &Arc<RealmService>,
     user_service: &Arc<UserService>,
     flow_repo: &Arc<dyn FlowRepository>,
+    flow_store: &Arc<dyn FlowStore>,
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
 ) -> anyhow::Result<()> {
@@ -53,6 +58,7 @@ pub async fn seed_database(
     // 2. Seed Built-in Flows
     let browser_flow_id = ensure_flow(
         flow_repo,
+        flow_store,
         &realm.id,
         "browser-login",
         "Browser Login",
@@ -64,6 +70,7 @@ pub async fn seed_database(
     // Direct Grant -> Needs Password Auth (usually same authenticator logic for MVP)
     let direct_flow_id = ensure_flow(
         flow_repo,
+        flow_store,
         &realm.id,
         "direct-grant",
         "Direct Grant",
@@ -75,6 +82,7 @@ pub async fn seed_database(
     // Registration -> Needs Registration Profile (Placeholder for now)
     let registration_flow_id = ensure_flow(
         flow_repo,
+        flow_store,
         &realm.id,
         "registration",
         "Registration",
@@ -86,6 +94,7 @@ pub async fn seed_database(
     // Reset Credentials -> Needs Email verification (Placeholder for now)
     let reset_flow_id = ensure_flow(
         flow_repo,
+        flow_store,
         &realm.id,
         "reset-credentials",
         "Reset Credentials",
@@ -209,45 +218,96 @@ pub async fn seed_database(
 
 async fn ensure_flow(
     flow_repo: &Arc<dyn FlowRepository>,
-    realm_id: &uuid::Uuid,
+    flow_store: &Arc<dyn FlowStore>, // ✅ Added FlowStore
+    realm_id: &Uuid,
     name: &str,
     alias: &str,
     type_: &str,
     default_steps: Vec<&str>,
-) -> anyhow::Result<uuid::Uuid> {
-    // 1. Check if flow exists
-    if let Some(flow) = flow_repo.find_flow_by_name(realm_id, name).await? {
-        return Ok(flow.id);
-    }
-
-    info!("Seeding built-in flow: {}", alias);
-
-    // 2. Create Flow
-    let flow_id = uuid::Uuid::new_v4();
-    let flow = AuthFlow {
-        id: flow_id,
-        realm_id: *realm_id,
-        name: name.to_string(),
-        alias: alias.to_string(),
-        description: Some(format!("Default {} flow", alias)),
-        r#type: type_.to_string(),
-        built_in: true,
-    };
-    flow_repo.create_flow(&flow, None).await?;
-    // Create Default Steps
-    for (index, authenticator_name) in default_steps.iter().enumerate() {
-        let step = AuthFlowStep {
-            id: uuid::Uuid::new_v4(),
-            flow_id,
-            authenticator_name: authenticator_name.to_string(),
-            priority: index as i64 * 10, // Leave gaps for insertion (0, 10, 20)
-            requirement: "REQUIRED".to_string(),
-            config: None,
-            parent_step_id: None,
+) -> anyhow::Result<Uuid> {
+    // 1. Resolve Flow ID (Find existing or Create new)
+    let flow_id = if let Some(flow) = flow_repo.find_flow_by_name(realm_id, name).await? {
+        flow.id
+    } else {
+        info!("Seeding built-in flow: {}", alias);
+        let new_id = Uuid::new_v4();
+        let flow = AuthFlow {
+            id: new_id,
+            realm_id: *realm_id,
+            name: name.to_string(),
+            alias: alias.to_string(),
+            description: Some(format!("Default {} flow", alias)),
+            r#type: type_.to_string(),
+            built_in: true,
         };
-        flow_repo.add_step_to_flow(&step, None).await?;
-        info!(" - Added step: {}", authenticator_name);
+        flow_repo.create_flow(&flow, None).await?;
+
+        // Create Default Runtime Steps (Legacy execution logic)
+        for (index, authenticator_name) in default_steps.iter().enumerate() {
+            let step = AuthFlowStep {
+                id: Uuid::new_v4(),
+                flow_id: new_id,
+                authenticator_name: authenticator_name.to_string(),
+                priority: index as i64 * 10,
+                requirement: "REQUIRED".to_string(),
+                config: None,
+                parent_step_id: None,
+            };
+            flow_repo.add_step_to_flow(&step, None).await?;
+        }
+        new_id
+    };
+
+    // 2. ✅ Ensure Draft Exists (For Visual Builder / Details Page)
+    // Check if we already have a draft for this ID
+    if flow_store.get_draft_by_id(&flow_id).await?.is_none() {
+        info!("Seeding visual graph for flow: {}", alias);
+
+        let graph_json = generate_default_graph(type_);
+
+        let draft = FlowDraft {
+            id: flow_id, // Use SAME ID as the runtime flow
+            realm_id: *realm_id,
+            name: alias.to_string(),
+            description: Some(format!("Visual draft for {}", alias)),
+            graph_json,
+            flow_type: type_.to_string(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        flow_store.create_draft(&draft).await?;
     }
 
     Ok(flow_id)
+}
+
+fn generate_default_graph(flow_type: &str) -> String {
+    // Basic templates
+    match flow_type {
+        "browser" => r#"{
+            "nodes": [
+                { "id": "start", "type": "terminal", "position": { "x": 250, "y": 0 }, "data": { "label": "Start", "config": {} } },
+                { "id": "auth-1", "type": "authenticator", "position": { "x": 250, "y": 150 }, "data": { "label": "Username Password", "config": {} } },
+                { "id": "end", "type": "terminal", "position": { "x": 250, "y": 300 }, "data": { "label": "Success", "config": {} } }
+            ],
+            "edges": [
+                { "id": "e1", "source": "start", "target": "auth-1" },
+                { "id": "e2", "source": "auth-1", "target": "end" }
+            ]
+        }"#.to_string(),
+
+        "direct" => r#"{
+            "nodes": [
+                { "id": "auth-1", "type": "authenticator", "position": { "x": 250, "y": 50 }, "data": { "label": "Direct Grant Auth", "config": {} } },
+                { "id": "end", "type": "terminal", "position": { "x": 250, "y": 200 }, "data": { "label": "Success", "config": {} } }
+            ],
+            "edges": [
+                { "id": "e1", "source": "auth-1", "target": "end" }
+            ]
+        }"#.to_string(),
+
+        // Default empty structure
+        _ => r#"{ "nodes": [], "edges": [] }"#.to_string(),
+    }
 }

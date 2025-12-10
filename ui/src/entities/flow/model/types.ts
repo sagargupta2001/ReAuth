@@ -4,10 +4,10 @@ export interface Flow {
   id: string
   alias: string
   description: string
-  type: FlowType // e.g. "browser"
-  builtIn: boolean // true = cannot be deleted, only cloned
-  // In a real app, you'd fetch the realm config to know if this is the active one
-  isDefault?: boolean
+  type: FlowType
+  builtIn: boolean
+  isDraft: boolean
+  isDefault?: boolean // Can be computed on client or added to DTO later
 }
 
 export interface FlowDraft {
@@ -40,4 +40,14 @@ export interface FlowVersion {
   execution_artifact: any
   checksum: string
   created_at: string
+}
+
+export interface UnifiedFlowDto {
+  id: string
+  alias: string
+  description?: string
+  type: FlowType
+  built_in: boolean // Corresponds to Rust's built_in
+  is_draft: boolean // Corresponds to Rust's is_draft
+  status?: string // Optional status field from Rust
 }

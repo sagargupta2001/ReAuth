@@ -1,8 +1,11 @@
-import { ArrowLeft, Play, Save } from 'lucide-react'
+import { useReactFlow } from '@xyflow/react'
+import { ArrowLeft, Loader2, Play, Save } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/button'
 import { Separator } from '@/components/separator'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useSaveDraft } from '@/features/flow-builder/api/useFlowDraft.ts'
 
 // Fix: Add flowId to the interface
 interface BuilderHeaderProps {
@@ -12,6 +15,27 @@ interface BuilderHeaderProps {
 
 export function BuilderHeader({ flowName, flowId }: BuilderHeaderProps) {
   const navigate = useRealmNavigate()
+
+  // Access the graph state
+  const { toObject } = useReactFlow()
+
+  // Mutation Hook
+  const { mutate: saveDraft, isPending } = useSaveDraft()
+
+  const handleSave = () => {
+    const graphData = toObject() // Serializes nodes, edges, viewport
+
+    saveDraft(
+      {
+        draftId: flowId,
+        graph: graphData,
+      },
+      {
+        onSuccess: () => toast.success('Flow saved successfully'),
+        onError: () => toast.error('Failed to save flow'),
+      },
+    )
+  }
 
   return (
     <header className="bg-muted/20 flex h-14 shrink-0 items-center justify-between border-b px-4">
@@ -33,8 +57,13 @@ export function BuilderHeader({ flowName, flowId }: BuilderHeaderProps) {
         <Button variant="outline" size="sm">
           <Play className="mr-2 h-3.5 w-3.5" /> Simulate
         </Button>
-        <Button size="sm" onClick={() => console.log('Saving flow', flowId)}>
-          <Save className="mr-2 h-3.5 w-3.5" /> Save Flow
+        <Button size="sm" onClick={handleSave} disabled={isPending}>
+          {isPending ? (
+            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Save className="mr-2 h-3.5 w-3.5" />
+          )}
+          Save Flow
         </Button>
       </div>
     </header>

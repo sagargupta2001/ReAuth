@@ -25,6 +25,7 @@ interface FlowBuilderState {
   addNode: (node: Node) => void
   selectNode: (id: string | null) => void
   setGraph: (nodes: Node[], edges: Edge[]) => void
+  reset: () => void
 }
 
 export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
@@ -60,5 +61,9 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
 
   setGraph: (nodes: Node[], edges: Edge[]) => {
     set({ nodes, edges })
+  },
+
+  reset: () => {
+    set({ nodes: [], edges: [], selectedNodeId: null })
   },
 }))

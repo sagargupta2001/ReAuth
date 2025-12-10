@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 
+import { ReactFlowProvider } from '@xyflow/react'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
@@ -12,8 +13,11 @@ import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderSt
 
 export function FlowBuilderPage() {
   const { flowId } = useParams()
+  // Ensure we have a string, though the router guarantees this param exists
+  const draftId = flowId!
+
   const { data: draft, isLoading, isError } = useFlowDraft(flowId!)
-  const setGraph = useFlowBuilderStore((s) => s.setGraph)
+  const { setGraph, reset } = useFlowBuilderStore()
 
   // Sync DB -> Store
   useEffect(() => {
@@ -25,14 +29,20 @@ export function FlowBuilderPage() {
     }
   }, [draft, setGraph])
 
-  if (isLoading) {
+  // Cleanup on Unmount (Prevent old graph from flashing when opening a new one)
+  useEffect(() => {
+    return () => {
+      reset()
+    }
+  }, [reset])
+
+  if (isLoading)
     return (
       <div className="text-muted-foreground flex h-full w-full flex-col items-center justify-center gap-4">
         <Loader2 className="text-primary h-8 w-8 animate-spin" />
         <p>Loading Flow Draft...</p>
       </div>
     )
-  }
 
   if (isError)
     return (
@@ -42,18 +52,20 @@ export function FlowBuilderPage() {
     )
 
   return (
-    <div className="flex h-full w-full flex-col">
-      <BuilderHeader flowName={draft?.name || 'Untitled Flow'} flowId={flowId!} />
+    <ReactFlowProvider>
+      <div className="flex h-full w-full flex-col">
+        <BuilderHeader flowName={draft?.name || 'Untitled Flow'} flowId={draftId} />
 
-      <div className="relative flex flex-1 overflow-hidden">
-        <NodePalette />
+        <div className="relative flex flex-1 overflow-hidden">
+          <NodePalette />
 
-        <div className="relative h-full flex-1">
-          <FlowCanvas />
+          <div className="relative h-full flex-1">
+            <FlowCanvas />
+          </div>
+
+          <NodeInspector />
         </div>
-
-        <NodeInspector />
       </div>
-    </div>
+    </ReactFlowProvider>
   )
 }

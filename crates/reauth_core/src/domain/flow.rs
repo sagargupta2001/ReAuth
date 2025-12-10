@@ -14,6 +14,8 @@ pub struct FlowDraft {
     pub description: Option<String>,
     // This holds the React Flow nodes/edges array
     pub graph_json: String,
+    #[sqlx(try_from = "String")]
+    pub flow_type: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

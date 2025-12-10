@@ -42,14 +42,15 @@ impl FlowStore for SqliteFlowStore {
 
     async fn create_draft(&self, draft: &FlowDraft) -> Result<()> {
         sqlx::query(
-            "INSERT INTO flow_drafts (id, realm_id, name, description, graph_json, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO flow_drafts (id, realm_id, name, description, graph_json, flow_type, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
             .bind(draft.id.to_string())
             .bind(draft.realm_id.to_string())
             .bind(&draft.name)
             .bind(&draft.description)
             .bind(&draft.graph_json)
+            .bind(&draft.flow_type)
             .bind(draft.created_at)
             .bind(draft.updated_at)
             .execute(&*self.pool)
@@ -129,6 +130,17 @@ impl FlowStore for SqliteFlowStore {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(PageResponse::new(drafts, total, req.page, limit))
+    }
+
+    async fn list_all_drafts(&self, realm_id: &Uuid) -> Result<Vec<FlowDraft>> {
+        let drafts =
+            sqlx::query_as("SELECT * FROM flow_drafts WHERE realm_id = ? ORDER BY created_at DESC")
+                .bind(realm_id.to_string())
+                .fetch_all(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(drafts)
     }
 
     async fn delete_draft(&self, id: &Uuid) -> Result<()> {
