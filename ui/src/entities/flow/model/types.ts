@@ -15,8 +15,8 @@ export interface FlowDraft {
   realm_id: string
   name: string
   description?: string
-  // This stores the raw React Flow JSON ({ nodes: [], edges: [], viewport: ... })
   graph_json: any
+  flow_type: FlowType
   created_at: string
   updated_at: string
 }
