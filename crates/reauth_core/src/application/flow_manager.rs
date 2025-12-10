@@ -235,6 +235,17 @@ impl FlowManager {
     }
 
     pub fn generate_default_graph(flow_type: &str) -> String {
+        // A generic valid graph (Start -> Success) to use as a fallback
+        let generic_graph = r#"{
+            "nodes": [
+                { "id": "start", "type": "default", "position": { "x": 250, "y": 0 }, "data": { "label": "Start", "config": {} } },
+                { "id": "end", "type": "terminal", "position": { "x": 250, "y": 200 }, "data": { "label": "Success", "config": {} } }
+            ],
+            "edges": [
+                { "id": "e1", "source": "start", "target": "end" }
+            ]
+        }"#;
+
         match flow_type {
             "browser" => r#"{
                 "nodes": [
@@ -258,8 +269,9 @@ impl FlowManager {
                 ]
             }"#.to_string(),
 
-            // Default empty structure
-            _ => r#"{ "nodes": [], "edges": [] }"#.to_string(),
+            // Return a valid generic graph instead of empty objects
+            // This covers "reset", "registration", and any future types
+            _ => generic_graph.to_string(),
         }
     }
 }

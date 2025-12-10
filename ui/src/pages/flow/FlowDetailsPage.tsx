@@ -69,7 +69,7 @@ export function FlowDetailsPage() {
 
   return (
     <div className="bg-background flex h-full w-full flex-col">
-      {/* --- 1. CONTROL CENTER HEADER --- */}
+      {/* CONTROL CENTER HEADER --- */}
       <header className="flex h-16 shrink-0 items-center justify-between border-b px-6">
         <div className="flex items-center gap-4">
           <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
@@ -100,7 +100,7 @@ export function FlowDetailsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* ✅ FIX: Dynamic Status Indicator */}
+          {/* Dynamic Status Indicator */}
           <div className="text-muted-foreground mr-2 flex items-center gap-2 border-r px-3 text-xs">
             {draft.active_version ? (
               <>
@@ -140,7 +140,7 @@ export function FlowDetailsPage() {
         </div>
       </header>
 
-      {/* --- 2. TABS NAVIGATION --- */}
+      {/* TABS NAVIGATION */}
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
@@ -172,7 +172,7 @@ export function FlowDetailsPage() {
           </TabsList>
         </div>
 
-        {/* --- 3. TAB CONTENT --- */}
+        {/* TAB CONTENT */}
 
         {/* VISUALIZATION / OVERVIEW */}
         <TabsContent value="overview" className="relative mt-0 h-full w-full flex-1">

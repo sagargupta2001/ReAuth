@@ -56,6 +56,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         &services.user_service,
         repos.flow_repo,
         repos.flow_store,
+        services.flow_manager.clone(),
         &settings,
         &services.oidc_service,
     )

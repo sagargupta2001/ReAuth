@@ -1,5 +1,6 @@
 use crate::adapters::persistence::connection::Database;
 use crate::adapters::{init_db, run_migrations};
+use crate::application::flow_manager::FlowManager;
 use crate::application::oidc_service::OidcService;
 use crate::application::realm_service::RealmService;
 use crate::application::user_service::UserService;
@@ -49,6 +50,7 @@ pub async fn run_migrations_and_seed(
     user_service: &Arc<UserService>,
     flow_repo: Arc<dyn FlowRepository>,
     flow_store: Arc<dyn FlowStore>,
+    flow_manager: Arc<FlowManager>,
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
 ) -> anyhow::Result<()> {
@@ -62,6 +64,7 @@ pub async fn run_migrations_and_seed(
         user_service,
         &flow_repo,
         &flow_store,
+        &flow_manager,
         &settings,
         oidc_service,
     )

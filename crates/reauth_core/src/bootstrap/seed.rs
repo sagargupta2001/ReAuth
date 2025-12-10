@@ -21,6 +21,7 @@ pub async fn seed_database(
     user_service: &Arc<UserService>,
     flow_repo: &Arc<dyn FlowRepository>,
     flow_store: &Arc<dyn FlowStore>,
+    flow_manager: &Arc<FlowManager>,
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
 ) -> anyhow::Result<()> {
@@ -60,6 +61,7 @@ pub async fn seed_database(
     let browser_flow_id = ensure_flow(
         flow_repo,
         flow_store,
+        flow_manager,
         &realm.id,
         "browser-login",
         "Browser Login",
@@ -72,6 +74,7 @@ pub async fn seed_database(
     let direct_flow_id = ensure_flow(
         flow_repo,
         flow_store,
+        flow_manager,
         &realm.id,
         "direct-grant",
         "Direct Grant",
@@ -84,6 +87,7 @@ pub async fn seed_database(
     let registration_flow_id = ensure_flow(
         flow_repo,
         flow_store,
+        flow_manager,
         &realm.id,
         "registration",
         "Registration",
@@ -96,6 +100,7 @@ pub async fn seed_database(
     let reset_flow_id = ensure_flow(
         flow_repo,
         flow_store,
+        flow_manager,
         &realm.id,
         "reset-credentials",
         "Reset Credentials",
@@ -219,18 +224,18 @@ pub async fn seed_database(
 
 async fn ensure_flow(
     flow_repo: &Arc<dyn FlowRepository>,
-    flow_store: &Arc<dyn FlowStore>, // ✅ Added FlowStore
+    flow_store: &Arc<dyn FlowStore>,
+    flow_manager: &Arc<FlowManager>,
     realm_id: &Uuid,
     name: &str,
     alias: &str,
     type_: &str,
     default_steps: Vec<&str>,
 ) -> anyhow::Result<Uuid> {
-    // 1. Resolve Flow ID (Find existing or Create new)
+    // Ensure Runtime Flow Exists
     let flow_id = if let Some(flow) = flow_repo.find_flow_by_name(realm_id, name).await? {
         flow.id
     } else {
-        info!("Seeding built-in flow: {}", alias);
         let new_id = Uuid::new_v4();
         let flow = AuthFlow {
             id: new_id,
@@ -243,7 +248,7 @@ async fn ensure_flow(
         };
         flow_repo.create_flow(&flow, None).await?;
 
-        // Create Default Runtime Steps (Legacy execution logic)
+        // Create Steps
         for (index, authenticator_name) in default_steps.iter().enumerate() {
             let step = AuthFlowStep {
                 id: Uuid::new_v4(),
@@ -259,25 +264,44 @@ async fn ensure_flow(
         new_id
     };
 
-    // 2. ✅ Ensure Draft Exists (For Visual Builder / Details Page)
-    // Check if we already have a draft for this ID
-    if flow_store.get_draft_by_id(&flow_id).await?.is_none() {
-        info!("Seeding visual graph for flow: {}", alias);
+    // Ensure Visual Draft Exists
+    let draft_exists = flow_store.get_draft_by_id(&flow_id).await?.is_some();
 
-        let graph_json = FlowManager::generate_default_graph(type_);
+    // Prepare the Draft Object
+    let graph_json = FlowManager::generate_default_graph(type_);
+    let draft_obj = FlowDraft {
+        id: flow_id,
+        realm_id: *realm_id,
+        name: alias.to_string(),
+        description: Some(format!("Visual draft for {}", alias)),
+        graph_json: graph_json.clone(),
+        flow_type: type_.to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
 
-        let draft = FlowDraft {
-            id: flow_id, // Use SAME ID as the runtime flow
-            realm_id: *realm_id,
-            name: alias.to_string(),
-            description: Some(format!("Visual draft for {}", alias)),
-            graph_json,
-            flow_type: type_.to_string(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
+    if !draft_exists {
+        flow_store.create_draft(&draft_obj).await?;
+    } else {
+        // info!("Step 2: Draft already exists for {}", alias);
+    }
 
-        flow_store.create_draft(&draft).await?;
+    // Ensure Active Version Exists
+    let latest_version = flow_store.get_latest_version_number(&flow_id).await?;
+
+    // Only consider it "published" if the version is > 0.
+    // This treats 'None' and 'Some(0)' as "Not Published Yet".
+    let has_valid_version = latest_version.unwrap_or(0) > 0;
+
+    if !has_valid_version {
+        match flow_manager.publish_flow(*realm_id, flow_id).await {
+            Ok(v) => {
+                flow_store.create_draft(&draft_obj).await?;
+            }
+            Err(e) => {
+                tracing::error!("Step 4: FAILURE - Could not publish {}: {:?}", alias, e);
+            }
+        }
     }
 
     Ok(flow_id)

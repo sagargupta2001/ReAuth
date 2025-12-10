@@ -23,6 +23,7 @@ export function usePublishFlow() {
       // Invalidate queries to refresh the "Active Version" status in Details page
       void queryClient.invalidateQueries({ queryKey: ['flow', flowId] })
       void queryClient.invalidateQueries({ queryKey: ['flows'] })
+      void queryClient.invalidateQueries({ queryKey: ['flow-draft'] })
     },
     onError: (error: any) => {
       // Show the validation error from the backend (e.g. "Dead end detected")
