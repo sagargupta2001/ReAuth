@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
-import { Blend, Clock, Loader2, RotateCcw, ShieldCheck } from 'lucide-react'
+import { Clock, Copy, Loader2, RotateCcw, ShieldCheck } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import { Skeleton } from '@/components/skeleton'
@@ -129,9 +129,14 @@ export function FlowHistoryTab({ flowId, activeVersion }: FlowHistoryTabProps) {
                   {/* RESTORE DRAFT BUTTON (Design Action) */}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button size="sm" className="h-8 text-xs" title="Edit this version">
-                        <Blend className="mr-2 h-3 w-3" />
-                        Overwrite Draft
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        title="Edit this version"
+                        variant="soft"
+                      >
+                        <Copy className="mr-2 h-3 w-3" />
+                        Start Draft From Here
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
