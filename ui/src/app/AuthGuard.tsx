@@ -22,36 +22,36 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const handleAuth = async () => {
-      // If we are already logged in (in memory), stop.
+      // 1. If we already have a token in memory, we are good.
       if (accessToken) {
         setIsProcessing(false)
-        initRan.current = false
         return
       }
 
+      // Prevent double-invocation in strict mode
       if (initRan.current) return
       initRan.current = true
 
-      // Check for Auth Code (Callback from OIDC)
-      const searchParams = new URLSearchParams(window.location.search)
+      // 2. Check for OIDC Callback (Code in URL)
+      // Note: In HashRouter, params might be in location.search OR window.location.search depending on setup.
+      // We check both to be safe, prioritizing the router location.
+      const searchParams = new URLSearchParams(location.search || window.location.search)
       const authCode = searchParams.get('code')
 
       if (authCode) {
         const verifier = sessionStorage.getItem(PKCE_STORAGE_KEY)
         if (verifier) {
-          // We use .mutateAsync so we can await it properly
           try {
             const data = await exchangeToken.mutateAsync({ code: authCode, verifier })
-
             setSession(data.access_token)
-            const newUrl = window.location.pathname + window.location.hash
-            window.history.replaceState({}, document.title, newUrl)
             sessionStorage.removeItem(PKCE_STORAGE_KEY)
+
+            // Clean URL (remove code/state)
+            const newUrl = window.location.pathname + window.location.hash.split('?')[0]
+            window.history.replaceState({}, document.title, newUrl)
           } catch (err) {
             console.error('Token exchange failed', err)
-            // Fall through to login flow on error
           } finally {
-            // Ensure we stop processing regardless of success/failure
             setIsProcessing(false)
           }
         } else {
@@ -61,39 +61,45 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
         return
       }
 
-      // SILENT REFRESH (Restore Session)
-      // Before forcing a new login, check if we have a valid cookie
+      // 3. Silent Refresh (The most common path for returning users)
       try {
-        console.log('[AuthGuard] Attempting silent refresh...')
+        // console.log('[AuthGuard] Attempting silent refresh...')
         const token = await refreshTokenMutation.mutateAsync()
         setSession(token)
         setIsProcessing(false)
-        return
+        return // Stop here if refresh worked
       } catch (e) {
-        console.log('[AuthGuard] Silent refresh failed.')
+        // console.log('[AuthGuard] Silent refresh failed, proceeding to login flow.')
       }
 
-      // Start OIDC Flow
+      // 4. If we are completely unauthenticated:
+      // We generate PKCE challenge just in case we need to trigger an OIDC flow later,
+      // but we DON'T block rendering. We allow the UI to decide (Login Page vs Redirect).
       const verifier = generateCodeVerifier()
       const challenge = await generateCodeChallenge(verifier)
       sessionStorage.setItem(PKCE_STORAGE_KEY, verifier)
 
+      // Only trigger authorize if we are NOT on the login page already.
+      // Triggers the OIDC /authorize call to get session ID cookies set up.
       try {
         const response = await authorize.mutateAsync(challenge)
-        if (response.status === 'challenge' && response.challenge_page) {
+        if (response.status === 'challenge') {
+          // We are ready to show the login form
           setIsProcessing(false)
         }
       } catch (err) {
         console.error('Auth init failed', err)
-        // Let the error state below handle the UI
         setIsProcessing(false)
       }
     }
 
-    handleAuth()
-  }, [accessToken, setSession, authorize, exchangeToken])
+    void handleAuth()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty dependency array ensures this runs once on mount
 
-  // Error State
+  // --- RENDER LOGIC ---
+
+  // A. Error State (Network failure on init)
   if (authorize.isError) {
     return (
       <div className="flex h-screen flex-col items-center justify-center p-4">
@@ -111,27 +117,32 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     )
   }
 
-  // Loading State
+  // B. Loading State
   if (isProcessing) {
     return <div className="flex h-screen items-center justify-center">Authenticating...</div>
   }
 
-  // Authenticated State
+  // C. Authenticated State
   if (accessToken) {
-    // CRITICAL FIX: If logged in but on /login page, redirect to Dashboard
+    // If logged in but sitting on /login, move to the intended destination
     if (location.pathname === '/login') {
-      return <Navigate to="/" replace />
+      const searchParams = new URLSearchParams(location.search)
+      const redirect = searchParams.get('redirect')
+
+      // If no redirect param, go to root.
+      return <Navigate to={redirect || '/'} replace />
     }
     return <>{children}</>
   }
 
-  // Login Page Logic
-  // If the backend challenge told us to go to /login, allow rendering it
+  // D. Unauthenticated - Login Page
+  // Allow the login page to render itself so the user can see the form
   if (location.pathname === '/login') {
     return <>{children}</>
   }
 
-  // Redirect Logic
-  // If we aren't authenticated and aren't on /login, go there
-  return <Navigate to="/login" replace />
+  // E. Unauthenticated - Protected Route
+  // Kick user to login, preserving the current location in the query param
+  const currentPath = encodeURIComponent(location.pathname + location.search)
+  return <Navigate to={`/login?redirect=${currentPath}`} replace />
 }

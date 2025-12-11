@@ -1,7 +1,5 @@
 use crate::application::realm_service::UpdateRealmPayload;
-use crate::{
-    adapters::web::server::AppState, application::realm_service::CreateRealmPayload, error::Result,
-};
+use crate::{application::realm_service::CreateRealmPayload, error::Result, AppState};
 use axum::extract::Path;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use uuid::Uuid;

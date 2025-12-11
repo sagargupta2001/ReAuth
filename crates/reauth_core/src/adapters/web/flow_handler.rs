@@ -2,8 +2,8 @@ use crate::application::flow_manager::{CreateDraftRequest, UpdateDraftRequest};
 use crate::domain::flow::FlowDraft;
 use crate::domain::pagination::PageRequest;
 use crate::{
-    adapters::web::server::AppState,
     error::{Error, Result},
+    AppState,
 };
 use axum::extract::Query;
 use axum::{

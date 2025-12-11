@@ -31,6 +31,9 @@ async function request<T>(endpoint: string, config: RequestConfig = {}): Promise
   const response = await fetch(endpoint, {
     ...config,
     headers,
+
+    // This tells fetch to send HttpOnly cookies (your refresh token)
+    credentials: 'include',
   })
 
   if (!response.ok) {

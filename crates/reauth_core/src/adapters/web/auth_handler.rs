@@ -1,8 +1,8 @@
 use crate::{
-    adapters::web::server::AppState,
     constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
     domain::{auth_flow::AuthStepResult, oidc::OidcContext, session::RefreshToken},
     error::{Error, Result},
+    AppState,
 };
 use axum::{
     extract::State,

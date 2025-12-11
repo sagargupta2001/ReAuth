@@ -16,22 +16,7 @@ pub async fn run() -> anyhow::Result<()> {
     info!("Server started at: {}", server_url);
     info!("Database status: {}", "Up & Running");
 
-    start_server(
-        app_state.settings,
-        app_state.plugin_manager,
-        app_state.plugins_path,
-        app_state.user_service,
-        app_state.rbac_service,
-        app_state.auth_service,
-        app_state.realm_service,
-        app_state.log_subscriber,
-        app_state.flow_engine,
-        app_state.oidc_service,
-        app_state.flow_service,
-        app_state.flow_manager,
-        app_state.node_registry,
-    )
-    .await?;
+    start_server(app_state).await?;
 
     Ok(())
 }

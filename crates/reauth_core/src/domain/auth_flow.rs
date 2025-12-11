@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Represents an in-progress login attempt.
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, sqlx::FromRow, Default)]
 pub struct LoginSession {
     #[sqlx(try_from = "String")]
     pub id: Uuid,

@@ -79,4 +79,10 @@ pub enum Error {
 
     #[error("Flow validation failed: {0}")]
     Validation(String),
+
+    #[error("Flow validation failed: {0}")]
+    NotFound(String),
+
+    #[error("Flow validation failed: {0}")]
+    System(String),
 }

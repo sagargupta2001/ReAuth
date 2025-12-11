@@ -55,7 +55,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         &services.realm_service,
         &services.user_service,
         repos.flow_repo,
-        repos.flow_store,
+        repos.flow_store.clone(),
         services.flow_manager.clone(),
         &settings,
         &services.oidc_service,
@@ -71,10 +71,13 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         auth_service: services.auth_service,
         realm_service: services.realm_service,
         log_subscriber: log_bus,
+        auth_session_repo: repos.auth_session_repo,
+        flow_store: repos.flow_store,
         flow_engine: services.flow_engine,
         oidc_service: services.oidc_service,
         flow_service: services.flow_service,
         flow_manager: services.flow_manager,
         node_registry: services.node_registry,
+        flow_executor: services.flow_executor,
     })
 }

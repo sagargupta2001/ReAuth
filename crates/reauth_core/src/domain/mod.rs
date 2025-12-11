@@ -1,4 +1,5 @@
 pub mod auth_flow;
+pub mod auth_session;
 pub mod compiler;
 pub mod crypto;
 pub mod events;

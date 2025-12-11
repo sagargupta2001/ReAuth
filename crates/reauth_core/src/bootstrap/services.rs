@@ -1,7 +1,9 @@
+use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::runtime_registry::RuntimeRegistry;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::{
     adapters::{
@@ -32,6 +34,7 @@ pub struct Services {
     pub flow_service: Arc<FlowService>,
     pub flow_manager: Arc<FlowManager>,
     pub node_registry: Arc<NodeRegistryService>,
+    pub flow_executor: Arc<FlowExecutor>,
 }
 
 pub fn initialize_services(
@@ -94,6 +97,20 @@ pub fn initialize_services(
         repos.realm_repo.clone(),
     ));
 
+    let password_auth = Arc::new(PasswordAuthenticator::new(repos.user_repo.clone()));
+
+    let mut runtime_registry = crate::application::runtime_registry::RuntimeRegistry::new();
+
+    // "Hello Registry, when the graph says 'core.auth.password', use this struct."
+    runtime_registry.register("core.auth.password", password_auth);
+
+    // 3. Create the Executor with the Registry
+    let flow_executor = Arc::new(FlowExecutor::new(
+        repos.auth_session_repo.clone(),
+        repos.flow_store.clone(),
+        Arc::new(runtime_registry),
+    ));
+
     Services {
         user_service,
         rbac_service,
@@ -104,5 +121,6 @@ pub fn initialize_services(
         flow_service,
         flow_manager,
         node_registry,
+        flow_executor,
     }
 }

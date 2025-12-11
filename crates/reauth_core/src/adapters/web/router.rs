@@ -1,8 +1,9 @@
 use super::{
-    auth_handler, auth_middleware, flow_handler, log_stream_handler, oidc_handler, plugin_handler,
-    rbac_handler, realm_handler, server::ui_handler, session_handler, user_handler,
+    auth_handler, auth_middleware, execution_handler, flow_handler, log_stream_handler,
+    oidc_handler, plugin_handler, rbac_handler, realm_handler, server::ui_handler, session_handler,
+    user_handler,
 };
-use crate::adapters::web::server::AppState;
+use crate::AppState;
 use axum::routing::get_service;
 use axum::{
     middleware,
@@ -21,6 +22,8 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     let public_api = Router::new()
         .route("/health", get(|| async { "OK" }))
         .route("/logs/ws", get(log_stream_handler::log_stream_handler))
+        .route("/realms/{realm}/login", get(execution_handler::start_login))
+        .nest("/execution", execution_routes())
         .nest("/auth", auth_routes())
         .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/realms/{realm}/clients", client_routes())
@@ -168,4 +171,10 @@ fn flow_routes() -> Router<AppState> {
             "/{id}/restore-draft",
             post(flow_handler::restore_draft_handler),
         )
+}
+
+fn execution_routes() -> Router<AppState> {
+    Router::new()
+        // POST /api/execution/{session_id} -> Submits form data for the current step
+        .route("/{session_id}", post(execution_handler::submit_execution))
 }

@@ -262,42 +262,49 @@ impl FlowManager {
     }
 
     pub fn generate_default_graph(flow_type: &str) -> String {
-        // A generic valid graph (Start -> Success) to use as a fallback
+        // GENERIC FALLBACK (Start -> End)
         let generic_graph = r#"{
-            "nodes": [
-                { "id": "start", "type": "default", "position": { "x": 250, "y": 0 }, "data": { "label": "Start", "config": {} } },
-                { "id": "end", "type": "terminal", "position": { "x": 250, "y": 200 }, "data": { "label": "Success", "config": {} } }
-            ],
-            "edges": [
-                { "id": "e1", "source": "start", "target": "end" }
-            ]
-        }"#;
+        "nodes": [
+            { "id": "start", "type": "start", "position": { "x": 250, "y": 0 }, "data": { "label": "Start", "config": {} } },
+            { "id": "end", "type": "terminal", "position": { "x": 250, "y": 200 }, "data": { "label": "Success", "config": {} } }
+        ],
+        "edges": [
+            { "id": "e1", "source": "start", "target": "end" }
+        ]
+    }"#;
 
         match flow_type {
             "browser" => r#"{
-                "nodes": [
-                    { "id": "start", "type": "default", "position": { "x": 250, "y": 0 }, "data": { "label": "Start", "config": {} } },
-                    { "id": "auth-1", "type": "authenticator", "position": { "x": 250, "y": 150 }, "data": { "label": "Username Password", "config": {} } },
-                    { "id": "end", "type": "terminal", "position": { "x": 250, "y": 300 }, "data": { "label": "Success", "config": {} } }
-                ],
-                "edges": [
-                    { "id": "e1", "source": "start", "target": "auth-1" },
-                    { "id": "e2", "source": "auth-1", "target": "end" }
-                ]
-            }"#.to_string(),
+            "nodes": [
+                {
+                    "id": "start",
+                    "type": "start",
+                    "position": { "x": 250, "y": 0 },
+                    "data": { "label": "Start", "config": {} }
+                },
+                {
+                    "id": "auth-1",
+                    "type": "authenticator",
+                    "position": { "x": 250, "y": 150 },
+                    "data": {
+                        "label": "Username Password",
+                        "config": { "auth_type": "core.auth.password" }
+                    }
+                },
+                {
+                    "id": "end",
+                    "type": "terminal",
+                    "position": { "x": 250, "y": 300 },
+                    "data": { "label": "Success", "config": {} }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "start", "target": "auth-1" },
+                { "id": "e2", "source": "auth-1", "sourceHandle": "success", "target": "end" }
+            ]
+        }"#
+            .to_string(),
 
-            "direct" => r#"{
-                "nodes": [
-                    { "id": "auth-1", "type": "authenticator", "position": { "x": 250, "y": 50 }, "data": { "label": "Direct Grant Auth", "config": {} } },
-                    { "id": "end", "type": "terminal", "position": { "x": 250, "y": 200 }, "data": { "label": "Success", "config": {} } }
-                ],
-                "edges": [
-                    { "id": "e1", "source": "auth-1", "target": "end" }
-                ]
-            }"#.to_string(),
-
-            // Return a valid generic graph instead of empty objects
-            // This covers "reset", "registration", and any future types
             _ => generic_graph.to_string(),
         }
     }

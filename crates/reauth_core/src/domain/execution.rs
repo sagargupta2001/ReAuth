@@ -27,3 +27,17 @@ pub enum StepType {
     Logic,         // Internal calculation (If/Else)
     Terminal,      // Ends the flow (Issue Token, Deny)
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "payload")]
+pub enum ExecutionResult {
+    /// Stop and show a screen (e.g., Login Form)
+    Challenge {
+        screen_id: String,
+        context: serde_json::Value,
+    },
+    /// Flow finished successfully
+    Success { redirect_url: String },
+    /// Flow finished with failure
+    Failure { reason: String },
+}

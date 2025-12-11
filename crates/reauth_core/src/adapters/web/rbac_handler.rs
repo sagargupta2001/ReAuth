@@ -1,8 +1,7 @@
 use crate::application::rbac_service::{CreateGroupPayload, CreateRolePayload, RbacService};
 use crate::error::Result;
+use crate::AppState;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-
-use super::server::AppState;
 
 pub async fn create_role_handler(
     State(state): State<AppState>,

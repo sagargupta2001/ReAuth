@@ -1,4 +1,4 @@
-use crate::{adapters::web::server::AppState, domain::user::User};
+use crate::{domain::user::User, AppState};
 use axum::{
     extract::{Request, State},
     middleware::Next,

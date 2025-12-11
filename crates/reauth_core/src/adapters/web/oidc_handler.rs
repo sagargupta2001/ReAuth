@@ -3,8 +3,8 @@ use crate::domain::oidc::{OidcClient, OidcContext};
 use crate::domain::pagination::PageRequest;
 use crate::domain::session::RefreshToken;
 use crate::{
-    adapters::web::server::AppState,
     error::{Error, Result},
+    AppState,
 };
 use axum::extract::{ConnectInfo, Path};
 use axum::{

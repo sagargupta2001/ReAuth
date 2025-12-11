@@ -1,7 +1,7 @@
 use crate::{
-    adapters::web::server::AppState,
     domain::pagination::PageRequest,
     error::{Error, Result},
+    AppState,
 };
 use axum::{
     extract::{Path, Query, State},

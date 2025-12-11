@@ -1,4 +1,4 @@
-use crate::adapters::web::server::AppState;
+use crate::AppState;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;

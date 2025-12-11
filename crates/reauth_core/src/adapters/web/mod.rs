@@ -1,6 +1,7 @@
 pub mod auth_handler;
 pub mod auth_middleware;
 pub mod error;
+pub mod execution_handler;
 pub mod flow_handler;
 pub mod log_stream_handler;
 pub mod oidc_handler;

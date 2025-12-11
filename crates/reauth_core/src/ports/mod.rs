@@ -1,3 +1,4 @@
+pub mod auth_session_repository;
 pub mod authenticator;
 pub mod cache_service;
 pub mod event_bus;
