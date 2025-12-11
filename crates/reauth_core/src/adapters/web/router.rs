@@ -163,4 +163,5 @@ fn flow_routes() -> Router<AppState> {
         )
         .route("/{id}/publish", post(flow_handler::publish_flow_handler))
         .route("/{id}/versions", get(flow_handler::list_versions_handler))
+        .route("/{id}/rollback", post(flow_handler::rollback_flow_handler))
 }

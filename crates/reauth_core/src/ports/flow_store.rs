@@ -1,4 +1,3 @@
-use crate::error::Error;
 use crate::{
     domain::{
         flow::{FlowDeployment, FlowDraft, FlowVersion},
@@ -44,4 +43,10 @@ pub trait FlowStore: Send + Sync {
         flow_type: &str,
         flow_id: &Uuid,
     ) -> Result<Option<i32>>;
+
+    async fn get_version_by_number(
+        &self,
+        flow_id: &Uuid,
+        version_number: i32,
+    ) -> Result<Option<FlowVersion>>;
 }

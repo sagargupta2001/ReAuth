@@ -4,8 +4,18 @@ import { Clock, RotateCcw, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/button'
 import { Skeleton } from '@/components/skeleton'
 import { useFlowVersions } from '@/features/flow-builder/api/useFlowVersions'
-
-// Assuming you have shadcn skeleton
+import { useRollbackFlow } from '@/features/flow-builder/api/useRollbackFlow.ts'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/shared/ui/alert-dialog.tsx'
 
 interface FlowHistoryTabProps {
   flowId: string
@@ -14,6 +24,7 @@ interface FlowHistoryTabProps {
 
 export function FlowHistoryTab({ flowId, activeVersion }: FlowHistoryTabProps) {
   const { data: versions, isLoading } = useFlowVersions(flowId)
+  const { mutate: rollback, isPending } = useRollbackFlow()
 
   if (isLoading) {
     return (
@@ -81,12 +92,32 @@ export function FlowHistoryTab({ flowId, activeVersion }: FlowHistoryTabProps) {
 
                 <div className="flex items-center gap-2">
                   {!isActive && (
-                    <Button variant="outline" size="sm" className="h-8 text-xs" disabled>
-                      <RotateCcw className="mr-2 h-3 w-3" />
-                      Rollback
-                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-8 text-xs">
+                          <RotateCcw className="mr-2 h-3 w-3" />
+                          Rollback
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            Rollback to Version {version.version_number}?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will immediately change the active login flow for all users to this
+                            version. Your current draft will NOT be affected.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => rollback(version.version_number)}>
+                            {isPending ? 'Rolling back...' : 'Confirm Rollback'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   )}
-                  {/* You could add a "View Snapshot" button here later to open read-only builder */}
                 </div>
               </div>
             )

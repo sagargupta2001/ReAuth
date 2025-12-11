@@ -12,6 +12,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use serde_json::json;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -222,4 +223,29 @@ pub async fn list_versions_handler(
 ) -> Result<impl IntoResponse> {
     let versions = state.flow_manager.list_flow_versions(flow_id).await?;
     Ok((StatusCode::OK, Json(versions)))
+}
+
+#[derive(serde::Deserialize)]
+pub struct RollbackRequest {
+    pub version_number: i32,
+}
+
+/// POST /api/realms/{realm}/flows/{id}/rollback
+pub async fn rollback_flow_handler(
+    State(state): State<AppState>,
+    Path((realm_name, flow_id)): Path<(String, Uuid)>,
+    Json(payload): Json<RollbackRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .flow_manager
+        .rollback_flow(realm.id, flow_id, payload.version_number)
+        .await?;
+
+    Ok((StatusCode::OK, Json(json!({ "success": true }))))
 }

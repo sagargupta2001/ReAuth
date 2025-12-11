@@ -278,4 +278,45 @@ impl FlowManager {
             _ => generic_graph.to_string(),
         }
     }
+
+    pub async fn rollback_flow(
+        &self,
+        realm_id: Uuid,
+        flow_id: Uuid,
+        target_version: i32,
+    ) -> Result<()> {
+        // 1. Find the target version
+        let version = self
+            .flow_store
+            .get_version_by_number(&flow_id, target_version)
+            .await?
+            .ok_or(Error::Unexpected(anyhow::anyhow!(
+                "Version {} not found",
+                target_version
+            )))?;
+
+        // 2. Get the flow metadata to know the type (browser, direct, etc.)
+        let flow = self
+            .flow_repo
+            .find_flow_by_id(&flow_id)
+            .await?
+            .ok_or(Error::FlowNotFound(flow_id.to_string()))?;
+
+        // 3. Update the Deployment to point to this old version
+        // This is non-destructive; it just changes the pointer.
+        let deployment = FlowDeployment {
+            id: Uuid::new_v4().to_string(),
+            realm_id,
+            flow_type: flow.r#type,
+            active_version_id: version.id, // Pointing to the OLD version ID
+            updated_at: Utc::now(),
+        };
+
+        self.flow_store.set_deployment(&deployment).await?;
+
+        // Note: We deliberately DO NOT overwrite the current draft.
+        // A rollback is a runtime emergency action; it shouldn't destroy the user's work-in-progress.
+
+        Ok(())
+    }
 }

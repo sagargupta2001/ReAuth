@@ -276,4 +276,17 @@ impl FlowStore for SqliteFlowStore {
 
         Ok(version_number)
     }
+
+    async fn get_version_by_number(
+        &self,
+        flow_id: &Uuid,
+        version_number: i32,
+    ) -> Result<Option<FlowVersion>> {
+        sqlx::query_as("SELECT * FROM flow_versions WHERE flow_id = ? AND version_number = ?")
+            .bind(flow_id.to_string())
+            .bind(version_number)
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))
+    }
 }
