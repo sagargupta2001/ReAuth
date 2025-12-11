@@ -234,8 +234,12 @@ impl FlowManager {
         Ok(meta.map(|f| f.built_in).unwrap_or(false))
     }
 
-    pub async fn list_flow_versions(&self, flow_id: Uuid) -> Result<Vec<FlowVersion>> {
-        self.flow_store.list_versions(&flow_id).await
+    pub async fn list_flow_versions(
+        &self,
+        flow_id: Uuid,
+        req: PageRequest,
+    ) -> Result<PageResponse<FlowVersion>> {
+        self.flow_store.list_versions(&flow_id, &req).await
     }
 
     pub fn generate_default_graph(flow_type: &str) -> String {

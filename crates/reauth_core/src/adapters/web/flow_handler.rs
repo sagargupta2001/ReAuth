@@ -220,9 +220,10 @@ pub async fn publish_flow_handler(
 pub async fn list_versions_handler(
     State(state): State<AppState>,
     Path((_realm, flow_id)): Path<(String, Uuid)>,
+    Query(req): Query<PageRequest>,
 ) -> Result<impl IntoResponse> {
-    let versions = state.flow_manager.list_flow_versions(flow_id).await?;
-    Ok((StatusCode::OK, Json(versions)))
+    let response = state.flow_manager.list_flow_versions(flow_id, req).await?;
+    Ok((StatusCode::OK, Json(response)))
 }
 
 #[derive(serde::Deserialize)]

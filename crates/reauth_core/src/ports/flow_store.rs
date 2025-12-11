@@ -26,7 +26,11 @@ pub trait FlowStore: Send + Sync {
     // --- Versions ---
     async fn create_version(&self, version: &FlowVersion) -> Result<()>;
     async fn get_version(&self, id: &Uuid) -> Result<Option<FlowVersion>>;
-    async fn list_versions(&self, draft_id: &Uuid) -> Result<Vec<FlowVersion>>;
+    async fn list_versions(
+        &self,
+        flow_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<FlowVersion>>;
 
     // --- Deployments ---
     async fn set_deployment(&self, deployment: &FlowDeployment) -> Result<()>;

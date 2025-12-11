@@ -181,15 +181,56 @@ impl FlowStore for SqliteFlowStore {
         Ok(version)
     }
 
-    async fn list_versions(&self, draft_id: &Uuid) -> Result<Vec<FlowVersion>> {
-        let versions = sqlx::query_as(
-            "SELECT * FROM flow_versions WHERE flow_id = ? ORDER BY version_number DESC",
-        )
-        .bind(draft_id.to_string())
-        .fetch_all(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(versions)
+    async fn list_versions(
+        &self,
+        flow_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<FlowVersion>> {
+        // Standardize constraints
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        // 1. Count Total Versions (for pagination metadata)
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM flow_versions WHERE flow_id = ?")
+            .bind(flow_id.to_string())
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        // 2. Build Query using QueryBuilder
+        let mut query_builder = QueryBuilder::new("SELECT * FROM flow_versions WHERE flow_id = ");
+        query_builder.push_bind(flow_id.to_string());
+
+        // 3. Apply Sorting
+        // Default to version_number DESC (newest first)
+        let sort_col = match req.sort_by.as_deref() {
+            Some("created_at") => "created_at",
+            Some("version_number") => "version_number",
+            _ => "version_number",
+        };
+
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Desc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        // 4. Apply Pagination
+        query_builder
+            .push(" LIMIT ")
+            .push_bind(limit)
+            .push(" OFFSET ")
+            .push_bind(offset);
+
+        // 5. Execute
+        let versions: Vec<FlowVersion> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(versions, total, req.page, limit))
     }
 
     // --- DEPLOYMENTS ---

@@ -24,6 +24,7 @@ export function usePublishFlow() {
       void queryClient.invalidateQueries({ queryKey: ['flow', flowId] })
       void queryClient.invalidateQueries({ queryKey: ['flows'] })
       void queryClient.invalidateQueries({ queryKey: ['flow-draft'] })
+      void queryClient.invalidateQueries({ queryKey: ['flow-versions', flowId] })
     },
     onError: (error: any) => {
       // Show the validation error from the backend (e.g. "Dead end detected")

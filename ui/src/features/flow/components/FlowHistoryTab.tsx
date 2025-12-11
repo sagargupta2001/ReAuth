@@ -1,5 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
-import { Clock, RotateCcw, ShieldCheck } from 'lucide-react'
+import { Clock, Loader2, RotateCcw, ShieldCheck } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import { Skeleton } from '@/components/skeleton'
@@ -23,8 +23,12 @@ interface FlowHistoryTabProps {
 }
 
 export function FlowHistoryTab({ flowId, activeVersion }: FlowHistoryTabProps) {
-  const { data: versions, isLoading } = useFlowVersions(flowId)
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useFlowVersions(flowId)
+
   const { mutate: rollback, isPending } = useRollbackFlow()
+
+  const versions = data?.pages || []
 
   if (isLoading) {
     return (
@@ -48,14 +52,14 @@ export function FlowHistoryTab({ flowId, activeVersion }: FlowHistoryTabProps) {
   return (
     <div className="p-6">
       <div className="bg-card rounded-md border">
-        <div className="bg-muted/30 border-b p-4">
+        <div className="bg-muted/30 sticky top-0 z-10 border-b p-4">
           <h3 className="font-semibold">Deployment History</h3>
           <p className="text-muted-foreground text-sm">
             History of all published versions of this flow.
           </p>
         </div>
 
-        <div className="divide-y">
+        <div className="max-h-[calc(100vh-340px)] divide-y overflow-y-auto">
           {versions.map((version) => {
             const isActive = version.version_number === activeVersion
 
@@ -123,6 +127,26 @@ export function FlowHistoryTab({ flowId, activeVersion }: FlowHistoryTabProps) {
             )
           })}
         </div>
+
+        {hasNextPage && (
+          <div className="flex justify-center border-t p-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+            >
+              {isFetchingNextPage ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                'Load Older Versions'
+              )}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )
