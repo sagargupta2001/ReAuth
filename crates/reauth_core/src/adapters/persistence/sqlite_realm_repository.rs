@@ -116,4 +116,47 @@ impl RealmRepository for SqliteRealmRepository {
                 .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(flows)
     }
+
+    async fn update_flow_binding<'a>(
+        &self,
+        realm_id: &Uuid,
+        slot: &str,
+        flow_id: &Uuid,
+        tx: Option<&'a mut dyn Transaction>,
+    ) -> Result<()> {
+        // 1. Whitelist valid columns to prevent SQL injection
+        let valid_slots = [
+            "browser_flow_id",
+            "registration_flow_id",
+            "direct_grant_flow_id",
+            "reset_credentials_flow_id",
+            "client_authentication_flow_id",
+            "docker_authentication_flow_id",
+        ];
+
+        if !valid_slots.contains(&slot) {
+            return Err(Error::Validation(format!("Invalid binding slot: {}", slot)));
+        }
+
+        // 2. Construct Query
+        // note: We use ? for sqlite binding placeholders
+        let sql = format!("UPDATE realms SET {} = ? WHERE id = ?", slot);
+
+        // 3. Prepare the query object
+        // We bind the values as Strings, matching your 'create' method pattern
+        let query = sqlx::query(&sql)
+            .bind(flow_id.to_string())
+            .bind(realm_id.to_string());
+
+        // 4. Execute on correct target (Transaction or Pool)
+        if let Some(t) = tx {
+            let sql_tx = SqliteTransaction::from_trait(t).expect("Invalid TX type");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(())
+    }
 }

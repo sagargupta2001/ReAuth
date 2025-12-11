@@ -12,4 +12,11 @@ pub trait RealmRepository: Send + Sync {
     async fn list_all(&self) -> Result<Vec<Realm>>;
     async fn update<'a>(&self, realm: &Realm, tx: Option<&'a mut dyn Transaction>) -> Result<()>;
     async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>>;
+    async fn update_flow_binding<'a>(
+        &self,
+        realm_id: &Uuid,
+        slot: &str,
+        flow_id: &Uuid,
+        tx: Option<&'a mut dyn Transaction>,
+    ) -> Result<()>;
 }

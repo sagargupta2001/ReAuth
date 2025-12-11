@@ -211,6 +211,25 @@ impl FlowManager {
         };
         self.flow_store.set_deployment(&deployment).await?;
 
+        let column_to_update = match draft.flow_type.as_str() {
+            "browser" => Some("browser_flow_id"),
+            "registration" => Some("registration_flow_id"),
+            "direct" => Some("direct_grant_flow_id"),
+            "reset" => Some("reset_credentials_flow_id"),
+            "client" => Some("client_authentication_flow_id"),
+            "docker" => Some("docker_authentication_flow_id"),
+            _ => None, // Unknown or sub-flow types are not auto-bound
+        };
+
+        if let Some(col_name) = column_to_update {
+            println!("Auto-binding flow {} to realm slot {}", flow_id, col_name);
+
+            // Pass references (&) for IDs and None for the transaction
+            self.realm_repo
+                .update_flow_binding(&realm_id, col_name, &flow_id, None)
+                .await?;
+        }
+
         // 9. Cleanup: Delete the draft
         // Now safe because flow_versions references auth_flows, not flow_drafts
         self.flow_store.delete_draft(&flow_id).await?;

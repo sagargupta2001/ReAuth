@@ -1,6 +1,16 @@
 import { useMemo, useState } from 'react'
 
-import { GitBranch, Globe, Lock, Plus, Search, ShieldCheck, User, Zap } from 'lucide-react'
+import {
+  CheckCircle2,
+  Globe,
+  LayoutTemplate,
+  ListFilter,
+  Plus,
+  Search,
+  ShieldCheck,
+  User,
+  Zap,
+} from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 import { Badge } from '@/components/badge'
@@ -9,12 +19,11 @@ import { Input } from '@/components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import { Separator } from '@/components/separator'
 import type { FlowType, UnifiedFlowDto } from '@/entities/flow/model/types'
-import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useFlows } from '@/features/flow/api/useFlows.ts'
 import { CreateFlowDialog } from '@/features/flow/components/CreateFlowDialog.tsx'
+import { useFlowBindings } from '@/features/flow/hooks/useFlowBindings.ts'
 import { cn } from '@/lib/utils'
 
-// Icon mapping based on Flow Type
 const getFlowIcon = (type: string) => {
   switch (type) {
     case 'browser':
@@ -26,85 +35,90 @@ const getFlowIcon = (type: string) => {
     case 'reset':
       return ShieldCheck
     default:
-      return Globe
+      return LayoutTemplate
   }
-}
-
-// Sidebar specific icon for category (System vs Custom)
-const CategoryIcon = ({ isSystem }: { isSystem: boolean }) => {
-  if (isSystem) return <Lock className="text-muted-foreground/70 h-3.5 w-3.5" />
-  return <GitBranch className="text-muted-foreground/70 h-3.5 w-3.5" />
 }
 
 const flowTypeOptions: { value: FlowType | 'all'; label: string; icon?: any }[] = [
   { value: 'all', label: 'All Types' },
-  { value: 'browser', label: 'Browser Login', icon: Globe },
+  { value: 'browser', label: 'Browser', icon: Globe },
   { value: 'registration', label: 'Registration', icon: User },
   { value: 'direct', label: 'Direct Grant', icon: Zap },
-  { value: 'reset', label: 'Reset Credentials', icon: ShieldCheck },
+  { value: 'reset', label: 'Reset Creds', icon: ShieldCheck },
 ]
 
 export function FlowsSidebar() {
-  const realm = useActiveRealm()
+  // Destructure realmId (string) for URLs and isFlowActive (logic)
+  const { isFlowActive, realmId } = useFlowBindings()
+  const { data: flows, isLoading } = useFlows()
+
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<FlowType | 'all'>('all')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
-  const { data: flows, isLoading } = useFlows()
+  // Filter & Group Logic
+  const { activeFlows, availableFlows } = useMemo(() => {
+    if (!flows) return { activeFlows: [], availableFlows: [] }
 
-  // 1. Filter Logic
-  const filteredFlows = useMemo(() => {
-    return (flows || []).filter((f) => {
+    // 1. Filter
+    const filtered = flows.filter((f) => {
       const matchesSearch = f.alias.toLowerCase().includes(search.toLowerCase())
-      // Check type (safely handle if type string casing differs)
       const matchesType = typeFilter === 'all' || f.type === typeFilter
       return matchesSearch && matchesType
     })
-  }, [search, typeFilter, flows])
 
-  // 2. Categorization Logic (System vs Custom)
-  const { systemFlows, customFlows } = useMemo(() => {
-    const system: UnifiedFlowDto[] = []
-    const custom: UnifiedFlowDto[] = []
+    // 2. Group
+    const active: UnifiedFlowDto[] = []
+    const available: UnifiedFlowDto[] = []
 
-    filteredFlows.forEach((flow) => {
-      if (flow.built_in) {
-        system.push(flow)
+    filtered.forEach((flow) => {
+      if (isFlowActive(flow)) {
+        active.push(flow)
       } else {
-        custom.push(flow)
+        available.push(flow)
       }
     })
 
-    return { systemFlows: system, customFlows: custom }
-  }, [filteredFlows])
+    // 3. Sort (Alphabetical)
+    const sortFn = (a: UnifiedFlowDto, b: UnifiedFlowDto) => a.alias.localeCompare(b.alias)
 
-  if (isLoading) return null // Or a skeleton loader
+    return {
+      activeFlows: active.sort(sortFn),
+      availableFlows: available.sort(sortFn),
+    }
+  }, [flows, search, typeFilter, isFlowActive])
+
+  if (isLoading || !realmId) return null
 
   return (
-    <div className="bg-sidebar-accent/10 flex h-full w-[var(--sidebar-width-secondary)] flex-col border-r">
+    <div className="bg-muted/10 flex h-full w-[var(--sidebar-width-secondary)] flex-col border-r">
       {/* HEADER */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <h2 className="font-semibold">Auth Flows</h2>
-        <Badge variant="secondary" className="rounded-full px-2 py-0 text-xs">
-          {filteredFlows.length}
+      <div className="bg-background flex h-14 shrink-0 items-center justify-between border-b px-4">
+        <h2 className="text-sm font-semibold tracking-tight">Authentication</h2>
+        <Badge variant="secondary" className="text-muted-foreground h-5 px-1.5 text-[10px]">
+          {activeFlows.length + availableFlows.length}
         </Badge>
       </div>
 
-      {/* SEARCH & FILTER */}
-      <div className="space-y-3 p-3 pb-0">
+      {/* SEARCH & CONTROLS */}
+      <div className="space-y-3 p-3">
         <div className="relative">
-          <Search className="text-muted-foreground absolute top-2.5 left-2 h-4 w-4" />
+          <Search className="text-muted-foreground/50 absolute top-2.5 left-2.5 h-4 w-4" />
           <Input
-            placeholder="Search flows..."
-            className="bg-background h-9 pl-8"
+            placeholder="Find a flow..."
+            className="bg-background h-9 pl-9 text-sm transition-shadow focus-visible:ring-1"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
         <Select value={typeFilter} onValueChange={(val) => setTypeFilter(val as FlowType | 'all')}>
-          <SelectTrigger className="bg-background h-8 text-xs">
-            <SelectValue placeholder="Filter by type" />
+          <SelectTrigger className="bg-background h-8 w-full text-xs">
+            <div className="flex items-center gap-2 truncate">
+              <ListFilter className="h-3.5 w-3.5 opacity-70" />
+              <span className="text-muted-foreground">Type:</span>
+              <SelectValue />
+            </div>
           </SelectTrigger>
           <SelectContent>
             {flowTypeOptions.map((opt) => {
@@ -112,7 +126,7 @@ export function FlowsSidebar() {
               return (
                 <SelectItem key={opt.value} value={opt.value}>
                   <div className="flex items-center gap-2">
-                    {Icon && <Icon className="h-4 w-4 opacity-70" />}
+                    {Icon && <Icon className="h-3.5 w-3.5 opacity-70" />}
                     {opt.label}
                   </div>
                 </SelectItem>
@@ -122,101 +136,115 @@ export function FlowsSidebar() {
         </Select>
       </div>
 
-      <Separator className="mt-3" />
+      <Separator />
 
       {/* FLOW LIST */}
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="flex flex-col gap-4">
-          {/* SYSTEM FLOWS GROUP */}
-          {systemFlows.length > 0 && (
-            <div>
-              <h3 className="text-muted-foreground px-2 pb-2 text-[10px] font-bold tracking-wider uppercase">
-                System Flows
-              </h3>
-              <div className="flex flex-col gap-1">
-                {systemFlows.map((flow) => (
-                  <FlowSidebarItem key={flow.id} flow={flow} realm={realm} />
-                ))}
-              </div>
+        {/* Active Group */}
+        {activeFlows.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-muted-foreground/60 mb-2 px-2 text-[10px] font-bold tracking-wider uppercase">
+              Active / Bound
+            </h3>
+            <div className="space-y-0.5">
+              {activeFlows.map((flow) => (
+                <FlowItem key={flow.id} flow={flow} realmName={realmId} isActiveSection />
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* CUSTOM FLOWS GROUP */}
-          {customFlows.length > 0 && (
-            <div>
-              <h3 className="text-muted-foreground px-2 pb-2 text-[10px] font-bold tracking-wider uppercase">
-                Custom Flows
-              </h3>
-              <div className="flex flex-col gap-1">
-                {customFlows.map((flow) => (
-                  <FlowSidebarItem key={flow.id} flow={flow} realm={realm} />
-                ))}
-              </div>
+        {/* Separator */}
+        {activeFlows.length > 0 && availableFlows.length > 0 && (
+          <Separator className="my-2 opacity-50" />
+        )}
+
+        {/* Available Group */}
+        {availableFlows.length > 0 && (
+          <div>
+            <h3 className="text-muted-foreground/60 mb-2 px-2 text-[10px] font-bold tracking-wider uppercase">
+              Available Flows
+            </h3>
+            <div className="space-y-0.5">
+              {availableFlows.map((flow) => (
+                <FlowItem key={flow.id} flow={flow} realmName={realmId} />
+              ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* EMPTY STATE */}
-          {filteredFlows.length === 0 && (
-            <div className="text-muted-foreground py-8 text-center text-xs">No flows found</div>
-          )}
-        </div>
+        {/* Empty State */}
+        {activeFlows.length === 0 && availableFlows.length === 0 && (
+          <div className="flex h-32 flex-col items-center justify-center gap-2 text-center">
+            <div className="bg-muted rounded-full p-3">
+              <Search className="text-muted-foreground h-4 w-4" />
+            </div>
+            <p className="text-muted-foreground text-xs">No flows match your filter.</p>
+          </div>
+        )}
       </div>
 
       {/* FOOTER */}
-      <div className="bg-background/50 mt-auto border-t p-3 backdrop-blur-sm">
-        <Button className="w-full gap-2" onClick={() => setIsCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> Create Flow
+      <div className="bg-background mt-auto border-t p-3">
+        <Button
+          className="w-full justify-start gap-2 shadow-sm"
+          size="sm"
+          onClick={() => setIsCreateOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          Create New Flow
         </Button>
       </div>
+
       <CreateFlowDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
     </div>
   )
 }
 
-// Sub-component for individual list items to keep main component clean
-function FlowSidebarItem({ flow, realm }: { flow: UnifiedFlowDto; realm: string }) {
-  const TypeIcon = getFlowIcon(flow.type)
+function FlowItem({
+  flow,
+  realmName,
+  isActiveSection = false,
+}: {
+  flow: UnifiedFlowDto
+  realmName: string
+  isActiveSection?: boolean
+}) {
+  const Icon = getFlowIcon(flow.type)
 
   return (
-    <div className="group relative flex items-center">
-      <NavLink
-        to={`/${realm}/flows/${flow.id}`}
-        className={({ isActive }) =>
-          cn(
-            'flex flex-1 flex-col items-start gap-1 rounded-md p-2.5 pr-8 text-sm transition-colors',
-            'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-            isActive
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
-              : 'text-muted-foreground',
-          )
-        }
+    <NavLink
+      to={`/${realmName}/flows/${flow.id}`}
+      className={({ isActive }) =>
+        cn(
+          'group flex items-start gap-3 rounded-md px-3 py-2.5 text-sm transition-all',
+          'hover:bg-accent/50 hover:text-accent-foreground',
+          isActive
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground ring-border font-medium shadow-sm ring-1'
+            : 'text-muted-foreground',
+        )
+      }
+    >
+      <div
+        className={cn(
+          'bg-background mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border shadow-sm transition-colors',
+          isActiveSection
+            ? 'border-primary/20 text-primary'
+            : 'border-border text-muted-foreground/70',
+        )}
       >
-        <div className="flex w-full items-center gap-2">
-          {/* Category Icon (Lock or Branch) */}
-          <CategoryIcon isSystem={flow.built_in} />
+        <Icon className="h-3.5 w-3.5" />
+      </div>
 
-          <span className="text-foreground truncate font-medium">{flow.alias}</span>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-foreground truncate leading-none">{flow.alias}</span>
+          {isActiveSection && <CheckCircle2 className="text-primary/60 h-3 w-3" />}
         </div>
-
-        {/* Metadata Row */}
-        <div className="mt-1.5 flex items-center gap-2">
-          {/* Flow Type Badge */}
-          <div className="flex items-center gap-1 text-[10px] opacity-70">
-            <TypeIcon className="h-3 w-3" />
-            <span className="capitalize">{flow.type}</span>
-          </div>
-
-          {/* Draft Indicator (Only show if it has a draft) */}
-          {flow.is_draft && (
-            <Badge
-              variant="outline"
-              className="text-primary border-primary/30 ml-auto h-4 px-1 text-[9px] font-normal"
-            >
-              Draft
-            </Badge>
-          )}
-        </div>
-      </NavLink>
-    </div>
+        <span className="text-muted-foreground/60 mt-1.5 truncate text-[10px] capitalize">
+          {flow.type} flow
+        </span>
+      </div>
+    </NavLink>
   )
 }

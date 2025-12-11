@@ -20,6 +20,12 @@ export function usePublishFlow() {
     },
     onSuccess: () => {
       toast.success('Flow published successfully!')
+      // 1. REFRESH SIDEBAR: Invalidate the specific binding hook
+      void queryClient.invalidateQueries({ queryKey: ['realm-bindings'] })
+
+      // 2. Refresh the Realm config itself (good practice)
+      void queryClient.invalidateQueries({ queryKey: ['realm', realm] })
+
       // Invalidate queries to refresh the "Active Version" status in Details page
       void queryClient.invalidateQueries({ queryKey: ['flow', flowId] })
       void queryClient.invalidateQueries({ queryKey: ['flows'] })
