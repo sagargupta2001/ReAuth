@@ -323,4 +323,33 @@ impl FlowManager {
 
         Ok(())
     }
+
+    pub async fn restore_draft_from_version(
+        &self,
+        realm_id: Uuid,
+        flow_id: Uuid,
+        version_number: i32,
+    ) -> Result<()> {
+        // 1. Fetch the target version
+        let version = self
+            .flow_store
+            .get_version_by_number(&flow_id, version_number)
+            .await?
+            .ok_or(Error::Unexpected(anyhow::anyhow!(
+                "Version {} not found",
+                version_number
+            )))?;
+
+        // 2. Fetch the current draft (to preserve ID, name, etc.)
+        let mut draft = self.get_draft(flow_id).await?;
+
+        // 3. Overwrite ONLY the graph
+        draft.graph_json = version.graph_json;
+        draft.updated_at = Utc::now();
+
+        // 4. Save
+        self.flow_store.update_draft(&draft).await?;
+
+        Ok(())
+    }
 }

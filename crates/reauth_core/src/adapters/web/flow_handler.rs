@@ -250,3 +250,28 @@ pub async fn rollback_flow_handler(
 
     Ok((StatusCode::OK, Json(json!({ "success": true }))))
 }
+
+#[derive(serde::Deserialize)]
+pub struct RestoreDraftRequest {
+    pub version_number: i32,
+}
+
+/// POST /api/realms/{realm}/flows/{id}/restore-draft
+pub async fn restore_draft_handler(
+    State(state): State<AppState>,
+    Path((realm_name, flow_id)): Path<(String, Uuid)>,
+    Json(payload): Json<RestoreDraftRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .flow_manager
+        .restore_draft_from_version(realm.id, flow_id, payload.version_number)
+        .await?;
+
+    Ok((StatusCode::OK, Json(json!({ "success": true }))))
+}

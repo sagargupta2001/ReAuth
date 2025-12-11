@@ -1,10 +1,11 @@
 import { formatDistanceToNow } from 'date-fns'
-import { Clock, Loader2, RotateCcw, ShieldCheck } from 'lucide-react'
+import { Blend, Clock, Loader2, RotateCcw, ShieldCheck } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import { Skeleton } from '@/components/skeleton'
 import { useFlowVersions } from '@/features/flow-builder/api/useFlowVersions'
 import { useRollbackFlow } from '@/features/flow-builder/api/useRollbackFlow.ts'
+import { useRestoreDraft } from '@/features/flow/api/useRestoreDraft.ts'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +26,8 @@ interface FlowHistoryTabProps {
 export function FlowHistoryTab({ flowId, activeVersion }: FlowHistoryTabProps) {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useFlowVersions(flowId)
+
+  const { mutate: restoreDraft, isPending: isRestoring } = useRestoreDraft()
 
   const { mutate: rollback, isPending } = useRollbackFlow()
 
@@ -122,6 +125,36 @@ export function FlowHistoryTab({ flowId, activeVersion }: FlowHistoryTabProps) {
                       </AlertDialogContent>
                     </AlertDialog>
                   )}
+
+                  {/* RESTORE DRAFT BUTTON (Design Action) */}
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" className="h-8 text-xs" title="Edit this version">
+                        <Blend className="mr-2 h-3 w-3" />
+                        Overwrite Draft
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          Revert Draft to Version {version.version_number}?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will <strong>overwrite your current work-in-progress draft</strong>{' '}
+                          with the graph from Version {version.version_number}.
+                          <br />
+                          <br />
+                          The active login flow will NOT change. This only affects the builder.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => restoreDraft(version.version_number)}>
+                          {isRestoring ? 'Restoring...' : 'Overwrite Draft'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
               </div>
             )
