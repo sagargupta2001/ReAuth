@@ -57,7 +57,7 @@ export function FlowBuilderPage() {
         <BuilderHeader
           flowName={draft?.name || 'Untitled Flow'}
           flowId={draftId}
-          activeVersion={draft?.active_version_number}
+          activeVersion={draft?.active_version}
         />
 
         <div className="relative flex flex-1 overflow-hidden">
