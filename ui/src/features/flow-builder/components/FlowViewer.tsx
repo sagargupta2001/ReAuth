@@ -4,10 +4,32 @@ import '@xyflow/react/dist/style.css'
 
 import { useTheme } from '@/app/providers/themeProvider'
 import { AuthenticatorNode } from '@/features/flow-builder/components/nodes/AuthenticatorNode'
+import { StartNode } from '@/features/flow-builder/components/nodes/StartNode'
+import { TerminalNode } from '@/features/flow-builder/components/nodes/TerminalNode'
 
-// Reuse your existing node types so they look identical to the builder
+// 1. Updated Node Types Map
+// This must match FlowCanvas exactly so the "View" mode looks just like "Edit" mode.
 const nodeTypes = {
+  // Start
+  'core.start': StartNode,
+
+  // Authenticators
+  'core.auth.password': AuthenticatorNode,
+  'core.auth.otp': AuthenticatorNode,
+  'core.auth.registration': AuthenticatorNode,
+
+  // Logic (Using AuthenticatorNode as placeholder for now, or use a dedicated LogicNode if you have one)
+  'core.logic.condition': AuthenticatorNode,
+  'core.logic.script': AuthenticatorNode,
+
+  // Terminals
+  'core.terminal.allow': TerminalNode,
+  'core.terminal.deny': TerminalNode,
+
+  // Fallbacks (legacy support)
   authenticator: AuthenticatorNode,
+  terminal: TerminalNode,
+  start: StartNode,
 }
 
 interface FlowViewerProps {
@@ -30,8 +52,10 @@ function FlowViewerInternal({ nodes, edges }: FlowViewerProps) {
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
-        panOnDrag={true} // Allow users to pan around
-        zoomOnScroll={true} // Allow users to zoom
+        nodesFocusable={false}
+        edgesFocusable={false}
+        panOnDrag={true} // Allow panning
+        zoomOnScroll={true} // Allow zooming
         zoomOnDoubleClick={false}
         proOptions={{ hideAttribution: true }}
         colorMode={isDark ? 'dark' : 'light'}

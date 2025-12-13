@@ -1,31 +1,42 @@
-// src/domain/compiler/compiler.rs
-
 use super::validator::{GraphEdge, GraphNode, GraphValidator};
+use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::execution::{ExecutionNode, ExecutionPlan, StepType};
-use crate::error::Result;
-use std::collections::HashMap;
+use crate::error::{Error, Result};
+use std::collections::{HashMap, HashSet};
 
 pub struct FlowCompiler;
 
 impl FlowCompiler {
-    pub fn compile(json: serde_json::Value) -> Result<ExecutionPlan> {
-        // 1. Parse Raw JSON into Structs
-        // (You might want a dedicated DTO for ReactFlow JSON deserialization)
+    // 1. Signature Change: Accept &RuntimeRegistry
+    pub fn compile(json: serde_json::Value, registry: &RuntimeRegistry) -> Result<ExecutionPlan> {
+        // --- STEP 1: Parse Raw JSON ---
         let nodes_val = json
             .get("nodes")
             .and_then(|v| v.as_array())
-            .ok_or(crate::error::Error::Validation("Missing nodes".into()))?;
+            .ok_or(Error::Validation("Missing nodes".into()))?;
         let edges_val = json
             .get("edges")
             .and_then(|v| v.as_array())
-            .ok_or(crate::error::Error::Validation("Missing edges".into()))?;
+            .ok_or(Error::Validation("Missing edges".into()))?;
 
         let mut nodes = Vec::new();
+        // Helper to map ID -> Config (JSON) for later
+        let mut node_configs: HashMap<String, serde_json::Value> = HashMap::new();
+
         for n in nodes_val {
-            nodes.push(GraphNode {
-                id: n["id"].as_str().unwrap().to_string(),
-                type_: n["type"].as_str().unwrap_or("default").to_string(),
-            });
+            let id = n["id"].as_str().unwrap().to_string();
+            let type_ = n["type"].as_str().unwrap_or("default").to_string();
+
+            // Extract config from ReactFlow format: node.data.config
+            let config = n
+                .get("data")
+                .and_then(|d| d.get("config"))
+                .cloned()
+                .unwrap_or(serde_json::json!({}));
+
+            node_configs.insert(id.clone(), config);
+
+            nodes.push(GraphNode { id, type_ });
         }
 
         let mut edges = Vec::new();
@@ -37,15 +48,15 @@ impl FlowCompiler {
             });
         }
 
-        // 2. Validate
-        GraphValidator::validate(&nodes, &edges)?;
+        // --- STEP 2: Validate using Registry ---
+        // This fixes the "Dead end detected" error by letting the validator check StepType
+        GraphValidator::validate(&nodes, &edges, registry)?;
 
-        // 3. Flatten into Execution Plan
+        // --- STEP 3: Compile to Execution Plan ---
         let mut execution_nodes = HashMap::new();
         let mut start_node_id = String::new();
 
-        // Helper to find connections
-        // Map<SourceID, Vec<(Handle, TargetID)>>
+        // Build Adjacency Map: SourceID -> { Handle -> TargetID }
         let mut adjacency: HashMap<String, HashMap<String, String>> = HashMap::new();
         for edge in &edges {
             let handle = edge
@@ -58,35 +69,43 @@ impl FlowCompiler {
                 .insert(handle, edge.target.clone());
         }
 
-        // Identify Start Node logic again (simplified for compiler)
-        let targets: std::collections::HashSet<String> =
-            edges.iter().map(|e| e.target.clone()).collect();
+        // Find Start Node (node with no incoming edges)
+        let targets: HashSet<String> = edges.iter().map(|e| e.target.clone()).collect();
 
         for node in nodes {
-            // Determine Step Type
-            let step_type = match node.type_.as_str() {
-                "terminal" => StepType::Terminal,
-                "authenticator" => StepType::Authenticator,
-                _ => StepType::Logic, // Default to logic
-            };
+            // [CRITICAL FIX] Dynamic Step Type Lookup
+            // Instead of hardcoding strings, we ask the registry.
+            // This ensures "core.terminal.allow" is correctly mapped to StepType::Terminal
+            let step_type = registry.get_node_type(&node.type_).ok_or_else(|| {
+                Error::Validation(format!(
+                    "Unknown node type during compilation: {}",
+                    node.type_
+                ))
+            })?;
 
             // Capture start node
             if !targets.contains(&node.id) {
                 start_node_id = node.id.clone();
             }
 
-            // Build Next Map
             let next_map = adjacency.remove(&node.id).unwrap_or_default();
+            let config = node_configs
+                .remove(&node.id)
+                .unwrap_or(serde_json::json!({}));
 
             execution_nodes.insert(
                 node.id.clone(),
                 ExecutionNode {
                     id: node.id,
-                    step_type,
+                    step_type, // Uses the correct enum from registry
                     next: next_map,
-                    config: serde_json::json!({}), // TODO: Extract from node.data.config
+                    config, // Uses the extracted config
                 },
             );
+        }
+
+        if start_node_id.is_empty() && !execution_nodes.is_empty() {
+            return Err(Error::Validation("No start node detected".into()));
         }
 
         Ok(ExecutionPlan {

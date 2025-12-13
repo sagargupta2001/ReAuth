@@ -44,6 +44,7 @@ export function AuthFlowExecutor() {
       }
     }
 
+    // Only create a new promise if one isn't already running
     if (!initializationPromise) {
       initializationPromise = runInit()
     }
@@ -56,15 +57,17 @@ export function AuthFlowExecutor() {
           setCurrentStep(res.execution)
           setIsLoading(false)
         }
+        // [FIX] CLEAR THE SINGLETON ON SUCCESS
+        // This ensures that the next time you visit this page (e.g. after logout),
+        // we start fresh. Strict Mode (which runs instantly) will still share this promise.
+        initializationPromise = null
       })
       .catch((err) => {
         if (active) {
-          // If the backend error is specifically "Session is closed",
-          // our previous Backend fix should have handled it.
-          // If we see it here, it's a fallback.
           setGlobalError('Failed to initialize login flow. ' + (err.message || ''))
           setIsLoading(false)
         }
+        // [FIX] CLEAR THE SINGLETON ON ERROR
         initializationPromise = null
       })
 
@@ -106,7 +109,6 @@ export function AuthFlowExecutor() {
         }
 
         // Internal Success - Update Store
-        // AuthGuard will detect this change and redirect to the saved URL.
         setSession(token)
       } catch (err) {
         console.error('Session hydration failed:', err)

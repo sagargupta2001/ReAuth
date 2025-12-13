@@ -72,4 +72,48 @@ impl FlowTemplates {
             ]
         })
     }
+
+    pub fn reset_credentials_flow() -> Value {
+        json!({
+            "nodes": [
+                {
+                    "id": "auth-password",
+                    "type": "core.auth.password",
+                    "position": { "x": 250, "y": 50 },
+                    "data": { "label": "Direct Grant Auth" }
+                },
+                {
+                    "id": "success",
+                    "type": "core.terminal.allow",
+                    "position": { "x": 250, "y": 200 },
+                    "data": { "label": "Success" }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "auth-password", "sourceHandle": "success", "target": "success" }
+            ]
+        })
+    }
+
+    pub fn registration_flow() -> Value {
+        json!({
+            "nodes": [
+                {
+                    "id": "auth-password",
+                    "type": "core.auth.password",
+                    "position": { "x": 250, "y": 50 },
+                    "data": { "label": "Direct Grant Auth" }
+                },
+                {
+                    "id": "success",
+                    "type": "core.terminal.allow",
+                    "position": { "x": 250, "y": 200 },
+                    "data": { "label": "Success" }
+                }
+            ],
+            "edges": [
+                { "id": "e1", "source": "auth-password", "sourceHandle": "success", "target": "success" }
+            ]
+        })
+    }
 }

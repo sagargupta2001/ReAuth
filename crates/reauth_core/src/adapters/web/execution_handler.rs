@@ -25,7 +25,6 @@ pub async fn start_login(
     Path(realm_name): Path<String>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse> {
-    // 1. Setup Realm & Flow
     let realm = state
         .realm_service
         .find_by_name(&realm_name)
@@ -34,80 +33,68 @@ pub async fn start_login(
 
     let flow_id_str = realm
         .browser_flow_id
-        .ok_or(Error::Validation("No browser flow configured".to_string()))?;
+        .ok_or(Error::Validation("No flow".to_string()))?;
     let flow_id = Uuid::parse_str(&flow_id_str).unwrap_or_default();
 
-    // 2. Attempt to Resolve a Session (Resume or Create)
-    let mut session_candidate = None;
-
-    // A. Check Cookie
+    // 1. Resolve Session
+    let mut session = None;
     if let Some(cookie) = jar.get(LOGIN_SESSION_COOKIE) {
         if let Ok(id) = Uuid::parse_str(cookie.value()) {
+            // We just pass whatever we find. The Executor will reset it if it's dead.
             if let Ok(Some(s)) = state.auth_session_repo.find_by_id(&id).await {
-                // Strict check: Only resume if explicitly ACTIVE
-                if s.status == SessionStatus::active {
-                    println!("DEBUG: Found Active Session {}", s.id);
-                    session_candidate = Some(s);
-                } else {
-                    println!("DEBUG: Session {} is {:?}. Ignoring.", s.id, s.status);
-                }
+                session = Some(s);
             }
         }
     }
 
-    // B. Create New if needed
-    let mut session = if let Some(s) = session_candidate {
+    // 2. Create if Missing
+    let final_session = if let Some(s) = session {
         s
     } else {
-        create_new_session(&state, realm.id, flow_id).await?
+        let version = state
+            .flow_store
+            .get_active_version(&flow_id)
+            .await?
+            .or(state.flow_store.get_latest_version(&flow_id).await?)
+            .ok_or(Error::NotFound("Flow version missing".to_string()))?;
+
+        let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact).unwrap();
+        let new_s = AuthenticationSession::new(
+            realm.id,
+            Uuid::parse_str(&version.id).unwrap_or_default(),
+            plan.start_node_id,
+        );
+
+        state.auth_session_repo.create(&new_s).await?;
+        new_s
     };
 
-    // 3. EXECUTE (With Self-Healing)
-    // We try to execute. If the DB status changed behind our back (e.g. race condition),
-    // and the executor says "Session is closed", we catch it and start over.
-    let result = match state.flow_executor.execute(session.id, None).await {
-        Ok(res) => res,
-        Err(Error::Validation(msg)) if msg == "Session is closed" => {
-            println!(
-                "WARN: Executor rejected session {} (Closed). Forcing NEW session.",
-                session.id
-            );
+    // 3. Execute
+    let result = state.flow_executor.execute(final_session.id, None).await?;
 
-            // Force create new
-            session = create_new_session(&state, realm.id, flow_id).await?;
-
-            // Retry execution with new session
-            state.flow_executor.execute(session.id, None).await?
-        }
-        Err(e) => return Err(e), // Other errors are fatal
-    };
-
-    // 4. Set Cookie (Force Insecure for Localhost)
+    // 4. Set Cookie
     let mut headers = HeaderMap::new();
-    let expires_time = time::OffsetDateTime::from_unix_timestamp(session.expires_at.timestamp())
-        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
-
-    // CRITICAL: Must be FALSE for localhost/http, TRUE for production/https
-    // If this mismatches your browser environment, cookies won't stick.
-    let is_production = false;
-
-    let cookie: CookieBuilder = Cookie::build((LOGIN_SESSION_COOKIE, session.id.to_string()))
+    let is_production = false; // Localhost
+    let cookie: CookieBuilder = Cookie::build((LOGIN_SESSION_COOKIE, final_session.id.to_string()))
         .path("/")
         .http_only(true)
         .same_site(SameSite::Lax)
         .secure(is_production)
-        .expires(expires_time)
+        .expires(
+            time::OffsetDateTime::from_unix_timestamp(final_session.expires_at.timestamp())
+                .unwrap(),
+        )
         .into();
 
     headers.insert(
         header::SET_COOKIE,
-        HeaderValue::from_str(&cookie.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
+        HeaderValue::from_str(&cookie.to_string()).unwrap(),
     );
 
     Ok((
         headers,
         Json(serde_json::json!({
-            "session_id": session.id,
+            "session_id": final_session.id,
             "execution": result
         })),
     ))

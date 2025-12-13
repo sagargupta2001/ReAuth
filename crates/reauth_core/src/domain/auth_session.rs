@@ -76,8 +76,6 @@ pub struct AuthenticationSession {
 
     pub current_node_id: String,
 
-    // FIX: Use #[sqlx(json)] instead of try_from.
-    // This automatically maps the TEXT/JSON column to serde_json::Value
     #[sqlx(json)]
     pub context: Value,
 

@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { useSessionStore } from '@/entities/session/model/sessionStore'
-
-import { authApi } from './authApi'
+import { authApi } from '@/features/auth/api/authApi.ts'
 
 export function useLogout() {
   const navigate = useNavigate()
+  const location = useLocation() // 1. Hook to get current path
   const clearSession = useSessionStore((state) => state.clearSession)
   const queryClient = useQueryClient()
 
@@ -16,19 +16,25 @@ export function useLogout() {
     onSuccess: () => {
       // Clear client state
       clearSession()
-
-      // Clear any cached queries (optional but recommended)
       queryClient.clear()
 
-      // Redirect to login page
-      navigate('/login', { replace: true })
+      // 2. Construct Return URL
+      // We capture where the user was (e.g. "/master/flows") so they can return there.
+      const currentPath = location.pathname + location.search
+      const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`
+
+      // 3. Navigate with Redirect Param
+      navigate(loginUrl, { replace: true })
 
       toast.success('Logged out successfully')
     },
     onError: (error) => {
-      // Even if the server fails, we should force a client-side logout
+      // Force logout on error too (Self-Healing)
       clearSession()
-      navigate('/login', { replace: true })
+
+      const currentPath = location.pathname + location.search
+      navigate(`/login?redirect=${encodeURIComponent(currentPath)}`, { replace: true })
+
       console.error('Logout failed on server:', error)
     },
   })

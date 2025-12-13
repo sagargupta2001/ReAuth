@@ -94,18 +94,26 @@ pub fn initialize_services(
 
     let node_registry = Arc::new(NodeRegistryService::new());
 
+    let mut runtime_registry = RuntimeRegistry::new();
+
+    // One line to register everything
+    crate::adapters::auth::register_builtins(&mut runtime_registry, repos.user_repo.clone());
+
+    let runtime_registry = Arc::new(runtime_registry);
+
     let flow_manager = Arc::new(FlowManager::new(
         repos.flow_store.clone(),
         repos.flow_repo.clone(),
         repos.realm_repo.clone(),
+        runtime_registry.clone(),
     ));
 
     let password_auth = Arc::new(PasswordAuthenticator::new(repos.user_repo.clone()));
 
     let mut runtime_registry = crate::application::runtime_registry::RuntimeRegistry::new();
 
-    // "Hello Registry, when the graph says 'core.auth.password', use this struct."
-    runtime_registry.register("core.auth.password", password_auth);
+    // This registers the worker AND marks "core.auth.password" as StepType::Authenticator automatically
+    runtime_registry.register_authenticator("core.auth.password", password_auth);
 
     // 3. Create the Executor with the Registry
     let flow_executor = Arc::new(FlowExecutor::new(

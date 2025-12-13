@@ -1,6 +1,7 @@
 pub mod templates;
 
 use crate::application::flow_manager::templates::FlowTemplates;
+use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::compiler::compiler::FlowCompiler;
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::ports::flow_repository::FlowRepository;
@@ -32,6 +33,7 @@ pub struct FlowManager {
     flow_store: Arc<dyn FlowStore>,
     flow_repo: Arc<dyn FlowRepository>,
     realm_repo: Arc<dyn RealmRepository>,
+    runtime_registry: Arc<RuntimeRegistry>,
 }
 
 impl FlowManager {
@@ -39,11 +41,13 @@ impl FlowManager {
         flow_store: Arc<dyn FlowStore>,
         flow_repo: Arc<dyn FlowRepository>,
         realm_repo: Arc<dyn RealmRepository>,
+        runtime_registry: Arc<RuntimeRegistry>,
     ) -> Self {
         Self {
             flow_store,
             flow_repo,
             realm_repo,
+            runtime_registry,
         }
     }
 
@@ -160,7 +164,7 @@ impl FlowManager {
             .map_err(|e| Error::Validation(format!("Draft JSON is corrupted: {}", e)))?;
 
         // 3. Compile (Validates the graph logic)
-        let execution_plan = FlowCompiler::compile(graph_json_value)?;
+        let execution_plan = FlowCompiler::compile(graph_json_value, &self.runtime_registry)?;
 
         // 4. Serialize Artifact (Struct -> String)
         let execution_artifact = serde_json::to_string(&execution_plan)
@@ -264,6 +268,8 @@ impl FlowManager {
         let json_value = match flow_type {
             "browser" => FlowTemplates::browser_flow(),
             "direct" => FlowTemplates::direct_grant_flow(),
+            "registration" => FlowTemplates::registration_flow(),
+            "reset" => FlowTemplates::reset_credentials_flow(),
             // Fallback to a minimal graph
             _ => serde_json::json!({
                 "nodes": [],

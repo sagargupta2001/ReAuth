@@ -283,7 +283,7 @@ async fn ensure_flow(
     if !draft_exists {
         flow_store.create_draft(&draft_obj).await?;
     } else {
-        // info!("Step 2: Draft already exists for {}", alias);
+        info!("Step 2: Draft already exists for {}", alias);
     }
 
     // Ensure Active Version Exists

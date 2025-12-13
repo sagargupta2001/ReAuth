@@ -33,7 +33,7 @@ impl FlowExecutor {
     pub async fn execute(
         &self,
         session_id: Uuid,
-        mut user_input: Option<Value>,
+        mut user_input: Option<Value>, // Mutable to allow discarding input on reset
     ) -> Result<ExecutionResult> {
         // 1. Load Session
         let mut session = self
@@ -42,34 +42,41 @@ impl FlowExecutor {
             .await?
             .ok_or(Error::NotFound("Session not found".to_string()))?;
 
+        // [FIX START] SELF-HEALING: Check Status FIRST.
+        // If the session is closed/completed, we must RESET it to the beginning.
+        // We cannot process input for a closed session, so we discard the input.
         if session.status != SessionStatus::active {
             println!(
                 "WARN: Session {} is {:?}. Resetting to Start.",
                 session_id, session.status
             );
 
-            // A. Load Plan
+            // A. Load Plan (Needed to find the start node)
             let version = self
                 .flow_store
                 .get_version(&session.flow_version_id)
                 .await?
                 .ok_or(Error::System("Flow version missing".to_string()))?;
+
             let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
                 .map_err(|e| Error::Unexpected(anyhow::anyhow!("Corrupt artifact: {}", e)))?;
 
-            // B. Reset Fields
+            // B. Reset Fields to Start State
             session.current_node_id = plan.start_node_id;
             session.status = SessionStatus::active;
             session.user_id = None;
-            // Keep context (OIDC params)
+            // NOTE: We keep 'context' (e.g. OIDC params) so we don't lose the return URL!
 
-            // C. Save
+            // C. Save immediately
             self.session_repo.update(&session).await?;
 
-            // D. Discard Input (The input was for the *old* state, which is invalid now)
-            // This forces the loop below to run the Start Node -> First Screen logic.
+            // D. Discard Input
+            // The input provided (e.g. "Submit Success") was for the OLD state.
+            // Since we just reset to Step 1, that input is invalid.
+            // Discarding it forces the loop below to run the "Start Node -> First Screen" logic.
             user_input = None;
         }
+        // [FIX END] ---------------------------------------------------------------
 
         // 2. Load the Graph (ExecutionPlan)
         // We fetch the immutable version tied to this session
@@ -94,12 +101,11 @@ impl FlowExecutor {
 
             if current_node.step_type == StepType::Authenticator {
                 // A. Find the Implementation (The Worker)
-                // We use the node's config "auth_type" OR fall back to the node ID if simple
                 let auth_key = current_node
                     .config
                     .get("auth_type")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("core.auth.password"); // Default for now, ideally strictly typed
+                    .unwrap_or("core.auth.password");
 
                 let authenticator =
                     self.registry
@@ -110,19 +116,17 @@ impl FlowExecutor {
                         )))?;
 
                 // B. Prepare Context
-                // Map the JSON input to the HashMap credentials your trait expects
                 let credentials = self.parse_credentials(&input);
 
-                // Note: We are creating a temporary AuthContext.
-                // Ideally, you should update your Authenticator trait to accept `AuthenticationSession` directly.
+                // Map to legacy LoginSession structure for the authenticator trait
                 let legacy_login_session = LoginSession {
                     id: session.id,
                     realm_id: session.realm_id,
-                    flow_id: Uuid::default(), // Not strictly needed for logic
+                    flow_id: Uuid::default(),
                     current_step: 0,
                     user_id: session.user_id,
                     state_data: None,
-                    context: session.context.clone(), // Pass the context!
+                    context: session.context.clone(), // Pass context (OIDC data) through
                     expires_at: session.expires_at,
                 };
 
@@ -139,21 +143,16 @@ impl FlowExecutor {
                 // D. Determine Outcome Edge
                 let edge_label = match result {
                     AuthStepResult::Success => {
-                        // --- FIX STARTS HERE ---
-                        // 1. Retrieve the ID from the worker's context
+                        // Retrieve the ID from the worker's context
                         if let Some(uid) = context.login_session.user_id {
                             session.user_id = Some(uid);
-
-                            // 2. IMPORTANT: Save to DB immediately
+                            // IMPORTANT: Save to DB immediately to persist user_id
                             self.session_repo.update(&session).await?;
                         } else {
-                            // If Success returned but no ID, that's a logic bug in the Authenticator
                             return Err(Error::System(
                                 "Authenticator succeeded but returned no User ID".to_string(),
                             ));
                         }
-                        // --- FIX ENDS HERE ---
-
                         "success"
                     }
                     AuthStepResult::Failure { .. } => "failure",
@@ -164,7 +163,7 @@ impl FlowExecutor {
                 if let Some(next_id) = current_node.next.get(edge_label) {
                     session.current_node_id = next_id.clone();
                 } else {
-                    // If we failed and there is no "failure" wire, we return the error to UI
+                    // If we failed and there is no "failure" wire, return error to UI
                     if let AuthStepResult::Failure { message } = result {
                         self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Failure { reason: message });
@@ -174,13 +173,15 @@ impl FlowExecutor {
                     ));
                 }
             } else {
+                // This error block will now only hit if a user manually POSTs to a logic node,
+                // because the "closed session" case is handled at the top.
                 return Err(Error::Validation(
                     "Input received for non-interactive step".to_string(),
                 ));
             }
         }
 
-        // 4. Execution Loop (Traverse the Graph)
+        // 4. Execution Loop (Traverse the Graph until we hit a UI screen or End)
         loop {
             // Persist state at every tick
             self.session_repo.update(&session).await?;
@@ -193,7 +194,6 @@ impl FlowExecutor {
             match node.step_type {
                 // STOP: UI Screen
                 StepType::Authenticator => {
-                    // We need to ask the Authenticator *what* screen to show
                     let auth_key = node
                         .config
                         .get("auth_type")
@@ -208,11 +208,21 @@ impl FlowExecutor {
                                 auth_key
                             )))?;
 
-                    // Prepare empty context for challenge
+                    // Prepare context for challenge
                     let context = AuthContext {
                         realm_id: session.realm_id,
                         credentials: HashMap::new(),
-                        login_session: Default::default(),
+                        // Populate LoginSession correctly for context access
+                        login_session: LoginSession {
+                            id: session.id,
+                            realm_id: session.realm_id,
+                            flow_id: Uuid::default(),
+                            current_step: 0,
+                            user_id: session.user_id,
+                            state_data: None,
+                            context: session.context.clone(),
+                            expires_at: session.expires_at,
+                        },
                         config: Default::default(),
                     };
 
@@ -221,15 +231,13 @@ impl FlowExecutor {
                     return if let AuthStepResult::Challenge { challenge_name, .. } =
                         challenge_result
                     {
-                        // CRITICAL: We calculated the next state/screen.
-                        // We MUST save it to the DB now. Otherwise, a page refresh
-                        // reloads the *previous* state from the DB.
-
-                        // Update context/pointer in the session object
+                        // CRITICAL: Save state before returning to UI
+                        // This ensures 'current_node_id' is saved so refresh works.
                         session.context = context.login_session.context;
                         self.session_repo.update(&session).await?;
+
                         Ok(ExecutionResult::Challenge {
-                            screen_id: challenge_name, // Should return "username_password"
+                            screen_id: challenge_name,
                             context: session.context.clone(),
                         })
                     } else {
@@ -241,17 +249,13 @@ impl FlowExecutor {
 
                 // RUN: Logic Node
                 StepType::Logic => {
-                    // FIX: Don't just look for "true".
-                    // The Start node usually maps to "default" or "next".
-                    // A Condition node maps to "true"/"false".
-
                     let next_node_id = node
                         .next
-                        .get("true") // 1. Try Boolean True
-                        .or_else(|| node.next.get("default")) // 2. Try Generic/Default (Common for Start)
-                        .or_else(|| node.next.get("next")) // 3. Try Named 'Next'
+                        .get("true")
+                        .or_else(|| node.next.get("default"))
+                        .or_else(|| node.next.get("next"))
                         .or_else(|| {
-                            // 4. Fallback: If only 1 path exists, take it.
+                            // Fallback: If only 1 path exists, take it.
                             if node.next.len() == 1 {
                                 node.next.values().next()
                             } else {
@@ -263,11 +267,9 @@ impl FlowExecutor {
                         session.current_node_id = next_id.clone();
                         // Loop continues immediately to the next node
                     } else {
-                        // Helpful error message to debug exactly which node and keys are failing
                         return Err(Error::Validation(format!(
-                            "Logic node '{}' (type: {}) has no matching output path. Available edges: {:?}",
+                            "Logic node '{}' stuck. Available edges: {:?}",
                             node.id,
-                            node.config.get("type").and_then(|v| v.as_str()).unwrap_or("unknown"),
                             node.next.keys()
                         )));
                     }
@@ -291,7 +293,7 @@ impl FlowExecutor {
                         session.status = SessionStatus::completed;
                         self.session_repo.update(&session).await?;
 
-                        // Issue Tokens here if needed, or redirect to callback
+                        // Calculate final redirect (OIDC Callback or Default)
                         return Ok(ExecutionResult::Success {
                             redirect_url: "/".to_string(),
                         });

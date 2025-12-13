@@ -1,19 +1,18 @@
 import type { DragEvent, ElementType } from 'react'
 
-import { Box, CheckCircle, Loader2, Lock, ShieldAlert, Split, XCircle } from 'lucide-react'
+// Import missing icons (Play for Start)
+import { Box, CheckCircle, Loader2, Lock, Play, ShieldAlert, Split, XCircle } from 'lucide-react'
 
 import { type NodeMetadata, useNodes } from '@/features/flow-builder/api/useNodes'
-// Ensure type is imported
 import { cn } from '@/lib/utils'
 
-// 1. Icon Mapping: Convert string names from API to React Components
 const IconMap: Record<string, ElementType> = {
   Lock: Lock,
   Split: Split,
   ShieldAlert: ShieldAlert,
   CheckCircle: CheckCircle,
   XCircle: XCircle,
-  // Default fallback
+  Play: Play, // Added Play icon mapping
   Box: Box,
 }
 
@@ -21,10 +20,16 @@ export function NodePalette() {
   const { data: nodes, isLoading } = useNodes()
 
   const onDragStart = (event: DragEvent, node: NodeMetadata) => {
-    // 2. Use correct property: node.id instead of nodeType
-    // Pass both Type and Category so the Canvas knows how to render it
+    // 1. Pass Identification
     event.dataTransfer.setData('application/reactflow/type', node.id)
     event.dataTransfer.setData('application/reactflow/category', node.category)
+
+    // 2. [CRITICAL FIX] Pass Outputs
+    // This allows the Node Component to render the correct handles instantly on drop
+    if (node.outputs) {
+      event.dataTransfer.setData('application/reactflow/outputs', JSON.stringify(node.outputs))
+    }
+
     event.dataTransfer.effectAllowed = 'move'
   }
 
@@ -42,27 +47,22 @@ export function NodePalette() {
         Components
       </div>
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {/* 3. Safety Check: Use nodes?.map or (nodes || []).map */}
         {(nodes || []).map((node) => {
-          // 4. Resolve Icon
           const IconComponent = IconMap[node.icon] || Box
 
           return (
             <div
-              key={node.id} // Use unique ID from API
+              key={node.id}
               className={cn(
                 'bg-card hover:border-primary/50 flex cursor-grab items-center gap-3 rounded-md border p-3 shadow-sm transition-colors active:cursor-grabbing',
               )}
               draggable
               onDragStart={(e) => onDragStart(e, node)}
             >
-              {/* 5. Render resolved component */}
               <IconComponent className="text-muted-foreground h-4 w-4" />
 
               <div className="flex flex-col">
-                {/* 6. Use display_name instead of label */}
                 <span className="text-sm leading-none font-medium">{node.display_name}</span>
-                {/* Optional description */}
                 <span className="text-muted-foreground mt-1 line-clamp-1 text-[10px]">
                   {node.description}
                 </span>
