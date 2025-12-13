@@ -14,6 +14,7 @@ use crate::application::{
 use crate::config::Settings;
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
+use crate::ports::session_repository::SessionRepository;
 use manager::{log_bus::LogSubscriber, PluginManager};
 
 #[derive(Clone)]
@@ -36,6 +37,7 @@ pub struct AppState {
     // Infrastructure / Repositories
     pub log_subscriber: Arc<dyn LogSubscriber>,
     pub auth_session_repo: Arc<dyn AuthSessionRepository>,
+    pub session_repo: Arc<dyn SessionRepository>,
 
     pub flow_store: Arc<dyn FlowStore>,
     pub flow_executor: Arc<FlowExecutor>,

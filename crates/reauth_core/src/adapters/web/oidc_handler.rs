@@ -1,5 +1,5 @@
 use crate::constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE};
-use crate::domain::oidc::{OidcClient, OidcContext};
+use crate::domain::oidc::{OidcClient, OidcRequest}; // Use OidcRequest from domain
 use crate::domain::pagination::PageRequest;
 use crate::domain::session::RefreshToken;
 use crate::{
@@ -10,26 +10,18 @@ use axum::extract::{ConnectInfo, Path};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::IntoResponse,
-    Form, Json,
+    response::{IntoResponse, Redirect}, // Redirect is needed for authorize
+    Form,
+    Json,
 };
-use cookie::{Cookie, CookieBuilder, SameSite};
+use axum_extra::extract::cookie::{Cookie, SameSite}; // Use axum_extra cookie types
+use cookie::CookieBuilder;
 use http::{header, HeaderMap, HeaderValue};
 use serde::Deserialize;
 use std::net::SocketAddr;
 use uuid::Uuid;
 
-#[derive(Deserialize)]
-pub struct AuthorizeParams {
-    pub response_type: String,
-    pub client_id: String,
-    pub redirect_uri: String,
-    pub scope: Option<String>,
-    pub state: Option<String>,
-    pub nonce: Option<String>,
-    pub code_challenge: Option<String>,
-    pub code_challenge_method: Option<String>,
-}
+// Note: AuthorizeParams is replaced by domain::oidc::OidcRequest to match service signature
 
 #[derive(Deserialize)]
 pub struct TokenParams {
@@ -44,78 +36,73 @@ fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
     let expires_time = time::OffsetDateTime::from_unix_timestamp(token.expires_at.timestamp())
         .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
 
+    // Force insecure for localhost dev
+    let is_production = false;
+
     Cookie::build((REFRESH_TOKEN_COOKIE, token.id.to_string()))
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Strict)
+        .same_site(SameSite::Lax) // Lax is generally safer for refresh tokens in modern browsers
+        .secure(is_production)
         .expires(expires_time)
         .into()
 }
-/// GET /api/oidc/authorize
-/// Starts the OIDC flow. For this MVP, we will simulate a successful login flow
-/// initialization and return the "Challenge" to the UI.
+
+/// GET /api/realms/{realm}/protocol/openid-connect/authorize
+/// Starts the OIDC flow.
 ///
-/// In a full implementation, this would create a LoginSession with OIDC context.
+/// 1. Validates Client.
+/// 2. Creates an AuthenticationSession in DB with OIDC context preserved.
+/// 3. Sets a cookie.
+/// 4. Redirects browser to Frontend Login UI.
 pub async fn authorize_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
-    Query(params): Query<AuthorizeParams>,
+    Query(params): Query<OidcRequest>,
 ) -> Result<impl IntoResponse> {
+    // 1. Resolve Realm
     let realm = state
         .realm_service
         .find_by_name(&realm_name)
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    // 2. Validate Client (Now we scope it to the Realm!)
-    // You will need to update `validate_client` in OidcService to accept realm_id
-    let _client = state
+    // 2. Initiate the Graph Session via OidcService
+    // This handles client validation, flow lookup, and unified session creation.
+    let session = state
         .oidc_service
-        .validate_client(&realm.id, &params.client_id, &params.redirect_uri)
+        .initiate_browser_login(realm.id, params)
         .await?;
 
-    // 3. Start Login Flow (Pass the resolved Realm ID)
-    let (mut login_session, challenge) = state.flow_engine.start_login_flow(realm.id).await?;
-
-    // 3. Attach OIDC Context
-    let oidc_context = OidcContext {
-        client_id: params.client_id,
-        redirect_uri: params.redirect_uri,
-        state: params.state,
-        nonce: params.nonce,
-        code_challenge: params.code_challenge,
-        code_challenge_method: params.code_challenge_method,
-    };
-
-    login_session.state_data =
-        Some(serde_json::to_string(&oidc_context).map_err(|e| Error::Unexpected(e.into()))?);
-
-    state
-        .flow_engine
-        .update_login_session(&login_session)
-        .await?;
-
-    // 4. Return Challenge & Set Cookietly
-    let expires_time =
-        time::OffsetDateTime::from_unix_timestamp(login_session.expires_at.timestamp())
-            .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
-
-    // FIX: Type should be `Cookie<'static>`, not `CookieBuilder`
-    let cookie: Cookie<'static> =
-        Cookie::build((LOGIN_SESSION_COOKIE, login_session.id.to_string()))
-            .path("/") // Use "/" so it works for all routes
-            .http_only(true)
-            .same_site(SameSite::Strict)
-            .expires(expires_time)
-            .into(); // This converts Builder -> Cookie
-
+    // 3. Set the Session Cookie
     let mut headers = HeaderMap::new();
+
+    let expires_time = time::OffsetDateTime::from_unix_timestamp(session.expires_at.timestamp())
+        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
+
+    // Force insecure for localhost dev
+    let is_production = false;
+
+    let cookie: CookieBuilder = Cookie::build((LOGIN_SESSION_COOKIE, session.id.to_string()))
+        .path("/")
+        .http_only(true)
+        // CRITICAL: Must be Lax so the cookie survives the Redirect below
+        .same_site(SameSite::Lax)
+        .secure(is_production)
+        .expires(expires_time)
+        .into();
+
     headers.insert(
         header::SET_COOKIE,
         HeaderValue::from_str(&cookie.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
     );
 
-    Ok((StatusCode::OK, headers, Json(challenge)))
+    // 4. Redirect to Frontend Login
+    // The browser will follow this link AND attach the cookie we just set.
+    // The frontend will then call `start_login` (via AuthFlowExecutor), which resumes this session.
+    let frontend_login_url = "/#/login"; // Or /realms/{realm}/login if your UI supports it
+
+    Ok((headers, Redirect::to(frontend_login_url)))
 }
 
 /// POST /api/oidc/token
@@ -138,14 +125,14 @@ pub async fn token_handler(
         .and_then(|v| v.to_str().ok())
         .map(String::from);
 
-    // Simple IP extraction (X-Forwarded-For is standard for proxies/load balancers)
+    // Simple IP extraction
     let ip_address = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
-        .unwrap_or_else(|| addr.ip().to_string()); // <-- Fallback
+        .unwrap_or_else(|| addr.ip().to_string());
 
-    // Call the service (now returns a tuple)
+    // Call the service
     let (token_response, refresh_token) = state
         .oidc_service
         .exchange_code_for_token(
@@ -157,7 +144,6 @@ pub async fn token_handler(
         .await?;
 
     // Create the HttpOnly Cookie
-    // (This uses the helper function defined earlier in this file)
     let cookie = create_refresh_cookie(&refresh_token);
 
     // Set the header
@@ -210,15 +196,12 @@ pub async fn create_client_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    // Validate Client ID (Ensure it's unique, handled by DB constraint usually, but good to check)
-    // For now, we rely on the DB unique constraint error.
-
     // Serialize Redirect URIs to String (for DB storage)
     let redirect_uris_json =
         serde_json::to_string(&payload.redirect_uris).map_err(|e| Error::Unexpected(e.into()))?;
 
     // Create Domain Entity
-    let client = OidcClient {
+    let mut client = OidcClient {
         id: Uuid::new_v4(),
         realm_id: realm.id,
         client_id: payload.client_id,
@@ -227,10 +210,7 @@ pub async fn create_client_handler(
         scopes: "openid profile email".to_string(), // Default scopes
     };
 
-    state
-        .oidc_service
-        .register_client(&mut client.clone())
-        .await?;
+    state.oidc_service.register_client(&mut client).await?;
     Ok((StatusCode::CREATED, Json(client)))
 }
 

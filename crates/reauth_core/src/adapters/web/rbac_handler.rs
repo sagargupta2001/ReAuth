@@ -1,4 +1,4 @@
-use crate::application::rbac_service::{CreateGroupPayload, CreateRolePayload, RbacService};
+use crate::application::rbac_service::{CreateGroupPayload, CreateRolePayload};
 use crate::error::Result;
 use crate::AppState;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};

@@ -64,7 +64,13 @@ impl AuthSessionRepository for SqliteAuthSessionRepository {
                 "active" => SessionStatus::Active,
                 "completed" => SessionStatus::Completed,
                 "failed" => SessionStatus::Failed,
-                _ => SessionStatus::Active, // Fallback
+                _ => {
+                    println!(
+                        "WARN: Unknown session status '{}'. Treating as Failed.",
+                        r.status
+                    );
+                    SessionStatus::Failed
+                }
             };
 
             Ok(Some(AuthenticationSession {

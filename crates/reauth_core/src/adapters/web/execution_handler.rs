@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::bootstrap::app_state::AppState;
 use crate::constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE};
-use crate::domain::auth_session::AuthenticationSession;
+use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
 use crate::domain::execution::{ExecutionPlan, ExecutionResult};
 use crate::domain::oidc::OidcContext;
 use crate::domain::session::RefreshToken;
@@ -40,33 +40,41 @@ pub async fn start_login(
     let flow_id = Uuid::parse_str(&flow_id_str)
         .map_err(|_| Error::Validation("Invalid flow ID format in realm config".to_string()))?;
 
-    let existing_session = if let Some(cookie) = jar.get(LOGIN_SESSION_COOKIE) {
-        if let Ok(id) = Uuid::parse_str(cookie.value()) {
-            // Find the session in DB
-            if let Ok(Some(s)) = state.auth_session_repo.find_by_id(&id).await {
-                // Only resume if it is ACTIVE.
-                // If it is 'Completed' or 'Failed', ignore it so we create a new one.
-                if s.status == crate::domain::auth_session::SessionStatus::Active {
-                    Some(s)
-                } else {
-                    None
+    // C. Try to Resume Existing Session from Cookie
+    let mut session = None;
+    if let Some(cookie) = jar.get(LOGIN_SESSION_COOKIE) {
+        let cookie_val = cookie.value();
+        println!("DEBUG: Request Cookie: {}", cookie_val);
+
+        if let Ok(id) = Uuid::parse_str(cookie_val) {
+            // Check DB using the correct auth_session_repo
+            match state.auth_session_repo.find_by_id(&id).await {
+                Ok(Some(s)) => {
+                    // Only resume if Active. (Completed sessions start over)
+                    if s.status == SessionStatus::Active {
+                        println!("DEBUG: >> RESUMING Session {}", s.id);
+                        session = Some(s);
+                    } else {
+                        println!(
+                            "DEBUG: >> IGNORING Session {} (Status: {:?})",
+                            s.id, s.status
+                        );
+                    }
                 }
-            } else {
-                None
+                Ok(None) => println!("DEBUG: >> COOKIE ID NOT FOUND IN DB"),
+                Err(e) => println!("DEBUG: >> DB ERROR: {:?}", e),
             }
-        } else {
-            None
         }
     } else {
-        None
-    };
+        println!("DEBUG: >> NO COOKIE in Request");
+    }
 
-    let session = if let Some(mut s) = existing_session {
-        // RESUME: We found the session created by /authorize!
-        // We might want to ensure the flow_version is correct, but usually
-        // we just resume execution from where it left off (or reset to start).
+    // D. Create New Session if Resume Failed
+    let final_session = if let Some(s) = session {
         s
     } else {
+        println!("DEBUG: Creating NEW Session");
+
         let version = state
             .flow_store
             .get_active_version(&flow_id)
@@ -81,37 +89,57 @@ pub async fn start_login(
             Uuid::parse_str(&version.id).unwrap_or_default(),
             plan.start_node_id,
         );
+
+        // Save to DB
         state.auth_session_repo.create(&new_s).await?;
+
+        // Verify Persistence (Debug check)
+        if state
+            .auth_session_repo
+            .find_by_id(&new_s.id)
+            .await?
+            .is_none()
+        {
+            println!(
+                "DEBUG: FATAL! Session {} created but not found immediately.",
+                new_s.id
+            );
+        }
+
         new_s
     };
 
-    let result = state.flow_executor.execute(session.id, None).await?;
+    // E. Execute (Gets the current step, e.g., "Password Form")
+    // This will calculate the *next* state based on the session we just loaded/created.
+    let result = state.flow_executor.execute(final_session.id, None).await?;
 
-    let mut headers = axum::http::HeaderMap::new();
+    // F. Set Cookie
+    let mut headers = HeaderMap::new();
 
-    let expires_time = time::OffsetDateTime::from_unix_timestamp(session.expires_at.timestamp())
-        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
+    let expires_time =
+        time::OffsetDateTime::from_unix_timestamp(final_session.expires_at.timestamp())
+            .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
 
-    let cookie: CookieBuilder = axum_extra::extract::cookie::Cookie::build((
-        crate::constants::LOGIN_SESSION_COOKIE,
-        session.id.to_string(),
-    ))
-    .path("/")
-    .http_only(true)
-    .same_site(axum_extra::extract::cookie::SameSite::Strict)
-    .expires(expires_time)
-    .into();
+    // Force insecure for localhost development to prevent browser dropping the cookie
+    let is_production = false;
+
+    let cookie: CookieBuilder = Cookie::build((LOGIN_SESSION_COOKIE, final_session.id.to_string()))
+        .path("/")
+        .http_only(true)
+        .same_site(SameSite::Lax) // Lax is required for redirects to work
+        .secure(is_production) // False for localhost
+        .expires(expires_time)
+        .into();
 
     headers.insert(
-        axum::http::header::SET_COOKIE,
-        axum::http::HeaderValue::from_str(&cookie.to_string())
-            .map_err(|e| Error::Unexpected(e.into()))?,
+        header::SET_COOKIE,
+        HeaderValue::from_str(&cookie.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
     );
 
     Ok((
         headers,
         Json(serde_json::json!({
-            "session_id": session.id,
+            "session_id": final_session.id,
             "execution": result
         })),
     ))
@@ -121,10 +149,13 @@ fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
     let expires_time = time::OffsetDateTime::from_unix_timestamp(token.expires_at.timestamp())
         .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
 
+    let is_production = false;
+
     Cookie::build((REFRESH_TOKEN_COOKIE, token.id.to_string()))
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Strict)
+        .same_site(SameSite::Lax)
+        .secure(is_production)
         .expires(expires_time)
         .into()
 }

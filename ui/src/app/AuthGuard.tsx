@@ -20,6 +20,18 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const { authorize, exchangeToken } = useOidcAuth()
   const refreshTokenMutation = useRefreshToken()
 
+  // --- 0. HASH ROUTER FIX ---
+  // If the backend redirected to "/login" (server path) instead of "/#/login",
+  // HashRouter sees this as "/" (root). We must manually correct this.
+  if (window.location.pathname === '/login') {
+    // Preserve query params (e.g. ?redirect=...) and move them before the hash if needed,
+    // or keep them as is. For HashRouter, usually /#/login?params is best.
+    const search = window.location.search
+    window.location.replace(`${window.location.origin}/#/login${search}`)
+    return null
+  }
+  // --------------------------
+
   useEffect(() => {
     const handleAuth = async () => {
       // 1. If we already have a token in memory, we are good.
@@ -33,8 +45,6 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
       initRan.current = true
 
       // 2. Check for OIDC Callback (Code in URL)
-      // Note: In HashRouter, params might be in location.search OR window.location.search depending on setup.
-      // We check both to be safe, prioritizing the router location.
       const searchParams = new URLSearchParams(location.search || window.location.search)
       const authCode = searchParams.get('code')
 
@@ -63,43 +73,44 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
 
       // 3. Silent Refresh (The most common path for returning users)
       try {
-        // console.log('[AuthGuard] Attempting silent refresh...')
         const token = await refreshTokenMutation.mutateAsync()
         setSession(token)
         setIsProcessing(false)
-        return // Stop here if refresh worked
+        return
       } catch (e) {
         // console.log('[AuthGuard] Silent refresh failed, proceeding to login flow.')
       }
 
-      // 4. If we are completely unauthenticated:
-      // We generate PKCE challenge just in case we need to trigger an OIDC flow later,
-      // but we DON'T block rendering. We allow the UI to decide (Login Page vs Redirect).
-      const verifier = generateCodeVerifier()
-      const challenge = await generateCodeChallenge(verifier)
-      sessionStorage.setItem(PKCE_STORAGE_KEY, verifier)
+      // 4. Authentication Required
 
-      // Only trigger authorize if we are NOT on the login page already.
-      // Triggers the OIDC /authorize call to get session ID cookies set up.
+      // CASE A: We are explicitly on the login page (via HashRouter)
+      // Normalize check to handle trailing slashes
+      const isLoginPath = location.pathname.replace(/\/$/, '') === '/login'
+
+      if (isLoginPath) {
+        setIsProcessing(false)
+        return
+      }
+
+      // CASE B: Protected Route -> Redirect to Backend
       try {
-        const response = await authorize.mutateAsync(challenge)
-        if (response.status === 'challenge') {
-          // We are ready to show the login form
-          setIsProcessing(false)
-        }
+        const verifier = generateCodeVerifier()
+        const challenge = await generateCodeChallenge(verifier)
+        sessionStorage.setItem(PKCE_STORAGE_KEY, verifier)
+
+        await authorize.mutateAsync(challenge)
       } catch (err) {
-        console.error('Auth init failed', err)
+        console.error('Auth redirect failed', err)
         setIsProcessing(false)
       }
     }
 
     void handleAuth()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // Empty dependency array ensures this runs once on mount
+  }, [])
 
   // --- RENDER LOGIC ---
 
-  // A. Error State (Network failure on init)
   if (authorize.isError) {
     return (
       <div className="flex h-screen flex-col items-center justify-center p-4">
@@ -117,32 +128,27 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     )
   }
 
-  // B. Loading State
   if (isProcessing) {
     return <div className="flex h-screen items-center justify-center">Authenticating...</div>
   }
 
-  // C. Authenticated State
+  // Authenticated
   if (accessToken) {
-    // If logged in but sitting on /login, move to the intended destination
-    if (location.pathname === '/login') {
+    const isLoginPath = location.pathname.replace(/\/$/, '') === '/login'
+
+    if (isLoginPath) {
       const searchParams = new URLSearchParams(location.search)
       const redirect = searchParams.get('redirect')
-
-      // If no redirect param, go to root.
       return <Navigate to={redirect || '/'} replace />
     }
     return <>{children}</>
   }
 
-  // D. Unauthenticated - Login Page
-  // Allow the login page to render itself so the user can see the form
-  if (location.pathname === '/login') {
+  // Allow Login Page to render
+  if (location.pathname.replace(/\/$/, '') === '/login') {
     return <>{children}</>
   }
 
-  // E. Unauthenticated - Protected Route
-  // Kick user to login, preserving the current location in the query param
-  const currentPath = encodeURIComponent(location.pathname + location.search)
-  return <Navigate to={`/login?redirect=${currentPath}`} replace />
+  // Fallback (e.g. waiting for redirect to kick in)
+  return <div className="flex h-screen items-center justify-center">Redirecting...</div>
 }

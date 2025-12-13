@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Represents an in-progress login attempt.
-#[derive(Debug, Clone, sqlx::FromRow, Default)]
+#[derive(Debug, Clone, sqlx::FromRow)]
 pub struct LoginSession {
     #[sqlx(try_from = "String")]
     pub id: Uuid,
@@ -16,6 +17,23 @@ pub struct LoginSession {
     pub user_id: Option<Uuid>,
     pub state_data: Option<String>,
     pub expires_at: DateTime<Utc>,
+    #[sqlx(skip)] // todo Skip SQL mapping for now to prevent runtime errors if column is missing
+    pub context: Value,
+}
+
+impl Default for LoginSession {
+    fn default() -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            realm_id: Uuid::default(),
+            flow_id: Uuid::default(),
+            current_step: 0,
+            user_id: None,
+            state_data: None,
+            context: serde_json::json!({}), // Default to empty JSON object
+            expires_at: Utc::now(),
+        }
+    }
 }
 
 /// Represents a configured flow (e.g., "browser-login")

@@ -38,7 +38,7 @@ fn create_clear_cookie() -> Cookie<'static> {
         .path("/")
         .http_only(true)
         .same_site(SameSite::Strict)
-        .expires(time::OffsetDateTime::UNIX_EPOCH)
+        .max_age(time::Duration::seconds(0))
         .into()
 }
 
@@ -47,6 +47,8 @@ fn create_clear_login_cookie() -> Cookie<'static> {
     Cookie::build(LOGIN_SESSION_COOKIE)
         .path("/api")
         .expires(time::OffsetDateTime::UNIX_EPOCH)
+        .same_site(SameSite::Lax)
+        .max_age(time::Duration::seconds(0))
         .into()
 }
 

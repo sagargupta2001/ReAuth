@@ -1,8 +1,6 @@
+use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::{
-    domain::{
-        flow::{FlowDeployment, FlowDraft, FlowVersion},
-        pagination::{PageRequest, PageResponse},
-    },
+    domain::pagination::{PageRequest, PageResponse},
     error::Result,
 };
 use async_trait::async_trait;

@@ -1,25 +1,12 @@
 use crate::adapters::web::router::create_router;
-use crate::application::auth_service::AuthService;
-use crate::application::flow_engine::FlowEngine;
-use crate::application::flow_manager::FlowManager;
-use crate::application::flow_service::FlowService;
-use crate::application::node_registry::NodeRegistryService;
-use crate::application::oidc_service::OidcService;
-use crate::application::{
-    rbac_service::RbacService, realm_service::RealmService, user_service::UserService,
-};
-use crate::config::Settings;
+
 use crate::AppState;
 use axum::{
     extract::State,
     http::{Request, StatusCode, Uri},
     response::IntoResponse,
 };
-use manager::log_bus::LogSubscriber;
-use manager::PluginManager;
 use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
 
 #[cfg(not(feature = "embed-ui"))]
 pub(crate) mod ui_handler {

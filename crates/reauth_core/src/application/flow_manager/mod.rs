@@ -1,12 +1,11 @@
-use crate::application::flow_manager;
+pub mod templates;
+
+use crate::application::flow_manager::templates::FlowTemplates;
 use crate::domain::compiler::compiler::FlowCompiler;
-use crate::domain::flow::{FlowDeployment, FlowVersion};
+use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::ports::flow_repository::FlowRepository;
 use crate::{
-    domain::{
-        flow::FlowDraft,
-        pagination::{PageRequest, PageResponse},
-    },
+    domain::pagination::{PageRequest, PageResponse},
     error::{Error, Result},
     ports::{flow_store::FlowStore, realm_repository::RealmRepository},
 };
@@ -262,51 +261,18 @@ impl FlowManager {
     }
 
     pub fn generate_default_graph(flow_type: &str) -> String {
-        // GENERIC FALLBACK (Start -> End)
-        let generic_graph = r#"{
-        "nodes": [
-            { "id": "start", "type": "start", "position": { "x": 250, "y": 0 }, "data": { "label": "Start", "config": {} } },
-            { "id": "end", "type": "terminal", "position": { "x": 250, "y": 200 }, "data": { "label": "Success", "config": {} } }
-        ],
-        "edges": [
-            { "id": "e1", "source": "start", "target": "end" }
-        ]
-    }"#;
+        let json_value = match flow_type {
+            "browser" => FlowTemplates::browser_flow(),
+            "direct" => FlowTemplates::direct_grant_flow(),
+            // Fallback to a minimal graph
+            _ => serde_json::json!({
+                "nodes": [],
+                "edges": []
+            }),
+        };
 
-        match flow_type {
-            "browser" => r#"{
-            "nodes": [
-                {
-                    "id": "start",
-                    "type": "start",
-                    "position": { "x": 250, "y": 0 },
-                    "data": { "label": "Start", "config": {} }
-                },
-                {
-                    "id": "auth-1",
-                    "type": "authenticator",
-                    "position": { "x": 250, "y": 150 },
-                    "data": {
-                        "label": "Username Password",
-                        "config": { "auth_type": "core.auth.password" }
-                    }
-                },
-                {
-                    "id": "end",
-                    "type": "terminal",
-                    "position": { "x": 250, "y": 300 },
-                    "data": { "label": "Success", "config": {} }
-                }
-            ],
-            "edges": [
-                { "id": "e1", "source": "start", "target": "auth-1" },
-                { "id": "e2", "source": "auth-1", "sourceHandle": "success", "target": "end" }
-            ]
-        }"#
-            .to_string(),
-
-            _ => generic_graph.to_string(),
-        }
+        // Convert to string for storage
+        json_value.to_string()
     }
 
     pub async fn rollback_flow(

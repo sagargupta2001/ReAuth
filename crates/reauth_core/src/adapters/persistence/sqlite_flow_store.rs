@@ -1,9 +1,7 @@
 use crate::adapters::persistence::connection::Database;
+use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::{
-    domain::{
-        flow::{FlowDeployment, FlowDraft, FlowVersion},
-        pagination::{PageRequest, PageResponse, SortDirection},
-    },
+    domain::pagination::{PageRequest, PageResponse, SortDirection},
     error::{Error, Result},
     ports::flow_store::FlowStore,
 };

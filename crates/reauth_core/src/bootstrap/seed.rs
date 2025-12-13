@@ -5,7 +5,7 @@ use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::{AuthFlow, AuthFlowStep};
-use crate::domain::flow::FlowDraft;
+use crate::domain::flow::models::FlowDraft;
 use crate::domain::oidc::OidcClient;
 use crate::ports::flow_repository::FlowRepository;
 use crate::ports::flow_store::FlowStore;

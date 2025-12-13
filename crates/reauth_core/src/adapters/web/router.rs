@@ -48,6 +48,11 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     let cors = CorsLayer::new()
         // Allow specific origin (Your Frontend URL)
         // This MUST match exactly. No trailing slash.
+        .allow_origin(
+            "http://localhost:3000"
+                .parse::<axum::http::HeaderValue>()
+                .unwrap(),
+        )
         .allow_origin(AllowOrigin::mirror_request())
         .allow_credentials(true)
         // Allow standard methods

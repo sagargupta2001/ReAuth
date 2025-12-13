@@ -1,6 +1,6 @@
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::auth_flow::{AuthContext, AuthStepResult};
-use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
+use crate::domain::auth_session::SessionStatus;
 use crate::domain::execution::{ExecutionPlan, ExecutionResult, StepType};
 use crate::error::{Error, Result};
 use crate::ports::auth_session_repository::AuthSessionRepository;
@@ -133,6 +133,7 @@ impl FlowExecutor {
                 } else {
                     // If we failed and there is no "failure" wire, we return the error to UI
                     if let AuthStepResult::Failure { message } = result {
+                        self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Failure { reason: message });
                     }
                     return Err(Error::Validation(
@@ -184,16 +185,25 @@ impl FlowExecutor {
 
                     let challenge_result = authenticator.challenge(&context).await?;
 
-                    if let AuthStepResult::Challenge { challenge_name, .. } = challenge_result {
-                        return Ok(ExecutionResult::Challenge {
+                    return if let AuthStepResult::Challenge { challenge_name, .. } =
+                        challenge_result
+                    {
+                        // CRITICAL: We calculated the next state/screen.
+                        // We MUST save it to the DB now. Otherwise, a page refresh
+                        // reloads the *previous* state from the DB.
+
+                        // Update context/pointer in the session object
+                        session.context = context.login_session.context;
+                        self.session_repo.update(&session).await?;
+                        Ok(ExecutionResult::Challenge {
                             screen_id: challenge_name, // Should return "username_password"
                             context: session.context.clone(),
-                        });
+                        })
                     } else {
-                        return Err(Error::System(
+                        Err(Error::System(
                             "Authenticator did not return a challenge".to_string(),
-                        ));
-                    }
+                        ))
+                    };
                 }
 
                 // RUN: Logic Node

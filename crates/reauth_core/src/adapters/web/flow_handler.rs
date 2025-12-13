@@ -1,5 +1,5 @@
 use crate::application::flow_manager::{CreateDraftRequest, UpdateDraftRequest};
-use crate::domain::flow::FlowDraft;
+use crate::domain::flow::models::FlowDraft;
 use crate::domain::pagination::PageRequest;
 use crate::{
     error::{Error, Result},

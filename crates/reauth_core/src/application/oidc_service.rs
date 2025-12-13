@@ -3,11 +3,17 @@ use crate::ports::token_service::TokenService;
 use crate::{
     application::auth_service::AuthService,
     domain::{
-        oidc::{AuthCode, OidcClient},
+        auth_session::{AuthenticationSession, SessionStatus},
+        execution::ExecutionPlan,
+        oidc::{AuthCode, OidcClient, OidcContext, OidcRequest},
         session::RefreshToken,
     },
     error::{Error, Result},
-    ports::{oidc_repository::OidcRepository, user_repository::UserRepository},
+    ports::{
+        auth_session_repository::AuthSessionRepository, flow_store::FlowStore,
+        oidc_repository::OidcRepository, realm_repository::RealmRepository,
+        user_repository::UserRepository,
+    },
 };
 use chrono::{Duration, Utc};
 use rand::distributions::Alphanumeric;
@@ -24,17 +30,21 @@ pub struct TokenResponse {
     pub expires_in: i64,    // e.g., 900 (seconds until expiry)
 }
 
+#[derive(Deserialize)]
+pub struct UpdateClientRequest {
+    pub client_id: Option<String>,
+    pub redirect_uris: Option<Vec<String>>,
+}
+
 pub struct OidcService {
     oidc_repo: Arc<dyn OidcRepository>,
     user_repo: Arc<dyn UserRepository>,
     auth_service: Arc<AuthService>,
     token_service: Arc<dyn TokenService>,
-}
-
-#[derive(Deserialize)]
-pub struct UpdateClientRequest {
-    pub client_id: Option<String>,
-    pub redirect_uris: Option<Vec<String>>,
+    // --- NEW DEPENDENCIES ---
+    auth_session_repo: Arc<dyn AuthSessionRepository>,
+    flow_store: Arc<dyn FlowStore>,
+    realm_repo: Arc<dyn RealmRepository>,
 }
 
 impl OidcService {
@@ -43,16 +53,95 @@ impl OidcService {
         user_repo: Arc<dyn UserRepository>,
         auth_service: Arc<AuthService>,
         token_service: Arc<dyn TokenService>,
+        auth_session_repo: Arc<dyn AuthSessionRepository>,
+        flow_store: Arc<dyn FlowStore>,
+        realm_repo: Arc<dyn RealmRepository>,
     ) -> Self {
         Self {
             oidc_repo,
             user_repo,
             auth_service,
             token_service,
+            auth_session_repo,
+            flow_store,
+            realm_repo,
         }
     }
 
-    /// Handles the `/authorize` endpoint logic (creating the authorization code).
+    /// NEW: The entry point for the browser flow (GET /authorize).
+    /// Creates a proper graph session in 'auth_sessions' with OIDC context preserved.
+    pub async fn initiate_browser_login(
+        &self,
+        realm_id: Uuid,
+        req: OidcRequest,
+    ) -> Result<AuthenticationSession> {
+        // 1. Validate Client & Redirect URI immediately
+        // This ensures we don't start a flow for a bad client.
+        self.validate_client(&realm_id, &req.client_id, &req.redirect_uri)
+            .await?;
+
+        // 2. Fetch Realm to find the configured Browser Flow
+        let realm = self
+            .realm_repo
+            .find_by_id(&realm_id)
+            .await?
+            .ok_or(Error::NotFound("Realm not found".to_string()))?;
+
+        // 3. Identify the Flow ID
+        let flow_id_str = realm.browser_flow_id.ok_or(Error::Validation(
+            "Realm has no browser flow configured".to_string(),
+        ))?;
+        let flow_id = Uuid::parse_str(&flow_id_str).unwrap_or_default();
+
+        // 4. Get the Active Version of that Flow (To find Start Node)
+        let version = self
+            .flow_store
+            .get_active_version(&flow_id)
+            .await?
+            .or(self.flow_store.get_latest_version(&flow_id).await?)
+            .ok_or(Error::NotFound("Flow version not found".to_string()))?;
+
+        let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
+            .map_err(|e| Error::Unexpected(anyhow::anyhow!("Corrupt execution artifact: {}", e)))?;
+
+        // 5. Construct OIDC Context (Data to preserve across the login flow)
+        let oidc_context = OidcContext {
+            client_id: req.client_id,
+            redirect_uri: req.redirect_uri,
+            response_type: req.response_type,
+            scope: req.scope,
+            state: req.state,
+            nonce: req.nonce,
+            code_challenge: req.code_challenge,
+            code_challenge_method: req.code_challenge_method,
+        };
+
+        // 6. Create the Authentication Session
+        let session = AuthenticationSession {
+            id: Uuid::new_v4(),
+            realm_id,
+            flow_version_id: Uuid::parse_str(&version.id).unwrap_or_default(),
+            current_node_id: plan.start_node_id, // Start at the correct node
+
+            // CRITICAL: Save OIDC data here in the unified JSON context
+            context: serde_json::json!({
+                "oidc": oidc_context
+            }),
+
+            status: SessionStatus::Active,
+            user_id: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            expires_at: Utc::now() + Duration::minutes(30),
+        };
+
+        // 7. Persist directly to 'auth_sessions' table
+        self.auth_session_repo.create(&session).await?;
+
+        Ok(session)
+    }
+
+    /// Handles the creation of the authorization code AFTER login success.
     pub async fn create_authorization_code(
         &self,
         realm_id: Uuid,
@@ -63,8 +152,7 @@ impl OidcService {
         code_challenge: Option<String>,
         code_challenge_method: String,
     ) -> Result<AuthCode> {
-        // 2. Pass realm_id to validation
-        // This ensures we are checking for a client that actually exists IN THIS REALM
+        // Double check client validation just to be safe
         let _client = self
             .validate_client(&realm_id, &client_id, &redirect_uri)
             .await?;
@@ -79,9 +167,6 @@ impl OidcService {
             code_challenge,
             code_challenge_method,
             expires_at: Utc::now() + Duration::seconds(300),
-            // Note: todo In a robust multi-tenant system, you might also want to store
-            // `realm_id` on the AuthCode itself, but for now this is sufficient
-            // to validate the creation request.
         };
 
         self.oidc_repo.save_auth_code(&auth_code).await?;
@@ -89,7 +174,6 @@ impl OidcService {
     }
 
     /// Handles the `/token` endpoint logic.
-    /// Exchanges code for tokens AND creates a persistent session via AuthService.
     pub async fn exchange_code_for_token(
         &self,
         code: &str,
@@ -112,7 +196,7 @@ impl OidcService {
             return Err(Error::OidcInvalidCode);
         }
 
-        // 3. Delete the code (Atomic consumption)
+        // 3. Delete the code
         self.oidc_repo.delete_auth_code(code).await?;
 
         // 4. Get the User
@@ -122,9 +206,7 @@ impl OidcService {
             .await?
             .ok_or(Error::UserNotFound)?;
 
-        // 5. Create the Real Session
-        // We delegate to AuthService. This calculates permissions, saves the RefreshToken
-        // to the DB, and generates the JWT.
+        // 5. Create Session
         let (login_response, refresh_token) = self
             .auth_service
             .create_session(
@@ -135,12 +217,12 @@ impl OidcService {
             )
             .await?;
 
-        // 6. Map to OIDC response format
+        // 6. Map Response
         let token_response = TokenResponse {
             access_token: login_response.access_token,
             id_token: login_response.id_token.unwrap_or_default(),
             token_type: "Bearer".to_string(),
-            expires_in: 900, // Should match your config/AuthService settings
+            expires_in: 900,
         };
 
         Ok((token_response, refresh_token))
@@ -159,7 +241,7 @@ impl OidcService {
             .await?
             .ok_or_else(|| Error::OidcClientNotFound(client_id.to_string()))?;
 
-        // Parse the JSON array of allowed URIs
+        // Parse allowed URIs
         let allowed_uris: Vec<String> =
             serde_json::from_str(&client.redirect_uris).map_err(|_| {
                 Error::Unexpected(anyhow::anyhow!("Invalid redirect_uris format in DB"))
@@ -172,7 +254,8 @@ impl OidcService {
         Ok(client)
     }
 
-    /// Registers a new OIDC client (used by seeder).
+    // --- CRUD and Helpers ---
+
     pub async fn register_client(&self, client: &mut OidcClient) -> Result<()> {
         if client.client_secret.is_none() {
             let secret: String = rand::thread_rng()
