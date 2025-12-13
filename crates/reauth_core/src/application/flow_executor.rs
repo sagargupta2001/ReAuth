@@ -46,34 +46,60 @@ impl FlowExecutor {
         // If the session is closed/completed, we must RESET it to the beginning.
         // We cannot process input for a closed session, so we discard the input.
         if session.status != SessionStatus::active {
-            println!(
-                "WARN: Session {} is {:?}. Resetting to Start.",
-                session_id, session.status
-            );
-
-            // A. Load Plan (Needed to find the start node)
-            let version = self
+            // A. We need the Flow ID to find the active version.
+            // We get it from the *current* version associated with the session.
+            let old_version = self
                 .flow_store
                 .get_version(&session.flow_version_id)
                 .await?
-                .ok_or(Error::System("Flow version missing".to_string()))?;
+                .ok_or(Error::System(
+                    "Current flow version definition missing".to_string(),
+                ))?;
 
-            let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
-                .map_err(|e| Error::Unexpected(anyhow::anyhow!("Corrupt artifact: {}", e)))?;
+            // FIX: Parse the String ID to a Uuid before passing it to the store
+            // We handle the possibility that the ID in the DB might be invalid
+            let flow_id_uuid = Uuid::parse_str(&old_version.flow_id.to_string()).map_err(|_| {
+                Error::System("Invalid flow_id format in version definition".to_string())
+            })?;
 
-            // B. Reset Fields to Start State
-            session.current_node_id = plan.start_node_id;
-            session.status = SessionStatus::active;
-            session.user_id = None;
-            // NOTE: We keep 'context' (e.g. OIDC params) so we don't lose the return URL!
+            // B. Fetch the CURRENT ACTIVE version
+            let active_version = self
+                .flow_store
+                .get_active_version(&flow_id_uuid) // Now passing &Uuid
+                .await?
+                .ok_or(Error::System(
+                    "No active version found for this flow".to_string(),
+                ))?;
 
-            // C. Save immediately
+            println!(
+                "INFO: Resetting Session {}. Upgrading from v{} to v{}",
+                session_id,
+                old_version.version_number,
+                active_version.version_number // Assuming .version_number exists
+            );
+
+            // C. Parse the NEW Plan from the active version
+            let plan: ExecutionPlan = serde_json::from_str(&active_version.execution_artifact)
+                .map_err(|e| {
+                    Error::Unexpected(anyhow::anyhow!("Corrupt artifact in active version: {}", e))
+                })?;
+
+            // D. Upgrade and Reset the Session
+            session.flow_version_id = Uuid::parse_str(&active_version.id.to_string())?;
+            session.current_node_id = plan.start_node_id; // <--- Point to start of new graph
+            session.status = SessionStatus::active; // <--- Re-open session
+            session.user_id = None; // <--- Clear old user identity
+
+            // IMPORTANT: We do NOT clear `session.context`.
+            // If this was an OIDC Re-auth flow, the 'redirect_uri' and 'nonce' are in context.
+            // We want to keep those so the user is eventually redirected back to the app correctly.
+
+            // E. Persist Changes
             self.session_repo.update(&session).await?;
 
-            // D. Discard Input
-            // The input provided (e.g. "Submit Success") was for the OLD state.
-            // Since we just reset to Step 1, that input is invalid.
-            // Discarding it forces the loop below to run the "Start Node -> First Screen" logic.
+            // F. Discard Input
+            // The user input (e.g. "Login") was targeted at the old, closed session state.
+            // We discard it so the executor simply returns the "Start Screen" of the new version.
             user_input = None;
         }
         // [FIX END] ---------------------------------------------------------------
