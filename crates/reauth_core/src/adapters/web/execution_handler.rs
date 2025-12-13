@@ -25,109 +25,77 @@ pub async fn start_login(
     Path(realm_name): Path<String>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse> {
-    // A. Find Realm
+    // 1. Setup Realm & Flow
     let realm = state
         .realm_service
         .find_by_name(&realm_name)
         .await?
         .ok_or(Error::NotFound("Realm not found".to_string()))?;
 
-    // B. Get Active Browser Flow ID
     let flow_id_str = realm
         .browser_flow_id
         .ok_or(Error::Validation("No browser flow configured".to_string()))?;
+    let flow_id = Uuid::parse_str(&flow_id_str).unwrap_or_default();
 
-    let flow_id = Uuid::parse_str(&flow_id_str)
-        .map_err(|_| Error::Validation("Invalid flow ID format in realm config".to_string()))?;
+    // 2. Attempt to Resolve a Session (Resume or Create)
+    let mut session_candidate = None;
 
-    // C. Try to Resume Existing Session from Cookie
-    let mut session = None;
+    // A. Check Cookie
     if let Some(cookie) = jar.get(LOGIN_SESSION_COOKIE) {
-        let cookie_val = cookie.value();
-        println!("DEBUG: Request Cookie: {}", cookie_val);
-
-        if let Ok(id) = Uuid::parse_str(cookie_val) {
-            // Check DB using the correct auth_session_repo
-            match state.auth_session_repo.find_by_id(&id).await {
-                Ok(Some(s)) => {
-                    // Only resume if Active. (Completed sessions start over)
-                    if s.status == SessionStatus::Active {
-                        println!("DEBUG: >> RESUMING Session {}", s.id);
-                        session = Some(s);
-                    } else {
-                        println!(
-                            "DEBUG: >> IGNORING Session {} (Status: {:?})",
-                            s.id, s.status
-                        );
-                    }
+        if let Ok(id) = Uuid::parse_str(cookie.value()) {
+            if let Ok(Some(s)) = state.auth_session_repo.find_by_id(&id).await {
+                // Strict check: Only resume if explicitly ACTIVE
+                if s.status == SessionStatus::active {
+                    println!("DEBUG: Found Active Session {}", s.id);
+                    session_candidate = Some(s);
+                } else {
+                    println!("DEBUG: Session {} is {:?}. Ignoring.", s.id, s.status);
                 }
-                Ok(None) => println!("DEBUG: >> COOKIE ID NOT FOUND IN DB"),
-                Err(e) => println!("DEBUG: >> DB ERROR: {:?}", e),
             }
         }
-    } else {
-        println!("DEBUG: >> NO COOKIE in Request");
     }
 
-    // D. Create New Session if Resume Failed
-    let final_session = if let Some(s) = session {
+    // B. Create New if needed
+    let mut session = if let Some(s) = session_candidate {
         s
     } else {
-        println!("DEBUG: Creating NEW Session");
-
-        let version = state
-            .flow_store
-            .get_active_version(&flow_id)
-            .await?
-            .ok_or(Error::NotFound("Flow version not found".to_string()))?;
-
-        let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
-            .map_err(|e| Error::Unexpected(anyhow::anyhow!("Corrupt artifact: {}", e)))?;
-
-        let new_s = AuthenticationSession::new(
-            realm.id,
-            Uuid::parse_str(&version.id).unwrap_or_default(),
-            plan.start_node_id,
-        );
-
-        // Save to DB
-        state.auth_session_repo.create(&new_s).await?;
-
-        // Verify Persistence (Debug check)
-        if state
-            .auth_session_repo
-            .find_by_id(&new_s.id)
-            .await?
-            .is_none()
-        {
-            println!(
-                "DEBUG: FATAL! Session {} created but not found immediately.",
-                new_s.id
-            );
-        }
-
-        new_s
+        create_new_session(&state, realm.id, flow_id).await?
     };
 
-    // E. Execute (Gets the current step, e.g., "Password Form")
-    // This will calculate the *next* state based on the session we just loaded/created.
-    let result = state.flow_executor.execute(final_session.id, None).await?;
+    // 3. EXECUTE (With Self-Healing)
+    // We try to execute. If the DB status changed behind our back (e.g. race condition),
+    // and the executor says "Session is closed", we catch it and start over.
+    let result = match state.flow_executor.execute(session.id, None).await {
+        Ok(res) => res,
+        Err(Error::Validation(msg)) if msg == "Session is closed" => {
+            println!(
+                "WARN: Executor rejected session {} (Closed). Forcing NEW session.",
+                session.id
+            );
 
-    // F. Set Cookie
+            // Force create new
+            session = create_new_session(&state, realm.id, flow_id).await?;
+
+            // Retry execution with new session
+            state.flow_executor.execute(session.id, None).await?
+        }
+        Err(e) => return Err(e), // Other errors are fatal
+    };
+
+    // 4. Set Cookie (Force Insecure for Localhost)
     let mut headers = HeaderMap::new();
+    let expires_time = time::OffsetDateTime::from_unix_timestamp(session.expires_at.timestamp())
+        .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
 
-    let expires_time =
-        time::OffsetDateTime::from_unix_timestamp(final_session.expires_at.timestamp())
-            .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
-
-    // Force insecure for localhost development to prevent browser dropping the cookie
+    // CRITICAL: Must be FALSE for localhost/http, TRUE for production/https
+    // If this mismatches your browser environment, cookies won't stick.
     let is_production = false;
 
-    let cookie: CookieBuilder = Cookie::build((LOGIN_SESSION_COOKIE, final_session.id.to_string()))
+    let cookie: CookieBuilder = Cookie::build((LOGIN_SESSION_COOKIE, session.id.to_string()))
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Lax) // Lax is required for redirects to work
-        .secure(is_production) // False for localhost
+        .same_site(SameSite::Lax)
+        .secure(is_production)
         .expires(expires_time)
         .into();
 
@@ -139,10 +107,36 @@ pub async fn start_login(
     Ok((
         headers,
         Json(serde_json::json!({
-            "session_id": final_session.id,
+            "session_id": session.id,
             "execution": result
         })),
     ))
+}
+
+// Helper to keep main logic clean
+async fn create_new_session(
+    state: &AppState,
+    realm_id: Uuid,
+    flow_id: Uuid,
+) -> Result<AuthenticationSession> {
+    println!("DEBUG: Creating FRESH Session");
+    let version = state
+        .flow_store
+        .get_active_version(&flow_id)
+        .await?
+        .or(state.flow_store.get_latest_version(&flow_id).await?)
+        .ok_or(Error::NotFound("Flow version not found".to_string()))?;
+
+    let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
+        .map_err(|e| Error::Unexpected(anyhow::anyhow!("Corrupt artifact: {}", e)))?;
+
+    let new_s = AuthenticationSession::new(
+        realm_id,
+        Uuid::parse_str(&version.id).unwrap_or_default(),
+        plan.start_node_id,
+    );
+    state.auth_session_repo.create(&new_s).await?;
+    Ok(new_s)
 }
 
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {

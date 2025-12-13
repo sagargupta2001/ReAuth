@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
-import { useLocation, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { useSessionStore } from '@/entities/session/model/sessionStore'
@@ -11,12 +11,11 @@ import { authApi } from '../api/authApi'
 import type { ExecutionResult } from '../model/types'
 import { getScreenComponent } from './ScreenRegistry'
 
-// This prevents double-execution even if the component unmounts/remounts
+// Global Singleton to prevent double-fetch in Strict Mode
 let initializationPromise: Promise<any> | null = null
 
 export function AuthFlowExecutor() {
   const { realm = 'master' } = useParams()
-  const location = useLocation()
   const setSession = useSessionStore((state) => state.setSession)
   const refreshTokenMutation = useRefreshToken()
 
@@ -25,33 +24,30 @@ export function AuthFlowExecutor() {
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
 
-  // 1. Singleton Initialization
+  // 1. INITIALIZE FLOW
   useEffect(() => {
-    // If we already have data, don't run again
+    // If state is already populated, stop.
     if (sessionId) {
       setIsLoading(false)
       return
     }
 
-    // Define the async worker
     const runInit = async () => {
       try {
-        console.log('[Executor] Starting Flow Initialization...')
+        console.log('[Executor] Calling startFlow API...')
         const res = await authApi.startFlow(realm)
-        console.log('[Executor] Success:', res.session_id)
+        console.log('[Executor] API Success. Session:', res.session_id)
         return res
       } catch (err) {
-        console.error('[Executor] Failed:', err)
+        console.error('[Executor] API Failed:', err)
         throw err
       }
     }
 
-    // If no promise exists, create one (The first and only one)
     if (!initializationPromise) {
       initializationPromise = runInit()
     }
 
-    // Wait for the singleton promise
     let active = true
     initializationPromise
       .then((res) => {
@@ -61,23 +57,23 @@ export function AuthFlowExecutor() {
           setIsLoading(false)
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (active) {
-          setGlobalError('Failed to initialize login flow.')
+          // If the backend error is specifically "Session is closed",
+          // our previous Backend fix should have handled it.
+          // If we see it here, it's a fallback.
+          setGlobalError('Failed to initialize login flow. ' + (err.message || ''))
           setIsLoading(false)
         }
-        // Reset promise on error so we can retry later if needed
         initializationPromise = null
       })
 
     return () => {
       active = false
-      // NOTE: We do NOT clear initializationPromise here.
-      // We want the result to persist across remounts.
     }
-  }, [realm, sessionId]) // Dependencies
+  }, [realm, sessionId])
 
-  // 2. Submit Handler
+  // 2. SUBMIT HANDLER
   const handleSubmit = async (data: any) => {
     if (!sessionId) return
     setIsLoading(true)
@@ -94,29 +90,24 @@ export function AuthFlowExecutor() {
     }
   }
 
-  // 3. Success / Redirect Handler
+  // 3. SUCCESS HANDLER
   useEffect(() => {
     const handleSuccess = async () => {
       if (currentStep?.type !== 'Success') return
 
       try {
         const token = await refreshTokenMutation.mutateAsync()
-        setSession(token)
 
-        const searchParams = new URLSearchParams(location.search)
-        const savedRedirect = searchParams.get('redirect')
+        // External Redirect Check (e.g. Google)
         const backendUrl = currentStep.payload.redirect_url
-
-        let targetPath = '/'
         if (backendUrl && backendUrl !== '/' && backendUrl.startsWith('http')) {
           window.location.href = backendUrl
           return
-        } else if (savedRedirect) {
-          targetPath = decodeURIComponent(savedRedirect)
         }
 
-        const safePath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
-        window.location.href = `${window.location.origin}/#${safePath}`
+        // Internal Success - Update Store
+        // AuthGuard will detect this change and redirect to the saved URL.
+        setSession(token)
       } catch (err) {
         console.error('Session hydration failed:', err)
         setGlobalError('Login succeeded but session could not be established.')
@@ -126,6 +117,7 @@ export function AuthFlowExecutor() {
     if (currentStep?.type === 'Success') {
       void handleSuccess()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep])
 
   // --- RENDER ---
@@ -141,7 +133,7 @@ export function AuthFlowExecutor() {
     return (
       <div className="space-y-2 text-center text-green-600">
         <h3 className="text-lg font-medium">Login Successful</h3>
-        <p className="text-sm">Finalizing session...</p>
+        <p className="text-sm">Redirecting...</p>
       </div>
     )
   }
@@ -152,14 +144,7 @@ export function AuthFlowExecutor() {
         <div className="text-destructive rounded border border-red-100 bg-red-50 p-4 font-medium">
           Login Failed: {currentStep.payload.reason}
         </div>
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => {
-            // Force full reload to reset the global singleton
-            window.location.reload()
-          }}
-        >
+        <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
           Try Again
         </Button>
       </div>
@@ -181,11 +166,7 @@ export function AuthFlowExecutor() {
       )
     }
 
-    return (
-      <div className="rounded bg-yellow-50 p-4 text-yellow-800">
-        [Flow Error] Unrecognized Screen ID: <strong>{screen_id}</strong>
-      </div>
-    )
+    return <div className="p-4 text-red-500">Unknown Screen: {screen_id}</div>
   }
 
   return null

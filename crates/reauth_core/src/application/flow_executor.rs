@@ -1,5 +1,5 @@
 use crate::application::runtime_registry::RuntimeRegistry;
-use crate::domain::auth_flow::{AuthContext, AuthStepResult};
+use crate::domain::auth_flow::{AuthContext, AuthStepResult, LoginSession};
 use crate::domain::auth_session::SessionStatus;
 use crate::domain::execution::{ExecutionPlan, ExecutionResult, StepType};
 use crate::error::{Error, Result};
@@ -33,7 +33,7 @@ impl FlowExecutor {
     pub async fn execute(
         &self,
         session_id: Uuid,
-        user_input: Option<Value>,
+        mut user_input: Option<Value>,
     ) -> Result<ExecutionResult> {
         // 1. Load Session
         let mut session = self
@@ -42,8 +42,33 @@ impl FlowExecutor {
             .await?
             .ok_or(Error::NotFound("Session not found".to_string()))?;
 
-        if session.status != SessionStatus::Active {
-            return Err(Error::Validation("Session is closed".to_string()));
+        if session.status != SessionStatus::active {
+            println!(
+                "WARN: Session {} is {:?}. Resetting to Start.",
+                session_id, session.status
+            );
+
+            // A. Load Plan
+            let version = self
+                .flow_store
+                .get_version(&session.flow_version_id)
+                .await?
+                .ok_or(Error::System("Flow version missing".to_string()))?;
+            let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
+                .map_err(|e| Error::Unexpected(anyhow::anyhow!("Corrupt artifact: {}", e)))?;
+
+            // B. Reset Fields
+            session.current_node_id = plan.start_node_id;
+            session.status = SessionStatus::active;
+            session.user_id = None;
+            // Keep context (OIDC params)
+
+            // C. Save
+            self.session_repo.update(&session).await?;
+
+            // D. Discard Input (The input was for the *old* state, which is invalid now)
+            // This forces the loop below to run the Start Node -> First Screen logic.
+            user_input = None;
         }
 
         // 2. Load the Graph (ExecutionPlan)
@@ -90,13 +115,21 @@ impl FlowExecutor {
 
                 // Note: We are creating a temporary AuthContext.
                 // Ideally, you should update your Authenticator trait to accept `AuthenticationSession` directly.
+                let legacy_login_session = LoginSession {
+                    id: session.id,
+                    realm_id: session.realm_id,
+                    flow_id: Uuid::default(), // Not strictly needed for logic
+                    current_step: 0,
+                    user_id: session.user_id,
+                    state_data: None,
+                    context: session.context.clone(), // Pass the context!
+                    expires_at: session.expires_at,
+                };
+
                 let mut context = AuthContext {
                     realm_id: session.realm_id,
                     credentials,
-                    // TODO: You might need to bridge your new AuthenticationSession to the old LoginSession struct
-                    // or refactor the Authenticator trait to use the new struct.
-                    // For this snippet, we assume the trait is updated or we pass minimal data.
-                    login_session: Default::default(), // Placeholder if you haven't refactored trait yet
+                    login_session: legacy_login_session,
                     config: Default::default(),
                 };
 
@@ -249,13 +282,13 @@ impl FlowExecutor {
                         .unwrap_or(false);
 
                     if is_failure {
-                        session.status = SessionStatus::Failed;
+                        session.status = SessionStatus::failed;
                         self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Failure {
                             reason: "Access Denied".to_string(),
                         });
                     } else {
-                        session.status = SessionStatus::Completed;
+                        session.status = SessionStatus::completed;
                         self.session_repo.update(&session).await?;
 
                         // Issue Tokens here if needed, or redirect to callback

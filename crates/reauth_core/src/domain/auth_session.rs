@@ -6,18 +6,18 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SessionStatus {
-    Active,
-    Completed,
-    Failed,
+    active,
+    completed,
+    failed,
 }
 
 // 1. Display (Required for Encode)
 impl fmt::Display for SessionStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SessionStatus::Active => write!(f, "active"),
-            SessionStatus::Completed => write!(f, "completed"),
-            SessionStatus::Failed => write!(f, "failed"),
+            SessionStatus::active => write!(f, "active"),
+            SessionStatus::completed => write!(f, "completed"),
+            SessionStatus::failed => write!(f, "failed"),
         }
     }
 }
@@ -26,9 +26,9 @@ impl fmt::Display for SessionStatus {
 impl From<String> for SessionStatus {
     fn from(s: String) -> Self {
         match s.as_str() {
-            "completed" => SessionStatus::Completed,
-            "failed" => SessionStatus::Failed,
-            _ => SessionStatus::Active,
+            "completed" => SessionStatus::completed,
+            "failed" => SessionStatus::failed,
+            _ => SessionStatus::active,
         }
     }
 }
@@ -100,7 +100,7 @@ impl AuthenticationSession {
             flow_version_id,
             current_node_id: start_node_id,
             context: serde_json::json!({}),
-            status: SessionStatus::Active,
+            status: SessionStatus::active,
             user_id: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
