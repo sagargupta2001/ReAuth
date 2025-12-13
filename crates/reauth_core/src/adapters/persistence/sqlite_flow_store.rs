@@ -8,8 +8,20 @@ use crate::{
     ports::flow_store::FlowStore,
 };
 use async_trait::async_trait;
+use chrono::Utc;
 use sqlx::{QueryBuilder, Sqlite};
 use uuid::Uuid;
+
+#[derive(sqlx::FromRow)]
+struct FlowVersionRow {
+    id: String,
+    flow_id: String,
+    version_number: i32,
+    execution_artifact: String,
+    graph_json: String,
+    checksum: String,
+    created_at: chrono::DateTime<Utc>,
+}
 
 pub struct SqliteFlowStore {
     pool: Database,
@@ -329,5 +341,38 @@ impl FlowStore for SqliteFlowStore {
             .fetch_optional(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))
+    }
+
+    async fn get_active_version(&self, flow_id: &Uuid) -> Result<Option<FlowVersion>> {
+        // We need to find if ANY deployment points to a version that belongs to this flow_id.
+        // Schema: flow_versions (v) <--- flow_deployments (d)
+
+        let query = "
+            SELECT v.* FROM flow_versions v
+            JOIN flow_deployments d ON d.active_version_id = v.id
+            WHERE v.flow_id = ?
+            LIMIT 1
+        ";
+
+        let row = sqlx::query_as::<_, FlowVersionRow>(query)
+            .bind(flow_id.to_string())
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        // Map the Row (String IDs) back to Domain Object (Uuid IDs)
+        if let Some(r) = row {
+            Ok(Some(FlowVersion {
+                id: r.id,
+                flow_id: r.flow_id,
+                version_number: r.version_number,
+                execution_artifact: r.execution_artifact,
+                graph_json: r.graph_json,
+                checksum: r.checksum,
+                created_at: r.created_at,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

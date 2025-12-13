@@ -53,4 +53,6 @@ pub trait FlowStore: Send + Sync {
         flow_id: &Uuid,
         version_number: i32,
     ) -> Result<Option<FlowVersion>>;
+
+    async fn get_active_version(&self, flow_id: &Uuid) -> Result<Option<FlowVersion>>;
 }

@@ -69,7 +69,7 @@ pub async fn start_login(
     } else {
         let version = state
             .flow_store
-            .get_latest_version(&flow_id)
+            .get_active_version(&flow_id)
             .await?
             .ok_or(Error::NotFound("Flow version not found".to_string()))?;
 

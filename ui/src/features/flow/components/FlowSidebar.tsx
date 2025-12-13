@@ -94,7 +94,7 @@ export function FlowsSidebar() {
     <div className="bg-muted/10 flex h-full w-[var(--sidebar-width-secondary)] flex-col border-r">
       {/* HEADER */}
       <div className="bg-background flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <h2 className="text-sm font-semibold tracking-tight">Authentication</h2>
+        <h2 className="text-sm font-semibold tracking-tight">Authentication Flows</h2>
         <Badge variant="secondary" className="text-muted-foreground h-5 px-1.5 text-[10px]">
           {activeFlows.length + availableFlows.length}
         </Badge>
