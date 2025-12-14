@@ -64,30 +64,66 @@ fn create_login_cookie(session_id: Uuid) -> Cookie<'static> {
 // --- HANDLERS ---
 
 // GET /api/auth/login
-pub async fn start_login_flow_handler(State(state): State<AppState>) -> Result<impl IntoResponse> {
-    // 1. Get Realm
+pub async fn start_login_flow_handler(
+    State(state): State<AppState>,
+    jar: CookieJar, // <--- Add CookieJar to read existing cookies
+) -> Result<impl IntoResponse> {
+    // --- 1. RESUME LOGIC (Check for existing session) ---
+    if let Some(cookie) = jar.get(LOGIN_SESSION_COOKIE) {
+        if let Ok(session_id) = Uuid::parse_str(cookie.value()) {
+            // Check if session exists and is active
+            if let Ok(Some(existing_session)) =
+                state.auth_session_repo.find_by_id(&session_id).await
+            {
+                if existing_session.status == SessionStatus::active {
+                    // RESUME: Re-execute the current node to get the UI JSON
+                    let result = state.flow_executor.execute(session_id, None).await?;
+
+                    // We don't need to set a new cookie, just return the JSON
+                    let response_body = match result {
+                        ExecutionResult::Challenge { screen_id, context } => serde_json::json!({
+                            "status": "challenge",
+                            "challengeName": screen_id,
+                            "context": context
+                        }),
+                        ExecutionResult::Success { redirect_url } => serde_json::json!({
+                            "status": "redirect",
+                            "url": redirect_url
+                        }),
+                        ExecutionResult::Failure { reason } => serde_json::json!({
+                            "status": "failure",
+                            "message": reason
+                        }),
+                    };
+
+                    // Return immediately so we don't overwrite with a new session
+                    return Ok((StatusCode::OK, Json(response_body)).into_response());
+                }
+            }
+        }
+    }
+
+    // --- 2. NEW SESSION LOGIC (Fallback if no valid cookie) ---
+
     let realm = state
         .realm_service
         .find_by_name(DEFAULT_REALM_NAME)
         .await?
         .ok_or(Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
 
-    // 2. Identify the Flow (Browser Login)
-    // We need to look up which Flow ID is bound to 'browser_flow_id' for this realm.
+    // Resolve Flow
     let flow_id_str = realm
         .browser_flow_id
         .ok_or(Error::System("No browser flow configured for realm".into()))?;
     let flow_id = Uuid::parse_str(&flow_id_str)
         .map_err(|_| Error::System("Invalid flow ID format".into()))?;
 
-    // 3. Get Active Version for this Flow
+    // Resolve Active Version
     let version_num = state
         .flow_store
         .get_deployed_version_number(&realm.id, "browser", &flow_id)
         .await?
-        .ok_or(Error::System(
-            "No active version deployed for browser flow".into(),
-        ))?;
+        .ok_or(Error::System("No active version deployed".into()))?;
 
     let version = state
         .flow_store
@@ -95,12 +131,12 @@ pub async fn start_login_flow_handler(State(state): State<AppState>) -> Result<i
         .await?
         .ok_or(Error::System("Active version not found".into()))?;
 
-    // 4. Create Session
+    // Create New Session
     let session_id = Uuid::new_v4();
     let session = AuthenticationSession {
         id: session_id,
         realm_id: realm.id,
-        flow_version_id: Uuid::parse_str(&version.id).unwrap_or_default(), // TODO: fix string/uuid mismatch in structs
+        flow_version_id: Uuid::parse_str(&version.id).unwrap_or_default(),
         current_node_id: "start".to_string(),
         user_id: None,
         status: SessionStatus::active,
@@ -112,47 +148,40 @@ pub async fn start_login_flow_handler(State(state): State<AppState>) -> Result<i
 
     state.auth_session_repo.create(&session).await?;
 
-    // 5. Execute Initial Step
+    // Execute Initial Step
     let result = state.flow_executor.execute(session_id, None).await?;
 
-    // 6. Return Response + Cookie
+    // Return Response + NEW Cookie
     let cookie = create_login_cookie(session_id);
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        HeaderValue::from_str(&cookie.to_string())?,
+        HeaderValue::from_str(&cookie.to_string()).unwrap(),
     );
 
-    match result {
-        ExecutionResult::Challenge { screen_id, context } => {
-            // Map to the format the UI expects
-            Ok((
-                StatusCode::OK,
-                headers,
-                Json(serde_json::json!({
-                    "status": "challenge",
-                    "challengeName": screen_id,
-                    "context": context
-                })),
-            ))
-        }
-        ExecutionResult::Success { redirect_url } => Ok((
-            StatusCode::OK,
-            headers,
-            Json(serde_json::json!({
-                "status": "redirect",
-                "url": redirect_url
-            })),
-        )),
-        ExecutionResult::Failure { reason } => Ok((
-            StatusCode::UNAUTHORIZED,
-            headers,
-            Json(serde_json::json!({
-                "status": "failure",
-                "message": reason
-            })),
-        )),
-    }
+    let response_body = match &result {
+        ExecutionResult::Challenge { screen_id, context } => serde_json::json!({
+            "status": "challenge",
+            "challengeName": screen_id,
+            "context": context
+        }),
+        ExecutionResult::Success { redirect_url } => serde_json::json!({
+            "status": "redirect",
+            "url": redirect_url
+        }),
+        ExecutionResult::Failure { reason } => serde_json::json!({
+            "status": "failure",
+            "message": reason
+        }),
+    };
+
+    let status = if matches!(result, ExecutionResult::Failure { .. }) {
+        StatusCode::UNAUTHORIZED
+    } else {
+        StatusCode::OK
+    };
+
+    Ok((status, headers, Json(response_body)).into_response())
 }
 
 // POST /api/auth/login/execute
