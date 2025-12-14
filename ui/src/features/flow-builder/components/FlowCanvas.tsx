@@ -20,23 +20,23 @@ export function FlowCanvas() {
 
   const nodeTypes = useMemo(
     () => ({
-      // Start
+      // --- LOGIC NODES ---
       'core.start': StartNode,
+      'core.start.flow': StartNode, // Legacy alias if needed
 
-      // Authenticators
+      // --- AUTHENTICATORS (Workers) ---
+      // These keys MUST match what 'register_builtins' uses in Rust
       'core.auth.password': AuthenticatorNode,
       'core.auth.otp': AuthenticatorNode,
-      'core.auth.registration': AuthenticatorNode,
+      'core.auth.webauthn': AuthenticatorNode,
 
-      // Logic
-      'core.logic.condition': AuthenticatorNode, // Or a specific LogicNode
-      'core.logic.script': AuthenticatorNode,
-
-      // Terminals
-      'core.terminal.allow': TerminalNode, // Or AuthenticatorNode if you reuse it
+      // --- TERMINALS ---
+      // These keys MUST match what 'register_builtins' uses in Rust
+      'core.terminal.allow': TerminalNode,
       'core.terminal.deny': TerminalNode,
 
-      // Fallback for drag-and-drop category matching if specific ID fails
+      // --- FALLBACKS ---
+      // Used if the backend returns a type we haven't explicitly mapped yet
       authenticator: AuthenticatorNode,
       terminal: TerminalNode,
     }),
@@ -53,13 +53,12 @@ export function FlowCanvas() {
       event.preventDefault()
 
       // 1. Get Data from Palette
-      const droppedId = event.dataTransfer.getData('application/reactflow/type') // "core.auth.password"
+      const droppedId = event.dataTransfer.getData('application/reactflow/type')
       const droppedCategory = event.dataTransfer.getData('application/reactflow/category')
-      const droppedOutputsStr = event.dataTransfer.getData('application/reactflow/outputs') // Need this!
+      const droppedOutputsStr = event.dataTransfer.getData('application/reactflow/outputs')
 
       if (!droppedId) return
 
-      // Parse outputs (handles) if passed from palette
       let outputs = []
       try {
         outputs = droppedOutputsStr ? JSON.parse(droppedOutputsStr) : []
@@ -75,14 +74,13 @@ export function FlowCanvas() {
       // 2. Create Node
       const newNode = {
         id: crypto.randomUUID(),
-        // CRITICAL: Type must match the Backend ID ("core.auth.password")
+        // Matches the backend registry key (e.g. "core.auth.password")
         type: droppedId,
         position,
         data: {
-          label: droppedId, // Or a display name if passed
+          label: droppedId,
           config: {},
           category: droppedCategory,
-          // CRITICAL: Pass outputs to data so the Node Component can render handles
           outputs: outputs,
         },
       }

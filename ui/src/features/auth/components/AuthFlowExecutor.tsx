@@ -8,7 +8,7 @@ import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken'
 
 import { authApi } from '../api/authApi'
-import type { ExecutionResult } from '../model/types'
+import type { AuthExecutionResponse } from '../model/types'
 import { getScreenComponent } from './ScreenRegistry'
 
 // Global Singleton to prevent double-fetch in Strict Mode
@@ -19,32 +19,31 @@ export function AuthFlowExecutor() {
   const setSession = useSessionStore((state) => state.setSession)
   const refreshTokenMutation = useRefreshToken()
 
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [currentStep, setCurrentStep] = useState<ExecutionResult | null>(null)
+  // We store the raw API response here
+  const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
+
+  // Track internal loading state
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
 
-  // 1. INITIALIZE FLOW
+  // 1. INITIALIZE FLOW (GET /api/auth/login)
   useEffect(() => {
     // If state is already populated, stop.
-    if (sessionId) {
+    if (currentStep) {
       setIsLoading(false)
       return
     }
 
     const runInit = async () => {
       try {
-        console.log('[Executor] Calling startFlow API...')
-        const res = await authApi.startFlow(realm)
-        console.log('[Executor] API Success. Session:', res.session_id)
-        return res
+        console.log('[Executor] Starting Flow for realm:', realm)
+        return await authApi.startFlow(realm)
       } catch (err) {
-        console.error('[Executor] API Failed:', err)
+        console.error('[Executor] Init Failed:', err)
         throw err
       }
     }
 
-    // Only create a new promise if one isn't already running
     if (!initializationPromise) {
       initializationPromise = runInit()
     }
@@ -53,13 +52,10 @@ export function AuthFlowExecutor() {
     initializationPromise
       .then((res) => {
         if (active) {
-          setSessionId(res.session_id)
-          setCurrentStep(res.execution)
+          // res is the AuthExecutionResponse JSON directly
+          setCurrentStep(res)
           setIsLoading(false)
         }
-        // [FIX] CLEAR THE SINGLETON ON SUCCESS
-        // This ensures that the next time you visit this page (e.g. after logout),
-        // we start fresh. Strict Mode (which runs instantly) will still share this promise.
         initializationPromise = null
       })
       .catch((err) => {
@@ -67,62 +63,70 @@ export function AuthFlowExecutor() {
           setGlobalError('Failed to initialize login flow. ' + (err.message || ''))
           setIsLoading(false)
         }
-        // [FIX] CLEAR THE SINGLETON ON ERROR
         initializationPromise = null
       })
 
     return () => {
       active = false
     }
-  }, [realm, sessionId])
+  }, [realm, currentStep])
 
-  // 2. SUBMIT HANDLER
+  // 2. SUBMIT HANDLER (POST /api/auth/login/execute)
   const handleSubmit = async (data: any) => {
-    if (!sessionId) return
     setIsLoading(true)
     setGlobalError(null)
 
     try {
-      const res = await authApi.submitStep(sessionId, data)
-      setSessionId(res.session_id)
-      setCurrentStep(res.execution)
+      // The backend now accepts a generic JSON payload.
+      // For PasswordNode, we expect { username, password } inside data.
+      const res = await authApi.submitStep(data)
+      setCurrentStep(res)
     } catch (error: any) {
+      // API errors (500s) or network errors
       setGlobalError(error.message || 'An unexpected error occurred')
     } finally {
       setIsLoading(false)
     }
   }
 
-  // 3. SUCCESS HANDLER
+  // 3. SUCCESS / REDIRECT HANDLER
   useEffect(() => {
-    const handleSuccess = async () => {
-      if (currentStep?.type !== 'Success') return
+    const handleRedirect = async () => {
+      if (currentStep?.status !== 'redirect') return
 
       try {
-        const token = await refreshTokenMutation.mutateAsync()
+        const targetUrl = currentStep.url
+        console.log('[Executor] Flow Complete. Redirecting to:', targetUrl)
 
-        // External Redirect Check (e.g. Google)
-        const backendUrl = currentStep.payload.redirect_url
-        if (backendUrl && backendUrl !== '/' && backendUrl.startsWith('http')) {
-          window.location.href = backendUrl
+        // Case A: Redirect to Dashboard (Root)
+        if (targetUrl === '/') {
+          // Hydrate the session via cookie -> token exchange
+          const token = await refreshTokenMutation.mutateAsync()
+          setSession(token)
+          // The AppRouter will handle rendering the dashboard now that session is set
           return
         }
 
-        // Internal Success - Update Store
-        setSession(token)
+        // Case B: External Redirect (OIDC Callback, Google, etc.)
+        if (targetUrl.startsWith('http')) {
+          window.location.href = targetUrl
+          return
+        }
+
+        // Case C: Relative Redirect
+        window.location.href = targetUrl
       } catch (err) {
         console.error('Session hydration failed:', err)
         setGlobalError('Login succeeded but session could not be established.')
       }
     }
 
-    if (currentStep?.type === 'Success') {
-      void handleSuccess()
-    }
+    handleRedirect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep])
 
   // --- RENDER ---
+
   if (isLoading && !currentStep) {
     return (
       <div className="flex justify-center p-8">
@@ -131,20 +135,12 @@ export function AuthFlowExecutor() {
     )
   }
 
-  if (currentStep?.type === 'Success') {
-    return (
-      <div className="space-y-2 text-center text-green-600">
-        <h3 className="text-lg font-medium">Login Successful</h3>
-        <p className="text-sm">Redirecting...</p>
-      </div>
-    )
-  }
-
-  if (currentStep?.type === 'Failure') {
+  // STATUS: FAILURE (Flow Terminated)
+  if (currentStep?.status === 'failure') {
     return (
       <div className="space-y-4">
         <div className="text-destructive rounded border border-red-100 bg-red-50 p-4 font-medium">
-          Login Failed: {currentStep.payload.reason}
+          Login Failed: {currentStep.message}
         </div>
         <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
           Try Again
@@ -153,22 +149,33 @@ export function AuthFlowExecutor() {
     )
   }
 
-  if (currentStep?.type === 'Challenge') {
-    const { screen_id, context } = currentStep.payload
-    const ScreenComponent = getScreenComponent(screen_id)
+  // STATUS: REDIRECT (Showing spinner while redirecting)
+  if (currentStep?.status === 'redirect') {
+    return (
+      <div className="space-y-2 text-center text-green-600">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+        <p className="text-sm">Redirecting...</p>
+      </div>
+    )
+  }
+
+  // STATUS: CHALLENGE (Render UI)
+  if (currentStep?.status === 'challenge') {
+    const { challengeName, context } = currentStep
+    const ScreenComponent = getScreenComponent(challengeName) // e.g. "login-password"
 
     if (ScreenComponent) {
       return (
         <ScreenComponent
           onSubmit={handleSubmit}
           isLoading={isLoading}
-          error={globalError}
-          context={context}
+          error={globalError} // Network/System errors
+          context={context} // Business/Validation errors (e.g. "Invalid Password")
         />
       )
     }
 
-    return <div className="p-4 text-red-500">Unknown Screen: {screen_id}</div>
+    return <div className="p-4 text-red-500">Unknown Screen: {challengeName}</div>
   }
 
   return null

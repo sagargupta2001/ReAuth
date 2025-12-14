@@ -6,7 +6,7 @@ use std::collections::HashSet;
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct GraphNode {
     pub id: String,
-    #[serde(rename = "type")] // Map JSON "type" to Rust "type_"
+    #[serde(rename = "type")]
     pub type_: String,
 }
 
@@ -23,13 +23,13 @@ impl GraphValidator {
     pub fn validate(
         nodes: &[GraphNode],
         edges: &[GraphEdge],
-        registry: &RuntimeRegistry, // <--- Inject Registry
+        registry: &RuntimeRegistry,
     ) -> Result<()> {
         if nodes.is_empty() {
             return Err(Error::Validation("Flow cannot be empty".into()));
         }
 
-        // 1. Check for Start Node
+        // 1. Check for Start Node (Nodes with no incoming edges)
         let targets: HashSet<String> = edges.iter().map(|e| e.target.clone()).collect();
         let starts: Vec<&GraphNode> = nodes.iter().filter(|n| !targets.contains(&n.id)).collect();
 
@@ -44,26 +44,24 @@ impl GraphValidator {
             ));
         }
 
-        // 2. Check for Dead Ends
+        // 2. Validate Nodes & Dead Ends
         let sources: HashSet<String> = edges.iter().map(|e| e.source.clone()).collect();
 
         for node in nodes {
-            // [FIX] Lookup the REAL StepType from the registry
-            // This handles "core.terminal.allow", "core.terminal.deny", etc. correctly.
-            let step_type = registry
-                .get_node_type(&node.type_)
+            // Lookup StepType in Registry
+            let def = registry
+                .get_definition(&node.type_)
                 .ok_or_else(|| Error::Validation(format!("Unknown node type: '{}'", node.type_)))?;
 
-            // If it is NOT a Terminal node, it MUST have an output edge.
-            if step_type != StepType::Terminal && !sources.contains(&node.id) {
+            // Terminal nodes are allowed to have no outputs.
+            // All other nodes MUST have at least one outgoing edge.
+            if def.step_type != StepType::Terminal && !sources.contains(&node.id) {
                 return Err(Error::Validation(format!(
-                    "Dead end detected at node '{}' (type: {}). All paths must end at a Terminal node.",
+                    "Dead end detected at node '{}' ({})",
                     node.id, node.type_
                 )));
             }
         }
-
-        // 3. (Optional) Cycle Detection via DFS would go here
 
         Ok(())
     }

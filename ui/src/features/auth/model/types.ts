@@ -1,35 +1,34 @@
-export interface LoginResponse {
-  // Case 1: Success
-  access_token?: string
+/**
+ * Represents the response from the Flow Engine (Executor).
+ * Matches the JSON output from `crates/reauth_core/src/adapters/web/auth_handler.rs`.
+ */
+export type AuthExecutionResponse =
+  | {
+      status: 'challenge'
+      challengeName: string // e.g. "login-password", "mfa-otp"
+      context: Record<string, any> // e.g. { error: "Invalid credentials", username: "admin" }
+    }
+  | {
+      status: 'redirect'
+      url: string // e.g. "/" or "https://oidc-client.com/callback?code=..."
+    }
+  | {
+      status: 'failure'
+      message: string // e.g. "Account locked"
+    }
 
-  // Case 2: Challenge (MFA, etc)
-  status?: 'challenge' | 'redirect'
-  challenge_page?: string
+/**
+ * Helper alias if you want to keep naming consistent with older code,
+ * but 'AuthExecutionResponse' is more accurate.
+ */
+export type ExecutionResult = AuthExecutionResponse
 
-  // Case 3: OIDC Redirect
-  url?: string
-}
-
-export interface ExecutionResponse {
-  session_id: string
-  execution: ExecutionResult
-}
-
-// Matches your Rust #[serde(tag = "type", content = "payload")]
-export type ExecutionResult =
-  | { type: 'Challenge'; payload: ChallengePayload }
-  | { type: 'Success'; payload: SuccessPayload }
-  | { type: 'Failure'; payload: FailurePayload }
-
-export interface ChallengePayload {
-  screen_id: string // e.g. "username_password"
+/**
+ * Helper type for the screen registry to know what props a screen receives.
+ */
+export interface AuthScreenProps {
+  isLoading: boolean
+  error: string | null
   context: Record<string, any>
-}
-
-export interface SuccessPayload {
-  redirect_url: string
-}
-
-export interface FailurePayload {
-  reason: string
+  onSubmit: (data: any) => void
 }

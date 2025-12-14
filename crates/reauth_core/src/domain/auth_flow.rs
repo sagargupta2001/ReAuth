@@ -17,7 +17,7 @@ pub struct LoginSession {
     pub user_id: Option<Uuid>,
     pub state_data: Option<String>,
     pub expires_at: DateTime<Utc>,
-    #[sqlx(skip)] // todo Skip SQL mapping for now to prevent runtime errors if column is missing
+    #[sqlx(skip)]
     pub context: Value,
 }
 

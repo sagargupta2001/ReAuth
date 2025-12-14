@@ -1,7 +1,5 @@
+import type { AuthExecutionResponse } from '@/features/auth/model/types.ts'
 import { apiClient } from '@/shared/api/client'
-
-import type { ExecutionResponse, LoginResponse } from '../model/types'
-import type { LoginSchema } from '../schema/loginSchema'
 
 export const authApi = {
   /**
@@ -13,31 +11,28 @@ export const authApi = {
   },
 
   /**
-   * Executes a step in the login flow (Username/Password).
-   */
-  executeLogin: async (credentials: LoginSchema) => {
-    return apiClient.post<LoginResponse>('/api/auth/login/execute', { credentials })
-  },
-
-  /**
-   * Logs out the user by invalidating the session on the server.
+   * Logs out the user by clearing cookies on the server.
    */
   logout: async () => {
-    // We use void because we don't care about the response body, just the cookie clearing
     return apiClient.post<void>('/api/auth/logout', {})
   },
 
   /**
-   * 1. START: Initialize the flow for a specific realm
+   * 1. START: Initialize the flow.
+   * NOTE: The backend now creates the session cookie automatically.
    */
-  startFlow: async (realm: string) => {
-    return apiClient.get<ExecutionResponse>(`/api/realms/${realm}/login`)
+  startFlow: async (_realm: string) => {
+    // Currently the backend handler is global at /api/auth/login
+    // If you add multi-realm support later, you can append `?realm=${realm}` here.
+    return apiClient.get<AuthExecutionResponse>('/api/auth/login')
   },
 
   /**
-   * 2. NEXT: Submit data for the current step
+   * 2. NEXT: Submit data for the current step.
+   * The Session ID is now handled automatically via the 'login_session' cookie.
    */
-  submitStep: async (sessionId: string, data: Record<string, any>) => {
-    return apiClient.post<ExecutionResponse>(`/api/execution/${sessionId}`, data)
+  submitStep: async (data: Record<string, any>) => {
+    // The backend accepts a generic JSON payload (e.g. { "username": "...", "password": "..." })
+    return apiClient.post<AuthExecutionResponse>('/api/auth/login/execute', data)
   },
 }

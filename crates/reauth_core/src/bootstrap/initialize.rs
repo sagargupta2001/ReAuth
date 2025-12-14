@@ -12,18 +12,14 @@ use crate::ports::transaction_manager::TransactionManager;
 use crate::AppState;
 use std::sync::Arc;
 
-/// Performs all initialization logic: env, plugins, DB, migrations, and DI.
 pub async fn initialize() -> anyhow::Result<AppState> {
     let settings = Settings::new()?;
-
     let log_bus = init_logging();
     dotenvy::dotenv().ok();
     print_banner();
 
     let plugins_path = determine_plugins_path()?;
-
     let db_pool = initialize_database(&settings).await?;
-
     let repos = initialize_repositories(&db_pool);
 
     let (event_bus, cache_service, jwt_service) = initialize_core_infra(&settings)?;
@@ -73,7 +69,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         log_subscriber: log_bus,
         auth_session_repo: repos.auth_session_repo,
         flow_store: repos.flow_store,
-        flow_engine: services.flow_engine,
+        // flow_engine has been removed
         oidc_service: services.oidc_service,
         flow_service: services.flow_service,
         flow_manager: services.flow_manager,

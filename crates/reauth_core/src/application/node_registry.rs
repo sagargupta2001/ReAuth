@@ -1,7 +1,7 @@
 use crate::domain::flow::models::NodeMetadata;
 use crate::domain::flow::nodes::condition_node::ConditionNode;
 use crate::domain::flow::nodes::otp_node::OtpNode;
-use crate::domain::flow::nodes::password_node::PasswordNode;
+use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
 use crate::domain::flow::nodes::script_node::ScriptNode;
 use crate::domain::flow::nodes::start_node::StartNode;
 use crate::domain::flow::nodes::terminal_node::{AllowNode, DenyNode};
@@ -16,7 +16,7 @@ impl NodeRegistryService {
         Self {
             providers: vec![
                 Box::new(StartNode),
-                Box::new(PasswordNode),
+                Box::new(PasswordNodeProvider),
                 Box::new(OtpNode),
                 Box::new(ConditionNode),
                 Box::new(ScriptNode),

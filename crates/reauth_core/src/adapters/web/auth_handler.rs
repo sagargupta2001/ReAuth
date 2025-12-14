@@ -1,281 +1,307 @@
 use crate::{
-    constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
-    domain::{auth_flow::AuthStepResult, oidc::OidcContext, session::RefreshToken},
+    constants::{DEFAULT_REALM_NAME, LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
+    domain::{
+        auth_session::AuthenticationSession, auth_session::SessionStatus,
+        execution::ExecutionResult, session::RefreshToken,
+    },
     error::{Error, Result},
     AppState,
 };
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
     Json,
 };
-// Use only axum_extra's cookie types to avoid conflicts
-use crate::constants::DEFAULT_REALM_NAME;
-use axum::extract::ConnectInfo;
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
-use serde::Deserialize;
-use std::collections::HashMap;
+use chrono::{Duration, Utc};
 use std::net::SocketAddr;
 use uuid::Uuid;
 
-// --- Helper function for creating the refresh cookie ---
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
     let expires_time = time::OffsetDateTime::from_unix_timestamp(token.expires_at.timestamp())
         .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
-    let is_production = false;
-
     Cookie::build((REFRESH_TOKEN_COOKIE, token.id.to_string()))
         .path("/")
         .http_only(true)
         .same_site(SameSite::Strict)
-        .secure(is_production)
+        .secure(false)
         .expires(expires_time)
-        .into() // Convert Builder to Cookie
+        .into()
 }
 
-// --- Helper function for clearing the refresh cookie ---
 fn create_clear_cookie() -> Cookie<'static> {
-    let is_production = false;
-
     Cookie::build(REFRESH_TOKEN_COOKIE)
         .path("/")
         .http_only(true)
         .same_site(SameSite::Strict)
-        .secure(is_production)
+        .secure(false)
         .max_age(time::Duration::seconds(0))
         .into()
 }
 
-// --- Helper function for clearing the login session cookie ---
 fn create_clear_login_cookie() -> Cookie<'static> {
-    let is_production = false;
-
     Cookie::build(LOGIN_SESSION_COOKIE)
         .path("/api")
         .expires(time::OffsetDateTime::UNIX_EPOCH)
         .same_site(SameSite::Lax)
-        .secure(is_production)
+        .secure(false)
         .max_age(time::Duration::seconds(0))
         .into()
 }
 
-// ---
-// `GET /api/auth/login`
-// Starts the login flow
-// ---
+fn create_login_cookie(session_id: Uuid) -> Cookie<'static> {
+    // 15 min expiry for login session
+    let expires = time::OffsetDateTime::now_utc() + time::Duration::minutes(15);
+    Cookie::build((LOGIN_SESSION_COOKIE, session_id.to_string()))
+        .path("/api")
+        .http_only(true)
+        .same_site(SameSite::Strict)
+        .expires(expires)
+        .into()
+}
+
+// --- HANDLERS ---
+
+// GET /api/auth/login
 pub async fn start_login_flow_handler(State(state): State<AppState>) -> Result<impl IntoResponse> {
+    // 1. Get Realm
     let realm = state
         .realm_service
         .find_by_name(DEFAULT_REALM_NAME)
         .await?
         .ok_or(Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
 
-    let (login_session, first_challenge) = state.flow_engine.start_login_flow(realm.id).await?;
+    // 2. Identify the Flow (Browser Login)
+    // We need to look up which Flow ID is bound to 'browser_flow_id' for this realm.
+    let flow_id_str = realm
+        .browser_flow_id
+        .ok_or(Error::System("No browser flow configured for realm".into()))?;
+    let flow_id = Uuid::parse_str(&flow_id_str)
+        .map_err(|_| Error::System("Invalid flow ID format".into()))?;
 
-    let expires_time =
-        time::OffsetDateTime::from_unix_timestamp(login_session.expires_at.timestamp())
-            .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
+    // 3. Get Active Version for this Flow
+    let version_num = state
+        .flow_store
+        .get_deployed_version_number(&realm.id, "browser", &flow_id)
+        .await?
+        .ok_or(Error::System(
+            "No active version deployed for browser flow".into(),
+        ))?;
 
-    // Set a cookie to track this login attempt
-    let cookie: Cookie<'static> =
-        Cookie::build((LOGIN_SESSION_COOKIE, login_session.id.to_string()))
-            .path("/api") // Only send to auth endpoints
-            .http_only(true)
-            .same_site(SameSite::Strict)
-            .expires(expires_time)
-            .into();
+    let version = state
+        .flow_store
+        .get_version_by_number(&flow_id, version_num)
+        .await?
+        .ok_or(Error::System("Active version not found".into()))?;
 
+    // 4. Create Session
+    let session_id = Uuid::new_v4();
+    let session = AuthenticationSession {
+        id: session_id,
+        realm_id: realm.id,
+        flow_version_id: Uuid::parse_str(&version.id).unwrap_or_default(), // TODO: fix string/uuid mismatch in structs
+        current_node_id: "start".to_string(),
+        user_id: None,
+        status: SessionStatus::active,
+        context: serde_json::json!({}),
+        expires_at: Utc::now() + Duration::minutes(15),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    state.auth_session_repo.create(&session).await?;
+
+    // 5. Execute Initial Step
+    let result = state.flow_executor.execute(session_id, None).await?;
+
+    // 6. Return Response + Cookie
+    let cookie = create_login_cookie(session_id);
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        HeaderValue::from_str(&cookie.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
+        HeaderValue::from_str(&cookie.to_string())?,
     );
 
-    Ok((StatusCode::OK, headers, Json(first_challenge)))
+    match result {
+        ExecutionResult::Challenge { screen_id, context } => {
+            // Map to the format the UI expects
+            Ok((
+                StatusCode::OK,
+                headers,
+                Json(serde_json::json!({
+                    "status": "challenge",
+                    "challengeName": screen_id,
+                    "context": context
+                })),
+            ))
+        }
+        ExecutionResult::Success { redirect_url } => Ok((
+            StatusCode::OK,
+            headers,
+            Json(serde_json::json!({
+                "status": "redirect",
+                "url": redirect_url
+            })),
+        )),
+        ExecutionResult::Failure { reason } => Ok((
+            StatusCode::UNAUTHORIZED,
+            headers,
+            Json(serde_json::json!({
+                "status": "failure",
+                "message": reason
+            })),
+        )),
+    }
 }
 
-// ---
-// `POST /api/auth/login/execute`
-// Executes the current step of the flow
-// ---
-#[derive(Deserialize)]
-pub struct ExecutePayload {
-    pub credentials: HashMap<String, String>,
-}
-
+// POST /api/auth/login/execute
+// Accepts generic JSON input (mapped to credentials or other data)
 pub async fn execute_login_step_handler(
     State(state): State<AppState>,
     jar: CookieJar,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Json(payload): Json<ExecutePayload>,
+    Json(payload): Json<serde_json::Value>, // Generic JSON payload
 ) -> Result<impl IntoResponse> {
-    let login_session_id = jar
+    // 1. Extract Session ID
+    let session_id = jar
         .get(LOGIN_SESSION_COOKIE)
-        .map(|cookie| Uuid::parse_str(cookie.value()))
+        .map(|c| Uuid::parse_str(c.value()))
         .transpose()?
         .ok_or(Error::InvalidLoginSession)?;
 
-    let req_headers = headers;
+    // 2. Execute Graph
+    let result = state
+        .flow_executor
+        .execute(session_id, Some(payload))
+        .await?;
 
-    match state
-        .flow_engine
-        .process_login_step(login_session_id, payload.credentials)
-        .await?
-    {
-        (Some(final_session), AuthStepResult::Success, Some(user)) => {
+    // 3. Handle Result
+    match result {
+        // --- UI Challenge (e.g. "Wrong Password", try again) ---
+        ExecutionResult::Challenge { screen_id, context } => {
+            // Keep the cookie
+            Ok((
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "status": "challenge",
+                    "challengeName": screen_id,
+                    "context": context
+                })),
+            )
+                .into_response())
+        }
+
+        // --- Success (Flow Complete) ---
+        ExecutionResult::Success { redirect_url } => {
+            // Clear Login Cookie
             let clear_cookie = create_clear_login_cookie();
             let mut res_headers = HeaderMap::new();
             res_headers.append(
                 header::SET_COOKIE,
-                HeaderValue::from_str(&clear_cookie.to_string())
-                    .map_err(|e| Error::Unexpected(e.into()))?,
+                HeaderValue::from_str(&clear_cookie.to_string())?,
             );
 
-            // Check for OIDC Context
-            if let Some(state_data) = final_session.state_data {
-                if let Ok(oidc_ctx) = serde_json::from_str::<OidcContext>(&state_data) {
-                    // Generate Auth Code
-                    let auth_code = state
-                        .oidc_service
-                        .create_authorization_code(
-                            final_session.realm_id,
-                            user.id,
-                            oidc_ctx.client_id,
-                            oidc_ctx.redirect_uri.clone(),
-                            oidc_ctx.nonce,
-                            oidc_ctx.code_challenge,
-                            oidc_ctx
-                                .code_challenge_method
-                                .unwrap_or_else(|| "plain".to_string()),
-                        )
+            // A. Check if we need to issue a Session (e.g. this wasn't just an OIDC loop)
+            // Retrieve session to get user_id
+            let final_session = state
+                .auth_session_repo
+                .find_by_id(&session_id)
+                .await?
+                .ok_or(Error::InvalidLoginSession)?;
+
+            // B. If User ID is present, issue Global Session Cookies
+            if let Some(user_id) = final_session.user_id {
+                // Fetch full user object
+                let user = state.user_service.get_user(user_id).await?;
+
+                // Handle OIDC Redirect vs Direct Login
+                // If the redirect_url is "/", treat as direct login to dashboard
+                if redirect_url == "/" {
+                    let ip = headers
+                        .get("x-forwarded-for")
+                        .and_then(|v| v.to_str().ok())
+                        .unwrap_or(addr.ip().to_string().as_str())
+                        .to_string();
+
+                    let (login_resp, refresh_token) = state
+                        .auth_service
+                        .create_session(&user, None, Some(ip), None)
                         .await?;
+                    let refresh_cookie = create_refresh_cookie(&refresh_token);
+                    res_headers.append(
+                        header::SET_COOKIE,
+                        HeaderValue::from_str(&refresh_cookie.to_string())?,
+                    );
 
-                    // Construct the callback URL
-                    let mut url = url::Url::parse(&oidc_ctx.redirect_uri)
-                        .map_err(|_| Error::OidcInvalidRedirect(oidc_ctx.redirect_uri))?;
-
-                    url.query_pairs_mut().append_pair("code", &auth_code.code);
-                    if let Some(s) = oidc_ctx.state {
-                        url.query_pairs_mut().append_pair("state", &s);
-                    }
-
-                    // Return the Redirect instruction to the UI
                     return Ok((
                         StatusCode::OK,
                         res_headers,
-                        Json(AuthStepResult::Redirect {
-                            url: url.to_string(),
-                        }),
+                        Json(serde_json::json!({
+                           "status": "redirect",
+                           "url": "/"
+                        })),
                     )
                         .into_response());
                 }
             }
 
-            let user_agent = req_headers
-                .get(header::USER_AGENT)
-                .and_then(|v| v.to_str().ok())
-                .map(String::from);
-
-            // Robust IP Extraction Logic
-            // Priority 1: X-Forwarded-For (if behind proxy)
-            // Priority 2: Direct Connection IP (localhost)
-            let ip_address = req_headers
-                .get("x-forwarded-for")
-                .and_then(|v| v.to_str().ok())
-                .map(|s| s.split(',').next().unwrap_or(s).trim().to_string())
-                .unwrap_or_else(|| addr.ip().to_string()); // <-- Fallback to direct IP
-
-            // Direct Login Path
-            // If this is the Admin Console logging in directly, you might want to
-            // hardcode the admin client ID, or pass None if you don't use ID tokens there.
-            let (login_response, refresh_token) = state
-                .auth_service
-                .create_session(&user, None, Some(ip_address), user_agent)
-                .await?;
-            let refresh_cookie = create_refresh_cookie(&refresh_token);
-
-            res_headers.append(
-                header::SET_COOKIE,
-                HeaderValue::from_str(&refresh_cookie.to_string())
-                    .map_err(|e| Error::Unexpected(e.into()))?,
-            );
-
-            Ok((StatusCode::OK, res_headers, Json(login_response)).into_response())
+            // C. Generic Redirect (e.g. OIDC)
+            Ok((
+                StatusCode::OK,
+                res_headers,
+                Json(serde_json::json!({
+                    "status": "redirect",
+                    "url": redirect_url
+                })),
+            )
+                .into_response())
         }
 
-        // --- Flow is advancing to the next step ---
-        (Some(new_login_session), result @ AuthStepResult::Challenge { .. }, _) => {
-            let expires_time =
-                time::OffsetDateTime::from_unix_timestamp(new_login_session.expires_at.timestamp())
-                    .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
-
-            let cookie: Cookie<'static> =
-                Cookie::build((LOGIN_SESSION_COOKIE, new_login_session.id.to_string()))
-                    .path("/api")
-                    .http_only(true)
-                    .same_site(SameSite::Strict)
-                    .expires(expires_time)
-                    .into();
-
-            let mut res_headers = HeaderMap::new();
-            res_headers.insert(
-                header::SET_COOKIE,
-                HeaderValue::from_str(&cookie.to_string())
-                    .map_err(|e| Error::Unexpected(e.into()))?,
-            );
-
-            Ok((StatusCode::OK, res_headers, Json(result)).into_response())
-        }
-
-        // --- Failures ---
-        (_, result @ AuthStepResult::Failure { .. }, _) => {
-            Ok((StatusCode::UNAUTHORIZED, Json(result)).into_response())
-        }
-
-        // --- Redirect (Should not happen here usually, but handle it) ---
-        (_, result @ AuthStepResult::Redirect { .. }, _) => {
-            Ok((StatusCode::OK, Json(result)).into_response())
-        }
-
-        _ => Err(Error::InvalidLoginStep),
+        // --- Failure ---
+        ExecutionResult::Failure { reason } => Ok((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "status": "failure",
+                "message": reason
+            })),
+        )
+            .into_response()),
     }
 }
 
+// Refresh and Logout handlers remain largely the same, just standard auth_service calls.
 pub async fn refresh_handler(
     State(state): State<AppState>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse> {
     let refresh_token_id = jar
         .get(REFRESH_TOKEN_COOKIE)
-        .map(|cookie| Uuid::parse_str(cookie.value()))
+        .map(|c| Uuid::parse_str(c.value()))
         .transpose()
         .map_err(|_| Error::InvalidRefreshToken)?
         .ok_or(Error::InvalidRefreshToken)?;
 
     match state.auth_service.refresh_session(refresh_token_id).await {
-        Ok((login_response, new_refresh_token)) => {
-            let cookie = create_refresh_cookie(&new_refresh_token);
+        Ok((resp, new_token)) => {
+            let cookie = create_refresh_cookie(&new_token);
             let mut headers = HeaderMap::new();
-
-            let cookie_value = HeaderValue::from_str(&cookie.to_string())
-                .map_err(|e| Error::Unexpected(e.into()))?;
-
-            headers.insert(header::SET_COOKIE, cookie_value);
-            Ok((StatusCode::OK, headers, Json(login_response)).into_response())
+            headers.insert(
+                header::SET_COOKIE,
+                HeaderValue::from_str(&cookie.to_string())?,
+            );
+            Ok((StatusCode::OK, headers, Json(resp)).into_response())
         }
-        Err(e @ Error::InvalidRefreshToken) => {
+        Err(_) => {
             let cookie = create_clear_cookie();
             let mut headers = HeaderMap::new();
-
-            let cookie_value = HeaderValue::from_str(&cookie.to_string())
-                .map_err(|e| Error::Unexpected(e.into()))?;
-
-            headers.insert(header::SET_COOKIE, cookie_value);
-            Ok((StatusCode::UNAUTHORIZED, headers, e.to_string()).into_response())
+            headers.insert(
+                header::SET_COOKIE,
+                HeaderValue::from_str(&cookie.to_string())?,
+            );
+            Ok((StatusCode::UNAUTHORIZED, headers, "Invalid Token").into_response())
         }
-        Err(e) => Err(e),
     }
 }
 
@@ -284,29 +310,19 @@ pub async fn logout_handler(
     jar: CookieJar,
 ) -> Result<impl IntoResponse> {
     let mut headers = HeaderMap::new();
-
-    // 1. Clear cookies immediately
-    let clear_refresh = create_clear_cookie();
-    let clear_login = create_clear_login_cookie();
-
     headers.append(
         header::SET_COOKIE,
-        HeaderValue::from_str(&clear_refresh.to_string())
-            .map_err(|e| Error::Unexpected(e.into()))?,
+        HeaderValue::from_str(&create_clear_cookie().to_string())?,
     );
     headers.append(
         header::SET_COOKIE,
-        HeaderValue::from_str(&clear_login.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
+        HeaderValue::from_str(&create_clear_login_cookie().to_string())?,
     );
 
-    // 2. Try to delete from DB (Best effort)
-    if let Some(cookie) = jar.get(REFRESH_TOKEN_COOKIE) {
-        if let Ok(token_id) = Uuid::parse_str(cookie.value()) {
-            // We ignore errors here because if the token is invalid,
-            // the user is effectively logged out anyway.
-            let _ = state.auth_service.logout(token_id).await;
+    if let Some(c) = jar.get(REFRESH_TOKEN_COOKIE) {
+        if let Ok(id) = Uuid::parse_str(c.value()) {
+            let _ = state.auth_service.logout(id).await;
         }
     }
-
     Ok((StatusCode::OK, headers, Json("Logged out")))
 }
