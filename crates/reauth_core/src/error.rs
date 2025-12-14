@@ -76,4 +76,13 @@ pub enum Error {
 
     #[error("OIDC Request Error: {0}")]
     OidcInvalidRequest(String),
+
+    #[error("Flow validation failed: {0}")]
+    Validation(String),
+
+    #[error("Flow validation failed: {0}")]
+    NotFound(String),
+
+    #[error("Flow validation failed: {0}")]
+    System(String),
 }

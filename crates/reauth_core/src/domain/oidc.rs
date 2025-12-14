@@ -1,6 +1,6 @@
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -48,6 +48,20 @@ pub fn verify_pkce_challenge(challenge: &str, verifier: &str) -> bool {
 pub struct OidcContext {
     pub client_id: String,
     pub redirect_uri: String,
+    pub response_type: String,
+    pub scope: Option<String>,
+    pub state: Option<String>,
+    pub nonce: Option<String>,
+    pub code_challenge: Option<String>,
+    pub code_challenge_method: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct OidcRequest {
+    pub client_id: String,
+    pub redirect_uri: String,
+    pub response_type: String,
+    pub scope: Option<String>,
     pub state: Option<String>,
     pub nonce: Option<String>,
     pub code_challenge: Option<String>,

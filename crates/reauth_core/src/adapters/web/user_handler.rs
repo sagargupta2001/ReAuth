@@ -1,8 +1,8 @@
 use crate::adapters::web::auth_middleware::AuthUser;
-use crate::adapters::web::server::AppState;
 use crate::adapters::web::validation::ValidatedJson;
 use crate::domain::pagination::PageRequest;
 use crate::error::{Error, Result};
+use crate::AppState;
 use axum::extract::{Path, Query};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::Deserialize;

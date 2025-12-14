@@ -1,4 +1,10 @@
+use crate::application::flow_executor::FlowExecutor;
+use crate::application::flow_manager::FlowManager;
+use crate::application::flow_service::FlowService;
+use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::runtime_registry::RuntimeRegistry;
+use crate::ports::transaction_manager::TransactionManager;
 use crate::{
     adapters::{
         auth::password_authenticator::PasswordAuthenticator, cache::moka_cache::MokaCacheService,
@@ -25,6 +31,10 @@ pub struct Services {
     pub auth_service: Arc<AuthService>,
     pub flow_engine: Arc<FlowEngine>,
     pub oidc_service: Arc<OidcService>,
+    pub flow_service: Arc<FlowService>,
+    pub flow_manager: Arc<FlowManager>,
+    pub node_registry: Arc<NodeRegistryService>,
+    pub flow_executor: Arc<FlowExecutor>,
 }
 
 pub fn initialize_services(
@@ -33,6 +43,7 @@ pub fn initialize_services(
     cache: &Arc<MokaCacheService>,
     event_bus: &Arc<InMemoryEventBus>,
     token_service: &Arc<JwtService>,
+    tx_manager: &Arc<dyn TransactionManager>,
 ) -> Services {
     let user_service = Arc::new(UserService::new(repos.user_repo.clone(), event_bus.clone()));
     let rbac_service = Arc::new(RbacService::new(
@@ -40,7 +51,13 @@ pub fn initialize_services(
         cache.clone(),
         event_bus.clone(),
     ));
-    let realm_service = Arc::new(RealmService::new(repos.realm_repo.clone()));
+    let flow_service = Arc::new(FlowService::new(repos.flow_repo.clone()));
+
+    let realm_service = Arc::new(RealmService::new(
+        repos.realm_repo.clone(),
+        flow_service.clone(),
+        tx_manager.clone(),
+    ));
     let auth_service = Arc::new(AuthService::new(
         repos.user_repo.clone(),
         repos.realm_repo.clone(),
@@ -54,6 +71,9 @@ pub fn initialize_services(
         repos.user_repo.clone(),
         auth_service.clone(),
         token_service.clone(),
+        repos.auth_session_repo.clone(),
+        repos.flow_store.clone(),
+        repos.realm_repo.clone(),
     ));
 
     // Build the registry for the Flow Engine
@@ -72,6 +92,36 @@ pub fn initialize_services(
         repos.user_repo.clone(),
     ));
 
+    let node_registry = Arc::new(NodeRegistryService::new());
+
+    let mut runtime_registry = RuntimeRegistry::new();
+
+    // One line to register everything
+    crate::adapters::auth::register_builtins(&mut runtime_registry, repos.user_repo.clone());
+
+    let runtime_registry = Arc::new(runtime_registry);
+
+    let flow_manager = Arc::new(FlowManager::new(
+        repos.flow_store.clone(),
+        repos.flow_repo.clone(),
+        repos.realm_repo.clone(),
+        runtime_registry.clone(),
+    ));
+
+    let password_auth = Arc::new(PasswordAuthenticator::new(repos.user_repo.clone()));
+
+    let mut runtime_registry = crate::application::runtime_registry::RuntimeRegistry::new();
+
+    // This registers the worker AND marks "core.auth.password" as StepType::Authenticator automatically
+    runtime_registry.register_authenticator("core.auth.password", password_auth);
+
+    // 3. Create the Executor with the Registry
+    let flow_executor = Arc::new(FlowExecutor::new(
+        repos.auth_session_repo.clone(),
+        repos.flow_store.clone(),
+        Arc::new(runtime_registry),
+    ));
+
     Services {
         user_service,
         rbac_service,
@@ -79,5 +129,9 @@ pub fn initialize_services(
         auth_service,
         flow_engine,
         oidc_service,
+        flow_service,
+        flow_manager,
+        node_registry,
+        flow_executor,
     }
 }

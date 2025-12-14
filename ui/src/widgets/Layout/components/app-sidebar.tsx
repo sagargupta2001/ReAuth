@@ -8,6 +8,7 @@ import { PrimarySidebar } from '@/widgets/Sidebar/PrimarySidebar'
 import { SecondarySidebar } from '@/widgets/Sidebar/SecondarySidebar'
 import { useSidebar } from '@/widgets/Sidebar/components/content'
 import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data'
+import { useActivePrimaryNavItem } from '@/widgets/Sidebar/hooks/useActivePrimaryNavItem.ts'
 import { useSidebarStore } from '@/widgets/Sidebar/model/sidebarStore'
 
 export function AppSidebar() {
@@ -16,9 +17,11 @@ export function AppSidebar() {
   const location = useLocation()
   const realm = useActiveRealm()
 
-  // Determine if secondary sidebar is active
-  const activeItem = sidebarData.navMain.find((i) => i.title === activeItemId)
-  const showSecondary = !!activeItem?.items
+  const activeItem = useActivePrimaryNavItem()
+
+  // Only if the active item has a 'segment' (indicating it has sub-content)
+  // AND the global sidebar isn't manually collapsed by the user.
+  const showSecondary = !!activeItem?.segment && state !== 'collapsed'
 
   // Calculate Primary Sidebar Width based on state
   // (Assumes CSS vars: --sidebar-width-icon = 3rem, --sidebar-width = 16rem)
@@ -67,7 +70,7 @@ export function AppSidebar() {
       }}
     >
       {/* Primary is always rendered */}
-      <PrimarySidebar />
+      <PrimarySidebar activeItem={activeItem} />
 
       {/* Secondary renders to the right of Primary */}
       <div
@@ -76,7 +79,7 @@ export function AppSidebar() {
           showSecondary ? 'w-[var(--sidebar-width-secondary)] opacity-100' : 'w-0 opacity-0',
         )}
       >
-        <SecondarySidebar />
+        <SecondarySidebar activeItem={activeItem} />
       </div>
     </div>
   )

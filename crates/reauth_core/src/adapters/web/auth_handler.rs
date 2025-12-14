@@ -1,8 +1,8 @@
 use crate::{
-    adapters::web::server::AppState,
     constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
     domain::{auth_flow::AuthStepResult, oidc::OidcContext, session::RefreshToken},
     error::{Error, Result},
+    AppState,
 };
 use axum::{
     extract::State,
@@ -23,30 +23,40 @@ use uuid::Uuid;
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
     let expires_time = time::OffsetDateTime::from_unix_timestamp(token.expires_at.timestamp())
         .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
+    let is_production = false;
 
     Cookie::build((REFRESH_TOKEN_COOKIE, token.id.to_string()))
         .path("/")
         .http_only(true)
         .same_site(SameSite::Strict)
+        .secure(is_production)
         .expires(expires_time)
         .into() // Convert Builder to Cookie
 }
 
 // --- Helper function for clearing the refresh cookie ---
 fn create_clear_cookie() -> Cookie<'static> {
+    let is_production = false;
+
     Cookie::build(REFRESH_TOKEN_COOKIE)
         .path("/")
         .http_only(true)
         .same_site(SameSite::Strict)
-        .expires(time::OffsetDateTime::UNIX_EPOCH)
+        .secure(is_production)
+        .max_age(time::Duration::seconds(0))
         .into()
 }
 
 // --- Helper function for clearing the login session cookie ---
 fn create_clear_login_cookie() -> Cookie<'static> {
+    let is_production = false;
+
     Cookie::build(LOGIN_SESSION_COOKIE)
         .path("/api")
         .expires(time::OffsetDateTime::UNIX_EPOCH)
+        .same_site(SameSite::Lax)
+        .secure(is_production)
+        .max_age(time::Duration::seconds(0))
         .into()
 }
 

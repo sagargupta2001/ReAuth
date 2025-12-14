@@ -30,13 +30,18 @@ impl IntoResponse for Error {
             | Error::FlowNotFound(_)
             | Error::AuthenticatorNotFound(_)
             | Error::InvalidLoginStep
+            | Error::NotFound(_)
             | Error::InvalidLoginSession => (StatusCode::NOT_FOUND, self.to_string()),
+
+            // 422 Unprocessable Entity
+            Error::Validation(_) => (StatusCode::BAD_REQUEST, self.to_string()),
 
             // 500 Internal Server Error (for things the user can't fix)
             Error::Config(_)
             | Error::DatabaseInit(_)
             | Error::Unexpected(_)
             | Error::Uuid(_)
+            | Error::System(_)
             | Error::InvalidHeader(_) => {
                 // Log the detailed, internal error for developers
                 tracing::error!("Internal server error: {:?}", self);

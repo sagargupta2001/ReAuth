@@ -1,8 +1,9 @@
 use super::{
-    auth_handler, auth_middleware, log_stream_handler, oidc_handler, plugin_handler, rbac_handler,
-    realm_handler, server::ui_handler, session_handler, user_handler,
+    auth_handler, auth_middleware, execution_handler, flow_handler, log_stream_handler,
+    oidc_handler, plugin_handler, rbac_handler, realm_handler, server::ui_handler, session_handler,
+    user_handler,
 };
-use crate::adapters::web::server::AppState;
+use crate::AppState;
 use axum::routing::get_service;
 use axum::{
     middleware,
@@ -21,6 +22,8 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     let public_api = Router::new()
         .route("/health", get(|| async { "OK" }))
         .route("/logs/ws", get(log_stream_handler::log_stream_handler))
+        .route("/realms/{realm}/login", get(execution_handler::start_login))
+        .nest("/execution", execution_routes())
         .nest("/auth", auth_routes())
         .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/realms/{realm}/clients", client_routes())
@@ -32,6 +35,7 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .nest("/realms/{realm}/users", protected_user_routes())
         .nest("/rbac", rbac_routes())
         .nest("/realms", realm_routes())
+        .nest("/realms/{realm}/flows", flow_routes())
         .route_layer(middleware::from_fn_with_state(
             app_state.clone(),
             auth_middleware::auth_guard,
@@ -44,6 +48,11 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     let cors = CorsLayer::new()
         // Allow specific origin (Your Frontend URL)
         // This MUST match exactly. No trailing slash.
+        .allow_origin(
+            "http://localhost:3000"
+                .parse::<axum::http::HeaderValue>()
+                .unwrap(),
+        )
         .allow_origin(AllowOrigin::mirror_request())
         .allow_credentials(true)
         // Allow standard methods
@@ -145,4 +154,32 @@ fn client_routes() -> Router<AppState> {
             "/{id}",
             axum::routing::put(oidc_handler::update_client_handler),
         )
+}
+
+fn flow_routes() -> Router<AppState> {
+    Router::new()
+        .route("/", get(flow_handler::list_flows_handler))
+        // Node Registry
+        .route("/nodes", get(flow_handler::list_nodes_handler))
+        // Draft CRUD
+        .route("/drafts", get(flow_handler::list_drafts_handler))
+        .route("/drafts", post(flow_handler::create_draft_handler))
+        .route("/drafts/{id}", get(flow_handler::get_draft_handler))
+        .route(
+            "/drafts/{id}",
+            axum::routing::put(flow_handler::update_draft_handler),
+        )
+        .route("/{id}/publish", post(flow_handler::publish_flow_handler))
+        .route("/{id}/versions", get(flow_handler::list_versions_handler))
+        .route("/{id}/rollback", post(flow_handler::rollback_flow_handler))
+        .route(
+            "/{id}/restore-draft",
+            post(flow_handler::restore_draft_handler),
+        )
+}
+
+fn execution_routes() -> Router<AppState> {
+    Router::new()
+        // POST /api/execution/{session_id} -> Submits form data for the current step
+        .route("/{session_id}", post(execution_handler::submit_execution))
 }

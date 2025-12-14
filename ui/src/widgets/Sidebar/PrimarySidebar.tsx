@@ -8,37 +8,47 @@ import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { cn } from '@/lib/utils'
 import { SidebarTrigger } from '@/widgets/Sidebar/components'
 import { useSidebar } from '@/widgets/Sidebar/components/content'
+import type { PrimaryNavItem } from '@/widgets/Sidebar/model/types'
 
 import { sidebarData } from './config/sidebar-data'
-import { useSidebarStore } from './model/sidebarStore'
 
-export function PrimarySidebar() {
-  const { activeItemId, setActiveItem } = useSidebarStore()
-  const { state } = useSidebar() // Used for styling based on collapse state
+// We removed useSidebarStore import. We don't need it here.
+
+interface Props {
+  activeItem?: PrimaryNavItem
+}
+
+export function PrimarySidebar({ activeItem }: Props) {
+  const { state } = useSidebar()
   const navigate = useRealmNavigate()
   const location = useLocation()
   const realm = useActiveRealm()
 
+  // Simplified: Check if this item matches the one passed down from the parent
   const isItemActive = (item: (typeof sidebarData.navMain)[0]) => {
-    if (item.items && activeItemId === item.title) return true
+    // 1. If the parent told us this is the active group (e.g. "Settings"), highlight it.
+    if (activeItem?.title === item.title) return true
+
+    // 2. Fallback for direct links (like Dashboard) that might not trigger the secondary sidebar
+    //    but still need to be highlighted if we are on that route.
     const scopedUrl = `/${realm}${item.url === '/' ? '' : item.url}`
+
+    // Exact match
     if (location.pathname === scopedUrl) return true
-    return location.pathname.startsWith(scopedUrl) && item.url !== '/'
+
+    // Prefix match (only if not root)
+    return item.url !== '/' && location.pathname.startsWith(scopedUrl)
   }
 
-  const handleItemClick = (item: (typeof sidebarData.navMain)[0]) => {
+  const handleItemClick = (item: PrimaryNavItem) => {
+    // Logic: Just Navigate.
+    // The AppSidebar (Parent) listens to the URL change and handles opening/closing
+    // the secondary sidebar automatically. We don't need to set state here.
     if (item.items && item.items.length > 0) {
-      // Case A: It has children.
-      // 1. Set it as active to show Secondary Sidebar
-      setActiveItem(item.title)
-
-      // 2. --- AUTO-NAVIGATE TO FIRST CHILD ---
-      const firstChildUrl = item.items[0].url
-      navigate(firstChildUrl)
-      // ---------------------------------------
+      // If it's a folder (Settings), go to the first child
+      navigate(item.items[0].url)
     } else {
-      // Case B: Direct link.
-      setActiveItem(null) // Close secondary sidebar
+      // If it's a page (Dashboard, Flows), go there
       navigate(item.url)
     }
   }
@@ -56,11 +66,9 @@ export function PrimarySidebar() {
           const Icon = item.icon
           const active = isItemActive(item)
 
-          // 1. Define the Button UI (Shared)
           const button = (
             <Button
               variant="ghost"
-              // If expanded, allow button to stretch and show text
               className={cn(
                 'h-10 justify-start rounded-lg transition-all',
                 state === 'collapsed' ? 'w-10 justify-center px-0' : 'w-full px-3',
@@ -73,13 +81,10 @@ export function PrimarySidebar() {
             </Button>
           )
 
-          // 2. Conditional Rendering:
-          // If Expanded: Just show the button (No Tooltip)
           if (state === 'expanded') {
             return <div key={item.title}>{button}</div>
           }
 
-          // If Collapsed: Wrap in Tooltip
           return (
             <Tooltip key={item.title} delayDuration={0}>
               <TooltipTrigger asChild>{button}</TooltipTrigger>

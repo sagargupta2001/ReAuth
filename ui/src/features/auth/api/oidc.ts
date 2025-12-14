@@ -1,13 +1,4 @@
-import { apiClient } from '@/shared/api/client'
 import { OIDC_CONFIG } from '@/shared/config/oidc'
-
-export interface AuthorizeResponse {
-  status: 'challenge' | 'redirect'
-  // If challenge
-  challenge_page?: string
-  // If redirect (end of flow)
-  url?: string
-}
 
 export interface TokenResponse {
   access_token: string
@@ -17,9 +8,10 @@ export interface TokenResponse {
 
 export const oidcApi = {
   /**
-   * Call /authorize to start the flow or check status
+   * Constructs the OIDC Authorize URL.
+   * This is a navigation URL, not an API endpoint we fetch.
    */
-  authorize: (codeChallenge: string) => {
+  getAuthorizeUrl: (codeChallenge: string) => {
     const params = new URLSearchParams({
       client_id: OIDC_CONFIG.clientId,
       redirect_uri: OIDC_CONFIG.redirectUri,
@@ -29,10 +21,7 @@ export const oidcApi = {
       code_challenge_method: OIDC_CONFIG.codeChallengeMethod,
     })
 
-    // Use apiClient for automatic error handling and JSON parsing.
-    return apiClient.get<AuthorizeResponse>(
-      `/api/realms/${OIDC_CONFIG.realm}/oidc/authorize?${params.toString()}`,
-    )
+    return `/api/realms/${OIDC_CONFIG.realm}/oidc/authorize?${params.toString()}`
   },
 
   /**
@@ -46,9 +35,7 @@ export const oidcApi = {
     params.append('client_id', OIDC_CONFIG.clientId)
     params.append('code_verifier', verifier)
 
-    // We use raw fetch here because the OIDC spec specifically requires
-    // 'application/x-www-form-urlencoded', and our apiClient is built
-    // for 'application/json'.
+    // OIDC spec requires 'application/x-www-form-urlencoded'
     const res = await fetch(`/api/realms/${OIDC_CONFIG.realm}/oidc/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

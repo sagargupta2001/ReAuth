@@ -1,43 +1,19 @@
+use crate::adapters::web::router::create_router;
+
+use crate::AppState;
 use axum::{
     extract::State,
     http::{Request, StatusCode, Uri},
     response::IntoResponse,
 };
-use manager::PluginManager;
 use std::net::SocketAddr;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tower_http::cors::CorsLayer;
-// Import the application services and handlers
-use crate::adapters::web::router::create_router;
-use crate::application::auth_service::AuthService;
-use crate::application::flow_engine::FlowEngine;
-use crate::application::oidc_service::OidcService;
-use crate::application::{
-    rbac_service::RbacService, realm_service::RealmService, user_service::UserService,
-};
-use crate::config::Settings;
-use manager::log_bus::LogSubscriber;
-
-/// AppState is the single, shared state for the entire Axum application.
-/// It holds all necessary services and configurations.
-#[derive(Clone)]
-pub struct AppState {
-    pub(crate) plugin_manager: PluginManager,
-    settings: Settings,
-    pub(crate) user_service: Arc<UserService>,
-    pub(crate) rbac_service: Arc<RbacService>,
-    pub auth_service: Arc<AuthService>,
-    pub realm_service: Arc<RealmService>,
-    pub log_subscriber: Arc<dyn LogSubscriber>,
-    pub flow_engine: Arc<FlowEngine>,
-    pub oidc_service: Arc<OidcService>,
-}
 
 #[cfg(not(feature = "embed-ui"))]
 pub(crate) mod ui_handler {
     use super::*;
+    use crate::AppState;
     use axum::body::Body;
+
     /// Proxies all UI requests to the React dev server (e.g., http://localhost:5173)
     pub async fn static_handler(
         State(state): State<AppState>, // Handlers now use the new AppState
@@ -99,37 +75,22 @@ pub(crate) mod ui_handler {
 
 /// The main server startup function.
 /// This now accepts all the application's dependencies from `main.rs`.
-pub async fn start_server(
-    settings: Settings,
-    plugin_manager: PluginManager,
-    plugins_path: PathBuf,
-    user_service: Arc<UserService>,
-    rbac_service: Arc<RbacService>,
-    auth_service: Arc<AuthService>,
-    realm_service: Arc<RealmService>,
-    log_subscriber: Arc<dyn LogSubscriber>,
-    flow_engine: Arc<FlowEngine>,
-    oidc_service: Arc<OidcService>,
-) -> anyhow::Result<()> {
-    // Create the single, unified AppState
-    let app_state = AppState {
-        plugin_manager,
-        settings: settings.clone(),
-        user_service,
-        rbac_service,
-        auth_service,
-        realm_service,
-        log_subscriber,
-        flow_engine,
-        oidc_service,
-    };
+pub async fn start_server(app_state: AppState) -> anyhow::Result<()> {
+    // Extract settings for binding
+    let settings = app_state.settings.clone();
 
+    // Extract plugins path (Assuming it was added to AppState in bootstrap,
+    // otherwise pass it as a 2nd argument)
+    let plugins_path = app_state.plugins_path.clone();
+
+    // Create Router
     let app = create_router(app_state, plugins_path);
 
     let addr = SocketAddr::from((
         settings.server.host.parse::<std::net::IpAddr>()?,
         settings.server.port,
     ));
+
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("Server listening on {}", addr);
 

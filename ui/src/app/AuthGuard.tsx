@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 import { AlertCircle } from 'lucide-react'
-import { Navigate, useLocation } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
@@ -9,91 +9,122 @@ import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { useOidcAuth } from '@/features/auth/api/useOidcAuth'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken.ts'
 import { PKCE_STORAGE_KEY } from '@/shared/config/oidc'
-import { generateCodeChallenge, generateCodeVerifier } from '@/shared/lib/pkce'
+
+// Ensure this key matches exactly what you use elsewhere
+const REDIRECT_STORAGE_KEY = 'reauth_post_login_redirect'
 
 export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const { accessToken, setSession } = useSessionStore()
   const location = useLocation()
+  const navigate = useNavigate()
   const [isProcessing, setIsProcessing] = useState(true)
-  const initRan = useRef(false)
+
+  // Ref to prevent double-firing in React 18 Strict Mode
+  const processingRef = useRef(false)
 
   const { authorize, exchangeToken } = useOidcAuth()
   const refreshTokenMutation = useRefreshToken()
 
+  // --- 0. HASH ROUTER FIX (PRE-RENDER) ---
+  // If backend sent us to /login (root path), jump to /#/login
+  if (window.location.pathname === '/login') {
+    const search = window.location.search
+    window.location.replace(`${window.location.origin}/#/login${search}`)
+    return null
+  }
+
   useEffect(() => {
     const handleAuth = async () => {
-      // If we are already logged in (in memory), stop.
+      // 1. If we have a token, we are done.
       if (accessToken) {
         setIsProcessing(false)
-        initRan.current = false
         return
       }
 
-      if (initRan.current) return
-      initRan.current = true
+      if (processingRef.current) return
+      processingRef.current = true
 
-      // Check for Auth Code (Callback from OIDC)
-      const searchParams = new URLSearchParams(window.location.search)
-      const authCode = searchParams.get('code')
-
-      if (authCode) {
-        const verifier = sessionStorage.getItem(PKCE_STORAGE_KEY)
-        if (verifier) {
-          // We use .mutateAsync so we can await it properly
-          try {
-            const data = await exchangeToken.mutateAsync({ code: authCode, verifier })
-
-            setSession(data.access_token)
-            const newUrl = window.location.pathname + window.location.hash
-            window.history.replaceState({}, document.title, newUrl)
-            sessionStorage.removeItem(PKCE_STORAGE_KEY)
-          } catch (err) {
-            console.error('Token exchange failed', err)
-            // Fall through to login flow on error
-          } finally {
-            // Ensure we stop processing regardless of success/failure
-            setIsProcessing(false)
-          }
-        } else {
-          console.error('PKCE Verifier missing')
-          setIsProcessing(false)
-        }
-        return
-      }
-
-      // SILENT REFRESH (Restore Session)
-      // Before forcing a new login, check if we have a valid cookie
       try {
-        console.log('[AuthGuard] Attempting silent refresh...')
+        // --- 2. HANDLE OIDC CALLBACK (Code in URL) ---
+        // Look at window.location.search explicitly (ignoring HashRouter)
+        const searchParams = new URLSearchParams(window.location.search)
+        const authCode = searchParams.get('code')
+
+        if (authCode) {
+          console.log('[AuthGuard] Detected OIDC Code. Verifying...')
+          const verifier = sessionStorage.getItem(PKCE_STORAGE_KEY)
+
+          // --- FIX 1: Handle Missing Verifier Gracefully ---
+          if (!verifier) {
+            console.warn('[AuthGuard] Missing PKCE verifier. Code is stale or invalid.')
+            // Do NOT throw. Just clean URL and force user to login again.
+            const cleanUrl = `${window.location.origin}/#/login`
+            window.history.replaceState(null, '', cleanUrl)
+            window.location.href = cleanUrl // Hard redirect to break loop
+            return
+          }
+
+          // Exchange Code for Token
+          const data = await exchangeToken.mutateAsync({ code: authCode, verifier })
+          setSession(data.access_token)
+
+          // Cleanup Security Keys
+          sessionStorage.removeItem(PKCE_STORAGE_KEY)
+
+          // --- DEEP LINK RESTORATION ---
+          const storedPath = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
+          console.log('[AuthGuard] Restoring Path from Storage:', storedPath)
+
+          sessionStorage.removeItem(REDIRECT_STORAGE_KEY)
+
+          // Normalize Target Path
+          let targetPath = storedPath || '/'
+          if (!targetPath.startsWith('/')) targetPath = `/${targetPath}`
+
+          // --- FIX 2: Aggressive URL Cleaning ---
+          // 1. Clean the browser URL bar first (removes ?code=...)
+          const cleanUrl = `${window.location.origin}/#${targetPath}`
+          window.history.replaceState(null, '', cleanUrl)
+
+          console.log('[AuthGuard] Navigating to:', targetPath)
+
+          // 2. Wait a tick, then let React Router handle the view change
+          setTimeout(() => {
+            navigate(targetPath, { replace: true })
+            setIsProcessing(false)
+          }, 100)
+
+          return
+        }
+
+        // --- 3. SILENT REFRESH ---
+        console.log('[AuthGuard] No code found, checking refresh token...')
         const token = await refreshTokenMutation.mutateAsync()
         setSession(token)
         setIsProcessing(false)
-        return
-      } catch (e) {
-        console.log('[AuthGuard] Silent refresh failed.')
-      }
-
-      // Start OIDC Flow
-      const verifier = generateCodeVerifier()
-      const challenge = await generateCodeChallenge(verifier)
-      sessionStorage.setItem(PKCE_STORAGE_KEY, verifier)
-
-      try {
-        const response = await authorize.mutateAsync(challenge)
-        if (response.status === 'challenge' && response.challenge_page) {
-          setIsProcessing(false)
-        }
       } catch (err) {
-        console.error('Auth init failed', err)
-        // Let the error state below handle the UI
+        console.warn('[AuthGuard] Auth check failed:', err)
+
+        // --- FIX 3: Safety Cleanup on Error ---
+        // If anything failed, strip the code so we don't loop.
+        const currentUrl = new URL(window.location.href)
+        if (currentUrl.searchParams.has('code')) {
+          console.log('[AuthGuard] Cleaning broken code from URL')
+          const cleanUrl = `${window.location.origin}/#/login`
+          window.history.replaceState(null, '', cleanUrl)
+        }
         setIsProcessing(false)
+      } finally {
+        processingRef.current = false
       }
     }
 
-    handleAuth()
-  }, [accessToken, setSession, authorize, exchangeToken])
+    void handleAuth()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // Error State
+  // --- RENDER LOGIC ---
+
   if (authorize.isError) {
     return (
       <div className="flex h-screen flex-col items-center justify-center p-4">
@@ -111,27 +142,37 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     )
   }
 
-  // Loading State
   if (isProcessing) {
     return <div className="flex h-screen items-center justify-center">Authenticating...</div>
   }
 
-  // Authenticated State
+  // --- AUTHENTICATED ---
   if (accessToken) {
-    // CRITICAL FIX: If logged in but on /login page, redirect to Dashboard
-    if (location.pathname === '/login') {
-      return <Navigate to="/" replace />
+    // If we are stuck on /login after success, bump to home or stored path
+    if (location.pathname.includes('/login')) {
+      const storedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
+      return <Navigate to={storedRedirect || '/'} replace />
     }
     return <>{children}</>
   }
 
-  // Login Page Logic
-  // If the backend challenge told us to go to /login, allow rendering it
-  if (location.pathname === '/login') {
+  // --- UNAUTHENTICATED ---
+
+  const isLoginPage = location.pathname === '/login' || location.pathname === '/login/'
+
+  if (isLoginPage) {
+    // Save intent if user landed on /#/login?redirect=...
+    const searchParams = new URLSearchParams(location.search)
+    const redirectIntent = searchParams.get('redirect')
+
+    if (redirectIntent) {
+      console.log('[AuthGuard] Saving redirect intent:', redirectIntent)
+      sessionStorage.setItem(REDIRECT_STORAGE_KEY, redirectIntent)
+    }
     return <>{children}</>
   }
 
-  // Redirect Logic
-  // If we aren't authenticated and aren't on /login, go there
-  return <Navigate to="/login" replace />
+  // Redirect to Login Page
+  const currentPath = encodeURIComponent(location.pathname + location.search)
+  return <Navigate to={`/login?redirect=${currentPath}`} replace />
 }

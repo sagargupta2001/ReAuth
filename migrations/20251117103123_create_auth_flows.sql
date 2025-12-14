@@ -21,20 +21,6 @@ CREATE TABLE IF NOT EXISTS auth_flow_steps
     FOREIGN KEY (flow_id) REFERENCES auth_flows (id) ON DELETE CASCADE
 );
 
--- Stores the state of an in-progress login
-CREATE TABLE IF NOT EXISTS login_sessions
-(
-    id           TEXT PRIMARY KEY NOT NULL,           -- UUID for this specific login attempt
-    realm_id     TEXT             NOT NULL,
-    flow_id      TEXT             NOT NULL,
-    current_step INTEGER          NOT NULL DEFAULT 0, -- The index of the step we are on
-    user_id      TEXT,                                -- The user, once they are identified
-    state_data   TEXT,                                -- JSON blob for authenticator state (e.g., "otp_secret")
-    expires_at   TIMESTAMP        NOT NULL,
-    FOREIGN KEY (realm_id) REFERENCES realms (id) ON DELETE CASCADE,
-    FOREIGN KEY (flow_id) REFERENCES auth_flows (id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
 
 -- Stores admin configuration for each authenticator (e.g., OTP digits)
 CREATE TABLE IF NOT EXISTS authenticator_config

@@ -1,5 +1,7 @@
 use crate::adapters::persistence::connection::Database;
+use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::auth_flow::LoginSession;
+use crate::ports::transaction_manager::Transaction;
 use crate::{
     domain::auth_flow::{AuthFlow, AuthFlowStep, AuthenticatorConfig},
     error::{Error, Result},
@@ -31,6 +33,16 @@ impl FlowRepository for SqliteFlowRepository {
         Ok(flow)
     }
 
+    async fn find_flow_by_id(&self, flow_id: &Uuid) -> Result<Option<AuthFlow>> {
+        let flow = sqlx::query_as("SELECT * FROM auth_flows WHERE id = ?")
+            .bind(flow_id.to_string())
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(flow)
+    }
+
     async fn find_steps_for_flow(&self, flow_id: &Uuid) -> Result<Vec<AuthFlowStep>> {
         let steps =
             sqlx::query_as("SELECT * FROM auth_flow_steps WHERE flow_id = ? ORDER BY priority ASC")
@@ -57,28 +69,58 @@ impl FlowRepository for SqliteFlowRepository {
         Ok(config)
     }
 
-    async fn create_flow(&self, flow: &AuthFlow) -> Result<()> {
-        sqlx::query("INSERT INTO auth_flows (id, realm_id, name) VALUES (?, ?, ?)")
-            .bind(flow.id.to_string())
-            .bind(flow.realm_id.to_string())
-            .bind(&flow.name)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+    async fn create_flow<'a>(
+        &self,
+        flow: &AuthFlow,
+        tx: Option<&'a mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "INSERT INTO auth_flows (id, realm_id, name, alias, type, built_in, description)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(flow.id.to_string())
+        .bind(flow.realm_id.to_string())
+        .bind(&flow.name)
+        .bind(&flow.alias)
+        .bind(&flow.r#type)
+        .bind(flow.built_in)
+        .bind(&flow.description);
+
+        // Use helper logic or match block
+        if let Some(t) = tx {
+            let sql_tx = SqliteTransaction::from_trait(t).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
-    async fn add_step_to_flow(&self, step: &AuthFlowStep) -> Result<()> {
-        sqlx::query(
-            "INSERT INTO auth_flow_steps (id, flow_id, authenticator_name, priority) VALUES (?, ?, ?, ?)"
+    async fn add_step_to_flow<'a>(
+        &self,
+        step: &AuthFlowStep,
+        tx: Option<&'a mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "INSERT INTO auth_flow_steps (id, flow_id, authenticator_name, priority, requirement, config, parent_step_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
         )
             .bind(step.id.to_string())
             .bind(step.flow_id.to_string())
             .bind(&step.authenticator_name)
             .bind(step.priority)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(&step.requirement)
+            .bind(&step.config)
+            .bind(&step.parent_step_id);
+
+        if let Some(t) = tx {
+            let sql_tx = SqliteTransaction::from_trait(t).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
@@ -134,5 +176,15 @@ impl FlowRepository for SqliteFlowRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
+    }
+
+    async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>> {
+        let flows =
+            sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ASC")
+                .bind(realm_id.to_string())
+                .fetch_all(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(flows)
     }
 }

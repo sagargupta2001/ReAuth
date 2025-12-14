@@ -2,7 +2,6 @@ use crate::domain::user::User;
 use crate::ports::user_repository::UserRepository;
 use crate::{
     application::auth_service::AuthService,
-    constants::DEFAULT_REALM_NAME,
     domain::auth_flow::{AuthContext, AuthStepResult, LoginSession},
     error::{Error, Result},
     ports::{
@@ -70,6 +69,7 @@ impl FlowEngine {
             current_step: 0,
             user_id: None,
             state_data: None,
+            context: serde_json::json!({}),
             expires_at: Utc::now() + Duration::seconds(600), // 10-minute login flow
         };
         self.flow_repo.save_login_session(&login_session).await?;

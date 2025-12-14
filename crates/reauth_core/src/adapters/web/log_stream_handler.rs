@@ -1,4 +1,4 @@
-use crate::adapters::web::server::AppState;
+use crate::AppState;
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::IntoResponse;

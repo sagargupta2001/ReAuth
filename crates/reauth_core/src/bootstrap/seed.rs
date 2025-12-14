@@ -1,20 +1,27 @@
+use crate::application::flow_manager::FlowManager;
 use crate::application::oidc_service::OidcService;
-use crate::application::realm_service::{CreateRealmPayload, RealmService};
+use crate::application::realm_service::{CreateRealmPayload, RealmService, UpdateRealmPayload};
 use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::{AuthFlow, AuthFlowStep};
+use crate::domain::flow::models::FlowDraft;
 use crate::domain::oidc::OidcClient;
 use crate::ports::flow_repository::FlowRepository;
+use crate::ports::flow_store::FlowStore;
+use chrono::Utc;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::sync::Arc;
 use tracing::{info, warn};
+use uuid::Uuid;
 
 pub async fn seed_database(
     realm_service: &Arc<RealmService>,
     user_service: &Arc<UserService>,
     flow_repo: &Arc<dyn FlowRepository>,
+    flow_store: &Arc<dyn FlowStore>,
+    flow_manager: &Arc<FlowManager>,
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
 ) -> anyhow::Result<()> {
@@ -35,9 +42,7 @@ pub async fn seed_database(
         info!("Default realm created successfully.");
     }
 
-    let realm = realm_service.find_by_name(DEFAULT_REALM_NAME).await?;
-
-    let realm = if let Some(r) = realm_service.find_by_name(DEFAULT_REALM_NAME).await? {
+    let mut realm = if let Some(r) = realm_service.find_by_name(DEFAULT_REALM_NAME).await? {
         r
     } else {
         info!(
@@ -52,7 +57,98 @@ pub async fn seed_database(
         r
     };
 
-    // Check for the admin user
+    // 2. Seed Built-in Flows
+    let browser_flow_id = ensure_flow(
+        flow_repo,
+        flow_store,
+        flow_manager,
+        &realm.id,
+        "browser-login",
+        "Browser Login",
+        "browser",
+        vec!["builtin-password-auth"],
+    )
+    .await?;
+
+    // Direct Grant -> Needs Password Auth (usually same authenticator logic for MVP)
+    let direct_flow_id = ensure_flow(
+        flow_repo,
+        flow_store,
+        flow_manager,
+        &realm.id,
+        "direct-grant",
+        "Direct Grant",
+        "direct",
+        vec!["builtin-password-auth"],
+    )
+    .await?;
+
+    // Registration -> Needs Registration Profile (Placeholder for now)
+    let registration_flow_id = ensure_flow(
+        flow_repo,
+        flow_store,
+        flow_manager,
+        &realm.id,
+        "registration",
+        "Registration",
+        "registration",
+        vec![], // Empty for now
+    )
+    .await?;
+
+    // Reset Credentials -> Needs Email verification (Placeholder for now)
+    let reset_flow_id = ensure_flow(
+        flow_repo,
+        flow_store,
+        flow_manager,
+        &realm.id,
+        "reset-credentials",
+        "Reset Credentials",
+        "reset",
+        vec![], // Empty for now
+    )
+    .await?;
+
+    // 3. Link Defaults to Realm
+    let mut needs_update = false;
+
+    // We use a separate struct to track updates because we can't just mutate `realm`
+    // and pass it to `update_realm` directly if the service expects a Payload struct.
+    let mut update_payload = UpdateRealmPayload {
+        name: None,
+        access_token_ttl_secs: None,
+        refresh_token_ttl_secs: None,
+        // We will add these fields to UpdateRealmPayload in step 3 below
+        browser_flow_id: None,
+        registration_flow_id: None,
+        direct_grant_flow_id: None,
+        reset_credentials_flow_id: None,
+    };
+
+    if realm.browser_flow_id.is_none() {
+        update_payload.browser_flow_id = Some(Some(browser_flow_id));
+        needs_update = true;
+    }
+    if realm.direct_grant_flow_id.is_none() {
+        update_payload.direct_grant_flow_id = Some(Some(direct_flow_id));
+        needs_update = true;
+    }
+    if realm.registration_flow_id.is_none() {
+        update_payload.registration_flow_id = Some(Some(registration_flow_id));
+        needs_update = true;
+    }
+    if realm.reset_credentials_flow_id.is_none() {
+        update_payload.reset_credentials_flow_id = Some(Some(reset_flow_id));
+        needs_update = true;
+    }
+
+    if needs_update {
+        realm_service.update_realm(realm.id, update_payload).await?;
+        info!("Updated realm with default flow bindings.");
+        // Reload realm to get updated state for later steps if needed
+        realm = realm_service.find_by_id(realm.id).await?.unwrap();
+    }
+
     if user_service
         .find_by_username(&realm.id, &settings.default_admin.username)
         .await?
@@ -71,40 +167,10 @@ pub async fn seed_database(
             .await?;
 
         info!("Admin user created successfully.");
-        warn!(
-            "SECURITY: Admin user created with the default password. Please log in and change it immediately."
-        );
+        warn!("SECURITY: Admin user created with the default password. Please log in and change it immediately.");
     }
 
-    // 3. Check/Create Default Flow (NEW LOGIC)
-    if flow_repo
-        .find_flow_by_name(&realm.id, "browser-login")
-        .await?
-        .is_none()
-    {
-        info!("Seeding default 'browser-login' flow...");
-
-        let flow_id = uuid::Uuid::new_v4();
-        let flow = AuthFlow {
-            id: flow_id,
-            realm_id: realm.id,
-            name: "browser-login".to_string(),
-        };
-        flow_repo.create_flow(&flow).await?;
-
-        // Add the password step
-        let step = AuthFlowStep {
-            id: uuid::Uuid::new_v4(),
-            flow_id,
-            authenticator_name: "builtin-password-auth".to_string(),
-            priority: 0,
-        };
-        flow_repo.add_step_to_flow(&step).await?;
-
-        info!("Default 'browser-login' flow created.");
-    }
-
-    // 4. --- SEED DEFAULT OIDC CLIENT ---
+    //  SEED DEFAULT OIDC CLIENT
     let client_id = "reauth-admin";
     // Allow both dev and prod URLs
     let check_uri = &settings
@@ -154,4 +220,89 @@ pub async fn seed_database(
     }
 
     Ok(())
+}
+
+async fn ensure_flow(
+    flow_repo: &Arc<dyn FlowRepository>,
+    flow_store: &Arc<dyn FlowStore>,
+    flow_manager: &Arc<FlowManager>,
+    realm_id: &Uuid,
+    name: &str,
+    alias: &str,
+    type_: &str,
+    default_steps: Vec<&str>,
+) -> anyhow::Result<Uuid> {
+    // Ensure Runtime Flow Exists
+    let flow_id = if let Some(flow) = flow_repo.find_flow_by_name(realm_id, name).await? {
+        flow.id
+    } else {
+        let new_id = Uuid::new_v4();
+        let flow = AuthFlow {
+            id: new_id,
+            realm_id: *realm_id,
+            name: name.to_string(),
+            alias: alias.to_string(),
+            description: Some(format!("Default {} flow", alias)),
+            r#type: type_.to_string(),
+            built_in: true,
+        };
+        flow_repo.create_flow(&flow, None).await?;
+
+        // Create Steps
+        for (index, authenticator_name) in default_steps.iter().enumerate() {
+            let step = AuthFlowStep {
+                id: Uuid::new_v4(),
+                flow_id: new_id,
+                authenticator_name: authenticator_name.to_string(),
+                priority: index as i64 * 10,
+                requirement: "REQUIRED".to_string(),
+                config: None,
+                parent_step_id: None,
+            };
+            flow_repo.add_step_to_flow(&step, None).await?;
+        }
+        new_id
+    };
+
+    // Ensure Visual Draft Exists
+    let draft_exists = flow_store.get_draft_by_id(&flow_id).await?.is_some();
+
+    // Prepare the Draft Object
+    let graph_json = FlowManager::generate_default_graph(type_);
+    let draft_obj = FlowDraft {
+        id: flow_id,
+        realm_id: *realm_id,
+        name: alias.to_string(),
+        description: Some(format!("Visual draft for {}", alias)),
+        graph_json: graph_json.clone(),
+        flow_type: type_.to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    if !draft_exists {
+        flow_store.create_draft(&draft_obj).await?;
+    } else {
+        info!("Step 2: Draft already exists for {}", alias);
+    }
+
+    // Ensure Active Version Exists
+    let latest_version = flow_store.get_latest_version_number(&flow_id).await?;
+
+    // Only consider it "published" if the version is > 0.
+    // This treats 'None' and 'Some(0)' as "Not Published Yet".
+    let has_valid_version = latest_version.unwrap_or(0) > 0;
+
+    if !has_valid_version {
+        match flow_manager.publish_flow(*realm_id, flow_id).await {
+            Ok(v) => {
+                flow_store.create_draft(&draft_obj).await?;
+            }
+            Err(e) => {
+                tracing::error!("Step 4: FAILURE - Could not publish {}: {:?}", alias, e);
+            }
+        }
+    }
+
+    Ok(flow_id)
 }
