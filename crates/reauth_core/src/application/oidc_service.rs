@@ -34,6 +34,7 @@ pub struct TokenResponse {
 pub struct UpdateClientRequest {
     pub client_id: Option<String>,
     pub redirect_uris: Option<Vec<String>>,
+    pub web_origins: Option<Vec<String>>,
 }
 
 pub struct OidcService {
@@ -303,11 +304,20 @@ impl OidcService {
                 serde_json::to_string(&uris).map_err(|e| Error::Unexpected(e.into()))?;
         }
 
+        if let Some(origins) = payload.web_origins {
+            client.web_origins =
+                serde_json::to_string(&origins).map_err(|e| Error::Unexpected(e.into()))?;
+        }
+
         self.oidc_repo.update_client(&client).await?;
         Ok(client)
     }
 
     pub fn get_jwks(&self) -> Result<serde_json::Value> {
         self.token_service.get_jwks()
+    }
+
+    pub async fn is_origin_allowed(&self, origin: &str) -> Result<bool> {
+        self.oidc_repo.is_origin_allowed(origin).await
     }
 }

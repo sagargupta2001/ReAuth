@@ -3,6 +3,7 @@ use super::{
     oidc_handler, plugin_handler, rbac_handler, realm_handler, server::ui_handler, session_handler,
     user_handler,
 };
+use crate::adapters::web::middleware::cors_middleware;
 use crate::AppState;
 use axum::routing::get_service;
 use axum::{
@@ -44,33 +45,14 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     // Combine public and protected routes under the /api prefix
     let api_router = Router::new().merge(public_api).merge(protected_api);
 
-    // --- Main Application Router ---
-    let cors = CorsLayer::new()
-        // Allow specific origin (Your Frontend URL)
-        // This MUST match exactly. No trailing slash.
-        .allow_origin(
-            "http://localhost:3000"
-                .parse::<axum::http::HeaderValue>()
-                .unwrap(),
-        )
-        .allow_origin(AllowOrigin::mirror_request())
-        .allow_credentials(true)
-        // Allow standard methods
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
-        // Allow specific headers (Content-Type is needed for JSON)
-        .allow_headers([AUTHORIZATION, CONTENT_TYPE, COOKIE, ACCEPT]);
-
     Router::new()
         .nest("/api", api_router)
         .nest_service("/plugins", get_service(ServeDir::new(plugins_path)))
         .fallback(ui_handler::static_handler)
-        .layer(cors)
+        .layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            cors_middleware::dynamic_cors_guard,
+        ))
         .layer(TraceLayer::new_for_http())
         .with_state(app_state)
 }

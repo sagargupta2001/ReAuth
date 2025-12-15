@@ -23,6 +23,7 @@ export function CreateClientForm() {
     defaultValues: {
       client_id: '',
       redirect_uris: [{ value: '' }],
+      web_origins: [{ value: '' }],
     },
   })
 
@@ -31,13 +32,20 @@ export function CreateClientForm() {
     name: 'redirect_uris',
   })
 
+  const webOriginFields = useFieldArray({
+    control: form.control,
+    name: 'web_origins',
+  })
+
   const onSubmit = (values: CreateClientSchema) => {
     const flatUris = values.redirect_uris.map((u) => u.value)
+    const webOrigins = values.web_origins?.map((u) => u.value) || []
 
     mutation.mutate(
       {
         client_id: values.client_id,
         redirect_uris: flatUris,
+        web_origins: webOrigins,
       },
       {
         onSuccess: () => {
@@ -129,6 +137,52 @@ export function CreateClientForm() {
                 {form.formState.errors.redirect_uris.root.message}
               </p>
             )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-base font-medium">Web Origins (CORS)</label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => webOriginFields.append({ value: '' })}
+            >
+              <Plus className="mr-2 h-3.5 w-3.5" />
+              Add Origin
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Allowed origins for CORS (e.g., http://localhost:6565).
+          </p>
+
+          <div className="space-y-3">
+            {webOriginFields.fields.map((field, index) => (
+              <FormField
+                key={field.id}
+                control={form.control}
+                name={`web_origins.${index}.value`}
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Input placeholder="http://localhost:6565" {...field} />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => webOriginFields.remove(index)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ))}
           </div>
         </div>
       </Form>

@@ -7,7 +7,8 @@ import { apiClient } from '@/shared/api/client'
 
 interface CreateClientPayload {
   client_id: string
-  redirect_uris: string[] // API expects array
+  redirect_uris: string[]
+  web_origins: string[]
 }
 
 export function useCreateClient() {
@@ -23,7 +24,7 @@ export function useCreateClient() {
     onSuccess: () => {
       toast.success('Client created successfully')
       void queryClient.invalidateQueries({ queryKey: ['clients', realm] })
-      navigate('/clients') // Go back to list
+      navigate('/clients')
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to create client')

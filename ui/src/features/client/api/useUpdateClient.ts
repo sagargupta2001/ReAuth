@@ -4,12 +4,18 @@ import { toast } from 'sonner'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
 
+interface UpdateClientPayload {
+  client_id: string
+  redirect_uris: string[]
+  web_origins: string[]
+}
+
 export function useUpdateClient(id: string) {
   const queryClient = useQueryClient()
   const realm = useActiveRealm()
 
   return useMutation({
-    mutationFn: (data: { redirect_uris: string[]; client_id: string }) => {
+    mutationFn: (data: UpdateClientPayload) => {
       return apiClient.put(`/api/realms/${realm}/clients/${id}`, data)
     },
     onSuccess: () => {
