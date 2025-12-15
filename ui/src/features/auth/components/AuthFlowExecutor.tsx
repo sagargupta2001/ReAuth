@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
+
+// <--- Import useLocation
 
 import { Button } from '@/components/button'
 import { useSessionStore } from '@/entities/session/model/sessionStore'
@@ -16,19 +18,16 @@ let initializationPromise: Promise<any> | null = null
 
 export function AuthFlowExecutor() {
   const { realm = 'master' } = useParams()
+  const location = useLocation() // <--- Hook to get ?client_id=...
   const setSession = useSessionStore((state) => state.setSession)
   const refreshTokenMutation = useRefreshToken()
 
-  // We store the raw API response here
   const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
-
-  // Track internal loading state
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
 
   // 1. INITIALIZE FLOW (GET /api/auth/login)
   useEffect(() => {
-    // If state is already populated, stop.
     if (currentStep) {
       setIsLoading(false)
       return
@@ -37,7 +36,8 @@ export function AuthFlowExecutor() {
     const runInit = async () => {
       try {
         console.log('[Executor] Starting Flow for realm:', realm)
-        return await authApi.startFlow(realm)
+        // [FIX] Pass the search params so Backend sees the 'client_id'
+        return await authApi.startFlow(realm, location.search)
       } catch (err) {
         console.error('[Executor] Init Failed:', err)
         throw err
@@ -52,7 +52,6 @@ export function AuthFlowExecutor() {
     initializationPromise
       .then((res) => {
         if (active) {
-          // res is the AuthExecutionResponse JSON directly
           setCurrentStep(res)
           setIsLoading(false)
         }
@@ -69,20 +68,17 @@ export function AuthFlowExecutor() {
     return () => {
       active = false
     }
-  }, [realm, currentStep])
+  }, [realm, currentStep, location.search]) // <--- Re-run if query params change
 
-  // 2. SUBMIT HANDLER (POST /api/auth/login/execute)
+  // 2. SUBMIT HANDLER
   const handleSubmit = async (data: any) => {
     setIsLoading(true)
     setGlobalError(null)
 
     try {
-      // The backend now accepts a generic JSON payload.
-      // For PasswordNode, we expect { username, password } inside data.
       const res = await authApi.submitStep(data)
       setCurrentStep(res)
     } catch (error: any) {
-      // API errors (500s) or network errors
       setGlobalError(error.message || 'An unexpected error occurred')
     } finally {
       setIsLoading(false)
@@ -100,14 +96,12 @@ export function AuthFlowExecutor() {
 
         // Case A: Redirect to Dashboard (Root)
         if (targetUrl === '/') {
-          // Hydrate the session via cookie -> token exchange
           const token = await refreshTokenMutation.mutateAsync()
           setSession(token)
-          // The AppRouter will handle rendering the dashboard now that session is set
           return
         }
 
-        // Case B: External Redirect (OIDC Callback, Google, etc.)
+        // Case B: External Redirect (OIDC Callback)
         if (targetUrl.startsWith('http')) {
           window.location.href = targetUrl
           return
@@ -135,7 +129,6 @@ export function AuthFlowExecutor() {
     )
   }
 
-  // STATUS: FAILURE (Flow Terminated)
   if (currentStep?.status === 'failure') {
     return (
       <div className="space-y-4">
@@ -149,7 +142,6 @@ export function AuthFlowExecutor() {
     )
   }
 
-  // STATUS: REDIRECT (Showing spinner while redirecting)
   if (currentStep?.status === 'redirect') {
     return (
       <div className="space-y-2 text-center text-green-600">
@@ -159,18 +151,17 @@ export function AuthFlowExecutor() {
     )
   }
 
-  // STATUS: CHALLENGE (Render UI)
   if (currentStep?.status === 'challenge') {
     const { challengeName, context } = currentStep
-    const ScreenComponent = getScreenComponent(challengeName) // e.g. "login-password"
+    const ScreenComponent = getScreenComponent(challengeName)
 
     if (ScreenComponent) {
       return (
         <ScreenComponent
           onSubmit={handleSubmit}
           isLoading={isLoading}
-          error={globalError} // Network/System errors
-          context={context} // Business/Validation errors (e.g. "Invalid Password")
+          error={globalError}
+          context={context}
         />
       )
     }

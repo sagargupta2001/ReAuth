@@ -21,10 +21,12 @@ export const authApi = {
    * 1. START: Initialize the flow.
    * NOTE: The backend now creates the session cookie automatically.
    */
-  startFlow: async (_realm: string) => {
-    // Currently the backend handler is global at /api/auth/login
-    // If you add multi-realm support later, you can append `?realm=${realm}` here.
-    return apiClient.get<AuthExecutionResponse>('/api/auth/login')
+  startFlow: async (_realm: string, searchParams?: string) => {
+    const query = searchParams || ''
+    // Ensure we don't double-add '?' if searchParams already has it
+    const safeQuery = query.startsWith('?') ? query : query ? `?${query}` : ''
+
+    return apiClient.get<AuthExecutionResponse>(`/api/auth/login${safeQuery}`)
   },
 
   /**
