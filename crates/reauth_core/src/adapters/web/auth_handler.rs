@@ -102,6 +102,18 @@ async fn handle_flow_success(
     if let Some(oidc_value) = final_session.context.get("oidc") {
         info!("[FlowSuccess] OIDC context detected. Generating Authorization Code.");
         if let Ok(oidc_ctx) = serde_json::from_value::<OidcContext>(oidc_value.clone()) {
+            let user = state.user_service.get_user(user_id).await?;
+            let (_, refresh_token) = state
+                .auth_service
+                .create_session(&user, None, Some(ip_address), None) // Create long-lived session
+                .await?;
+
+            let refresh_cookie = create_refresh_cookie(&refresh_token);
+            headers.append(
+                header::SET_COOKIE,
+                HeaderValue::from_str(&refresh_cookie.to_string())?,
+            );
+
             let auth_code = state
                 .oidc_service
                 .create_authorization_code(
