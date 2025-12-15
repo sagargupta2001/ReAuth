@@ -1,3 +1,4 @@
+use crate::domain::oidc::OidcContext;
 use crate::{
     constants::{DEFAULT_REALM_NAME, LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
     domain::{
@@ -156,7 +157,7 @@ pub async fn start_login_flow_handler(
     let mut headers = HeaderMap::new();
     headers.insert(
         header::SET_COOKIE,
-        HeaderValue::from_str(&cookie.to_string()).unwrap(),
+        HeaderValue::from_str(&cookie.to_string())?,
     );
 
     let response_body = match &result {
@@ -210,7 +211,7 @@ pub async fn execute_login_step_handler(
     match result {
         // --- UI Challenge (e.g. "Wrong Password", try again) ---
         ExecutionResult::Challenge { screen_id, context } => {
-            // Keep the cookie
+            // Keep the cookie, return UI instructions
             Ok((
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -224,59 +225,105 @@ pub async fn execute_login_step_handler(
 
         // --- Success (Flow Complete) ---
         ExecutionResult::Success { redirect_url } => {
-            // Clear Login Cookie
+            // 1. Clear Login Cookie (The flow is done)
             let clear_cookie = create_clear_login_cookie();
             let mut res_headers = HeaderMap::new();
             res_headers.append(
                 header::SET_COOKIE,
-                HeaderValue::from_str(&clear_cookie.to_string())?,
+                HeaderValue::from_str(&clear_cookie.to_string())
+                    .map_err(|e| Error::Unexpected(e.into()))?,
             );
 
-            // A. Check if we need to issue a Session (e.g. this wasn't just an OIDC loop)
-            // Retrieve session to get user_id
+            // 2. Retrieve final session to check context (OIDC vs Direct)
             let final_session = state
                 .auth_session_repo
                 .find_by_id(&session_id)
                 .await?
                 .ok_or(Error::InvalidLoginSession)?;
 
-            // B. If User ID is present, issue Global Session Cookies
-            if let Some(user_id) = final_session.user_id {
-                // Fetch full user object
-                let user = state.user_service.get_user(user_id).await?;
+            let user_id = final_session.user_id.ok_or(Error::System(
+                "Authenticated user not found in session".into(),
+            ))?;
 
-                // Handle OIDC Redirect vs Direct Login
-                // If the redirect_url is "/", treat as direct login to dashboard
-                if redirect_url == "/" {
-                    let ip = headers
-                        .get("x-forwarded-for")
-                        .and_then(|v| v.to_str().ok())
-                        .unwrap_or(addr.ip().to_string().as_str())
-                        .to_string();
-
-                    let (login_resp, refresh_token) = state
-                        .auth_service
-                        .create_session(&user, None, Some(ip), None)
+            // [CRITICAL FIX] PRIORITY 1: Check for OIDC Context
+            // If the session has stored OIDC parameters, this is an OAuth flow.
+            // We MUST generate an Authorization Code and redirect the user back to the client.
+            if let Some(oidc_value) = final_session.context.get("oidc") {
+                if let Ok(oidc_ctx) = serde_json::from_value::<OidcContext>(oidc_value.clone()) {
+                    // A. Generate Authorization Code
+                    let auth_code = state
+                        .oidc_service
+                        .create_authorization_code(
+                            final_session.realm_id,
+                            user_id,
+                            oidc_ctx.client_id,
+                            oidc_ctx.redirect_uri.clone(),
+                            oidc_ctx.nonce,
+                            oidc_ctx.code_challenge,
+                            oidc_ctx
+                                .code_challenge_method
+                                .unwrap_or_else(|| "plain".to_string()),
+                        )
                         .await?;
-                    let refresh_cookie = create_refresh_cookie(&refresh_token);
-                    res_headers.append(
-                        header::SET_COOKIE,
-                        HeaderValue::from_str(&refresh_cookie.to_string())?,
-                    );
 
+                    // B. Construct the Callback URL (e.g., http://localhost:6565?code=...)
+                    let mut url = url::Url::parse(&oidc_ctx.redirect_uri)
+                        .map_err(|_| Error::OidcInvalidRedirect(oidc_ctx.redirect_uri.clone()))?;
+
+                    url.query_pairs_mut().append_pair("code", &auth_code.code);
+                    if let Some(s) = oidc_ctx.state {
+                        url.query_pairs_mut().append_pair("state", &s);
+                    }
+
+                    // C. Return Redirect to Frontend
                     return Ok((
                         StatusCode::OK,
                         res_headers,
                         Json(serde_json::json!({
                            "status": "redirect",
-                           "url": "/"
+                           "url": url.to_string()
                         })),
                     )
                         .into_response());
                 }
             }
 
-            // C. Generic Redirect (e.g. OIDC)
+            // [PRIORITY 2] Dashboard Direct Login
+            // Only if NO OIDC context exists and the flow says "Go to Root",
+            // we assume this is an Admin/User logging directly into ReAuth.
+            if redirect_url == "/" {
+                let user = state.user_service.get_user(user_id).await?;
+
+                let ip = headers
+                    .get("x-forwarded-for")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or(addr.ip().to_string().as_str())
+                    .to_string();
+
+                let (_login_resp, refresh_token) = state
+                    .auth_service
+                    .create_session(&user, None, Some(ip), None)
+                    .await?;
+
+                let refresh_cookie = create_refresh_cookie(&refresh_token);
+                res_headers.append(
+                    header::SET_COOKIE,
+                    HeaderValue::from_str(&refresh_cookie.to_string())
+                        .map_err(|e| Error::Unexpected(e.into()))?,
+                );
+
+                return Ok((
+                    StatusCode::OK,
+                    res_headers,
+                    Json(serde_json::json!({
+                       "status": "redirect",
+                       "url": "/"
+                    })),
+                )
+                    .into_response());
+            }
+
+            // [Fallback] Generic Redirect (e.g. custom success page defined in flow)
             Ok((
                 StatusCode::OK,
                 res_headers,
