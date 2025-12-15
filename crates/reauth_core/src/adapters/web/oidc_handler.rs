@@ -66,7 +66,7 @@ pub async fn authorize_handler(
         .realm_service
         .find_by_name(&realm_name)
         .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
+        .ok_or(Error::RealmNotFound(realm_name.clone()))?;
 
     // 2. Initiate the Graph Session via OidcService
     // This handles client validation, flow lookup, and unified session creation.
@@ -102,7 +102,7 @@ pub async fn authorize_handler(
     let query_string = uri.query().unwrap_or("");
 
     // We append it to the frontend URL so AuthGuard sees it!
-    let frontend_login_url = format!("/#/login?{}", query_string);
+    let frontend_login_url = format!("/#/login?realm={}&{}", realm_name, query_string);
 
     Ok((headers, Redirect::to(&frontend_login_url)))
 }

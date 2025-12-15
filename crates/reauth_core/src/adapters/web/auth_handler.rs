@@ -8,7 +8,7 @@ use crate::{
     error::{Error, Result},
     AppState,
 };
-use axum::extract::Query;
+use axum::extract::{Path, Query};
 use axum::response::Response;
 use axum::{
     extract::{ConnectInfo, State},
@@ -97,23 +97,40 @@ async fn handle_flow_success(
         .user_id
         .ok_or(Error::System("Authenticated user not found".into()))?;
 
-    // 3. PRIORITY 1: OIDC (Dummy App)
-    // If context has OIDC data, we MUST return an Authorization Code, not a dashboard cookie.
+    // 3. PRIORITY 1: OIDC (Dummy App / External Clients)
     if let Some(oidc_value) = final_session.context.get("oidc") {
-        info!("[FlowSuccess] OIDC context detected. Generating Authorization Code.");
+        info!("[FlowSuccess] OIDC context detected.");
         if let Ok(oidc_ctx) = serde_json::from_value::<OidcContext>(oidc_value.clone()) {
-            let user = state.user_service.get_user(user_id).await?;
-            let (_, refresh_token) = state
-                .auth_service
-                .create_session(&user, None, Some(ip_address), None) // Create long-lived session
-                .await?;
+            // [OPTIMIZATION] Root Session Management
+            // We only create a NEW persistent Root (SSO) Session if the user
+            // did NOT come from an existing SSO session (i.e., they typed a password).
+            // If they resumed via SSO, we trust the existing cookie and do not issue a new one.
+            let sso_cookie_update_needed = if let Some(sso_id_val) =
+                final_session.context.get("sso_token_id")
+            {
+                info!("[FlowSuccess] Existing SSO Session {} detected. Skipping Root Session creation.", sso_id_val);
+                false
+            } else {
+                info!("[FlowSuccess] Fresh Login detected. Creating new Root SSO Session.");
+                true
+            };
 
-            let refresh_cookie = create_refresh_cookie(&refresh_token);
-            headers.append(
-                header::SET_COOKIE,
-                HeaderValue::from_str(&refresh_cookie.to_string())?,
-            );
+            if sso_cookie_update_needed {
+                let user = state.user_service.get_user(user_id).await?;
+                // Create a "Root" session (client_id = None) for global SSO
+                let (_, refresh_token) = state
+                    .auth_service
+                    .create_session(&user, None, Some(ip_address), None)
+                    .await?;
 
+                let refresh_cookie = create_refresh_cookie(&refresh_token);
+                headers.append(
+                    header::SET_COOKIE,
+                    HeaderValue::from_str(&refresh_cookie.to_string())?,
+                );
+            }
+
+            // Generate Authorization Code for the specific App
             let auth_code = state
                 .oidc_service
                 .create_authorization_code(
@@ -149,11 +166,11 @@ async fn handle_flow_success(
     }
 
     // 4. PRIORITY 2: Dashboard (Direct Login)
-    // Only if no OIDC context exists do we issue a standard refresh token for the dashboard.
     if redirect_url == "/" {
         info!("[FlowSuccess] Dashboard Login. Issuing Session Cookies.");
-        let user = state.user_service.get_user(user_id).await?;
 
+        // Dashboard login always refreshes the Root Session
+        let user = state.user_service.get_user(user_id).await?;
         let (_login_resp, refresh_token) = state
             .auth_service
             .create_session(&user, None, Some(ip_address), None)
@@ -186,17 +203,23 @@ async fn handle_flow_success(
         .into_response())
 }
 
-// --- HANDLERS ---
-
 // GET /api/auth/login
 #[instrument(skip(state, jar))]
 pub async fn start_login_flow_handler(
     State(state): State<AppState>,
     jar: CookieJar,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(realm_name): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse> {
-    info!("[StartFlow] Incoming Request.");
+    info!("[StartFlow] Request for Realm: {}", realm_name);
+
+    // 1. Resolve Realm
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
 
     // IP extraction for later use
     let ip = addr.ip().to_string();
@@ -219,6 +242,16 @@ pub async fn start_login_flow_handler(
         if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
             match state.auth_session_repo.find_by_id(&parse_id).await {
                 Ok(Some(mut session)) => {
+                    // Verify the existing session belongs to the requested Realm.
+                    // If I am logged into "Tenant A" but request "Tenant B", ignore the cookie.
+                    if session.realm_id != realm.id {
+                        warn!(
+                            "[StartFlow] Ignoring session {} (Realm mismatch).",
+                            parse_id
+                        );
+                        continue;
+                    }
+
                     if session.status == SessionStatus::active {
                         info!("[StartFlow] Resuming Session {}.", parse_id);
 
@@ -261,23 +294,28 @@ pub async fn start_login_flow_handler(
         sid
     } else {
         // --- 2. NEW SESSION LOGIC ---
-        info!("[StartFlow] Starting New Session.");
-        let realm = state
-            .realm_service
-            .find_by_name(DEFAULT_REALM_NAME)
-            .await?
-            .ok_or(Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
-        let flow_id = Uuid::parse_str(&realm.browser_flow_id.unwrap()).unwrap();
+        info!(
+            "[StartFlow] Starting New Session for realm '{}'",
+            realm.name
+        );
+
+        let flow_id_str = realm
+            .browser_flow_id
+            .ok_or(Error::System("Realm has no browser flow configured".into()))?;
+        let flow_id =
+            Uuid::parse_str(&flow_id_str).map_err(|_| Error::System("Invalid Flow ID".into()))?;
+
+        // Version Resolution
         let version_num = state
             .flow_store
             .get_deployed_version_number(&realm.id, "browser", &flow_id)
             .await?
-            .unwrap();
+            .ok_or(Error::System("Flow not deployed".into()))?;
         let version = state
             .flow_store
             .get_version_by_number(&flow_id, version_num)
             .await?
-            .unwrap();
+            .ok_or(Error::System("Flow version not found".into()))?;
 
         let mut context = serde_json::json!({});
         // Inject OIDC
@@ -354,11 +392,18 @@ pub async fn execute_login_step_handler(
     jar: CookieJar,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(realm_name): Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse> {
-    info!("[ExecuteStep] Processing step submission");
+    info!("[ExecuteStep] Processing step for Realm: {}", realm_name);
 
-    // IP Extraction
+    // We fetch the realm just to ensure it exists (Validation)
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+
     let ip = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
@@ -367,7 +412,6 @@ pub async fn execute_login_step_handler(
 
     // Session Selection Logic (same as before)
     let mut target_session_id = None;
-    let mut fallback_session_id = None;
     let cookies: Vec<_> = jar
         .iter()
         .filter(|c| c.name() == LOGIN_SESSION_COOKIE)
@@ -376,19 +420,15 @@ pub async fn execute_login_step_handler(
     for cookie in cookies {
         if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
             if let Ok(Some(session)) = state.auth_session_repo.find_by_id(&parse_id).await {
-                if session.status == SessionStatus::active {
+                if session.realm_id == realm.id && session.status == SessionStatus::active {
                     target_session_id = Some(parse_id);
                     break;
-                } else {
-                    fallback_session_id = Some(parse_id);
                 }
             }
         }
     }
 
-    let session_id = target_session_id
-        .or(fallback_session_id)
-        .ok_or(Error::InvalidLoginSession)?;
+    let session_id = target_session_id.ok_or(Error::InvalidLoginSession)?;
 
     // Execute
     let result = state
@@ -466,6 +506,7 @@ pub async fn refresh_handler(
 
 pub async fn logout_handler(
     State(state): State<AppState>,
+    Path(_realm): Path<String>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse> {
     let mut headers = HeaderMap::new();

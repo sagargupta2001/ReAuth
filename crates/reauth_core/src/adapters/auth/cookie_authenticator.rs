@@ -26,13 +26,13 @@ impl LifecycleNode for CookieAuthenticator {
     }
 
     async fn execute(&self, session: &mut AuthenticationSession) -> Result<NodeOutcome> {
+        // 1. Extract Token ID from Context
         let token_id_str = match session.context.get("sso_token_id").and_then(|v| v.as_str()) {
             Some(s) => s,
             None => {
-                tracing::warn!("CookieAuth: No SSO token found in context.");
                 return Ok(NodeOutcome::Continue {
                     output: "continue".to_string(),
-                });
+                })
             }
         };
 
@@ -45,10 +45,26 @@ impl LifecycleNode for CookieAuthenticator {
             }
         };
 
+        // 2. Lookup Token in DB
         match self.session_repo.find_by_id(&token_id).await {
             Ok(Some(token)) => {
+                // [SECURITY FIX] Realm Isolation Check
+                // We MUST ensure the token belongs to the same realm as the current login attempt.
+                if token.realm_id != session.realm_id {
+                    tracing::warn!(
+                        "CookieAuth: Cross-Realm Attack Blocked. Token Realm {} != Session Realm {}",
+                        token.realm_id,
+                        session.realm_id
+                    );
+                    // Treat as invalid -> Force user to login again for this specific realm
+                    return Ok(NodeOutcome::Continue {
+                        output: "continue".to_string(),
+                    });
+                }
+
+                // 3. Success
                 tracing::info!(
-                    "CookieAuth: VALID SSO TOKEN found. Logging in User {}",
+                    "CookieAuth: Valid SSO session found for user {}",
                     token.user_id
                 );
                 session.user_id = Some(token.user_id);
@@ -56,16 +72,9 @@ impl LifecycleNode for CookieAuthenticator {
                     user_id: token.user_id,
                 })
             }
-            _ => {
-                // [THIS IS WHAT IS HAPPENING TO YOU]
-                tracing::warn!(
-                    "CookieAuth: STALE/INVALID SSO TOKEN. ID {} not found in DB.",
-                    token_id
-                );
-                Ok(NodeOutcome::Continue {
-                    output: "continue".to_string(),
-                })
-            }
+            _ => Ok(NodeOutcome::Continue {
+                output: "continue".to_string(),
+            }),
         }
     }
 

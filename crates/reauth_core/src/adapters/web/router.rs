@@ -24,7 +24,7 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .route("/logs/ws", get(log_stream_handler::log_stream_handler))
         .route("/realms/{realm}/login", get(execution_handler::start_login))
         .nest("/execution", execution_routes())
-        .nest("/auth", auth_routes())
+        .nest("/realms/{realm}/auth", auth_routes())
         .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/realms/{realm}/clients", client_routes())
         .nest("/plugins", plugin_routes())

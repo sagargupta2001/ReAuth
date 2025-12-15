@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
 import { useLocation, useParams } from 'react-router-dom'
@@ -17,10 +17,19 @@ import { getScreenComponent } from './ScreenRegistry'
 let initializationPromise: Promise<any> | null = null
 
 export function AuthFlowExecutor() {
-  const { realm = 'master' } = useParams()
+  const params = useParams()
   const location = useLocation() // <--- Hook to get ?client_id=...
   const setSession = useSessionStore((state) => state.setSession)
   const refreshTokenMutation = useRefreshToken()
+
+  // Determine Realm Priority:
+  // 1. Query Param (?realm=tenant-a) <- Sent by OIDC Backend Redirect
+  // 2. Route Param (/realms/tenant-a/login) <- Sent by direct link
+  // 3. Default ('master')
+  const realm = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('realm') || params.realm || 'master'
+  }, [location.search, params.realm])
 
   const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -35,8 +44,11 @@ export function AuthFlowExecutor() {
 
     const runInit = async () => {
       try {
-        console.log('[Executor] Starting Flow for realm:', realm)
-        // [FIX] Pass the search params so Backend sees the 'client_id'
+        console.log(`[Executor] Starting Flow for realm: ${realm}`)
+
+        // [FIX] We pass the extracted 'realm' variable here
+        // verify your authApi.startFlow uses this first argument to build the URL:
+        // `/api/realms/${realm}/auth/login${queryParams}`
         return await authApi.startFlow(realm, location.search)
       } catch (err) {
         console.error('[Executor] Init Failed:', err)
@@ -68,7 +80,7 @@ export function AuthFlowExecutor() {
     return () => {
       active = false
     }
-  }, [realm, currentStep, location.search]) // <--- Re-run if query params change
+  }, [realm, location.search])
 
   // 2. SUBMIT HANDLER
   const handleSubmit = async (data: any) => {
@@ -76,7 +88,9 @@ export function AuthFlowExecutor() {
     setGlobalError(null)
 
     try {
-      const res = await authApi.submitStep(data)
+      // Pass realm here if your API needs it for the execution URL too
+      // e.g. /api/realms/{realm}/auth/login/execute
+      const res = await authApi.submitStep(realm, data)
       setCurrentStep(res)
     } catch (error: any) {
       setGlobalError(error.message || 'An unexpected error occurred')
@@ -94,14 +108,16 @@ export function AuthFlowExecutor() {
         const targetUrl = currentStep.url
         console.log('[Executor] Flow Complete. Redirecting to:', targetUrl)
 
-        // Case A: Redirect to Dashboard (Root)
+        // Case A: Dashboard (Direct Login)
         if (targetUrl === '/') {
           const token = await refreshTokenMutation.mutateAsync()
           setSession(token)
+          // Ensure we don't accidentally send query params to dashboard
+          window.history.replaceState({}, document.title, '/')
           return
         }
 
-        // Case B: External Redirect (OIDC Callback)
+        // Case B: OIDC External Redirect
         if (targetUrl.startsWith('http')) {
           window.location.href = targetUrl
           return
@@ -115,12 +131,11 @@ export function AuthFlowExecutor() {
       }
     }
 
-    handleRedirect()
+    void handleRedirect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep])
 
   // --- RENDER ---
-
   if (isLoading && !currentStep) {
     return (
       <div className="flex justify-center p-8">
@@ -135,7 +150,7 @@ export function AuthFlowExecutor() {
         <div className="text-destructive rounded border border-red-100 bg-red-50 p-4 font-medium">
           Login Failed: {currentStep.message}
         </div>
-        <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
+        <Button className="w-full" onClick={() => window.location.reload()}>
           Try Again
         </Button>
       </div>
