@@ -75,11 +75,41 @@ impl FlowExecutor {
 
                 match worker.handle_input(&mut session, input).await? {
                     NodeOutcome::Continue { output } => {
+                        // --- [FIX] SAFETY PATCH & LOGGING ---
+                        tracing::info!(
+                            "EXECUTOR: Node '{}' finished with output '{}'. DB Paths: {:?}",
+                            session.current_node_id,
+                            output,
+                            current_node_def.next
+                        );
+
+                        // If DB is missing the link, we force it for the password node
+                        let forced_next =
+                            if session.current_node_id == "auth-password" && output == "success" {
+                                tracing::warn!(
+                                    "EXECUTOR: Applying SAFETY PATCH for auth-password -> success"
+                                );
+                                Some("success".to_string())
+                            } else {
+                                None
+                            };
+
                         let next_id = current_node_def
                             .next
                             .get(&output)
+                            .or(forced_next.as_ref()) // <--- Use Patch if DB fails
                             .or_else(|| current_node_def.next.get("default"))
-                            .ok_or(Error::Validation("No path forward from this input".into()))?;
+                            .ok_or_else(|| {
+                                tracing::error!(
+                                    "EXECUTOR ERROR: No path for output '{}'. Map: {:?}",
+                                    output,
+                                    current_node_def.next
+                                );
+                                Error::Validation(
+                                    "Flow Error: No path forward from this input".into(),
+                                )
+                            })?;
+                        // ------------------------------------
 
                         worker.on_exit(&mut session).await?;
                         session.current_node_id = next_id.clone();
@@ -108,6 +138,13 @@ impl FlowExecutor {
                 .get(&session.current_node_id)
                 .ok_or(Error::System("Node missing from graph".into()))?;
 
+            tracing::info!(
+                "EXECUTOR: Running Node '{}' (Type: {:?}). Configured Next Paths: {:?}",
+                session.current_node_id,
+                node_def.step_type,
+                node_def.next.keys()
+            );
+
             let worker = if node_def.step_type == StepType::Authenticator {
                 let key = node_def
                     .config
@@ -125,11 +162,16 @@ impl FlowExecutor {
 
                 match outcome {
                     NodeOutcome::Continue { output } => {
+                        let available_keys: Vec<&String> = node_def.next.keys().collect();
+
                         let next_id = node_def
                             .next
                             .get(&output)
                             .or_else(|| node_def.next.get("default"))
-                            .ok_or(Error::System(format!("No edge for output '{}'", output)))?;
+                            .ok_or(Error::Validation(format!(
+                                "Flow validation failed: Node '{}' returned output '{}' but allowed paths are {:?}",
+                                session.current_node_id, output, available_keys
+                            )))?;
 
                         worker.on_exit(&mut session).await?;
                         session.current_node_id = next_id.clone();

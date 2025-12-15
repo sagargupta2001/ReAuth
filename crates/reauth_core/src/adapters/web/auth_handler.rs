@@ -9,6 +9,7 @@ use crate::{
     AppState,
 };
 use axum::extract::Query;
+use axum::response::Response;
 use axum::{
     extract::{ConnectInfo, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
@@ -19,7 +20,7 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use tracing::{info, instrument, warn};
+use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
 
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
@@ -65,43 +66,138 @@ fn create_login_cookie(session_id: Uuid) -> Cookie<'static> {
         .into()
 }
 
-fn append_clear_cookies(headers: &mut HeaderMap) {
-    // Clear on API path
-    let c1 = Cookie::build(LOGIN_SESSION_COOKIE)
-        .path("/api")
-        .max_age(time::Duration::seconds(0))
-        .finish();
-    headers.append(
-        header::SET_COOKIE,
-        HeaderValue::from_str(&c1.to_string()).unwrap(),
+// GET /api/auth/login
+// This handles generating OIDC codes OR Dashboard Cookies upon flow completion
+async fn handle_flow_success(
+    state: &AppState,
+    session_id: Uuid,
+    redirect_url: String,
+    mut headers: HeaderMap,
+    ip_address: String,
+) -> Result<Response> {
+    info!(
+        "[FlowSuccess] Processing success for session {}",
+        session_id
     );
 
-    // Clear on Root path (Just in case)
-    let c2 = Cookie::build(LOGIN_SESSION_COOKIE)
-        .path("/")
-        .max_age(time::Duration::seconds(0))
-        .finish();
+    // 1. Cleanup Login Cookie (Flow is done)
     headers.append(
         header::SET_COOKIE,
-        HeaderValue::from_str(&c2.to_string()).unwrap(),
+        HeaderValue::from_str(&create_clear_login_cookie().to_string())?,
     );
+
+    // 2. Fetch Session for Final Decision
+    let final_session = state
+        .auth_session_repo
+        .find_by_id(&session_id)
+        .await?
+        .ok_or(Error::InvalidLoginSession)?;
+
+    let user_id = final_session
+        .user_id
+        .ok_or(Error::System("Authenticated user not found".into()))?;
+
+    // 3. PRIORITY 1: OIDC (Dummy App)
+    // If context has OIDC data, we MUST return an Authorization Code, not a dashboard cookie.
+    if let Some(oidc_value) = final_session.context.get("oidc") {
+        info!("[FlowSuccess] OIDC context detected. Generating Authorization Code.");
+        if let Ok(oidc_ctx) = serde_json::from_value::<OidcContext>(oidc_value.clone()) {
+            let auth_code = state
+                .oidc_service
+                .create_authorization_code(
+                    final_session.realm_id,
+                    user_id,
+                    oidc_ctx.client_id,
+                    oidc_ctx.redirect_uri.clone(),
+                    oidc_ctx.nonce,
+                    oidc_ctx.code_challenge,
+                    oidc_ctx
+                        .code_challenge_method
+                        .unwrap_or_else(|| "plain".to_string()),
+                )
+                .await?;
+
+            let mut url = url::Url::parse(&oidc_ctx.redirect_uri)
+                .map_err(|_| Error::OidcInvalidRedirect(oidc_ctx.redirect_uri.clone()))?;
+
+            url.query_pairs_mut().append_pair("code", &auth_code.code);
+            if let Some(s) = oidc_ctx.state {
+                url.query_pairs_mut().append_pair("state", &s);
+            }
+
+            return Ok((
+                StatusCode::OK,
+                headers,
+                Json(serde_json::json!({
+                   "status": "redirect", "url": url.to_string()
+                })),
+            )
+                .into_response());
+        }
+    }
+
+    // 4. PRIORITY 2: Dashboard (Direct Login)
+    // Only if no OIDC context exists do we issue a standard refresh token for the dashboard.
+    if redirect_url == "/" {
+        info!("[FlowSuccess] Dashboard Login. Issuing Session Cookies.");
+        let user = state.user_service.get_user(user_id).await?;
+
+        let (_login_resp, refresh_token) = state
+            .auth_service
+            .create_session(&user, None, Some(ip_address), None)
+            .await?;
+
+        let refresh_cookie = create_refresh_cookie(&refresh_token);
+        headers.append(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&refresh_cookie.to_string())?,
+        );
+
+        return Ok((
+            StatusCode::OK,
+            headers,
+            Json(serde_json::json!({
+               "status": "redirect", "url": "/"
+            })),
+        )
+            .into_response());
+    }
+
+    // 5. Generic Redirect (Fallback)
+    Ok((
+        StatusCode::OK,
+        headers,
+        Json(serde_json::json!({
+            "status": "redirect", "url": redirect_url
+        })),
+    )
+        .into_response())
 }
+
+// --- HANDLERS ---
 
 // GET /api/auth/login
 #[instrument(skip(state, jar))]
 pub async fn start_login_flow_handler(
     State(state): State<AppState>,
     jar: CookieJar,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse> {
     info!("[StartFlow] Incoming Request.");
 
-    // --- 1. RESUME LOGIC (Trust the Cookie) ---
-    // If the browser sends a cookie, and that session is ACTIVE, we resume it.
-    // We assume the user is continuing a flow they started (either Dashboard or OIDC).
+    // IP extraction for later use
+    let ip = addr.ip().to_string();
 
+    let force_login = params.get("prompt").map(|v| v == "login").unwrap_or(false);
+    let sso_token_id = if !force_login {
+        jar.get(REFRESH_TOKEN_COOKIE).map(|c| c.value().to_string())
+    } else {
+        None
+    };
+
+    // --- 1. RESUME LOGIC ---
     let mut valid_session_id = None;
-
     let cookies: Vec<_> = jar
         .iter()
         .filter(|c| c.name() == LOGIN_SESSION_COOKIE)
@@ -110,18 +206,37 @@ pub async fn start_login_flow_handler(
     for cookie in cookies {
         if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
             match state.auth_session_repo.find_by_id(&parse_id).await {
-                Ok(Some(session)) => {
-                    // Only resume if strictly ACTIVE.
-                    // Completed/Failed sessions are "Zombies" and should be ignored.
+                Ok(Some(mut session)) => {
                     if session.status == SessionStatus::active {
-                        info!("[StartFlow] Found ACTIVE session {}. Resuming.", parse_id);
+                        info!("[StartFlow] Resuming Session {}.", parse_id);
+
+                        // [CRITICAL] Inject Context into Resumed Session
+                        let mut updated = false;
+                        if let Some(token) = &sso_token_id {
+                            session.context["sso_token_id"] =
+                                serde_json::Value::String(token.clone());
+                            updated = true;
+                        }
+                        if let Some(client_id) = params.get("client_id") {
+                            session.context["oidc"] = serde_json::json!({
+                                "client_id": client_id,
+                                "redirect_uri": params.get("redirect_uri"),
+                                "response_type": params.get("response_type"),
+                                "scope": params.get("scope"),
+                                "state": params.get("state"),
+                                "nonce": params.get("nonce"),
+                                "code_challenge": params.get("code_challenge"),
+                                "code_challenge_method": params.get("code_challenge_method"),
+                            });
+                            updated = true;
+                        }
+
+                        if updated {
+                            state.auth_session_repo.update(&session).await?;
+                        }
+
                         valid_session_id = Some(parse_id);
                         break;
-                    } else {
-                        info!(
-                            "[StartFlow] Session {} is {:?}. Ignoring.",
-                            parse_id, session.status
-                        );
                     }
                 }
                 _ => {}
@@ -129,62 +244,71 @@ pub async fn start_login_flow_handler(
         }
     }
 
-    if let Some(session_id) = valid_session_id {
-        // EXECUTE RESUME
-        let result = state.flow_executor.execute(session_id, None).await?;
-        return map_execution_result(result, HeaderMap::new());
-    }
+    // Determine Session ID (Resume or Create)
+    let session_id = if let Some(sid) = valid_session_id {
+        sid
+    } else {
+        // --- 2. NEW SESSION LOGIC ---
+        info!("[StartFlow] Starting New Session.");
+        let realm = state
+            .realm_service
+            .find_by_name(DEFAULT_REALM_NAME)
+            .await?
+            .ok_or(Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
+        let flow_id = Uuid::parse_str(&realm.browser_flow_id.unwrap()).unwrap();
+        let version_num = state
+            .flow_store
+            .get_deployed_version_number(&realm.id, "browser", &flow_id)
+            .await?
+            .unwrap();
+        let version = state
+            .flow_store
+            .get_version_by_number(&flow_id, version_num)
+            .await?
+            .unwrap();
 
-    // --- 2. NEW SESSION LOGIC ---
-    // No active session found? Create a new one.
-    // Since we are here, and no params were provided, this defaults to a standard Dashboard flow.
-    // (If this was supposed to be OIDC, the /authorize endpoint would have created the session already).
+        let mut context = serde_json::json!({});
+        // Inject OIDC
+        if let Some(client_id) = params.get("client_id") {
+            context["oidc"] = serde_json::json!({
+                "client_id": client_id,
+                "redirect_uri": params.get("redirect_uri"),
+                "response_type": params.get("response_type"),
+                "scope": params.get("scope"),
+                "state": params.get("state"),
+                "nonce": params.get("nonce"),
+                "code_challenge": params.get("code_challenge"),
+                "code_challenge_method": params.get("code_challenge_method"),
+            });
+        }
+        // Inject SSO
+        if let Some(token) = sso_token_id {
+            context["sso_token_id"] = serde_json::Value::String(token);
+        }
 
-    info!("[StartFlow] No active session found. Starting New Dashboard Session.");
-
-    let realm = state
-        .realm_service
-        .find_by_name(DEFAULT_REALM_NAME)
-        .await?
-        .ok_or(Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
-
-    let flow_id_str = realm
-        .browser_flow_id
-        .ok_or(Error::System("No browser flow".into()))?;
-    let flow_id =
-        Uuid::parse_str(&flow_id_str).map_err(|_| Error::System("Invalid flow ID".into()))?;
-
-    let version_num = state
-        .flow_store
-        .get_deployed_version_number(&realm.id, "browser", &flow_id)
-        .await?
-        .ok_or(Error::System("No deployed version".into()))?;
-    let version = state
-        .flow_store
-        .get_version_by_number(&flow_id, version_num)
-        .await?
-        .ok_or(Error::System("Version not found".into()))?;
-
-    let session_id = Uuid::new_v4();
-
-    let session = AuthenticationSession {
-        id: session_id,
-        realm_id: realm.id,
-        flow_version_id: Uuid::parse_str(&version.id).unwrap_or_default(),
-        current_node_id: "start".to_string(),
-        user_id: None,
-        status: SessionStatus::active,
-        context: serde_json::json!({}),
-        expires_at: Utc::now() + Duration::minutes(15),
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
+        let new_sid = Uuid::new_v4();
+        let session = AuthenticationSession {
+            id: new_sid,
+            realm_id: realm.id,
+            flow_version_id: Uuid::parse_str(&version.id).unwrap_or_default(),
+            current_node_id: "start".to_string(),
+            user_id: None,
+            status: SessionStatus::active,
+            context,
+            expires_at: Utc::now() + Duration::minutes(15),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        state.auth_session_repo.create(&session).await?;
+        new_sid
     };
 
-    state.auth_session_repo.create(&session).await?;
+    // Execute Flow
     let result = state.flow_executor.execute(session_id, None).await?;
 
-    // Cookie Hygiene: Clear old roots, set new API cookie
+    // Prepare Cookies
     let mut headers = HeaderMap::new();
+    // Always clear root login cookie to prevent clashes
     let kill_root = Cookie::build(LOGIN_SESSION_COOKIE)
         .path("/")
         .max_age(time::Duration::seconds(0))
@@ -194,13 +318,21 @@ pub async fn start_login_flow_handler(
         HeaderValue::from_str(&kill_root.to_string()).unwrap(),
     );
 
+    // Set API-scoped login cookie
     let new_cookie = create_login_cookie(session_id);
     headers.append(
         header::SET_COOKIE,
         HeaderValue::from_str(&new_cookie.to_string()).unwrap(),
     );
 
-    map_execution_result(result, headers)
+    // Handle Result
+    match result {
+        // [FIX] Use shared logic for Success
+        ExecutionResult::Success { redirect_url } => {
+            handle_flow_success(&state, session_id, redirect_url, headers, ip).await
+        }
+        _ => map_execution_result(result, headers),
+    }
 }
 
 // POST /api/auth/login/execute
@@ -214,171 +346,56 @@ pub async fn execute_login_step_handler(
 ) -> Result<impl IntoResponse> {
     info!("[ExecuteStep] Processing step submission");
 
+    // IP Extraction
+    let ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or(addr.ip().to_string().as_str())
+        .to_string();
+
+    // Session Selection Logic (same as before)
     let mut target_session_id = None;
     let mut fallback_session_id = None;
-
     let cookies: Vec<_> = jar
         .iter()
         .filter(|c| c.name() == LOGIN_SESSION_COOKIE)
         .collect();
-    info!("[ExecuteStep] Found {} cookies", cookies.len());
 
     for cookie in cookies {
         if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
             if let Ok(Some(session)) = state.auth_session_repo.find_by_id(&parse_id).await {
                 if session.status == SessionStatus::active {
-                    info!("[ExecuteStep] Found ACTIVE session {}", parse_id);
-                    // Use the first active one we find
-                    // Improvement: We could check creation time, but first valid is usually okay
-                    // if StartFlow did its job of cleaning up.
                     target_session_id = Some(parse_id);
                     break;
                 } else {
-                    info!("[ExecuteStep] Found inactive session {}", parse_id);
                     fallback_session_id = Some(parse_id);
                 }
             }
         }
     }
 
-    let session_id = target_session_id.or(fallback_session_id).ok_or_else(|| {
-        warn!("[ExecuteStep] No valid session found in cookies");
-        Error::InvalidLoginSession
-    })?;
+    let session_id = target_session_id
+        .or(fallback_session_id)
+        .ok_or(Error::InvalidLoginSession)?;
 
-    info!("[ExecuteStep] Executing against Session {}", session_id);
+    // Execute
     let result = state
         .flow_executor
         .execute(session_id, Some(payload))
         .await?;
 
-    // Handle Output
+    // Handle Result
     match result {
-        ExecutionResult::Challenge { screen_id, context } => {
-            info!("[ExecuteStep] Result: Challenge ({})", screen_id);
-            Ok((
-                StatusCode::OK,
-                Json(serde_json::json!({
-                    "status": "challenge", "challengeName": screen_id, "context": context
-                })),
-            )
-                .into_response())
-        }
+        // [FIX] Use shared logic for Success
         ExecutionResult::Success { redirect_url } => {
-            info!(
-                "[ExecuteStep] Result: Success (Redirect -> {})",
-                redirect_url
-            );
-
-            // 1. Cleanup
-            let mut res_headers = HeaderMap::new();
-            res_headers.append(
-                header::SET_COOKIE,
-                HeaderValue::from_str(&create_clear_login_cookie().to_string()).unwrap(),
-            );
-
-            // 2. Fetch Session for Final Decision
-            let final_session = state
-                .auth_session_repo
-                .find_by_id(&session_id)
-                .await?
-                .ok_or(Error::InvalidLoginSession)?;
-            let user_id = final_session
-                .user_id
-                .ok_or(Error::System("Authenticated user not found".into()))?;
-
-            // 3. PRIORITY 1: OIDC
-            if let Some(oidc_value) = final_session.context.get("oidc") {
-                info!("[ExecuteStep] Detected OIDC context. Generating Code.");
-                if let Ok(oidc_ctx) = serde_json::from_value::<OidcContext>(oidc_value.clone()) {
-                    let auth_code = state
-                        .oidc_service
-                        .create_authorization_code(
-                            final_session.realm_id,
-                            user_id,
-                            oidc_ctx.client_id,
-                            oidc_ctx.redirect_uri.clone(),
-                            oidc_ctx.nonce,
-                            oidc_ctx.code_challenge,
-                            oidc_ctx
-                                .code_challenge_method
-                                .unwrap_or_else(|| "plain".to_string()),
-                        )
-                        .await?;
-
-                    let mut url = url::Url::parse(&oidc_ctx.redirect_uri)
-                        .map_err(|_| Error::OidcInvalidRedirect(oidc_ctx.redirect_uri.clone()))?;
-
-                    url.query_pairs_mut().append_pair("code", &auth_code.code);
-                    if let Some(s) = oidc_ctx.state {
-                        url.query_pairs_mut().append_pair("state", &s);
-                    }
-
-                    return Ok((
-                        StatusCode::OK,
-                        res_headers,
-                        Json(serde_json::json!({
-                           "status": "redirect", "url": url.to_string()
-                        })),
-                    )
-                        .into_response());
-                }
-            }
-
-            // 4. PRIORITY 2: Dashboard
-            if redirect_url == "/" {
-                info!("[ExecuteStep] Direct Dashboard Login. Issuing Session Cookies.");
-                let user = state.user_service.get_user(user_id).await?;
-                let ip = headers
-                    .get("x-forwarded-for")
-                    .and_then(|v| v.to_str().ok())
-                    .unwrap_or(addr.ip().to_string().as_str())
-                    .to_string();
-
-                let (_login_resp, refresh_token) = state
-                    .auth_service
-                    .create_session(&user, None, Some(ip), None)
-                    .await?;
-                let refresh_cookie = create_refresh_cookie(&refresh_token);
-                res_headers.append(
-                    header::SET_COOKIE,
-                    HeaderValue::from_str(&refresh_cookie.to_string()).unwrap(),
-                );
-
-                return Ok((
-                    StatusCode::OK,
-                    res_headers,
-                    Json(serde_json::json!({
-                       "status": "redirect", "url": "/"
-                    })),
-                )
-                    .into_response());
-            }
-
-            Ok((
-                StatusCode::OK,
-                res_headers,
-                Json(serde_json::json!({
-                    "status": "redirect", "url": redirect_url
-                })),
-            )
-                .into_response())
+            handle_flow_success(&state, session_id, redirect_url, HeaderMap::new(), ip).await
         }
-        ExecutionResult::Failure { reason } => {
-            warn!("[ExecuteStep] Result: Failure ({})", reason);
-            Ok((
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({
-                    "status": "failure", "message": reason
-                })),
-            )
-                .into_response())
-        }
+        _ => map_execution_result(result, HeaderMap::new()),
     }
 }
 
 // Helper to map result to response (Deduped logic)
-fn map_execution_result(result: ExecutionResult, headers: HeaderMap) -> Result<impl IntoResponse> {
+fn map_execution_result(result: ExecutionResult, headers: HeaderMap) -> Result<Response> {
     match result {
         ExecutionResult::Challenge { screen_id, context } => {
             let body = serde_json::json!({ "status": "challenge", "challengeName": screen_id, "context": context });
@@ -391,6 +408,12 @@ fn map_execution_result(result: ExecutionResult, headers: HeaderMap) -> Result<i
         ExecutionResult::Failure { reason } => {
             let body = serde_json::json!({ "status": "failure", "message": reason });
             Ok((StatusCode::UNAUTHORIZED, headers, Json(body)).into_response())
+        }
+        ExecutionResult::Continue => {
+            error!("[MapResult] Internal 'Continue' state reached web layer.");
+            let body =
+                serde_json::json!({ "status": "failure", "message": "Internal System Error" });
+            Ok((StatusCode::INTERNAL_SERVER_ERROR, headers, Json(body)).into_response())
         }
     }
 }

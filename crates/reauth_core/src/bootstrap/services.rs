@@ -71,7 +71,11 @@ pub fn initialize_services(
 
     // Register all nodes (Workers + Definitions)
     // This connects PasswordAuthenticator -> "core.auth.password"
-    register_builtins(&mut registry_impl, repos.user_repo.clone());
+    register_builtins(
+        &mut registry_impl,
+        repos.user_repo.clone(),
+        repos.session_repo.clone(),
+    );
 
     // Wrap in Arc for shared use
     let runtime_registry = Arc::new(registry_impl);

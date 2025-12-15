@@ -1,4 +1,5 @@
 pub mod condition_node;
+pub mod cookie_node;
 pub mod otp_node;
 pub mod password_node;
 pub mod script_node;

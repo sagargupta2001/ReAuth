@@ -1,5 +1,6 @@
 use crate::domain::flow::models::NodeMetadata;
 use crate::domain::flow::nodes::condition_node::ConditionNode;
+use crate::domain::flow::nodes::cookie_node::CookieNodeProvider;
 use crate::domain::flow::nodes::otp_node::OtpNode;
 use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
 use crate::domain::flow::nodes::script_node::ScriptNode;
@@ -16,6 +17,7 @@ impl NodeRegistryService {
         Self {
             providers: vec![
                 Box::new(StartNode),
+                Box::new(CookieNodeProvider),
                 Box::new(PasswordNodeProvider),
                 Box::new(OtpNode),
                 Box::new(ConditionNode),

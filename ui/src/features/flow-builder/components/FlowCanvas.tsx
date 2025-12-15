@@ -26,6 +26,7 @@ export function FlowCanvas() {
 
       // --- AUTHENTICATORS (Workers) ---
       // These keys MUST match what 'register_builtins' uses in Rust
+      'core.auth.cookie': AuthenticatorNode,
       'core.auth.password': AuthenticatorNode,
       'core.auth.otp': AuthenticatorNode,
       'core.auth.webauthn': AuthenticatorNode,

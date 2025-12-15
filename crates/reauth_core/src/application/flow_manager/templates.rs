@@ -1,5 +1,3 @@
-// crates/application/src/flow_manager/templates.rs
-
 use crate::domain::flow::provider::NodeProvider;
 use serde_json::{json, Value};
 
@@ -12,46 +10,67 @@ impl FlowTemplates {
     }
 
     pub fn browser_flow() -> Value {
-        // We use the `json!` macro which is much cleaner than raw strings
-        // and supports trailing commas / comments.
         json!({
             "nodes": [
                 {
                     "id": "start",
-                    // We map the type directly to the ID defined in your Structs
                     "type": "core.start",
                     "position": { "x": 250, "y": 0 },
-                    "data": { "label": "Start" }
+                    "data": { "label": "Start" },
+                    "next": { "default": "auth-cookie" }
+                },
+                {
+                    "id": "auth-cookie",
+                    "type": "core.auth.cookie",
+                    "position": { "x": 250, "y": 100 },
+                    "data": {
+                        "label": "Check SSO Cookie",
+                        "config": {
+                            "auth_type": "core.auth.cookie"
+                        },
+                        "outputs": ["continue"]
+                    },
+                    "next": { "continue": "auth-password" }
                 },
                 {
                     "id": "auth-password",
                     "type": "core.auth.password",
-                    "position": { "x": 250, "y": 150 },
+                    "position": { "x": 250, "y": 250 },
                     "data": {
                         "label": "Username & Password",
-                        "config": {
-                            // Defaults are handled by the node, but we can override here
-                            "max_attempts": 3
-                        }
-                    }
+                        "config": { "auth_type": "core.auth.password", "max_attempts": 3 },
+                        "outputs": ["success", "failure"]
+                    },
+                    "next": { "success": "success" }
                 },
                 {
                     "id": "success",
                     "type": "core.terminal.allow",
-                    "position": { "x": 250, "y": 300 },
-                    "data": { "label": "Allow Access" }
+                    "position": { "x": 250, "y": 400 },
+                    "data": { "label": "Allow Access" },
+                    "next": {}
                 }
             ],
             "edges": [
-                // Start -> Password
-                { "id": "e1", "source": "start", "target": "auth-password" },
-                // Password (Success) -> Allow
-                { "id": "e2", "source": "auth-password", "sourceHandle": "success", "target": "success" }
+                // Start -> Cookie
+                { "id": "e1", "source": "start", "target": "auth-cookie" },
+
+                // [FIX] Cookie -> Password
+                // We use sourceHandle: "continue" to match the NodeProvider
+                {
+                    "id": "e2",
+                    "source": "auth-cookie",
+                    "sourceHandle": "continue",
+                    "target": "auth-password"
+                },
+
+                // Password -> Success
+                { "id": "e3", "source": "auth-password", "sourceHandle": "success", "target": "success" }
             ]
         })
     }
-
     pub fn direct_grant_flow() -> Value {
+        // ... (Keep existing implementation)
         json!({
             "nodes": [
                 {
@@ -74,6 +93,7 @@ impl FlowTemplates {
     }
 
     pub fn reset_credentials_flow() -> Value {
+        // ... (Keep existing implementation)
         json!({
             "nodes": [
                 {
@@ -96,6 +116,7 @@ impl FlowTemplates {
     }
 
     pub fn registration_flow() -> Value {
+        // ... (Keep existing implementation)
         json!({
             "nodes": [
                 {

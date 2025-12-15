@@ -18,7 +18,9 @@ pub struct ExecutionNode {
     // Where to go next?
     // Key = Output Handle (e.g., "success", "failure", "true", "false")
     // Value = Target Node ID
+    #[serde(default)]
     pub next: HashMap<String, String>,
+    #[serde(default)]
     pub config: serde_json::Value,
 }
 
@@ -42,4 +44,9 @@ pub enum ExecutionResult {
     Success { redirect_url: String },
     /// Flow finished with failure
     Failure { reason: String },
+
+    /// Internal Only: The node finished (e.g. Cookie Check failed),
+    /// please transition to the next node in the graph.
+    #[serde(skip)] // Frontend never sees this!
+    Continue,
 }
