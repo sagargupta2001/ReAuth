@@ -7,11 +7,10 @@ import { useLocation, useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { useSessionStore } from '@/entities/session/model/sessionStore'
+import { authApi } from '@/features/auth/api/authApi.ts'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken'
-
-import { authApi } from '../api/authApi'
-import type { AuthExecutionResponse } from '../model/types'
-import { getScreenComponent } from './ScreenRegistry'
+import { getScreenComponent } from '@/features/auth/components/ScreenRegistry.tsx'
+import type { AuthExecutionResponse } from '@/features/auth/model/types.ts'
 
 // Global Singleton to prevent double-fetch in Strict Mode
 let initializationPromise: Promise<any> | null = null
