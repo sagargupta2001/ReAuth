@@ -9,11 +9,42 @@ type RequestConfig = RequestInit & {
 let refreshPromise: Promise<string> | null = null
 
 /**
+ * [HELPER] Extract Realm from URL (Hash or Query)
+ * Handles:
+ * - /#/login?realm=tenant-a
+ * - /?realm=tenant-a
+ * - Defaults to 'master'
+ */
+function getRealmFromUrl(): string {
+  try {
+    // 1. Check Hash Router (e.g., http://localhost:3000/#/page?realm=customer)
+    if (window.location.hash.includes('?')) {
+      const queryPart = window.location.hash.split('?')[1]
+      const params = new URLSearchParams(queryPart)
+      if (params.get('realm')) return params.get('realm')!
+    }
+
+    // 2. Check Standard Search (e.g., http://localhost:3000/?realm=customer)
+    const searchParams = new URLSearchParams(window.location.search)
+    if (searchParams.get('realm')) return searchParams.get('realm')!
+  } catch (e) {
+    // ignore parsing errors
+  }
+
+  // 3. Fallback to master
+  return 'master'
+}
+
+/**
  * Helper to perform the actual refresh call.
  * We do NOT use the main 'request' wrapper here to avoid circular logic.
  */
 async function refreshAccessToken(): Promise<string> {
-  const response = await fetch('/api/auth/refresh', {
+  // [FIX] Dynamically determine the realm
+  const realm = getRealmFromUrl()
+
+  // [FIX] Hit the correct Realm-Scoped Endpoint
+  const response = await fetch(`/api/realms/${realm}/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include', // CRITICAL: Send the HttpOnly cookie
@@ -74,9 +105,13 @@ async function request<T>(endpoint: string, config: RequestConfig = {}): Promise
       return request<T>(endpoint, { ...config, _isRetry: true })
     } catch (err) {
       // D. Refresh Failed - User is truly logged out
+      console.error('Refresh failed, forcing logout.')
       useSessionStore.getState().clearSession()
-      // Optional: Redirect to login via window if not handled by AuthGuard
-      // window.location.href = '/#/login'
+
+      // [OPTIONAL] Redirect to login if needed, but allow AuthGuard to handle it usually
+      // const realm = getRealmFromUrl();
+      // window.location.href = `/#/login?realm=${realm}`;
+
       throw new Error('Session expired')
     } finally {
       // Reset the promise so future 401s trigger a new refresh

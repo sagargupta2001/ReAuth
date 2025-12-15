@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from "react-oidc-context";
  * Realm / Environment Config
  * ============================
  */
-const REALM = "customers";
+const REALM = "master";
 const REAUTH_BASE_URL = "http://localhost:3000";
 const REALM_BASE_URL = `${REAUTH_BASE_URL}/api/realms/${REALM}`;
 
@@ -18,7 +18,7 @@ const REALM_BASE_URL = `${REAUTH_BASE_URL}/api/realms/${REALM}`;
 const oidcConfig = {
   authority: REALM_BASE_URL,
 
-  client_id: "dummy-app-2",
+  client_id: "dummy-app",
   redirect_uri: "http://localhost:6565",
 
   // Explicit metadata (no .well-known yet)
