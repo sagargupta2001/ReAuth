@@ -1,12 +1,10 @@
-import { type DragEvent, useCallback, useMemo, useRef } from 'react'
+import { type DragEvent, useCallback, useRef } from 'react'
 
 import { Background, Controls, ReactFlow, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 import { useTheme } from '@/app/providers/themeProvider.tsx'
-import { AuthenticatorNode } from '@/features/flow-builder/components/nodes/AuthenticatorNode.tsx'
-import { StartNode } from '@/features/flow-builder/components/nodes/StartNode.tsx'
-import { TerminalNode } from '@/features/flow-builder/components/nodes/TerminalNode.tsx'
+import { flowNodeTypes } from '@/entities/flow/config/nodeTypes.ts'
 import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderStore.ts'
 
 export function FlowCanvas() {
@@ -17,32 +15,6 @@ export function FlowCanvas() {
   const { screenToFlowPosition } = useReactFlow()
   const { theme } = useTheme()
   const isDark = theme === 'dark'
-
-  const nodeTypes = useMemo(
-    () => ({
-      // --- LOGIC NODES ---
-      'core.start': StartNode,
-      'core.start.flow': StartNode, // Legacy alias if needed
-
-      // --- AUTHENTICATORS (Workers) ---
-      // These keys MUST match what 'register_builtins' uses in Rust
-      'core.auth.cookie': AuthenticatorNode,
-      'core.auth.password': AuthenticatorNode,
-      'core.auth.otp': AuthenticatorNode,
-      'core.auth.webauthn': AuthenticatorNode,
-
-      // --- TERMINALS ---
-      // These keys MUST match what 'register_builtins' uses in Rust
-      'core.terminal.allow': TerminalNode,
-      'core.terminal.deny': TerminalNode,
-
-      // --- FALLBACKS ---
-      // Used if the backend returns a type we haven't explicitly mapped yet
-      authenticator: AuthenticatorNode,
-      terminal: TerminalNode,
-    }),
-    [],
-  )
 
   const onDragOver = useCallback((event: DragEvent) => {
     event.preventDefault()
@@ -106,7 +78,7 @@ export function FlowCanvas() {
         onDrop={onDrop}
         onDragOver={onDragOver}
         fitView
-        nodeTypes={nodeTypes}
+        nodeTypes={flowNodeTypes}
         proOptions={proOptions}
         colorMode={isDark ? 'dark' : 'light'}
       >

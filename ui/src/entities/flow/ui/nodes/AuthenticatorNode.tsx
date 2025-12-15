@@ -1,8 +1,8 @@
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import { LockKeyhole } from 'lucide-react'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils.ts'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
 
 export function AuthenticatorNode({ data, selected }: NodeProps) {
   // 1. Get outputs from backend data, or default to standard auth outputs
