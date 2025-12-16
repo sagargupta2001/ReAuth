@@ -6,7 +6,7 @@ use crate::{
     error::{Error, Result},
     AppState,
 };
-use axum::extract::{ConnectInfo, Path};
+use axum::extract::{ConnectInfo, OriginalUri, Path};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -59,13 +59,14 @@ pub async fn authorize_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
     Query(params): Query<OidcRequest>,
+    uri: OriginalUri,
 ) -> Result<impl IntoResponse> {
     // 1. Resolve Realm
     let realm = state
         .realm_service
         .find_by_name(&realm_name)
         .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
+        .ok_or(Error::RealmNotFound(realm_name.clone()))?;
 
     // 2. Initiate the Graph Session via OidcService
     // This handles client validation, flow lookup, and unified session creation.
@@ -86,7 +87,6 @@ pub async fn authorize_handler(
     let cookie: CookieBuilder = Cookie::build((LOGIN_SESSION_COOKIE, session.id.to_string()))
         .path("/")
         .http_only(true)
-        // CRITICAL: Must be Lax so the cookie survives the Redirect below
         .same_site(SameSite::Lax)
         .secure(is_production)
         .expires(expires_time)
@@ -97,12 +97,14 @@ pub async fn authorize_handler(
         HeaderValue::from_str(&cookie.to_string()).map_err(|e| Error::Unexpected(e.into()))?,
     );
 
-    // 4. Redirect to Frontend Login
-    // The browser will follow this link AND attach the cookie we just set.
-    // The frontend will then call `start_login` (via AuthFlowExecutor), which resumes this session.
-    let frontend_login_url = "/#/login"; // Or /realms/{realm}/login if your UI supports it
+    // 4. Redirect to Frontend Login WITH PARAMS
+    // We fetch the original query string (client_id=..., response_type=..., etc.)
+    let query_string = uri.query().unwrap_or("");
 
-    Ok((headers, Redirect::to(frontend_login_url)))
+    // We append it to the frontend URL so AuthGuard sees it!
+    let frontend_login_url = format!("/#/login?realm={}&{}", realm_name, query_string);
+
+    Ok((headers, Redirect::to(&frontend_login_url)))
 }
 
 /// POST /api/oidc/token
@@ -183,6 +185,7 @@ pub async fn list_clients_handler(
 pub struct CreateClientRequest {
     pub client_id: String,
     pub redirect_uris: Vec<String>,
+    pub web_origins: Option<Vec<String>>,
 }
 
 pub async fn create_client_handler(
@@ -200,6 +203,10 @@ pub async fn create_client_handler(
     let redirect_uris_json =
         serde_json::to_string(&payload.redirect_uris).map_err(|e| Error::Unexpected(e.into()))?;
 
+    // Serialize Web Origins
+    let web_origins_json = serde_json::to_string(&payload.web_origins.unwrap_or_default())
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
     // Create Domain Entity
     let mut client = OidcClient {
         id: Uuid::new_v4(),
@@ -207,6 +214,7 @@ pub async fn create_client_handler(
         client_id: payload.client_id,
         client_secret: None, // Public client for now
         redirect_uris: redirect_uris_json,
+        web_origins: web_origins_json,
         scopes: "openid profile email".to_string(), // Default scopes
     };
 

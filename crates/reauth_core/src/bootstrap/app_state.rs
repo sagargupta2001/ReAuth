@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::application::flow_engine::FlowEngine;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
@@ -32,7 +31,6 @@ pub struct AppState {
     pub flow_service: Arc<FlowService>,
     pub flow_manager: Arc<FlowManager>,
     pub node_registry: Arc<NodeRegistryService>,
-    pub flow_engine: Arc<FlowEngine>,
 
     // Infrastructure / Repositories
     pub log_subscriber: Arc<dyn LogSubscriber>,

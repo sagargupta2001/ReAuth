@@ -44,6 +44,8 @@ pub struct DefaultAdminConfig {
 pub struct DefaultOidcClientConfig {
     pub client_id: String,
     pub redirect_uris: Vec<String>,
+    #[serde(default)]
+    pub web_origins: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Clone)]

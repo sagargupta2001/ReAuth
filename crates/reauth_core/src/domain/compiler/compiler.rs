@@ -1,15 +1,14 @@
 use super::validator::{GraphEdge, GraphNode, GraphValidator};
 use crate::application::runtime_registry::RuntimeRegistry;
-use crate::domain::execution::{ExecutionNode, ExecutionPlan, StepType};
+use crate::domain::execution::{ExecutionNode, ExecutionPlan};
 use crate::error::{Error, Result};
 use std::collections::{HashMap, HashSet};
 
 pub struct FlowCompiler;
 
 impl FlowCompiler {
-    // 1. Signature Change: Accept &RuntimeRegistry
     pub fn compile(json: serde_json::Value, registry: &RuntimeRegistry) -> Result<ExecutionPlan> {
-        // --- STEP 1: Parse Raw JSON ---
+        // 1. Parse Raw JSON
         let nodes_val = json
             .get("nodes")
             .and_then(|v| v.as_array())
@@ -20,14 +19,13 @@ impl FlowCompiler {
             .ok_or(Error::Validation("Missing edges".into()))?;
 
         let mut nodes = Vec::new();
-        // Helper to map ID -> Config (JSON) for later
-        let mut node_configs: HashMap<String, serde_json::Value> = HashMap::new();
+        let mut node_configs = HashMap::new();
 
         for n in nodes_val {
             let id = n["id"].as_str().unwrap().to_string();
             let type_ = n["type"].as_str().unwrap_or("default").to_string();
 
-            // Extract config from ReactFlow format: node.data.config
+            // Extract UI Config (node.data.config)
             let config = n
                 .get("data")
                 .and_then(|d| d.get("config"))
@@ -35,7 +33,6 @@ impl FlowCompiler {
                 .unwrap_or(serde_json::json!({}));
 
             node_configs.insert(id.clone(), config);
-
             nodes.push(GraphNode { id, type_ });
         }
 
@@ -48,16 +45,15 @@ impl FlowCompiler {
             });
         }
 
-        // --- STEP 2: Validate using Registry ---
-        // This fixes the "Dead end detected" error by letting the validator check StepType
+        // 2. Validate
         GraphValidator::validate(&nodes, &edges, registry)?;
 
-        // --- STEP 3: Compile to Execution Plan ---
+        // 3. Compile Execution Plan
         let mut execution_nodes = HashMap::new();
         let mut start_node_id = String::new();
-
-        // Build Adjacency Map: SourceID -> { Handle -> TargetID }
         let mut adjacency: HashMap<String, HashMap<String, String>> = HashMap::new();
+
+        // Build Adjacency List
         for edge in &edges {
             let handle = edge
                 .source_handle
@@ -69,21 +65,15 @@ impl FlowCompiler {
                 .insert(handle, edge.target.clone());
         }
 
-        // Find Start Node (node with no incoming edges)
+        // Identify Start Node
         let targets: HashSet<String> = edges.iter().map(|e| e.target.clone()).collect();
 
         for node in nodes {
-            // [CRITICAL FIX] Dynamic Step Type Lookup
-            // Instead of hardcoding strings, we ask the registry.
-            // This ensures "core.terminal.allow" is correctly mapped to StepType::Terminal
-            let step_type = registry.get_node_type(&node.type_).ok_or_else(|| {
-                Error::Validation(format!(
-                    "Unknown node type during compilation: {}",
-                    node.type_
-                ))
-            })?;
+            // Get Definition for StepType
+            let def = registry
+                .get_definition(&node.type_)
+                .ok_or_else(|| Error::Validation(format!("Unknown node type: {}", node.type_)))?;
 
-            // Capture start node
             if !targets.contains(&node.id) {
                 start_node_id = node.id.clone();
             }
@@ -97,15 +87,11 @@ impl FlowCompiler {
                 node.id.clone(),
                 ExecutionNode {
                     id: node.id,
-                    step_type, // Uses the correct enum from registry
+                    step_type: def.step_type,
                     next: next_map,
-                    config, // Uses the extracted config
+                    config,
                 },
             );
-        }
-
-        if start_node_id.is_empty() && !execution_nodes.is_empty() {
-            return Err(Error::Validation("No start node detected".into()));
         }
 
         Ok(ExecutionPlan {

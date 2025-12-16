@@ -1,50 +1,60 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
-import { useParams } from 'react-router-dom'
+import { useLocation, useParams } from 'react-router-dom'
+
+// <--- Import useLocation
 
 import { Button } from '@/components/button'
 import { useSessionStore } from '@/entities/session/model/sessionStore'
+import { authApi } from '@/features/auth/api/authApi.ts'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken'
-
-import { authApi } from '../api/authApi'
-import type { ExecutionResult } from '../model/types'
-import { getScreenComponent } from './ScreenRegistry'
+import { getScreenComponent } from '@/features/auth/components/ScreenRegistry.tsx'
+import type { AuthExecutionResponse } from '@/features/auth/model/types.ts'
 
 // Global Singleton to prevent double-fetch in Strict Mode
 let initializationPromise: Promise<any> | null = null
 
 export function AuthFlowExecutor() {
-  const { realm = 'master' } = useParams()
+  const params = useParams()
+  const location = useLocation() // <--- Hook to get ?client_id=...
   const setSession = useSessionStore((state) => state.setSession)
   const refreshTokenMutation = useRefreshToken()
 
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [currentStep, setCurrentStep] = useState<ExecutionResult | null>(null)
+  // Determine Realm Priority:
+  // 1. Query Param (?realm=tenant-a) <- Sent by OIDC Backend Redirect
+  // 2. Route Param (/realms/tenant-a/login) <- Sent by direct link
+  // 3. Default ('master')
+  const realm = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('realm') || params.realm || 'master'
+  }, [location.search, params.realm])
+
+  const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
 
-  // 1. INITIALIZE FLOW
+  // 1. INITIALIZE FLOW (GET /api/auth/login)
   useEffect(() => {
-    // If state is already populated, stop.
-    if (sessionId) {
+    if (currentStep) {
       setIsLoading(false)
       return
     }
 
     const runInit = async () => {
       try {
-        console.log('[Executor] Calling startFlow API...')
-        const res = await authApi.startFlow(realm)
-        console.log('[Executor] API Success. Session:', res.session_id)
-        return res
+        console.log(`[Executor] Starting Flow for realm: ${realm}`)
+
+        // [FIX] We pass the extracted 'realm' variable here
+        // verify your authApi.startFlow uses this first argument to build the URL:
+        // `/api/realms/${realm}/auth/login${queryParams}`
+        return await authApi.startFlow(realm, location.search)
       } catch (err) {
-        console.error('[Executor] API Failed:', err)
+        console.error('[Executor] Init Failed:', err)
         throw err
       }
     }
 
-    // Only create a new promise if one isn't already running
     if (!initializationPromise) {
       initializationPromise = runInit()
     }
@@ -53,13 +63,9 @@ export function AuthFlowExecutor() {
     initializationPromise
       .then((res) => {
         if (active) {
-          setSessionId(res.session_id)
-          setCurrentStep(res.execution)
+          setCurrentStep(res)
           setIsLoading(false)
         }
-        // [FIX] CLEAR THE SINGLETON ON SUCCESS
-        // This ensures that the next time you visit this page (e.g. after logout),
-        // we start fresh. Strict Mode (which runs instantly) will still share this promise.
         initializationPromise = null
       })
       .catch((err) => {
@@ -67,25 +73,24 @@ export function AuthFlowExecutor() {
           setGlobalError('Failed to initialize login flow. ' + (err.message || ''))
           setIsLoading(false)
         }
-        // [FIX] CLEAR THE SINGLETON ON ERROR
         initializationPromise = null
       })
 
     return () => {
       active = false
     }
-  }, [realm, sessionId])
+  }, [realm, location.search])
 
   // 2. SUBMIT HANDLER
   const handleSubmit = async (data: any) => {
-    if (!sessionId) return
     setIsLoading(true)
     setGlobalError(null)
 
     try {
-      const res = await authApi.submitStep(sessionId, data)
-      setSessionId(res.session_id)
-      setCurrentStep(res.execution)
+      // Pass realm here if your API needs it for the execution URL too
+      // e.g. /api/realms/{realm}/auth/login/execute
+      const res = await authApi.submitStep(realm, data)
+      setCurrentStep(res)
     } catch (error: any) {
       setGlobalError(error.message || 'An unexpected error occurred')
     } finally {
@@ -93,32 +98,39 @@ export function AuthFlowExecutor() {
     }
   }
 
-  // 3. SUCCESS HANDLER
+  // 3. SUCCESS / REDIRECT HANDLER
   useEffect(() => {
-    const handleSuccess = async () => {
-      if (currentStep?.type !== 'Success') return
+    const handleRedirect = async () => {
+      if (currentStep?.status !== 'redirect') return
 
       try {
-        const token = await refreshTokenMutation.mutateAsync()
+        const targetUrl = currentStep.url
+        console.log('[Executor] Flow Complete. Redirecting to:', targetUrl)
 
-        // External Redirect Check (e.g. Google)
-        const backendUrl = currentStep.payload.redirect_url
-        if (backendUrl && backendUrl !== '/' && backendUrl.startsWith('http')) {
-          window.location.href = backendUrl
+        // Case A: Dashboard (Direct Login)
+        if (targetUrl === '/') {
+          const token = await refreshTokenMutation.mutateAsync()
+          setSession(token)
+          // Ensure we don't accidentally send query params to dashboard
+          window.history.replaceState({}, document.title, '/')
           return
         }
 
-        // Internal Success - Update Store
-        setSession(token)
+        // Case B: OIDC External Redirect
+        if (targetUrl.startsWith('http')) {
+          window.location.href = targetUrl
+          return
+        }
+
+        // Case C: Relative Redirect
+        window.location.href = targetUrl
       } catch (err) {
         console.error('Session hydration failed:', err)
         setGlobalError('Login succeeded but session could not be established.')
       }
     }
 
-    if (currentStep?.type === 'Success') {
-      void handleSuccess()
-    }
+    void handleRedirect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep])
 
@@ -131,31 +143,31 @@ export function AuthFlowExecutor() {
     )
   }
 
-  if (currentStep?.type === 'Success') {
-    return (
-      <div className="space-y-2 text-center text-green-600">
-        <h3 className="text-lg font-medium">Login Successful</h3>
-        <p className="text-sm">Redirecting...</p>
-      </div>
-    )
-  }
-
-  if (currentStep?.type === 'Failure') {
+  if (currentStep?.status === 'failure') {
     return (
       <div className="space-y-4">
         <div className="text-destructive rounded border border-red-100 bg-red-50 p-4 font-medium">
-          Login Failed: {currentStep.payload.reason}
+          Login Failed: {currentStep.message}
         </div>
-        <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
+        <Button className="w-full" onClick={() => window.location.reload()}>
           Try Again
         </Button>
       </div>
     )
   }
 
-  if (currentStep?.type === 'Challenge') {
-    const { screen_id, context } = currentStep.payload
-    const ScreenComponent = getScreenComponent(screen_id)
+  if (currentStep?.status === 'redirect') {
+    return (
+      <div className="space-y-2 text-center text-green-600">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+        <p className="text-sm">Redirecting...</p>
+      </div>
+    )
+  }
+
+  if (currentStep?.status === 'challenge') {
+    const { challengeName, context } = currentStep
+    const ScreenComponent = getScreenComponent(challengeName)
 
     if (ScreenComponent) {
       return (
@@ -168,7 +180,7 @@ export function AuthFlowExecutor() {
       )
     }
 
-    return <div className="p-4 text-red-500">Unknown Screen: {screen_id}</div>
+    return <div className="p-4 text-red-500">Unknown Screen: {challengeName}</div>
   }
 
   return null

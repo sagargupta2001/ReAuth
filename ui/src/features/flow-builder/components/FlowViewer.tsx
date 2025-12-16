@@ -3,34 +3,7 @@ import type { Edge, Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 import { useTheme } from '@/app/providers/themeProvider'
-import { AuthenticatorNode } from '@/features/flow-builder/components/nodes/AuthenticatorNode'
-import { StartNode } from '@/features/flow-builder/components/nodes/StartNode'
-import { TerminalNode } from '@/features/flow-builder/components/nodes/TerminalNode'
-
-// 1. Updated Node Types Map
-// This must match FlowCanvas exactly so the "View" mode looks just like "Edit" mode.
-const nodeTypes = {
-  // Start
-  'core.start': StartNode,
-
-  // Authenticators
-  'core.auth.password': AuthenticatorNode,
-  'core.auth.otp': AuthenticatorNode,
-  'core.auth.registration': AuthenticatorNode,
-
-  // Logic (Using AuthenticatorNode as placeholder for now, or use a dedicated LogicNode if you have one)
-  'core.logic.condition': AuthenticatorNode,
-  'core.logic.script': AuthenticatorNode,
-
-  // Terminals
-  'core.terminal.allow': TerminalNode,
-  'core.terminal.deny': TerminalNode,
-
-  // Fallbacks (legacy support)
-  authenticator: AuthenticatorNode,
-  terminal: TerminalNode,
-  start: StartNode,
-}
+import { flowNodeTypes } from '@/entities/flow/config/nodeTypes.ts'
 
 interface FlowViewerProps {
   nodes: Node[]
@@ -46,7 +19,7 @@ function FlowViewerInternal({ nodes, edges }: FlowViewerProps) {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        nodeTypes={nodeTypes}
+        nodeTypes={flowNodeTypes}
         fitView
         // --- READ ONLY SETTINGS ---
         nodesDraggable={false}

@@ -2,7 +2,6 @@ use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::sqlite_auth_session_repository::SqliteAuthSessionRepository;
 use crate::adapters::persistence::sqlite_flow_store::SqliteFlowStore;
 use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
-use crate::application::runtime_registry::RuntimeRegistry;
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::oidc_repository::OidcRepository;

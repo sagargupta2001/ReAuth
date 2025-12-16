@@ -1,43 +1,43 @@
+import type { AuthExecutionResponse } from '@/features/auth/model/types.ts'
 import { apiClient } from '@/shared/api/client'
-
-import type { ExecutionResponse, LoginResponse } from '../model/types'
-import type { LoginSchema } from '../schema/loginSchema'
 
 export const authApi = {
   /**
    * Refreshes the access token using the HttpOnly cookie.
    */
-  refreshAccessToken: async () => {
-    const data = await apiClient.post<{ access_token: string }>('/api/auth/refresh', {})
+  refreshAccessToken: async (realm: string) => {
+    const data = await apiClient.post<{ access_token: string }>(
+      `/api/realms/${realm}/auth/refresh`,
+      {},
+    )
     return data.access_token
   },
 
   /**
-   * Executes a step in the login flow (Username/Password).
+   * Logs out the user by clearing cookies on the server.
    */
-  executeLogin: async (credentials: LoginSchema) => {
-    return apiClient.post<LoginResponse>('/api/auth/login/execute', { credentials })
+  logout: async (realm: string) => {
+    return apiClient.post<void>(`/api/realms/${realm}/auth/logout`, {})
   },
 
   /**
-   * Logs out the user by invalidating the session on the server.
+   * 1. START: Initialize the flow.
+   * NOTE: The backend now creates the session cookie automatically.
    */
-  logout: async () => {
-    // We use void because we don't care about the response body, just the cookie clearing
-    return apiClient.post<void>('/api/auth/logout', {})
+  startFlow: async (realm: string, searchParams?: string) => {
+    const query = searchParams || ''
+    // Ensure we don't double-add '?' if searchParams already has it
+    const safeQuery = query.startsWith('?') ? query : query ? `?${query}` : ''
+
+    return apiClient.get<AuthExecutionResponse>(`/api/realms/${realm}/auth/login${safeQuery}`)
   },
 
   /**
-   * 1. START: Initialize the flow for a specific realm
+   * 2. NEXT: Submit data for the current step.
+   * The Session ID is now handled automatically via the 'login_session' cookie.
    */
-  startFlow: async (realm: string) => {
-    return apiClient.get<ExecutionResponse>(`/api/realms/${realm}/login`)
-  },
-
-  /**
-   * 2. NEXT: Submit data for the current step
-   */
-  submitStep: async (sessionId: string, data: Record<string, any>) => {
-    return apiClient.post<ExecutionResponse>(`/api/execution/${sessionId}`, data)
+  submitStep: async (realm: string, data: Record<string, any>) => {
+    // The backend accepts a generic JSON payload (e.g. { "username": "...", "password": "..." })
+    return apiClient.post<AuthExecutionResponse>(`/api/realms/${realm}/auth/login/execute`, data)
   },
 }

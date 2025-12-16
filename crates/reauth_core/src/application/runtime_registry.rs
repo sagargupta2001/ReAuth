@@ -1,61 +1,53 @@
-use crate::domain::execution::StepType;
-use crate::ports::authenticator::Authenticator;
+use crate::domain::execution::{lifecycle::LifecycleNode, StepType};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Metadata about a node type (e.g. "Is this a Terminal node?")
+/// Definition Metadata for the Compiler.
 #[derive(Clone)]
 pub struct NodeDefinition {
     pub step_type: StepType,
 }
 
 pub struct RuntimeRegistry {
-    // Maps "core.auth.password" -> The Rust implementation
-    authenticators: HashMap<String, Arc<dyn Authenticator>>,
+    /// The Workers (Executables)
+    nodes: HashMap<String, Arc<dyn LifecycleNode>>,
 
-    // Maps "core.terminal.allow" -> Metadata (StepType::Terminal)
-    node_definitions: HashMap<String, NodeDefinition>,
+    /// The Blueprints (Metadata)
+    definitions: HashMap<String, NodeDefinition>,
 }
 
 impl RuntimeRegistry {
     pub fn new() -> Self {
-        let mut registry = Self {
-            authenticators: HashMap::new(),
-            node_definitions: HashMap::new(),
-        };
-
-        // --- REGISTER BUILT-IN NODE TYPES ---
-        // This is what fixes the "Dead end detected" error.
-
-        // Terminal Nodes (End of flow, no edges required)
-        registry.register_node_type("core.terminal.allow", StepType::Terminal);
-        registry.register_node_type("core.terminal.deny", StepType::Terminal);
-
-        // Start Node (Logic type)
-        registry.register_node_type("core.start", StepType::Logic);
-
-        registry
+        Self {
+            nodes: HashMap::new(),
+            definitions: HashMap::new(),
+        }
     }
 
-    /// Register the implementation (The Worker)
-    /// This also automatically registers it as an Authenticator type.
-    pub fn register_authenticator(&mut self, key: &str, implementation: Arc<dyn Authenticator>) {
-        self.authenticators.insert(key.to_string(), implementation);
-        self.register_node_type(key, StepType::Authenticator);
-    }
-
-    /// Register metadata (The Definition)
-    pub fn register_node_type(&mut self, key: &str, step_type: StepType) {
-        self.node_definitions
+    /// Registers a functional node (Authenticator, Action)
+    pub fn register_node(
+        &mut self,
+        key: &str,
+        implementation: Arc<dyn LifecycleNode>,
+        step_type: StepType,
+    ) {
+        self.nodes.insert(key.to_string(), implementation);
+        self.definitions
             .insert(key.to_string(), NodeDefinition { step_type });
     }
 
-    pub fn get_authenticator(&self, key: &str) -> Option<Arc<dyn Authenticator>> {
-        self.authenticators.get(key).cloned()
+    /// Registers a system node (Start, Terminal) that has no custom logic
+    /// but is needed for graph validation.
+    pub fn register_definition(&mut self, key: &str, step_type: StepType) {
+        self.definitions
+            .insert(key.to_string(), NodeDefinition { step_type });
     }
 
-    /// Used by FlowValidator to check if a node is Terminal/Logic/Auth
-    pub fn get_node_type(&self, key: &str) -> Option<StepType> {
-        self.node_definitions.get(key).map(|d| d.step_type.clone())
+    pub fn get_node(&self, key: &str) -> Option<Arc<dyn LifecycleNode>> {
+        self.nodes.get(key).cloned()
+    }
+
+    pub fn get_definition(&self, key: &str) -> Option<NodeDefinition> {
+        self.definitions.get(key).cloned()
     }
 }

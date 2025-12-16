@@ -28,3 +28,4 @@ password = "admin"
 [default_oidc_client]
 client_id = "reauth-admin"
 redirect_uris = ["http://localhost:5173", "http://localhost:3000"]
+web_origins = ["http://localhost:5173", "http://localhost:3000"]

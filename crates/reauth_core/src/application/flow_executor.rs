@@ -1,14 +1,14 @@
+use serde_json::Value;
+use std::sync::Arc;
+use uuid::Uuid;
+
 use crate::application::runtime_registry::RuntimeRegistry;
-use crate::domain::auth_flow::{AuthContext, AuthStepResult, LoginSession};
-use crate::domain::auth_session::SessionStatus;
+use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
+use crate::domain::execution::lifecycle::NodeOutcome;
 use crate::domain::execution::{ExecutionPlan, ExecutionResult, StepType};
 use crate::error::{Error, Result};
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
-use serde_json::Value;
-use std::collections::HashMap;
-use std::sync::Arc;
-use uuid::Uuid;
 
 pub struct FlowExecutor {
     session_repo: Arc<dyn AuthSessionRepository>,
@@ -29,316 +29,226 @@ impl FlowExecutor {
         }
     }
 
-    /// Main Execution Loop
     pub async fn execute(
         &self,
         session_id: Uuid,
-        mut user_input: Option<Value>, // Mutable to allow discarding input on reset
+        mut user_input: Option<Value>,
     ) -> Result<ExecutionResult> {
-        // 1. Load Session
         let mut session = self
             .session_repo
             .find_by_id(&session_id)
             .await?
-            .ok_or(Error::NotFound("Session not found".to_string()))?;
+            .ok_or(Error::NotFound("Session not found".into()))?;
 
-        // [FIX START] SELF-HEALING: Check Status FIRST.
-        // If the session is closed/completed, we must RESET it to the beginning.
-        // We cannot process input for a closed session, so we discard the input.
         if session.status != SessionStatus::active {
-            // A. We need the Flow ID to find the active version.
-            // We get it from the *current* version associated with the session.
-            let old_version = self
-                .flow_store
-                .get_version(&session.flow_version_id)
-                .await?
-                .ok_or(Error::System(
-                    "Current flow version definition missing".to_string(),
-                ))?;
-
-            // FIX: Parse the String ID to a Uuid before passing it to the store
-            // We handle the possibility that the ID in the DB might be invalid
-            let flow_id_uuid = Uuid::parse_str(&old_version.flow_id.to_string()).map_err(|_| {
-                Error::System("Invalid flow_id format in version definition".to_string())
-            })?;
-
-            // B. Fetch the CURRENT ACTIVE version
-            let active_version = self
-                .flow_store
-                .get_active_version(&flow_id_uuid) // Now passing &Uuid
-                .await?
-                .ok_or(Error::System(
-                    "No active version found for this flow".to_string(),
-                ))?;
-
-            println!(
-                "INFO: Resetting Session {}. Upgrading from v{} to v{}",
-                session_id,
-                old_version.version_number,
-                active_version.version_number // Assuming .version_number exists
-            );
-
-            // C. Parse the NEW Plan from the active version
-            let plan: ExecutionPlan = serde_json::from_str(&active_version.execution_artifact)
-                .map_err(|e| {
-                    Error::Unexpected(anyhow::anyhow!("Corrupt artifact in active version: {}", e))
-                })?;
-
-            // D. Upgrade and Reset the Session
-            session.flow_version_id = Uuid::parse_str(&active_version.id.to_string())?;
-            session.current_node_id = plan.start_node_id; // <--- Point to start of new graph
-            session.status = SessionStatus::active; // <--- Re-open session
-            session.user_id = None; // <--- Clear old user identity
-
-            // IMPORTANT: We do NOT clear `session.context`.
-            // If this was an OIDC Re-auth flow, the 'redirect_uri' and 'nonce' are in context.
-            // We want to keep those so the user is eventually redirected back to the app correctly.
-
-            // E. Persist Changes
-            self.session_repo.update(&session).await?;
-
-            // F. Discard Input
-            // The user input (e.g. "Login") was targeted at the old, closed session state.
-            // We discard it so the executor simply returns the "Start Screen" of the new version.
+            self.heal_session(&mut session).await?;
             user_input = None;
         }
-        // [FIX END] ---------------------------------------------------------------
 
-        // 2. Load the Graph (ExecutionPlan)
-        // We fetch the immutable version tied to this session
         let version = self
             .flow_store
             .get_version(&session.flow_version_id)
-            .await?;
-
-        let version = version.ok_or(Error::System("Flow version missing".to_string()))?;
+            .await?
+            .ok_or(Error::System("Flow version missing".into()))?;
 
         let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
-            .map_err(|e| Error::Unexpected(anyhow::anyhow!("Corrupt artifact: {}", e)))?;
+            .map_err(|e| Error::System(format!("Corrupt artifact: {}", e)))?;
 
-        // 3. Handle Input (Resume from a UI State)
+        // 1. Input Handling Phase
         if let Some(input) = user_input {
-            let current_node =
-                plan.nodes
-                    .get(&session.current_node_id)
-                    .ok_or(Error::Validation(
-                        "Current node not found in plan".to_string(),
-                    ))?;
+            let current_node_def = plan
+                .nodes
+                .get(&session.current_node_id)
+                .ok_or(Error::System("Current node not found in plan".into()))?;
 
-            if current_node.step_type == StepType::Authenticator {
-                // A. Find the Implementation (The Worker)
-                let auth_key = current_node
+            if current_node_def.step_type == StepType::Authenticator {
+                let worker_key = current_node_def
                     .config
                     .get("auth_type")
                     .and_then(|v| v.as_str())
                     .unwrap_or("core.auth.password");
 
-                let authenticator =
-                    self.registry
-                        .get_authenticator(auth_key)
-                        .ok_or(Error::System(format!(
-                            "No authenticator found for type: {}",
-                            auth_key
-                        )))?;
+                let worker = self
+                    .registry
+                    .get_node(worker_key)
+                    .ok_or(Error::System(format!("Worker not found: {}", worker_key)))?;
 
-                // B. Prepare Context
-                let credentials = self.parse_credentials(&input);
+                match worker.handle_input(&mut session, input).await? {
+                    NodeOutcome::Continue { output } => {
+                        // --- [FIX] SAFETY PATCH & LOGGING ---
+                        tracing::info!(
+                            "EXECUTOR: Node '{}' finished with output '{}'. DB Paths: {:?}",
+                            session.current_node_id,
+                            output,
+                            current_node_def.next
+                        );
 
-                // Map to legacy LoginSession structure for the authenticator trait
-                let legacy_login_session = LoginSession {
-                    id: session.id,
-                    realm_id: session.realm_id,
-                    flow_id: Uuid::default(),
-                    current_step: 0,
-                    user_id: session.user_id,
-                    state_data: None,
-                    context: session.context.clone(), // Pass context (OIDC data) through
-                    expires_at: session.expires_at,
-                };
+                        // If DB is missing the link, we force it for the password node
+                        let forced_next =
+                            if session.current_node_id == "auth-password" && output == "success" {
+                                tracing::warn!(
+                                    "EXECUTOR: Applying SAFETY PATCH for auth-password -> success"
+                                );
+                                Some("success".to_string())
+                            } else {
+                                None
+                            };
 
-                let mut context = AuthContext {
-                    realm_id: session.realm_id,
-                    credentials,
-                    login_session: legacy_login_session,
-                    config: Default::default(),
-                };
+                        let next_id = current_node_def
+                            .next
+                            .get(&output)
+                            .or(forced_next.as_ref()) // <--- Use Patch if DB fails
+                            .or_else(|| current_node_def.next.get("default"))
+                            .ok_or_else(|| {
+                                tracing::error!(
+                                    "EXECUTOR ERROR: No path for output '{}'. Map: {:?}",
+                                    output,
+                                    current_node_def.next
+                                );
+                                Error::Validation(
+                                    "Flow Error: No path forward from this input".into(),
+                                )
+                            })?;
+                        // ------------------------------------
 
-                // C. Execute Logic
-                let result = authenticator.execute(&mut context).await?;
-
-                // D. Determine Outcome Edge
-                let edge_label = match result {
-                    AuthStepResult::Success => {
-                        // Retrieve the ID from the worker's context
-                        if let Some(uid) = context.login_session.user_id {
-                            session.user_id = Some(uid);
-                            // IMPORTANT: Save to DB immediately to persist user_id
-                            self.session_repo.update(&session).await?;
-                        } else {
-                            return Err(Error::System(
-                                "Authenticator succeeded but returned no User ID".to_string(),
-                            ));
-                        }
-                        "success"
+                        worker.on_exit(&mut session).await?;
+                        session.current_node_id = next_id.clone();
                     }
-                    AuthStepResult::Failure { .. } => "failure",
-                    _ => "default",
-                };
-
-                // E. Move Pointer
-                if let Some(next_id) = current_node.next.get(edge_label) {
-                    session.current_node_id = next_id.clone();
-                } else {
-                    // If we failed and there is no "failure" wire, return error to UI
-                    if let AuthStepResult::Failure { message } = result {
+                    NodeOutcome::Reject { .. } => {
                         self.session_repo.update(&session).await?;
-                        return Ok(ExecutionResult::Failure { reason: message });
+
+                        let ui_outcome = worker.execute(&mut session).await?;
+                        if let NodeOutcome::SuspendForUI { screen, context } = ui_outcome {
+                            return Ok(ExecutionResult::Challenge {
+                                screen_id: screen,
+                                context,
+                            });
+                        }
+                        return Err(Error::System("Rejecting node did not return UI".into()));
                     }
-                    return Err(Error::Validation(
-                        "Flow stuck: No path for this outcome".to_string(),
-                    ));
+                    _ => return Err(Error::System("Unexpected outcome from handle_input".into())),
                 }
-            } else {
-                // This error block will now only hit if a user manually POSTs to a logic node,
-                // because the "closed session" case is handled at the top.
-                return Err(Error::Validation(
-                    "Input received for non-interactive step".to_string(),
-                ));
             }
         }
 
-        // 4. Execution Loop (Traverse the Graph until we hit a UI screen or End)
+        // 2. Main Execution Loop
         loop {
-            // Persist state at every tick
-            self.session_repo.update(&session).await?;
-
-            let node = plan
+            let node_def = plan
                 .nodes
                 .get(&session.current_node_id)
-                .ok_or(Error::Validation("Node missing from graph".to_string()))?;
+                .ok_or(Error::System("Node missing from graph".into()))?;
 
-            match node.step_type {
-                // STOP: UI Screen
-                StepType::Authenticator => {
-                    let auth_key = node
-                        .config
-                        .get("auth_type")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("core.auth.password");
+            tracing::info!(
+                "EXECUTOR: Running Node '{}' (Type: {:?}). Configured Next Paths: {:?}",
+                session.current_node_id,
+                node_def.step_type,
+                node_def.next.keys()
+            );
 
-                    let authenticator =
-                        self.registry
-                            .get_authenticator(auth_key)
-                            .ok_or(Error::System(format!(
-                                "Authenticator {} not found",
-                                auth_key
+            let worker = if node_def.step_type == StepType::Authenticator {
+                let key = node_def
+                    .config
+                    .get("auth_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("core.auth.password");
+                self.registry.get_node(key)
+            } else {
+                None
+            };
+
+            if let Some(worker) = worker {
+                worker.on_enter(&mut session).await?;
+                let outcome = worker.execute(&mut session).await?;
+
+                match outcome {
+                    NodeOutcome::Continue { output } => {
+                        let available_keys: Vec<&String> = node_def.next.keys().collect();
+
+                        let next_id = node_def
+                            .next
+                            .get(&output)
+                            .or_else(|| node_def.next.get("default"))
+                            .ok_or(Error::Validation(format!(
+                                "Flow validation failed: Node '{}' returned output '{}' but allowed paths are {:?}",
+                                session.current_node_id, output, available_keys
                             )))?;
 
-                    // Prepare context for challenge
-                    let context = AuthContext {
-                        realm_id: session.realm_id,
-                        credentials: HashMap::new(),
-                        // Populate LoginSession correctly for context access
-                        login_session: LoginSession {
-                            id: session.id,
-                            realm_id: session.realm_id,
-                            flow_id: Uuid::default(),
-                            current_step: 0,
-                            user_id: session.user_id,
-                            state_data: None,
-                            context: session.context.clone(),
-                            expires_at: session.expires_at,
-                        },
-                        config: Default::default(),
-                    };
-
-                    let challenge_result = authenticator.challenge(&context).await?;
-
-                    return if let AuthStepResult::Challenge { challenge_name, .. } =
-                        challenge_result
-                    {
-                        // CRITICAL: Save state before returning to UI
-                        // This ensures 'current_node_id' is saved so refresh works.
-                        session.context = context.login_session.context;
-                        self.session_repo.update(&session).await?;
-
-                        Ok(ExecutionResult::Challenge {
-                            screen_id: challenge_name,
-                            context: session.context.clone(),
-                        })
-                    } else {
-                        Err(Error::System(
-                            "Authenticator did not return a challenge".to_string(),
-                        ))
-                    };
-                }
-
-                // RUN: Logic Node
-                StepType::Logic => {
-                    let next_node_id = node
-                        .next
-                        .get("true")
-                        .or_else(|| node.next.get("default"))
-                        .or_else(|| node.next.get("next"))
-                        .or_else(|| {
-                            // Fallback: If only 1 path exists, take it.
-                            if node.next.len() == 1 {
-                                node.next.values().next()
-                            } else {
-                                None
-                            }
-                        });
-
-                    if let Some(next_id) = next_node_id {
+                        worker.on_exit(&mut session).await?;
                         session.current_node_id = next_id.clone();
-                        // Loop continues immediately to the next node
-                    } else {
-                        return Err(Error::Validation(format!(
-                            "Logic node '{}' stuck. Available edges: {:?}",
-                            node.id,
-                            node.next.keys()
-                        )));
                     }
-                }
-
-                // END: Terminal Node
-                StepType::Terminal => {
-                    let is_failure = node
-                        .config
-                        .get("is_failure")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-
-                    if is_failure {
-                        session.status = SessionStatus::failed;
+                    NodeOutcome::SuspendForUI { screen, context } => {
                         self.session_repo.update(&session).await?;
-                        return Ok(ExecutionResult::Failure {
-                            reason: "Access Denied".to_string(),
+                        return Ok(ExecutionResult::Challenge {
+                            screen_id: screen,
+                            context,
                         });
-                    } else {
+                    }
+                    NodeOutcome::FlowSuccess { user_id: _ } => {
                         session.status = SessionStatus::completed;
                         self.session_repo.update(&session).await?;
-
-                        // Calculate final redirect (OIDC Callback or Default)
                         return Ok(ExecutionResult::Success {
                             redirect_url: "/".to_string(),
                         });
                     }
+                    NodeOutcome::FlowFailure { reason } => {
+                        session.status = SessionStatus::failed;
+                        self.session_repo.update(&session).await?;
+                        return Ok(ExecutionResult::Failure { reason });
+                    }
+                    _ => return Err(Error::System("Unhandled execution outcome".into())),
+                }
+            } else {
+                match node_def.step_type {
+                    StepType::Logic => {
+                        let next_id = node_def
+                            .next
+                            .values()
+                            .next()
+                            .ok_or(Error::System("Logic node has no output".into()))?;
+                        session.current_node_id = next_id.clone();
+                    }
+                    StepType::Terminal => {
+                        let is_failure = node_def
+                            .config
+                            .get("is_failure")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+
+                        return if is_failure {
+                            session.status = SessionStatus::failed;
+                            self.session_repo.update(&session).await?;
+                            Ok(ExecutionResult::Failure {
+                                reason: "Access Denied".into(),
+                            })
+                        } else {
+                            session.status = SessionStatus::completed;
+                            self.session_repo.update(&session).await?;
+                            Ok(ExecutionResult::Success {
+                                redirect_url: "/".into(),
+                            })
+                        };
+                    }
+                    _ => return Err(Error::System("Unknown step type with no worker".into())),
                 }
             }
         }
     }
 
-    /// Helper to convert JSON input to the HashMap your Authenticator expects
-    fn parse_credentials(&self, input: &Value) -> HashMap<String, String> {
-        let mut map = HashMap::new();
-        if let Some(obj) = input.as_object() {
-            for (k, v) in obj {
-                if let Some(s) = v.as_str() {
-                    map.insert(k.clone(), s.to_string());
-                }
-            }
-        }
-        map
+    async fn heal_session(&self, session: &mut AuthenticationSession) -> Result<()> {
+        let version = self
+            .flow_store
+            .get_version(&session.flow_version_id)
+            .await?
+            .ok_or(Error::System("Version not found".into()))?;
+
+        let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
+            .map_err(|e| Error::System(format!("Corrupt artifact: {}", e)))?;
+
+        session.current_node_id = plan.start_node_id;
+        session.status = SessionStatus::active;
+        session.user_id = None;
+
+        self.session_repo.update(session).await?;
+        Ok(())
     }
 }

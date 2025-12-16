@@ -29,4 +29,5 @@ pub trait OidcRepository: Send + Sync {
     async fn save_auth_code(&self, code: &AuthCode) -> Result<()>;
     async fn find_auth_code_by_code(&self, code: &str) -> Result<Option<AuthCode>>;
     async fn delete_auth_code(&self, code: &str) -> Result<()>;
+    async fn is_origin_allowed(&self, origin: &str) -> Result<bool>;
 }

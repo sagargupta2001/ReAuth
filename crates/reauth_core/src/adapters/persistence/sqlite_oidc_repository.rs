@@ -62,8 +62,8 @@ impl OidcRepository for SqliteOidcRepository {
 
     async fn create_client(&self, client: &OidcClient) -> Result<()> {
         sqlx::query(
-            "INSERT INTO oidc_clients (id, realm_id, client_id, client_secret, redirect_uris, scopes)
-             VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO oidc_clients (id, realm_id, client_id, client_secret, redirect_uris, scopes, web_origins)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
             .bind(client.id.to_string())
             .bind(client.realm_id.to_string())
@@ -71,6 +71,7 @@ impl OidcRepository for SqliteOidcRepository {
             .bind(&client.client_secret)
             .bind(&client.redirect_uris)
             .bind(&client.scopes)
+            .bind(&client.web_origins)
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
@@ -145,11 +146,12 @@ impl OidcRepository for SqliteOidcRepository {
 
     async fn update_client(&self, client: &OidcClient) -> Result<()> {
         sqlx::query(
-            "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ? WHERE id = ?",
+            "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ?, web_origins = ? WHERE id = ?",
         )
         .bind(&client.client_id)
         .bind(&client.redirect_uris)
         .bind(&client.scopes)
+        .bind(&client.web_origins)
         .bind(client.id.to_string())
         .execute(&*self.pool)
         .await
@@ -203,5 +205,20 @@ impl OidcRepository for SqliteOidcRepository {
             )));
         }
         Ok(())
+    }
+
+    async fn is_origin_allowed(&self, origin: &str) -> Result<bool> {
+        // We use a naive LIKE query to find the origin inside the JSON array string
+        // For 'http://localhost:3000', we search for '%"http://localhost:3000"%'
+        let pattern = format!("%\"{}\"%", origin);
+
+        let result: Option<(i32,)> =
+            sqlx::query_as("SELECT 1 FROM oidc_clients WHERE web_origins LIKE ? LIMIT 1")
+                .bind(pattern)
+                .fetch_optional(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(result.is_some())
     }
 }

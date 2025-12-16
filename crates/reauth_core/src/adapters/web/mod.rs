@@ -4,6 +4,7 @@ pub mod error;
 pub mod execution_handler;
 pub mod flow_handler;
 pub mod log_stream_handler;
+pub mod middleware;
 pub mod oidc_handler;
 pub mod plugin_handler;
 pub mod rbac_handler;

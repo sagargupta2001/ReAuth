@@ -27,6 +27,7 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
 
   // --- 0. HASH ROUTER FIX (PRE-RENDER) ---
   // If backend sent us to /login (root path), jump to /#/login
+  // IMPORTANT: Preserve the query string (search) so OIDC params aren't lost!
   if (window.location.pathname === '/login') {
     const search = window.location.search
     window.location.replace(`${window.location.origin}/#/login${search}`)
@@ -148,11 +149,22 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
 
   // --- AUTHENTICATED ---
   if (accessToken) {
-    // If we are stuck on /login after success, bump to home or stored path
+    // Check if this is an OIDC flow (e.g. ?client_id=...)
+    // If it is, we MUST render the children (AuthFlowExecutor) so it can process the flow.
+    // We do NOT want to kick the user back to the dashboard.
+    const searchParams = new URLSearchParams(location.search)
+    const isOidcFlow = searchParams.has('client_id') || searchParams.has('response_type')
+
+    if (isOidcFlow) {
+      return <>{children}</>
+    }
+
+    // Standard Logic: If stuck on /login without OIDC params, go to Dashboard
     if (location.pathname.includes('/login')) {
       const storedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
       return <Navigate to={storedRedirect || '/'} replace />
     }
+
     return <>{children}</>
   }
 
@@ -173,6 +185,7 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
   }
 
   // Redirect to Login Page
+  // We preserve the current search params in the redirect intent, just in case.
   const currentPath = encodeURIComponent(location.pathname + location.search)
   return <Navigate to={`/login?redirect=${currentPath}`} replace />
 }

@@ -205,6 +205,9 @@ pub async fn seed_database(
             .map(char::from)
             .collect();
 
+        let web_origins_json = serde_json::to_string(&settings.default_oidc_client.web_origins)
+            .expect("Failed to serialize default web origins");
+
         let mut client = OidcClient {
             id: uuid::Uuid::new_v4(),
             realm_id: realm.id,
@@ -212,6 +215,7 @@ pub async fn seed_database(
             client_secret: Some(secret), // Public client (SPA)
             redirect_uris: serde_json::to_string(&settings.default_oidc_client.redirect_uris)?,
             scopes: "openid profile email".to_string(),
+            web_origins: web_origins_json,
         };
 
         // You need to expose a create method in OidcService, see Step 5 below.

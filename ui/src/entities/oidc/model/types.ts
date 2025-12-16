@@ -4,6 +4,7 @@ export interface OidcClient {
   client_id: string
   client_secret?: string | null
   redirect_uris: string // It comes as a JSON string from the DB
+  web_origins: string
   scopes: string
 }
 

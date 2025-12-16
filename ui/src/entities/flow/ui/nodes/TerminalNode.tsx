@@ -1,7 +1,7 @@
 import { Handle, type NodeProps, Position } from '@xyflow/react'
 import { CheckCircle, XCircle } from 'lucide-react'
 
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils.ts'
 
 // We accept full NodeProps to access `data.label` and `type`
 export function TerminalNode({ data, selected, type }: NodeProps) {

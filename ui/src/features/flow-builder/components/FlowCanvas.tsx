@@ -1,12 +1,10 @@
-import { type DragEvent, useCallback, useMemo, useRef } from 'react'
+import { type DragEvent, useCallback, useRef } from 'react'
 
 import { Background, Controls, ReactFlow, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 import { useTheme } from '@/app/providers/themeProvider.tsx'
-import { AuthenticatorNode } from '@/features/flow-builder/components/nodes/AuthenticatorNode.tsx'
-import { StartNode } from '@/features/flow-builder/components/nodes/StartNode.tsx'
-import { TerminalNode } from '@/features/flow-builder/components/nodes/TerminalNode.tsx'
+import { flowNodeTypes } from '@/entities/flow/config/nodeTypes.ts'
 import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderStore.ts'
 
 export function FlowCanvas() {
@@ -18,31 +16,6 @@ export function FlowCanvas() {
   const { theme } = useTheme()
   const isDark = theme === 'dark'
 
-  const nodeTypes = useMemo(
-    () => ({
-      // Start
-      'core.start': StartNode,
-
-      // Authenticators
-      'core.auth.password': AuthenticatorNode,
-      'core.auth.otp': AuthenticatorNode,
-      'core.auth.registration': AuthenticatorNode,
-
-      // Logic
-      'core.logic.condition': AuthenticatorNode, // Or a specific LogicNode
-      'core.logic.script': AuthenticatorNode,
-
-      // Terminals
-      'core.terminal.allow': TerminalNode, // Or AuthenticatorNode if you reuse it
-      'core.terminal.deny': TerminalNode,
-
-      // Fallback for drag-and-drop category matching if specific ID fails
-      authenticator: AuthenticatorNode,
-      terminal: TerminalNode,
-    }),
-    [],
-  )
-
   const onDragOver = useCallback((event: DragEvent) => {
     event.preventDefault()
     event.dataTransfer.dropEffect = 'move'
@@ -53,13 +26,12 @@ export function FlowCanvas() {
       event.preventDefault()
 
       // 1. Get Data from Palette
-      const droppedId = event.dataTransfer.getData('application/reactflow/type') // "core.auth.password"
+      const droppedId = event.dataTransfer.getData('application/reactflow/type')
       const droppedCategory = event.dataTransfer.getData('application/reactflow/category')
-      const droppedOutputsStr = event.dataTransfer.getData('application/reactflow/outputs') // Need this!
+      const droppedOutputsStr = event.dataTransfer.getData('application/reactflow/outputs')
 
       if (!droppedId) return
 
-      // Parse outputs (handles) if passed from palette
       let outputs = []
       try {
         outputs = droppedOutputsStr ? JSON.parse(droppedOutputsStr) : []
@@ -75,14 +47,13 @@ export function FlowCanvas() {
       // 2. Create Node
       const newNode = {
         id: crypto.randomUUID(),
-        // CRITICAL: Type must match the Backend ID ("core.auth.password")
+        // Matches the backend registry key (e.g. "core.auth.password")
         type: droppedId,
         position,
         data: {
-          label: droppedId, // Or a display name if passed
+          label: droppedId,
           config: {},
           category: droppedCategory,
-          // CRITICAL: Pass outputs to data so the Node Component can render handles
           outputs: outputs,
         },
       }
@@ -107,7 +78,7 @@ export function FlowCanvas() {
         onDrop={onDrop}
         onDragOver={onDragOver}
         fitView
-        nodeTypes={nodeTypes}
+        nodeTypes={flowNodeTypes}
         proOptions={proOptions}
         colorMode={isDark ? 'dark' : 'light'}
       >
