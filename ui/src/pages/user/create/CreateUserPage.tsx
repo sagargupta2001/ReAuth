@@ -10,7 +10,7 @@ export function CreateUserPage() {
     <div className="w-full py-6">
       <div className="mb-2">
         <RealmLink
-          to="/access/users"
+          to="/users"
           className={cn(
             buttonVariants({ variant: 'link', size: 'sm' }),
             'text-muted-foreground hover:text-foreground gap-2 pl-0',

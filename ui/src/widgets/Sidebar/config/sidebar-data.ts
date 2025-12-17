@@ -1,10 +1,11 @@
 import {
   AppWindow,
-  KeySquare,
   LayoutDashboard,
+  LucideClockFading,
   Package,
   ScrollText,
   Settings,
+  Users,
   Workflow,
 } from 'lucide-react'
 
@@ -24,28 +25,14 @@ export const sidebarData: SidebarData = {
       icon: LayoutDashboard,
     },
     {
-      title: 'Access Control',
-      url: '/access',
-      icon: KeySquare,
-      segment: 'access',
-      items: [
-        {
-          title: 'Users',
-          url: '/access/users',
-        },
-        {
-          title: 'Sessions',
-          url: '/access/sessions',
-        },
-        {
-          title: 'Roles',
-          url: '/access/roles',
-        },
-        {
-          title: 'Groups',
-          url: '/access/groups',
-        },
-      ],
+      title: 'Users',
+      url: '/users',
+      icon: Users,
+    },
+    {
+      title: 'Sessions',
+      url: '/sessions',
+      icon: LucideClockFading,
     },
     {
       title: 'Plugins',
