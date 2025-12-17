@@ -1,5 +1,7 @@
 import {
   AppWindow,
+  Group,
+  KeyRound,
   LayoutDashboard,
   LucideClockFading,
   Package,
@@ -28,6 +30,16 @@ export const sidebarData: SidebarData = {
       title: 'Users',
       url: '/users',
       icon: Users,
+    },
+    {
+      title: 'Roles',
+      url: '/roles',
+      icon: KeyRound,
+    },
+    {
+      title: 'Groups',
+      url: '/groups',
+      icon: Group,
     },
     {
       title: 'Sessions',
