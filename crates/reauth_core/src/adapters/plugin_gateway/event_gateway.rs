@@ -64,6 +64,14 @@ impl DomainEvent {
                 "RolePermissionChanged".to_string(),
                 serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
             ),
+            DomainEvent::UserRoleAssigned(e) => (
+                "RolePermissionChanged".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
+            DomainEvent::RoleDeleted(e) => (
+                "RolePermissionChanged".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
         }
     }
 }

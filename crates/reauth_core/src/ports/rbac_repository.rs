@@ -1,9 +1,9 @@
-use std::collections::HashSet;
+use crate::domain::role::Permission;
 use crate::domain::{group::Group, role::Role};
 use crate::error::Result;
 use async_trait::async_trait;
+use std::collections::HashSet;
 use uuid::Uuid;
-use crate::domain::role::Permission;
 
 #[async_trait]
 pub trait RbacRepository: Send + Sync {
@@ -12,13 +12,32 @@ pub trait RbacRepository: Send + Sync {
     async fn create_group(&self, group: &Group) -> Result<()>;
     async fn assign_role_to_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()>;
     async fn assign_user_to_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()>;
-    async fn assign_permission_to_role(&self, permission: &Permission, role_id: &Uuid) -> Result<()>;
+    async fn assign_permission_to_role(
+        &self,
+        permission: &Permission,
+        role_id: &Uuid,
+    ) -> Result<()>;
+
+    // [NEW] Assign a direct role to a user (Realm Safe)
+    async fn assign_role_to_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()>;
 
     // --- Read ---
-    async fn find_role_by_name(&self, name: &str) -> Result<Option<Role>>;
-    async fn find_group_by_name(&self, name: &str) -> Result<Option<Group>>;
+    async fn find_role_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Role>>;
+    async fn find_group_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Group>>;
+
+    // [NEW] Find all roles in a realm (for listing)
+    async fn find_roles_by_realm(&self, realm_id: &Uuid) -> Result<Vec<Role>>;
+    // [NEW] Find a specific role by ID (for validation)
+    async fn find_role_by_id(&self, role_id: &Uuid) -> Result<Option<Role>>;
+    // [NEW] Find all groups in a realm (for listing)
+    async fn find_groups_by_realm(&self, realm_id: &Uuid) -> Result<Vec<Group>>;
+
     async fn find_user_ids_in_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn find_permissions_for_roles(&self, role_ids: &[Uuid]) -> Result<HashSet<Permission>>;
     async fn find_user_ids_for_role(&self, role_id: &Uuid) -> Result<Vec<Uuid>>;
+    async fn get_effective_permissions_for_user(&self, user_id: &Uuid) -> Result<HashSet<String>>;
+    async fn find_role_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>>;
+    async fn find_group_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>>;
+    async fn delete_role(&self, role_id: &Uuid) -> Result<()>;
 }

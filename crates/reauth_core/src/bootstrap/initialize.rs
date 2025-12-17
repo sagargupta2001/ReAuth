@@ -55,6 +55,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         services.flow_manager.clone(),
         &settings,
         &services.oidc_service,
+        services.rbac_service.clone(),
     )
     .await?;
 

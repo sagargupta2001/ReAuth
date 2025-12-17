@@ -91,16 +91,24 @@ impl AuthService {
             .rbac_service
             .get_effective_permissions(&user.id)
             .await?;
+        let (roles, groups) = self
+            .rbac_service
+            .get_user_roles_and_groups(&user.id)
+            .await?;
 
         // 4. Create the Stateless Access Token (JWT)
         let access_token = self
             .token_service
-            .create_access_token(user, refresh_token.id, &permissions)
+            .create_access_token(user, refresh_token.id, &permissions, &roles, &groups)
             .await?;
 
         let mut id_token = None;
         if let Some(cid) = client_id {
-            id_token = Some(self.token_service.create_id_token(user, &cid).await?);
+            id_token = Some(
+                self.token_service
+                    .create_id_token(user, &cid, &groups)
+                    .await?,
+            );
         }
 
         Ok((
@@ -188,16 +196,24 @@ impl AuthService {
             .rbac_service
             .get_effective_permissions(&user.id)
             .await?;
+        let (roles, groups) = self
+            .rbac_service
+            .get_user_roles_and_groups(&user.id)
+            .await?;
 
         // 5. Create a new Access Token (JWT) linked to the *new* session
         let access_token = self
             .token_service
-            .create_access_token(&user, new_refresh_token.id, &permissions)
+            .create_access_token(&user, new_refresh_token.id, &permissions, &roles, &groups)
             .await?;
 
         let mut id_token = None;
         if let Some(cid) = &new_refresh_token.client_id {
-            id_token = Some(self.token_service.create_id_token(&user, cid).await?);
+            id_token = Some(
+                self.token_service
+                    .create_id_token(&user, cid, &groups)
+                    .await?,
+            );
         }
 
         Ok((

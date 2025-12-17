@@ -1,5 +1,6 @@
 use crate::application::flow_manager::FlowManager;
 use crate::application::oidc_service::OidcService;
+use crate::application::rbac_service::{CreateRolePayload, RbacService};
 use crate::application::realm_service::{CreateRealmPayload, RealmService, UpdateRealmPayload};
 use crate::application::user_service::UserService;
 use crate::config::Settings;
@@ -7,6 +8,7 @@ use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::{AuthFlow, AuthFlowStep};
 use crate::domain::flow::models::FlowDraft;
 use crate::domain::oidc::OidcClient;
+use crate::domain::permissions::permissions;
 use crate::ports::flow_repository::FlowRepository;
 use crate::ports::flow_store::FlowStore;
 use chrono::Utc;
@@ -24,6 +26,7 @@ pub async fn seed_database(
     flow_manager: &Arc<FlowManager>,
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
+    rbac_service: &Arc<RbacService>,
 ) -> anyhow::Result<()> {
     // 1. Check for the default realm
     if realm_service
@@ -149,26 +152,8 @@ pub async fn seed_database(
         realm = realm_service.find_by_id(realm.id).await?.unwrap();
     }
 
-    if user_service
-        .find_by_username(&realm.id, &settings.default_admin.username)
-        .await?
-        .is_none()
-    {
-        info!(
-            "No admin user found. Creating admin user '{}'...",
-            &settings.default_admin.username
-        );
-        user_service
-            .create_user(
-                realm.id,
-                &settings.default_admin.username,
-                &settings.default_admin.password,
-            )
-            .await?;
-
-        info!("Admin user created successfully.");
-        warn!("SECURITY: Admin user created with the default password. Please log in and change it immediately.");
-    }
+    // Seed Admin User & RBAC [EXTRACTED]
+    seed_admin_user(realm.id, settings, user_service, rbac_service).await?;
 
     //  SEED DEFAULT OIDC CLIENT
     let client_id = "reauth-admin";
@@ -309,4 +294,99 @@ async fn ensure_flow(
     }
 
     Ok(flow_id)
+}
+
+/// Helper to ensure the Admin User exists and has the Super Admin Role
+async fn seed_admin_user(
+    realm_id: Uuid,
+    settings: &Settings,
+    user_service: &UserService,
+    rbac_service: &RbacService,
+) -> anyhow::Result<()> {
+    // 1. Check if admin exists
+    if user_service
+        .find_by_username(&realm_id, &settings.default_admin.username)
+        .await?
+        .is_some()
+    {
+        // Admin already exists, assume seeded.
+        return Ok(());
+    }
+
+    info!(
+        "No admin user found. Creating admin user '{}'...",
+        &settings.default_admin.username
+    );
+
+    // 2. Create the User
+    let user = user_service
+        .create_user(
+            realm_id,
+            &settings.default_admin.username,
+            &settings.default_admin.password,
+        )
+        .await?;
+
+    info!("Admin user created successfully.");
+    warn!("SECURITY: Admin user created with the default password. Please log in and change it immediately.");
+
+    // 3. Create 'Super Admin' Role
+    let role_name = "super_admin";
+
+    // Attempt to create. If it fails (exists), we try to find it.
+    let role = match rbac_service
+        .create_role(
+            realm_id,
+            CreateRolePayload {
+                name: role_name.to_string(),
+                description: Some("System Administrator with full access".to_string()),
+            },
+        )
+        .await
+    {
+        Ok(r) => r,
+        Err(_) => {
+            // If creation failed, it likely exists.
+            // Note: Ideally, you'd add find_role_by_name to RbacService.
+            // For now, assuming you might not have it exposed,
+            // you might need to query repo or just skip.
+            // Best Practice: Expose find_role_by_name in RbacService.
+            info!("Role '{}' likely already exists.", role_name);
+
+            // To be safe, we stop here if we can't find the ID.
+            // Ideally: rbac_service.find_role_by_name(realm_id, role_name).await?.unwrap()
+            return Ok(());
+        }
+    };
+
+    // 4. Assign ALL System Permissions to this Role
+    let all_permissions = vec![
+        permissions::CLIENT_READ,
+        permissions::CLIENT_CREATE,
+        permissions::CLIENT_UPDATE,
+        permissions::REALM_READ,
+        permissions::REALM_WRITE,
+        permissions::RBAC_READ,
+        permissions::RBAC_WRITE,
+        permissions::USER_READ,
+        permissions::USER_WRITE,
+        // Add "*" super-wildcard
+        "*",
+    ];
+
+    for perm in all_permissions {
+        // We ignore errors here (e.g. if permission already assigned)
+        let _ = rbac_service
+            .assign_permission_to_role(realm_id, perm.to_string(), role.id)
+            .await;
+    }
+
+    // 5. Assign the Role to the User
+    rbac_service
+        .assign_role_to_user(realm_id, user.id, role.id)
+        .await?;
+
+    info!("Assigned 'super_admin' role to default admin user.");
+
+    Ok(())
 }

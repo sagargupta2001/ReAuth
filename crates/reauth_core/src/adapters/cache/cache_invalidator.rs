@@ -3,9 +3,7 @@
 use crate::{
     domain::events::DomainEvent,
     ports::{
-        cache_service::CacheService,
-        event_bus::EventHandler,
-        rbac_repository::RbacRepository,
+        cache_service::CacheService, event_bus::EventHandler, rbac_repository::RbacRepository,
     },
 };
 use async_trait::async_trait;
@@ -44,7 +42,10 @@ impl EventHandler for CacheInvalidator {
                             self.cache.clear_user_permissions(&user_id).await;
                         }
                     }
-                    Err(e) => error!("Failed to find users in group for cache invalidation: {}", e),
+                    Err(e) => error!(
+                        "Failed to find users in group for cache invalidation: {}",
+                        e
+                    ),
                 }
             }
             // Invalidate on user creation to clear any "empty" cache entries
@@ -52,7 +53,10 @@ impl EventHandler for CacheInvalidator {
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
             DomainEvent::RolePermissionChanged(e) => {
-                info!("Event: RolePermissionChanged. Invalidating cache for users with role: {}", e.role_id);
+                info!(
+                    "Event: RolePermissionChanged. Invalidating cache for users with role: {}",
+                    e.role_id
+                );
                 match self.rbac_repo.find_user_ids_for_role(&e.role_id).await {
                     Ok(user_ids) => {
                         for user_id in user_ids {
@@ -60,7 +64,29 @@ impl EventHandler for CacheInvalidator {
                             self.cache.clear_user_permissions(&user_id).await;
                         }
                     }
-                    Err(e) => error!("Failed to find users for role for cache invalidation: {}", e),
+                    Err(e) => error!(
+                        "Failed to find users for role for cache invalidation: {}",
+                        e
+                    ),
+                }
+            }
+
+            DomainEvent::UserRoleAssigned(e) => {
+                info!("Invalidating cache for user: {} (Role Assigned)", e.user_id);
+                self.cache.clear_user_permissions(&e.user_id).await;
+            }
+
+            DomainEvent::RoleDeleted(e) => {
+                info!(
+                    "Role {} deleted. Invalidating cache for {} users.",
+                    e.role_id,
+                    e.affected_user_ids.len()
+                );
+
+                // Since we already did the heavy lifting (finding users) in the service,
+                // this loop is fast.
+                for user_id in &e.affected_user_ids {
+                    self.cache.clear_user_permissions(user_id).await;
                 }
             }
         }

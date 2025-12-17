@@ -10,7 +10,9 @@ pub enum DomainEvent {
     UserCreated(UserCreated),
     UserAssignedToGroup(UserGroupChanged),
     RoleAssignedToGroup(RoleGroupChanged),
-    RolePermissionChanged(RolePermissionChanged)
+    RolePermissionChanged(RolePermissionChanged),
+    UserRoleAssigned(UserRoleChanged),
+    RoleDeleted(RoleDeleted),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -34,4 +36,16 @@ pub struct RoleGroupChanged {
 #[derive(Clone, Debug, Serialize)]
 pub struct RolePermissionChanged {
     pub role_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct UserRoleChanged {
+    pub user_id: Uuid,
+    pub role_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RoleDeleted {
+    pub role_id: Uuid,
+    pub affected_user_ids: Vec<Uuid>,
 }
