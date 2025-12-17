@@ -94,6 +94,7 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
     // 3. Write Permission
     let write_routes = Router::new()
         .route("/{id}", put(user_handler::update_user_handler))
+        .route("/{id}", get(user_handler::get_user_handler))
         .route("/{id}/roles", post(rbac_handler::assign_user_role_handler))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -106,7 +107,7 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
     base_routes.merge(read_routes).merge(write_routes)
 }
 
-// [FIXED] Split Realm Routes
+// Split Realm Routes
 fn realm_routes(state: AppState) -> Router<AppState> {
     let read_routes = Router::new()
         .route("/", get(realm_handler::list_realms_handler))

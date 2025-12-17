@@ -103,7 +103,7 @@ export function UsersTable() {
       searchValue={searchTerm}
       onSearch={handleSearch}
       // Row Click -> Edit Page
-      onRowClick={(user) => navigate(`/users/${user.id}`)}
+      onRowClick={(user) => navigate(`access/users/${user.id}`)}
       // Layout
       className="h-[calc(100vh-328px)]"
     />
