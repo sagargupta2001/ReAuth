@@ -9,7 +9,7 @@ pub async fn run() -> anyhow::Result<()> {
     let server_url = format!(
         "{}://{}:{}",
         app_state.settings.server.scheme,
-        app_state.settings.server.host,
+        "localhost",
         app_state.settings.server.port
     );
 

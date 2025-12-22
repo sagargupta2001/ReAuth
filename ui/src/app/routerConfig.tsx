@@ -1,29 +1,100 @@
-import type { ComponentType, ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react';
 
-import { Navigate } from 'react-router-dom'
 
-import DashboardPage from '@/pages/DashboardPage'
-import { LoginPage } from '@/pages/LoginPage.tsx'
-import { LogsPage } from '@/pages/LogsPage.tsx'
-import { NotFoundPage } from '@/pages/NotFoundPage'
-import { PluginsPage } from '@/pages/PluginsPage.tsx'
-import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
-import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
-import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
-import { FlowDetailsPage } from '@/pages/flow/FlowDetailsPage.tsx'
-import { FlowsIndexPage } from '@/pages/flow/FlowsIndexPage.tsx'
-import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
-import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
-import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
-import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
-import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx'
-import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx'
-import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
-import { UsersPage } from '@/pages/user/listing/UsersPage.tsx'
-import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
-import { FlowBuilderLayout } from '@/widgets/Layout/FlowBuilderLayout.tsx'
-import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
-import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx'
+
+import { Navigate } from 'react-router-dom';
+
+
+
+import DashboardPage from '@/pages/DashboardPage';
+import { LoginPage } from '@/pages/LoginPage.tsx';
+import { LogsPage } from '@/pages/LogsPage.tsx';
+import { NotFoundPage } from '@/pages/NotFoundPage';
+import { PluginsPage } from '@/pages/PluginsPage.tsx';
+import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx';
+import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx';
+import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx';
+import { FlowDetailsPage } from '@/pages/flow/FlowDetailsPage.tsx';
+import { FlowsIndexPage } from '@/pages/flow/FlowsIndexPage.tsx';
+import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx';
+import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx';
+import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx';
+import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx';
+import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx';
+import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx';
+import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx';
+import { UsersPage } from '@/pages/user/listing/UsersPage.tsx';
+import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx';
+import { FlowBuilderLayout } from '@/widgets/Layout/FlowBuilderLayout.tsx';
+import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx';
+import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx';
+import { RolesPage } from '@/pages/access/roles/listing/RolesPage.tsx'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /**
  * Defines the shape of a static route.
@@ -140,6 +211,12 @@ export const staticRoutes: RouteConfig[] = [
     path: '/:realm/flows/:flowId/builder',
     element: FlowBuilderPage,
     layout: FlowBuilderLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/access/roles',
+    element: RolesPage,
+    layout: AuthenticatedLayout,
     isProtected: true,
   },
   {

@@ -7,7 +7,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use std::collections::HashSet;
+use sqlx::{QueryBuilder, Sqlite};
 use uuid::Uuid;
+use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 
 pub struct SqliteRbacRepository {
     pool: Database,
@@ -16,6 +18,25 @@ pub struct SqliteRbacRepository {
 impl SqliteRbacRepository {
     pub fn new(pool: Database) -> Self {
         Self { pool }
+    }
+
+    fn apply_filters<'a>(
+        builder: &mut QueryBuilder<'a, Sqlite>,
+        realm_id: &Uuid,
+        q: &Option<String>,
+    ) {
+        builder.push(" WHERE realm_id = ");
+        builder.push_bind(realm_id.to_string());
+
+        if let Some(query) = q {
+            if !query.trim().is_empty() {
+                builder.push(" AND (name LIKE ");
+                builder.push_bind(format!("%{}%", query));
+                builder.push(" OR description LIKE ");
+                builder.push_bind(format!("%{}%", query));
+                builder.push(")");
+            }
+        }
     }
 }
 
@@ -111,13 +132,59 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(group)
     }
 
-    async fn find_roles_by_realm(&self, realm_id: &Uuid) -> Result<Vec<Role>> {
-        let roles = sqlx::query_as("SELECT * FROM roles WHERE realm_id = ? ORDER BY name ASC")
-            .bind(realm_id.to_string())
+    async fn list_roles(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<Role>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        // 1. Count Query
+        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM roles");
+        Self::apply_filters(&mut count_builder, realm_id, &req.q);
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        // 2. Select Query
+        let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
+        Self::apply_filters(&mut query_builder, realm_id, &req.q);
+
+        // Sorting
+        // Map API sort keys to Safe Database Columns
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "name",
+            Some("description") => "description",
+            Some("created_at") => "created_at",
+            _ => "name", // Default sort
+        };
+
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+
+        // Push ORDER BY directly (safe because we matched against string literals above)
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        // Pagination
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        // Execute
+        let roles: Vec<Role> = query_builder
+            .build_query_as()
             .fetch_all(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(roles)
+
+        Ok(PageResponse::new(roles, total, req.page, limit))
     }
 
     async fn find_role_by_id(&self, role_id: &Uuid) -> Result<Option<Role>> {

@@ -4,6 +4,7 @@ use crate::error::Result;
 use async_trait::async_trait;
 use std::collections::HashSet;
 use uuid::Uuid;
+use crate::domain::pagination::{PageRequest, PageResponse};
 
 #[async_trait]
 pub trait RbacRepository: Send + Sync {
@@ -25,11 +26,14 @@ pub trait RbacRepository: Send + Sync {
     async fn find_role_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Role>>;
     async fn find_group_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Group>>;
 
-    // [NEW] Find all roles in a realm (for listing)
-    async fn find_roles_by_realm(&self, realm_id: &Uuid) -> Result<Vec<Role>>;
-    // [NEW] Find a specific role by ID (for validation)
+    async fn list_roles(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<Role>>;
+    // Find a specific role by ID (for validation)
     async fn find_role_by_id(&self, role_id: &Uuid) -> Result<Option<Role>>;
-    // [NEW] Find all groups in a realm (for listing)
+    // Find all groups in a realm (for listing)
     async fn find_groups_by_realm(&self, realm_id: &Uuid) -> Result<Vec<Group>>;
 
     async fn find_user_ids_in_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>>;

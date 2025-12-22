@@ -33,7 +33,7 @@ export const sidebarData: SidebarData = {
     },
     {
       title: 'Roles',
-      url: '/roles',
+      url: '/access/roles',
       icon: KeyRound,
     },
     {

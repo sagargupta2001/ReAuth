@@ -12,6 +12,7 @@ use crate::{
 };
 use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
+use crate::domain::pagination::{PageRequest, PageResponse};
 
 // --- Payloads for API requests ---
 #[derive(serde::Deserialize, Clone, Default)]
@@ -67,9 +68,8 @@ impl RbacService {
         Ok(role)
     }
 
-    pub async fn list_roles(&self, realm_id: Uuid, _page: usize) -> Result<Vec<Role>> {
-        // You'll need to add `find_roles_by_realm` to your Repository trait first!
-        self.rbac_repo.find_roles_by_realm(&realm_id).await
+    pub async fn list_roles(&self, realm_id: Uuid, req: PageRequest) -> Result<PageResponse<Role>> {
+        self.rbac_repo.list_roles(&realm_id, &req).await
     }
 
     pub async fn create_group(&self, realm_id: Uuid, payload: CreateGroupPayload) -> Result<Group> {

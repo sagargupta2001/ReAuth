@@ -7,8 +7,10 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use axum::extract::Query;
 use serde::Deserialize;
 use uuid::Uuid;
+use crate::domain::pagination::PageRequest;
 
 // POST /api/realms/{realm}/rbac/roles
 pub async fn create_role_handler(
@@ -52,14 +54,17 @@ pub async fn create_group_handler(
 pub async fn list_roles_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
+    Query(req): Query<PageRequest>,
 ) -> Result<impl IntoResponse> {
     let realm = state
         .realm_service
         .find_by_name(&realm_name)
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
-    let roles = state.rbac_service.list_roles(realm.id, 1).await?;
-    Ok((StatusCode::OK, Json(roles)))
+
+    let response = state.rbac_service.list_roles(realm.id, req).await?;
+
+    Ok((StatusCode::OK, Json(response)))
 }
 
 #[derive(Deserialize)]
