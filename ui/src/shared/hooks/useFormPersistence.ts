@@ -13,7 +13,7 @@ export function useFormPersistence<T extends import('react-hook-form').FieldValu
   const { isDirty } = form.formState
 
   // 1. Store the latest 'onSubmit' in a ref.
-  // This allows us to access the *current* function inside the callback
+  // This allows us to roles the *current* function inside the callback
   // without adding it to the dependency array.
   const onSubmitRef = useRef(onSubmit)
   useEffect(() => {

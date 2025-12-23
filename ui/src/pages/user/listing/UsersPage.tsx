@@ -1,5 +1,5 @@
-import { UsersTable } from '@/features/user/listing/UsersTable.tsx'
-import { UsersPrimaryButtons } from '@/features/user/listing/components/UsersPrimaryButtons.tsx'
+import { UsersTable } from '@/features/user/components/UsersTable.tsx'
+import { UsersPrimaryButtons } from '@/features/user/components/UsersPrimaryButtons.tsx'
 import { Main } from '@/widgets/Layout/Main.tsx'
 
 export function UsersPage() {

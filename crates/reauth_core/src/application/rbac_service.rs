@@ -288,4 +288,20 @@ impl RbacService {
 
         Ok(())
     }
+
+    pub async fn get_role(&self, realm_id: Uuid, role_id: Uuid) -> Result<Role> {
+        let role = self
+            .rbac_repo
+            .find_role_by_id(&role_id)
+            .await?
+            .ok_or(Error::NotFound("Role not found".into()))?;
+
+        if role.realm_id != realm_id {
+            return Err(Error::SecurityViolation(
+                "Role belongs to different realm".into(),
+            ));
+        }
+
+        Ok(role)
+    }
 }

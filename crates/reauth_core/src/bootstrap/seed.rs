@@ -339,7 +339,7 @@ async fn seed_admin_user(
             realm_id,
             CreateRolePayload {
                 name: role_name.to_string(),
-                description: Some("System Administrator with full access".to_string()),
+                description: Some("System Administrator with full roles".to_string()),
             },
         )
         .await

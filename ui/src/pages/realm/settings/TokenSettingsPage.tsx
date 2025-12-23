@@ -1,4 +1,4 @@
-import { TokenSettingsForm } from '@/features/realm/settings/TokenSettingsForm.tsx'
+import { TokenSettingsForm } from '@/features/realm/forms/TokenSettingsForm.tsx'
 
 export function TokenSettingsPage() {
   return (

@@ -30,7 +30,7 @@ pub enum NodeOutcome {
     /// Terminal Success: The flow is finished. Issue tokens.
     FlowSuccess { user_id: uuid::Uuid },
 
-    /// Terminal Failure: The flow is finished. Deny access.
+    /// Terminal Failure: The flow is finished. Deny roles.
     FlowFailure { reason: String },
 }
 

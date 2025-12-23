@@ -159,7 +159,10 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             post(rbac_handler::assign_permission_handler),
         )
         .route("/groups", post(rbac_handler::create_group_handler))
-        .route("/roles/{id}", delete(rbac_handler::delete_role_handler))
+        .route(
+            "/roles/{id}",
+            delete(rbac_handler::delete_role_handler).get(rbac_handler::get_role_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state,
             move |state, req, next| {
@@ -168,7 +171,6 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         ))
 }
 
-// [FIXED] Split Client Routes
 fn client_routes(state: AppState) -> Router<AppState> {
     let read_routes = Router::new()
         .route("/", get(oidc_handler::list_clients_handler))

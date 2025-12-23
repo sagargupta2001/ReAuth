@@ -1,4 +1,4 @@
-import { GeneralSettingsForm } from '@/features/realm/settings/GeneralSettingsForm.tsx'
+import { GeneralSettingsForm } from '@/features/realm/forms/GeneralSettingsForm.tsx'
 
 export function GeneralSettingsPage() {
   return (

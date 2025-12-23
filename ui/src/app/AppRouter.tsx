@@ -3,7 +3,7 @@ import { Fragment } from 'react'
 import { Route, Routes } from 'react-router-dom'
 
 import { AuthGuard } from '@/app/AuthGuard.tsx'
-import { usePlugins } from '@/entities/plugin/api/usePlugins'
+import { usePlugins } from '@/features/plugin/api/usePlugins'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 
 // Assuming this is your main layout

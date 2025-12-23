@@ -1,9 +1,9 @@
-import type { AuthExecutionResponse } from '@/features/auth/model/types.ts'
+import type { AuthExecutionResponse } from '@/entities/auth/model/types.ts'
 import { apiClient } from '@/shared/api/client'
 
 export const authApi = {
   /**
-   * Refreshes the access token using the HttpOnly cookie.
+   * Refreshes the roles token using the HttpOnly cookie.
    */
   refreshAccessToken: async (realm: string) => {
     const data = await apiClient.post<{ access_token: string }>(

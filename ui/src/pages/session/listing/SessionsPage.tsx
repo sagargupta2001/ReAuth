@@ -1,4 +1,4 @@
-import { SessionsTable } from '@/features/session/listing/SessionsTable.tsx'
+import { SessionsTable } from '@/features/session/components/SessionsTable.tsx'
 import { Main } from '@/widgets/Layout/Main.tsx'
 
 export function SessionsPage() {

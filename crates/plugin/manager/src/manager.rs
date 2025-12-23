@@ -31,7 +31,7 @@ pub struct LogEntry {
 /// Manages the lifecycle of all discovered plugins.
 ///
 /// The registry of running plugins is stored in `instances`, which is
-/// wrapped in `Arc<Mutex<...>>` to allow for safe concurrent access.
+/// wrapped in `Arc<Mutex<...>>` to allow for safe concurrent roles.
 #[derive(Clone)]
 pub struct PluginManager {
     /// The in-memory "registry" of all *active* (running) plugin instances.

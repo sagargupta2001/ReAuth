@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom'
 
 import { buttonVariants } from '@/components/button'
 import { RealmLink } from '@/entities/realm/lib/navigation'
-import { EditUserForm } from '@/features/user/edit/EditUserForm'
+import { EditUserForm } from '@/features/user/forms/EditUserForm.tsx'
 import { cn } from '@/lib/utils'
 
 export function EditUserPage() {

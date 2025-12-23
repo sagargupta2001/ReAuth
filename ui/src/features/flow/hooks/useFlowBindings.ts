@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 
 import type { UnifiedFlowDto } from '@/entities/flow/model/types'
-import { useCurrentRealm } from '@/entities/realm/api/useRealm.ts'
+import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 
 // Updated keys to match your API response (suffix: _id)
@@ -37,7 +37,7 @@ export function useFlowBindings() {
     const activeSet = new Set<string>()
 
     BINDING_KEYS.forEach((key) => {
-      // @ts-ignore - Dynamic access
+      // @ts-ignore - Dynamic roles
       const value = realmData[key]
 
       // We accept both IDs (UUIDs) and Aliases (strings)

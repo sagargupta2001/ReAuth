@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 
 import { buttonVariants } from '@/components/button'
 import { RealmLink } from '@/entities/realm/lib/navigation'
-import { CreateUserForm } from '@/features/user/create/CreateUserForm'
+import { CreateUserForm } from '@/features/user/forms/CreateUserForm.tsx'
 import { cn } from '@/lib/utils'
 
 export function CreateUserPage() {

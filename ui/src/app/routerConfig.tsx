@@ -20,6 +20,7 @@ import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx';
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx';
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx';
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx';
+import { RolesPage } from '@/pages/roles/listing/RolesPage.tsx';
 import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx';
 import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx';
 import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx';
@@ -28,7 +29,80 @@ import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx';
 import { FlowBuilderLayout } from '@/widgets/Layout/FlowBuilderLayout.tsx';
 import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx';
 import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx';
-import { RolesPage } from '@/pages/access/roles/listing/RolesPage.tsx'
+import { EditRolePage } from '@/pages/roles/edit/EditRolePage.tsx'
+import { CreateRolePage } from '@/pages/roles/create/CreateRolePage.tsx'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -214,8 +288,20 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/access/roles',
+    path: '/:realm/roles',
     element: RolesPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/roles/:roleId',
+    element: EditRolePage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/roles/new',
+    element: CreateRolePage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

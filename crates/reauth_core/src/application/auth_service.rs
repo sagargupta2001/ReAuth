@@ -120,7 +120,7 @@ impl AuthService {
         ))
     }
 
-    /// Validates an access token and returns the full User.
+    /// Validates an roles token and returns the full User.
     /// This is the core "use case" for the auth middleware.
     pub async fn validate_token_and_get_user(&self, token: &str) -> Result<User> {
         // 1. Validate the JWT

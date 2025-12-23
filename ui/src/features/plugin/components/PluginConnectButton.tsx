@@ -1,5 +1,5 @@
 import { Button } from '@/components/button'
-import { usePluginMutations } from '@/entities/plugin/api/usePluginMutations'
+import { usePluginMutations } from '@/features/plugin/api/usePluginMutations'
 import type { PluginStatusInfo } from '@/entities/plugin/model/types'
 
 interface Props {

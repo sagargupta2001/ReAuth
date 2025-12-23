@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
 import { Skeleton } from '@/components/skeleton'
-import { useRealms } from '@/entities/realm/api/useRealms.ts'
+import { useRealms } from '@/features/realm/api/useRealms.ts'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/widgets/Sidebar/components'
 import { useSidebar } from '@/widgets/Sidebar/components/content.tsx'

@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { buttonVariants } from '@/components/button'
 import { RealmLink } from '@/entities/realm/lib/navigation'
-import { EditClientForm } from '@/features/client/edit/EditClientForm'
+import { EditClientForm } from '@/features/client/forms/EditClientForm.tsx'
 import { cn } from '@/lib/utils'
 
 export function EditClientPage() {

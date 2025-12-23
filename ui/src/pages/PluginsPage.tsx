@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Main } from '@/widgets/Layout/Main'
-import { PluginList } from '@/widgets/PluginList/PluginList'
+import { PluginList } from '@/features/plugin/components/PluginList.tsx'
 
 export function PluginsPage() {
   const { t } = useTranslation('plugins')
