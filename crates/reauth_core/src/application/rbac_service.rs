@@ -19,6 +19,7 @@ use crate::domain::pagination::{PageRequest, PageResponse};
 pub struct CreateRolePayload {
     pub name: String,
     pub description: Option<String>,
+    pub client_id: Option<Uuid>,
 }
 
 #[derive(serde::Deserialize, Clone, Default)]
@@ -61,6 +62,7 @@ impl RbacService {
         let role = Role {
             id: Uuid::new_v4(),
             realm_id,
+            client_id: payload.client_id,
             name: payload.name,
             description: payload.description,
         };
@@ -70,6 +72,16 @@ impl RbacService {
 
     pub async fn list_roles(&self, realm_id: Uuid, req: PageRequest) -> Result<PageResponse<Role>> {
         self.rbac_repo.list_roles(&realm_id, &req).await
+    }
+
+    pub async fn list_client_roles(
+        &self,
+        realm_id: Uuid,
+        client_id: Uuid,
+        req: PageRequest,
+    ) -> Result<PageResponse<Role>> {
+        // Optional: Verify client exists and belongs to realm
+        self.rbac_repo.list_client_roles(&realm_id, &client_id, &req).await
     }
 
     pub async fn create_group(&self, realm_id: Uuid, payload: CreateGroupPayload) -> Result<Group> {

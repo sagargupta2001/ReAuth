@@ -64,7 +64,6 @@ export function EditRoleForm({ roleId }: { roleId: string }) {
               control={form.control}
               name="name"
               label="Role Name"
-              disabled={true}
               description="Role name cannot be changed."
             />
             <FormTextarea control={form.control} name="description" label="Description" />

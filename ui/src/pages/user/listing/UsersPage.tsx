@@ -4,7 +4,7 @@ import { Main } from '@/widgets/Layout/Main.tsx'
 
 export function UsersPage() {
   return (
-    <Main className="flex flex-1 flex-col gap-4 sm:gap-6">
+    <Main className="flex flex-1 flex-col gap-4 sm:gap-6 p-12">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Users</h2>

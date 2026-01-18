@@ -1,10 +1,12 @@
 use crate::domain::role::Permission;
 use crate::domain::{group::Group, role::Role};
-use crate::error::Result;
+use crate::error::{Error, Result};
 use async_trait::async_trait;
 use std::collections::HashSet;
+use std::format;
+use sqlx::QueryBuilder;
 use uuid::Uuid;
-use crate::domain::pagination::{PageRequest, PageResponse};
+use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 
 #[async_trait]
 pub trait RbacRepository: Send + Sync {
@@ -29,6 +31,12 @@ pub trait RbacRepository: Send + Sync {
     async fn list_roles(
         &self,
         realm_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<Role>>;
+    async fn list_client_roles(
+        &self,
+        realm_id: &Uuid,
+        client_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<Role>>;
     // Find a specific role by ID (for validation)

@@ -9,7 +9,7 @@ import { buttonVariants } from '@/shared/ui/button.tsx'
 export function CreateClientPage() {
   const { t } = useTranslation('client')
   return (
-    <div className="w-full py-6">
+    <div className="w-full p-12">
       <div className="mb-2">
         <RealmLink
           to="/clients"

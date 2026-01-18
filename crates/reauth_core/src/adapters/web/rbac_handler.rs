@@ -67,6 +67,26 @@ pub async fn list_roles_handler(
     Ok((StatusCode::OK, Json(response)))
 }
 
+// GET /api/realms/{realm}/clients/{client_id}/roles
+pub async fn list_client_roles_handler(
+    State(state): State<AppState>,
+    Path((realm_name, client_id)): Path<(String, Uuid)>,
+    Query(req): Query<PageRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let response = state
+        .rbac_service
+        .list_client_roles(realm.id, client_id, req)
+        .await?;
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
 #[derive(Deserialize)]
 pub struct AssignPermissionPayload {
     pub permission: String,

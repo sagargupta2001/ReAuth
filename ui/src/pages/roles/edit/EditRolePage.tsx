@@ -12,7 +12,7 @@ export function EditRolePage() {
   if (!roleId) return null
 
   return (
-    <div className="w-full py-6">
+    <div className="w-full p-12">
       <div className="mb-2">
         <RealmLink
           to="/roles"

@@ -31,16 +31,21 @@ CREATE TABLE IF NOT EXISTS users
 );
 
 -- 3. ROLES (Global/System level based on provided schema)
+-- Can be global (Realm Role) or specific to an app (Client Role)
 CREATE TABLE roles
 (
-    id          TEXT PRIMARY KEY NOT NULL, -- UUID
-    realm_id    TEXT             NOT NULL,
+    id          TEXT PRIMARY KEY NOT NULL,
+    realm_id    TEXT             NOT NULL, -- Always belongs to a realm
+    client_id   TEXT,                      -- NULL = Realm Role, NOT NULL = Client Role
     name        TEXT             NOT NULL,
     description TEXT,
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (realm_id) REFERENCES realms (id) ON DELETE CASCADE,
-    UNIQUE (realm_id, name)                -- Critical: Roles must be unique PER REALM
+    FOREIGN KEY (client_id) REFERENCES oidc_clients (id) ON DELETE CASCADE,
+
+    -- Constraint: A role name must be unique within its "namespace" (Realm or Client)
+    UNIQUE (realm_id, client_id, name)
 );
 
 -- 4. GROUPS (Global/System level based on provided schema)

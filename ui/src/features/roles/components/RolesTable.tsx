@@ -4,13 +4,16 @@ import { type OnChangeFn, type PaginationState, type SortingState } from '@tanst
 import { useSearchParams } from 'react-router-dom'
 
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.tsx'
-import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
-import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
-
-import { roleColumns } from '@/features/roles/components/RoleColumns.tsx'
 import { useRoles } from '@/features/roles/api/useRoles.ts'
+import { roleColumns } from '@/features/roles/components/RoleColumns.tsx'
+import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
+import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
 
-export function RolesTable() {
+interface RolesTableProps {
+  clientId?: string
+}
+
+export function RolesTable({ clientId }: RolesTableProps) {
   const navigate = useRealmNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -33,6 +36,7 @@ export function RolesTable() {
     sort_by: sorting[0]?.id,
     sort_dir: sorting[0]?.desc ? 'desc' : 'asc',
     q: searchTerm,
+    clientId
   })
 
   const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
@@ -92,8 +96,8 @@ export function RolesTable() {
       searchPlaceholder="Filter roles..."
       searchValue={searchTerm}
       onSearch={handleSearch}
-      onRowClick={(role) => navigate(`/roles/${role.id}`)}
-      className="h-[calc(100vh-328px)]"
+      onRowClick={(role) => clientId ? navigate(`/clients/${clientId}/roles/${role.id}`) : navigate(`/roles/${role.id}`)}
+      className={clientId ? "" : "h-[calc(100vh-328px)]"}
     />
   )
 }

@@ -155,6 +155,10 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         .route("/roles", post(rbac_handler::create_role_handler))
         .route("/roles", get(rbac_handler::list_roles_handler))
         .route(
+            "/clients/{client_id}/roles",
+            get(rbac_handler::list_client_roles_handler)
+        )
+        .route(
             "/roles/{id}/permissions",
             post(rbac_handler::assign_permission_handler),
         )

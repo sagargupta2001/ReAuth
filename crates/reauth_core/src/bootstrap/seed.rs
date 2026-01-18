@@ -340,6 +340,7 @@ async fn seed_admin_user(
             CreateRolePayload {
                 name: role_name.to_string(),
                 description: Some("System Administrator with full roles".to_string()),
+                client_id: None
             },
         )
         .await

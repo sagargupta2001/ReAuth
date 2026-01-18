@@ -23,10 +23,22 @@ impl SqliteRbacRepository {
     fn apply_filters<'a>(
         builder: &mut QueryBuilder<'a, Sqlite>,
         realm_id: &Uuid,
+        client_filter: Option<&Uuid>, // None = Global, Some = Client Specific
         q: &Option<String>,
     ) {
         builder.push(" WHERE realm_id = ");
         builder.push_bind(realm_id.to_string());
+
+        // [LOGIC] Switch based on filter
+        match client_filter {
+            Some(cid) => {
+                builder.push(" AND client_id = ");
+                builder.push_bind(cid.to_string());
+            }
+            None => {
+                builder.push(" AND client_id IS NULL ");
+            }
+        }
 
         if let Some(query) = q {
             if !query.trim().is_empty() {
@@ -43,9 +55,11 @@ impl SqliteRbacRepository {
 #[async_trait]
 impl RbacRepository for SqliteRbacRepository {
     async fn create_role(&self, role: &Role) -> Result<()> {
-        sqlx::query("INSERT INTO roles (id, realm_id, name, description) VALUES (?, ?, ?, ?)")
+        // [UPDATED] Added client_id to INSERT
+        sqlx::query("INSERT INTO roles (id, realm_id, client_id, name, description) VALUES (?, ?, ?, ?, ?)")
             .bind(role.id.to_string())
-            .bind(role.realm_id.to_string()) // [NEW] Realm Scope
+            .bind(role.realm_id.to_string())
+            .bind(role.client_id.map(|id| id.to_string()))
             .bind(&role.name)
             .bind(&role.description)
             .execute(&*self.pool)
@@ -113,7 +127,7 @@ impl RbacRepository for SqliteRbacRepository {
 
     // [Helper] Check if a role exists in a specific realm
     async fn find_role_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Role>> {
-        let role = sqlx::query_as("SELECT * FROM roles WHERE realm_id = ? AND name = ?")
+        let role = sqlx::query_as("SELECT * FROM roles WHERE realm_id = ? AND name = ? AND client_id IS NULL")
             .bind(realm_id.to_string())
             .bind(name)
             .fetch_optional(&*self.pool)
@@ -142,7 +156,7 @@ impl RbacRepository for SqliteRbacRepository {
 
         // 1. Count Query
         let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM roles");
-        Self::apply_filters(&mut count_builder, realm_id, &req.q);
+        Self::apply_filters(&mut count_builder, realm_id, None, &req.q);
 
         let total: i64 = count_builder
             .build_query_scalar()
@@ -152,7 +166,7 @@ impl RbacRepository for SqliteRbacRepository {
 
         // 2. Select Query
         let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
-        Self::apply_filters(&mut query_builder, realm_id, &req.q);
+        Self::apply_filters(&mut query_builder, realm_id, None, &req.q);
 
         // Sorting
         // Map API sort keys to Safe Database Columns
@@ -178,6 +192,53 @@ impl RbacRepository for SqliteRbacRepository {
         query_builder.push_bind(offset);
 
         // Execute
+        let roles: Vec<Role> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(roles, total, req.page, limit))
+    }
+
+    async fn list_client_roles(
+        &self,
+        realm_id: &Uuid,
+        client_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<Role>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM roles");
+        // Pass `Some(client_id)` to filter by client
+        Self::apply_filters(&mut count_builder, realm_id, Some(client_id), &req.q);
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
+        Self::apply_filters(&mut query_builder, realm_id, Some(client_id), &req.q);
+
+        // Sorting (Copy sorting logic from list_roles)
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "name",
+            _ => "name",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
         let roles: Vec<Role> = query_builder
             .build_query_as()
             .fetch_all(&*self.pool)

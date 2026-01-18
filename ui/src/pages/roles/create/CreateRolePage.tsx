@@ -7,7 +7,7 @@ import { CreateRoleForm } from '@/features/roles/forms/CreateRoleForm.tsx'
 
 export function CreateRolePage() {
   return (
-    <div className="w-full py-6">
+    <div className="w-full p-12">
       <div className="mb-2">
         <RealmLink
           to="/roles"
