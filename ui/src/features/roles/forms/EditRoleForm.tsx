@@ -68,14 +68,6 @@ export function EditRoleForm({ roleId }: { roleId: string }) {
             />
             <FormTextarea control={form.control} name="description" label="Description" />
           </div>
-
-          {/* TODO: Add Permissions Picker Component Here in Next Step */}
-          <div className="rounded-lg border p-4">
-            <h4 className="mb-4 font-medium">Permissions</h4>
-            <div className="text-muted-foreground text-sm">
-              Permission assignment interface coming soon...
-            </div>
-          </div>
         </div>
       </Form>
     </div>

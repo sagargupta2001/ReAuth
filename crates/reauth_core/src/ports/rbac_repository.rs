@@ -52,4 +52,8 @@ pub trait RbacRepository: Send + Sync {
     async fn find_role_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>>;
     async fn find_group_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>>;
     async fn delete_role(&self, role_id: &Uuid) -> Result<()>;
+    async fn update_role(&self, role: &Role) -> Result<()>;
+    async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>>;
+    async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()>;
+    async fn bulk_update_permissions(&self, role_id: &Uuid, permissions: Vec<String>, action: &str) -> Result<()>;
 }

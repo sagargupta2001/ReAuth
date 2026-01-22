@@ -152,7 +152,7 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/roles/:roleId',
+    path: '/:realm/roles/:roleId/:tab?',
     element: EditRolePage,
     layout: AuthenticatedLayout,
     isProtected: true,

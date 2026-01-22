@@ -48,7 +48,7 @@ export function EditClientPage() {
 
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden">
+    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-12">
       <div className="shrink-0">
         <ClientHeader client={client} />
       </div>

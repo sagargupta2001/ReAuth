@@ -14,7 +14,6 @@ use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
 use crate::domain::pagination::{PageRequest, PageResponse};
 
-// --- Payloads for API requests ---
 #[derive(serde::Deserialize, Clone, Default)]
 pub struct CreateRolePayload {
     pub name: String,
@@ -48,7 +47,7 @@ impl RbacService {
         }
     }
 
-    // --- Write Operations (CRUD & Assignments) ---
+    // --- Write Operations (CRUD) ---
     pub async fn create_role(&self, realm_id: Uuid, payload: CreateRolePayload) -> Result<Role> {
         if self
             .rbac_repo
@@ -84,6 +83,77 @@ impl RbacService {
         self.rbac_repo.list_client_roles(&realm_id, &client_id, &req).await
     }
 
+    pub async fn get_role(&self, realm_id: Uuid, role_id: Uuid) -> Result<Role> {
+        let role = self
+            .rbac_repo
+            .find_role_by_id(&role_id)
+            .await?
+            .ok_or(Error::NotFound("Role not found".into()))?;
+
+        if role.realm_id != realm_id {
+            return Err(Error::SecurityViolation(
+                "Role belongs to different realm".into(),
+            ));
+        }
+
+        Ok(role)
+    }
+
+    pub async fn update_role(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        payload: CreateRolePayload
+    ) -> Result<Role> {
+        let mut role = self.get_role(realm_id, role_id).await?;
+
+        // Update fields
+        role.name = payload.name;
+        role.description = payload.description;
+
+        // Persist
+        self.rbac_repo.update_role(&role).await?;
+
+        // Invalidate caches (Logic depends on your cache strategy, e.g. simply clearing user permissions cache)
+        // self.event_bus.publish(...)
+
+        Ok(role)
+    }
+
+    pub async fn delete_role(&self, realm_id: Uuid, role_id: Uuid) -> Result<()> {
+        // 1. Verification (Realm Security)
+        let role = self
+            .rbac_repo
+            .find_role_by_id(&role_id)
+            .await?
+            .ok_or(Error::NotFound("Role not found".into()))?;
+
+        if role.realm_id != realm_id {
+            return Err(Error::SecurityViolation(
+                "Role belongs to different realm".into(),
+            ));
+        }
+
+        // 2. Find affected users BEFORE deletion
+        let affected_users = self.rbac_repo.find_user_ids_for_role(&role_id).await?;
+
+        // 3. Delete from DB (Cascades will wipe the links)
+        self.rbac_repo.delete_role(&role_id).await?;
+
+        // 4. Publish Event to Clear Cache
+        self.event_bus
+            .publish(DomainEvent::RoleDeleted(
+                crate::domain::events::RoleDeleted {
+                    role_id,
+                    affected_user_ids: affected_users,
+                },
+            ))
+            .await;
+
+        Ok(())
+    }
+
+    // --- Group Operations ---
     pub async fn create_group(&self, realm_id: Uuid, payload: CreateGroupPayload) -> Result<Group> {
         if self
             .rbac_repo
@@ -108,12 +178,10 @@ impl RbacService {
         self.rbac_repo.find_groups_by_realm(&realm_id).await
     }
 
-    pub async fn assign_role_to_group(&self, role_id: Uuid, group_id: Uuid) -> Result<()> {
-        // Note: Ideally, we should also verify here that role_id and group_id
-        // belong to the same realm to prevent cross-realm assignments.
-        // The DB FK constraints will block it if IDs are invalid,
-        // but explicit checks are better for error messages.
+    // --- Assignment Operations ---
 
+    pub async fn assign_role_to_group(&self, role_id: Uuid, group_id: Uuid) -> Result<()> {
+        // Note: Ideally verify role_id and group_id belong to same realm
         self.rbac_repo
             .assign_role_to_group(&role_id, &group_id)
             .await?;
@@ -143,62 +211,26 @@ impl RbacService {
         Ok(())
     }
 
-    pub async fn assign_permission_to_role(
-        &self,
-        realm_id: Uuid,
-        permission: Permission,
-        role_id: Uuid,
-    ) -> Result<()> {
-        // 1. Verify Role belongs to Realm
-        let role = self
-            .rbac_repo
-            .find_role_by_id(&role_id)
-            .await?
-            .ok_or(Error::NotFound("Role not found".into()))?;
-
-        if role.realm_id != realm_id {
-            return Err(Error::SecurityViolation(
-                "Role belongs to different realm".into(),
-            ));
-        }
-
-        // 2. Assign
-        self.rbac_repo
-            .assign_permission_to_role(&permission, &role_id)
-            .await?;
-
-        // 3. Event
-        self.event_bus
-            .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
-                role_id,
-            }))
-            .await;
-
-        Ok(())
-    }
-
     pub async fn assign_role_to_user(
         &self,
         realm_id: Uuid,
         user_id: Uuid,
         role_id: Uuid,
     ) -> Result<()> {
-        // 1. Verify Role belongs to Realm
         let role = self
             .rbac_repo
             .find_role_by_id(&role_id)
             .await?
             .ok_or(Error::NotFound("Role not found".into()))?;
+
         if role.realm_id != realm_id {
             return Err(Error::SecurityViolation("Cross-realm assignment".into()));
         }
 
-        // 2. Assign (You need to add `assign_role_to_user` to Repository)
         self.rbac_repo
             .assign_role_to_user(&user_id, &role_id)
             .await?;
 
-        // 3. Invalidate Cache
         self.event_bus
             .publish(DomainEvent::UserRoleAssigned(UserRoleChanged {
                 user_id,
@@ -209,11 +241,114 @@ impl RbacService {
         Ok(())
     }
 
+    // --- Permission Management Operations ---
+
+    pub async fn get_permissions_for_role(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<Vec<String>> {
+        // Ensure role exists and belongs to realm
+        let _ = self.get_role(realm_id, role_id).await?;
+
+        self.rbac_repo.get_permissions_for_role(&role_id).await
+    }
+
+    pub async fn assign_permission_to_role(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        permission: Permission,
+    ) -> Result<()> {
+        // 1. Verify Role belongs to Realm
+        let _ = self.get_role(realm_id, role_id).await?;
+
+        // 2. Assign
+        self.rbac_repo
+            .assign_permission_to_role(&permission, &role_id)
+            .await?;
+
+        // 3. Event
+        self.event_bus
+            .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
+                role_id,
+                permission: permission.clone(),
+                action: "assigned".to_string(),
+            }))
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn revoke_permission(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        permission: String,
+    ) -> Result<()> {
+        // 1. Verify Role belongs to Realm
+        let _ = self.get_role(realm_id, role_id).await?;
+
+        // 2. Remove
+        self.rbac_repo
+            .remove_permission(&role_id, &permission)
+            .await?;
+
+        // 3. Event
+        self.event_bus
+            .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
+                role_id,
+                permission,
+                action: "revoked".to_string(),
+            }))
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn bulk_update_permissions(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        permissions: Vec<String>,
+        action: String,
+    ) -> Result<()> {
+        // 1. Verify Role belongs to Realm
+        let _ = self.get_role(realm_id, role_id).await?;
+
+        // 2. Validate Action
+        if action != "add" && action != "remove" {
+            return Err(Error::Validation("Invalid action. Use 'add' or 'remove'.".into()));
+        }
+
+        // 3. Perform Bulk Update
+        self.rbac_repo
+            .bulk_update_permissions(&role_id, permissions.clone(), &action)
+            .await?;
+
+        // 4. Emit Events (Ideally batch this or emit one "Bulk" event)
+        // For now we assume a simple generic event or skip high-volume auditing for bulk ops
+        // or emit one event per permission if strict audit is required.
+        // Keeping it simple here:
+        for perm in permissions {
+             self.event_bus
+            .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
+                role_id,
+                permission: perm,
+                action: if action == "add" { "assigned".to_string() } else { "revoked".to_string() },
+            }))
+            .await; // Note: awaiting inside loop might be slow for massive updates, consider backgrounding or batch event
+        }
+
+        Ok(())
+    }
+
+    // --- User Query Operations ---
+
     pub async fn get_user_roles_and_groups(
         &self,
         user_id: &Uuid,
     ) -> Result<(Vec<String>, Vec<String>)> {
-        // We can run these in parallel for performance
         let (roles, groups) = tokio::try_join!(
             self.rbac_repo.find_role_names_for_user(user_id),
             self.rbac_repo.find_group_names_for_user(user_id)
@@ -221,16 +356,13 @@ impl RbacService {
         Ok((roles, groups))
     }
 
-    // --- Read Operations (High-Performance Caching) ---
     pub async fn user_has_permission(&self, user_id: &Uuid, permission: &str) -> Result<bool> {
         let perms = self.get_effective_permissions(user_id).await?;
 
-        // Check exact match OR wildcard match (e.g. "client:create" matches "client:*")
         if perms.contains(permission) {
             return Ok(true);
         }
 
-        // Simple Wildcard Check: "client:*"
         if let Some((resource, _)) = permission.split_once(':') {
             let wildcard = format!("{}:*", resource);
             if perms.contains(&wildcard) {
@@ -238,7 +370,6 @@ impl RbacService {
             }
         }
 
-        // Super Admin Wildcard
         if perms.contains("*") {
             return Ok(true);
         }
@@ -247,73 +378,17 @@ impl RbacService {
     }
 
     pub async fn get_effective_permissions(&self, user_id: &Uuid) -> Result<HashSet<String>> {
-        // 1. Try Cache
         if let Some(permissions) = self.cache.get_user_permissions(user_id).await {
             return Ok(permissions);
         }
 
-        // 2. Cache Miss -> Run the Single Optimized Query
-        // We no longer loop over roles manually in Rust. The CTE does it.
         let permissions = self
             .rbac_repo
             .get_effective_permissions_for_user(user_id)
             .await?;
 
-        // 3. Update Cache
         self.cache.set_user_permissions(user_id, &permissions).await;
 
         Ok(permissions)
-    }
-
-    pub async fn delete_role(&self, realm_id: Uuid, role_id: Uuid) -> Result<()> {
-        // 1. Verification (Realm Security)
-        let role = self
-            .rbac_repo
-            .find_role_by_id(&role_id)
-            .await?
-            .ok_or(Error::NotFound("Role not found".into()))?;
-
-        if role.realm_id != realm_id {
-            return Err(Error::SecurityViolation(
-                "Role belongs to different realm".into(),
-            ));
-        }
-
-        // 2. [CRITICAL] Find affected users BEFORE deletion
-        // We use the recursive method we made earlier.
-        // This finds everyone: direct assignments + group assignments + inheritance
-        let affected_users = self.rbac_repo.find_user_ids_for_role(&role_id).await?;
-
-        // 3. Delete from DB (Cascades will wipe the links)
-        self.rbac_repo.delete_role(&role_id).await?;
-
-        // 4. Publish Event to Clear Cache
-        // We offload the actual cache clearing to the listener
-        self.event_bus
-            .publish(DomainEvent::RoleDeleted(
-                crate::domain::events::RoleDeleted {
-                    role_id,
-                    affected_user_ids: affected_users,
-                },
-            ))
-            .await;
-
-        Ok(())
-    }
-
-    pub async fn get_role(&self, realm_id: Uuid, role_id: Uuid) -> Result<Role> {
-        let role = self
-            .rbac_repo
-            .find_role_by_id(&role_id)
-            .await?
-            .ok_or(Error::NotFound("Role not found".into()))?;
-
-        if role.realm_id != realm_id {
-            return Err(Error::SecurityViolation(
-                "Role belongs to different realm".into(),
-            ));
-        }
-
-        Ok(role)
     }
 }

@@ -4,8 +4,8 @@ use super::{
     user_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard};
-use crate::domain::permissions::permissions;
 use crate::AppState;
+use crate::domain::permissions;
 use axum::routing::{delete, get_service, put};
 use axum::{
     middleware,
@@ -160,13 +160,22 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         )
         .route(
             "/roles/{id}/permissions",
-            post(rbac_handler::assign_permission_handler),
+            post(rbac_handler::assign_permission_handler)
+                .get(rbac_handler::list_role_permissions_handler)
+                .delete(rbac_handler::revoke_permission_handler)
+        )
+        .route(
+            "/roles/{id}/permissions/bulk",
+            post(rbac_handler::bulk_permissions_handler) // [NEW] Bulk
         )
         .route("/groups", post(rbac_handler::create_group_handler))
         .route(
             "/roles/{id}",
-            delete(rbac_handler::delete_role_handler).get(rbac_handler::get_role_handler),
+            delete(rbac_handler::delete_role_handler)
+                .get(rbac_handler::get_role_handler)
+                .put(rbac_handler::update_role_handler),
         )
+        .route("/permissions", get(rbac_handler::list_permissions_handler))
         .route_layer(middleware::from_fn_with_state(
             state,
             move |state, req, next| {

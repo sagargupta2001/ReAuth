@@ -8,7 +8,7 @@ use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::{AuthFlow, AuthFlowStep};
 use crate::domain::flow::models::FlowDraft;
 use crate::domain::oidc::OidcClient;
-use crate::domain::permissions::permissions;
+use crate::domain::permissions;
 use crate::ports::flow_repository::FlowRepository;
 use crate::ports::flow_store::FlowStore;
 use chrono::Utc;
@@ -378,7 +378,7 @@ async fn seed_admin_user(
     for perm in all_permissions {
         // We ignore errors here (e.g. if permission already assigned)
         let _ = rbac_service
-            .assign_permission_to_role(realm_id, perm.to_string(), role.id)
+            .assign_permission_to_role(realm_id, role.id, perm.to_string())
             .await;
     }
 

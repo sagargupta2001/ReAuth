@@ -469,4 +469,69 @@ impl RbacRepository for SqliteRbacRepository {
 
         Ok(())
     }
+
+    async fn update_role(&self, role: &Role) -> Result<()> {
+        sqlx::query(
+            "UPDATE roles SET name = ?, description = ? WHERE id = ?"
+        )
+            .bind(&role.name)
+            .bind(&role.description)
+            .bind(role.id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(())
+    }
+
+
+    async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>> {
+        let perms = sqlx::query_scalar::<_, String>(
+            "SELECT permission_name FROM role_permissions WHERE role_id = ?"
+        )
+        .bind(role_id.to_string())
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(perms)
+    }
+
+    async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()> {
+        sqlx::query("DELETE FROM role_permissions WHERE role_id = ? AND permission_name = ?")
+            .bind(role_id.to_string())
+            .bind(permission)
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    // Efficient Bulk Operation
+    async fn bulk_update_permissions(&self, role_id: &Uuid, permissions: Vec<String>, action: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await.map_err(|e| Error::Unexpected(e.into()))?;
+        let rid = role_id.to_string();
+
+        for perm in permissions {
+            if action == "add" {
+                // Ignore if exists
+                sqlx::query("INSERT OR IGNORE INTO role_permissions (role_id, permission_name) VALUES (?, ?)")
+                    .bind(&rid)
+                    .bind(perm)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            } else if action == "remove" {
+                sqlx::query("DELETE FROM role_permissions WHERE role_id = ? AND permission_name = ?")
+                    .bind(&rid)
+                    .bind(perm)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
+
+        tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
 }

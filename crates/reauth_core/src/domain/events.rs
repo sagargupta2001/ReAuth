@@ -36,6 +36,8 @@ pub struct RoleGroupChanged {
 #[derive(Clone, Debug, Serialize)]
 pub struct RolePermissionChanged {
     pub role_id: Uuid,
+    pub permission: String,
+    pub action: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
