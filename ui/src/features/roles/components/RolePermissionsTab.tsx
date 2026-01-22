@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { Search, Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
