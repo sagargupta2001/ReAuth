@@ -29,7 +29,7 @@ export function RolePermissionsTab({ roleId }: RolePermissionsTabProps) {
   const { toggleMutation, bulkMutation } = useManagePermissions(roleId)
 
   // 3. Scroll Spy
-  // [FIX] We map the IDs only when data exists.
+  // We map the IDs only when data exists.
   // The hook handles defaulting to the first ID internally.
   const sectionIds = useMemo(() => permissionGroups.map(r => r.id), [permissionGroups])
 
@@ -85,16 +85,19 @@ export function RolePermissionsTab({ roleId }: RolePermissionsTabProps) {
                 key={resource.id}
                 onClick={() => scrollToSection(resource.id)}
                 className={cn(
-                  'group flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
+                  'group flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm font-medium transition-colors duration-200',
                   activeSection === resource.id
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
               >
-                <span>{resource.label}</span>
-                {activeSection === resource.id && (
-                  <div className="bg-primary h-1.5 w-1.5 rounded-full" />
-                )}
+                <span className="truncate mr-2">{resource.label}</span>
+                <div
+                  className={cn(
+                    'bg-primary h-1.5 w-1.5 flex-shrink-0 rounded-full transition-opacity duration-200',
+                    activeSection === resource.id ? 'opacity-100' : 'opacity-0'
+                  )}
+                />
               </button>
             ))}
           </div>
