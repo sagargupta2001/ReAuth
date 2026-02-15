@@ -40,7 +40,7 @@ impl FlowExecutor {
             .await?
             .ok_or(Error::NotFound("Session not found".into()))?;
 
-        if session.status != SessionStatus::active {
+        if session.status != SessionStatus::Active {
             self.heal_session(&mut session).await?;
             user_input = None;
         }
@@ -54,7 +54,6 @@ impl FlowExecutor {
         let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
             .map_err(|e| Error::System(format!("Corrupt artifact: {}", e)))?;
 
-        // 1. Input Handling Phase
         if let Some(input) = user_input {
             let current_node_def = plan
                 .nodes
@@ -75,14 +74,6 @@ impl FlowExecutor {
 
                 match worker.handle_input(&mut session, input).await? {
                     NodeOutcome::Continue { output } => {
-                        // --- [FIX] SAFETY PATCH & LOGGING ---
-                        tracing::info!(
-                            "EXECUTOR: Node '{}' finished with output '{}'. DB Paths: {:?}",
-                            session.current_node_id,
-                            output,
-                            current_node_def.next
-                        );
-
                         // If DB is missing the link, we force it for the password node
                         let forced_next =
                             if session.current_node_id == "auth-password" && output == "success" {
@@ -100,11 +91,6 @@ impl FlowExecutor {
                             .or(forced_next.as_ref()) // <--- Use Patch if DB fails
                             .or_else(|| current_node_def.next.get("default"))
                             .ok_or_else(|| {
-                                tracing::error!(
-                                    "EXECUTOR ERROR: No path for output '{}'. Map: {:?}",
-                                    output,
-                                    current_node_def.next
-                                );
                                 Error::Validation(
                                     "Flow Error: No path forward from this input".into(),
                                 )
@@ -137,13 +123,6 @@ impl FlowExecutor {
                 .nodes
                 .get(&session.current_node_id)
                 .ok_or(Error::System("Node missing from graph".into()))?;
-
-            tracing::info!(
-                "EXECUTOR: Running Node '{}' (Type: {:?}). Configured Next Paths: {:?}",
-                session.current_node_id,
-                node_def.step_type,
-                node_def.next.keys()
-            );
 
             let worker = if node_def.step_type == StepType::Authenticator {
                 let key = node_def
@@ -184,14 +163,14 @@ impl FlowExecutor {
                         });
                     }
                     NodeOutcome::FlowSuccess { user_id: _ } => {
-                        session.status = SessionStatus::completed;
+                        session.status = SessionStatus::Completed;
                         self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Success {
                             redirect_url: "/".to_string(),
                         });
                     }
                     NodeOutcome::FlowFailure { reason } => {
-                        session.status = SessionStatus::failed;
+                        session.status = SessionStatus::Failed;
                         self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Failure { reason });
                     }
@@ -215,13 +194,13 @@ impl FlowExecutor {
                             .unwrap_or(false);
 
                         return if is_failure {
-                            session.status = SessionStatus::failed;
+                            session.status = SessionStatus::Failed;
                             self.session_repo.update(&session).await?;
                             Ok(ExecutionResult::Failure {
                                 reason: "Access Denied".into(),
                             })
                         } else {
-                            session.status = SessionStatus::completed;
+                            session.status = SessionStatus::Completed;
                             self.session_repo.update(&session).await?;
                             Ok(ExecutionResult::Success {
                                 redirect_url: "/".into(),
@@ -245,7 +224,7 @@ impl FlowExecutor {
             .map_err(|e| Error::System(format!("Corrupt artifact: {}", e)))?;
 
         session.current_node_id = plan.start_node_id;
-        session.status = SessionStatus::active;
+        session.status = SessionStatus::Active;
         session.user_id = None;
 
         self.session_repo.update(session).await?;

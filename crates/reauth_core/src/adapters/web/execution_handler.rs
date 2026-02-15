@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::bootstrap::app_state::AppState;
 use crate::constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE};
-use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
+use crate::domain::auth_session::AuthenticationSession;
 use crate::domain::execution::{ExecutionPlan, ExecutionResult};
 use crate::domain::oidc::OidcContext;
 use crate::domain::session::RefreshToken;
@@ -98,32 +98,6 @@ pub async fn start_login(
             "execution": result
         })),
     ))
-}
-
-// Helper to keep main logic clean
-async fn create_new_session(
-    state: &AppState,
-    realm_id: Uuid,
-    flow_id: Uuid,
-) -> Result<AuthenticationSession> {
-    println!("DEBUG: Creating FRESH Session");
-    let version = state
-        .flow_store
-        .get_active_version(&flow_id)
-        .await?
-        .or(state.flow_store.get_latest_version(&flow_id).await?)
-        .ok_or(Error::NotFound("Flow version not found".to_string()))?;
-
-    let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
-        .map_err(|e| Error::Unexpected(anyhow::anyhow!("Corrupt artifact: {}", e)))?;
-
-    let new_s = AuthenticationSession::new(
-        realm_id,
-        Uuid::parse_str(&version.id).unwrap_or_default(),
-        plan.start_node_id,
-    );
-    state.auth_session_repo.create(&new_s).await?;
-    Ok(new_s)
 }
 
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {

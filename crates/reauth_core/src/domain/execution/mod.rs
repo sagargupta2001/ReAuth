@@ -2,7 +2,6 @@ pub mod lifecycle;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 
 // The final artifact stored in 'flow_versions'
 #[derive(Debug, Clone, Serialize, Deserialize)]

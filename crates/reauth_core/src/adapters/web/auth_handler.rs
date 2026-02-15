@@ -1,6 +1,6 @@
 use crate::domain::oidc::OidcContext;
 use crate::{
-    constants::{DEFAULT_REALM_NAME, LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
+    constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
     domain::{
         auth_session::AuthenticationSession, auth_session::SessionStatus,
         execution::ExecutionResult, session::RefreshToken,
@@ -105,13 +105,11 @@ async fn handle_flow_success(
             // We only create a NEW persistent Root (SSO) Session if the user
             // did NOT come from an existing SSO session (i.e., they typed a password).
             // If they resumed via SSO, we trust the existing cookie and do not issue a new one.
-            let sso_cookie_update_needed = if let Some(sso_id_val) =
+            let sso_cookie_update_needed = if let Some(_sso_id_val) =
                 final_session.context.get("sso_token_id")
             {
-                info!("[FlowSuccess] Existing SSO Session {} detected. Skipping Root Session creation.", sso_id_val);
                 false
             } else {
-                info!("[FlowSuccess] Fresh Login detected. Creating new Root SSO Session.");
                 true
             };
 
@@ -167,8 +165,6 @@ async fn handle_flow_success(
 
     // 4. PRIORITY 2: Dashboard (Direct Login)
     if redirect_url == "/" {
-        info!("[FlowSuccess] Dashboard Login. Issuing Session Cookies.");
-
         // Dashboard login always refreshes the Root Session
         let user = state.user_service.get_user(user_id).await?;
         let (_login_resp, refresh_token) = state
@@ -252,9 +248,7 @@ pub async fn start_login_flow_handler(
                         continue;
                     }
 
-                    if session.status == SessionStatus::active {
-                        info!("[StartFlow] Resuming Session {}.", parse_id);
-
+                    if session.status == SessionStatus::Active {
                         // [CRITICAL] Inject Context into Resumed Session
                         let mut updated = false;
                         if let Some(token) = &sso_token_id {
@@ -293,7 +287,6 @@ pub async fn start_login_flow_handler(
     let session_id = if let Some(sid) = valid_session_id {
         sid
     } else {
-        // --- 2. NEW SESSION LOGIC ---
         info!(
             "[StartFlow] Starting New Session for realm '{}'",
             realm.name
@@ -343,7 +336,7 @@ pub async fn start_login_flow_handler(
             flow_version_id: Uuid::parse_str(&version.id).unwrap_or_default(),
             current_node_id: "start".to_string(),
             user_id: None,
-            status: SessionStatus::active,
+            status: SessionStatus::Active,
             context,
             expires_at: Utc::now() + Duration::minutes(15),
             created_at: Utc::now(),
@@ -362,7 +355,7 @@ pub async fn start_login_flow_handler(
     let kill_root = Cookie::build(LOGIN_SESSION_COOKIE)
         .path("/")
         .max_age(time::Duration::seconds(0))
-        .finish();
+        .build();
     headers.append(
         header::SET_COOKIE,
         HeaderValue::from_str(&kill_root.to_string()).unwrap(),
@@ -420,7 +413,7 @@ pub async fn execute_login_step_handler(
     for cookie in cookies {
         if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
             if let Ok(Some(session)) = state.auth_session_repo.find_by_id(&parse_id).await {
-                if session.realm_id == realm.id && session.status == SessionStatus::active {
+                if session.realm_id == realm.id && session.status == SessionStatus::Active {
                     target_session_id = Some(parse_id);
                     break;
                 }
@@ -438,7 +431,6 @@ pub async fn execute_login_step_handler(
 
     // Handle Result
     match result {
-        // [FIX] Use shared logic for Success
         ExecutionResult::Success { redirect_url } => {
             handle_flow_success(&state, session_id, redirect_url, HeaderMap::new(), ip).await
         }

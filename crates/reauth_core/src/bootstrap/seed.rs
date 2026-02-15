@@ -5,7 +5,7 @@ use crate::application::realm_service::{CreateRealmPayload, RealmService, Update
 use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::constants::DEFAULT_REALM_NAME;
-use crate::domain::auth_flow::{AuthFlow, AuthFlowStep};
+use crate::domain::auth_flow::AuthFlow;
 use crate::domain::flow::models::FlowDraft;
 use crate::domain::oidc::OidcClient;
 use crate::domain::permissions;
@@ -69,7 +69,6 @@ pub async fn seed_database(
         "browser-login",
         "Browser Login",
         "browser",
-        vec!["builtin-password-auth"],
     )
     .await?;
 
@@ -82,7 +81,6 @@ pub async fn seed_database(
         "direct-grant",
         "Direct Grant",
         "direct",
-        vec!["builtin-password-auth"],
     )
     .await?;
 
@@ -95,7 +93,6 @@ pub async fn seed_database(
         "registration",
         "Registration",
         "registration",
-        vec![], // Empty for now
     )
     .await?;
 
@@ -108,7 +105,6 @@ pub async fn seed_database(
         "reset-credentials",
         "Reset Credentials",
         "reset",
-        vec![], // Empty for now
     )
     .await?;
 
@@ -219,7 +215,6 @@ async fn ensure_flow(
     name: &str,
     alias: &str,
     type_: &str,
-    default_steps: Vec<&str>,
 ) -> anyhow::Result<Uuid> {
     // Ensure Runtime Flow Exists
     let flow_id = if let Some(flow) = flow_repo.find_flow_by_name(realm_id, name).await? {
@@ -237,19 +232,6 @@ async fn ensure_flow(
         };
         flow_repo.create_flow(&flow, None).await?;
 
-        // Create Steps
-        for (index, authenticator_name) in default_steps.iter().enumerate() {
-            let step = AuthFlowStep {
-                id: Uuid::new_v4(),
-                flow_id: new_id,
-                authenticator_name: authenticator_name.to_string(),
-                priority: index as i64 * 10,
-                requirement: "REQUIRED".to_string(),
-                config: None,
-                parent_step_id: None,
-            };
-            flow_repo.add_step_to_flow(&step, None).await?;
-        }
         new_id
     };
 
@@ -271,8 +253,6 @@ async fn ensure_flow(
 
     if !draft_exists {
         flow_store.create_draft(&draft_obj).await?;
-    } else {
-        info!("Step 2: Draft already exists for {}", alias);
     }
 
     // Ensure Active Version Exists
@@ -284,11 +264,11 @@ async fn ensure_flow(
 
     if !has_valid_version {
         match flow_manager.publish_flow(*realm_id, flow_id).await {
-            Ok(v) => {
+            Ok(_v) => {
                 flow_store.create_draft(&draft_obj).await?;
             }
             Err(e) => {
-                tracing::error!("Step 4: FAILURE - Could not publish {}: {:?}", alias, e);
+                tracing::error!("FAILURE - Could not publish {}: {:?}", alias, e);
             }
         }
     }

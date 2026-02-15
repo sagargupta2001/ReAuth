@@ -1,12 +1,10 @@
 use crate::domain::role::Permission;
 use crate::domain::{group::Group, role::Role};
-use crate::error::{Error, Result};
+use crate::error::Result;
 use async_trait::async_trait;
 use std::collections::HashSet;
-use std::format;
-use sqlx::QueryBuilder;
 use uuid::Uuid;
-use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
+use crate::domain::pagination::{PageRequest, PageResponse};
 
 #[async_trait]
 pub trait RbacRepository: Send + Sync {

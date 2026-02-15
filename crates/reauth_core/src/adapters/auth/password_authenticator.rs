@@ -5,7 +5,6 @@ use tracing::{info, warn};
 
 use crate::domain::auth_session::AuthenticationSession;
 use crate::domain::{
-    auth_flow::LoginSession,
     crypto::HashedPassword,
     execution::lifecycle::{LifecycleNode, NodeOutcome},
 };

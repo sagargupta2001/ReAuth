@@ -190,7 +190,7 @@ pub async fn update_role_handler(
 // GET /api/realms/{realm}/rbac/permissions
 pub async fn list_permissions_handler() -> impl IntoResponse {
     // 1. Get System Permissions
-    let mut groups = permissions::get_system_permissions();
+    let groups = permissions::get_system_permissions();
 
     // 2. [Future] Fetch Custom Permissions (Client Scopes) from DB
     // let custom_groups = client_service.get_all_scopes_as_groups().await?;

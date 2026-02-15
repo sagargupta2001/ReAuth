@@ -8,7 +8,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use axum_extra::extract::cookie::CookieJar;
-use uuid::Uuid;
 
 /// A struct to hold the authenticated user, which we will attach to the request.
 #[derive(Clone)]

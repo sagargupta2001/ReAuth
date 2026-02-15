@@ -1,4 +1,3 @@
-use crate::domain::auth_flow::LoginSession;
 use crate::domain::auth_session::AuthenticationSession;
 use crate::error::Result;
 use async_trait::async_trait;

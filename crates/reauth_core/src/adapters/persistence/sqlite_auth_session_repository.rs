@@ -63,16 +63,16 @@ impl AuthSessionRepository for SqliteAuthSessionRepository {
             let status_str = r.status.trim().to_lowercase();
 
             let status = match status_str.as_str() {
-                "active" => SessionStatus::active,
-                "completed" => SessionStatus::completed,
-                "failed" => SessionStatus::failed,
+                "active" => SessionStatus::Active,
+                "completed" => SessionStatus::Completed,
+                "failed" => SessionStatus::Failed,
                 _ => {
                     // Log the actual failing string so we can debug
                     println!(
                         "CRITICAL ERROR: DB Status '{}' could not be mapped. Defaulting to Failed.",
                         r.status
                     );
-                    SessionStatus::failed
+                    SessionStatus::Failed
                 }
             };
 

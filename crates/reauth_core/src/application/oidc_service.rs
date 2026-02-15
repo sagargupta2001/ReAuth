@@ -129,7 +129,7 @@ impl OidcService {
                 "oidc": oidc_context
             }),
 
-            status: SessionStatus::active,
+            status: SessionStatus::Active,
             user_id: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),

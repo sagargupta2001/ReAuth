@@ -324,7 +324,7 @@ impl FlowManager {
 
     pub async fn restore_draft_from_version(
         &self,
-        realm_id: Uuid,
+        _realm_id: Uuid,
         flow_id: Uuid,
         version_number: i32,
     ) -> Result<()> {

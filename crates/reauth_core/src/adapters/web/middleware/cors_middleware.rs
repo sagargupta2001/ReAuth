@@ -2,7 +2,7 @@ use crate::AppState;
 use axum::{
     body::Body,
     extract::State,
-    http::{HeaderValue, Method, Request, StatusCode},
+    http::{HeaderValue, Request, StatusCode},
     middleware::Next,
     response::Response,
 };
