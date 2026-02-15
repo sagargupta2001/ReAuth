@@ -25,4 +25,7 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 - `08-dev-ops.md`
 - `09-roadmap.md`
 - `10-open-questions.md`
+- `11-auth-flow-catalog.md`
+- `roadmaps/README.md`
+- `roadmaps/rbac.md`
 - `adr/README.md`
