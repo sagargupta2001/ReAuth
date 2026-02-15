@@ -77,9 +77,6 @@ impl FlowExecutor {
                         // If DB is missing the link, we force it for the password node
                         let forced_next =
                             if session.current_node_id == "auth-password" && output == "success" {
-                                tracing::warn!(
-                                    "EXECUTOR: Applying SAFETY PATCH for auth-password -> success"
-                                );
                                 Some("success".to_string())
                             } else {
                                 None

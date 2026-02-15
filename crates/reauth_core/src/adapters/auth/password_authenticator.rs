@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::warn;
 
 use crate::domain::auth_session::AuthenticationSession;
 use crate::domain::{
@@ -97,8 +97,6 @@ impl LifecycleNode for PasswordAuthenticator {
         }
 
         // 4. Success Logic
-        info!("User authenticated successfully: {}", user.id);
-
         // A. Update Identity in Session
         _session.user_id = Some(user.id);
 

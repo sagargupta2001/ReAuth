@@ -20,7 +20,7 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use tracing::{error, info, instrument, warn};
+use tracing::{error, instrument, warn};
 use uuid::Uuid;
 
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
@@ -75,11 +75,6 @@ async fn handle_flow_success(
     mut headers: HeaderMap,
     ip_address: String,
 ) -> Result<Response> {
-    info!(
-        "[FlowSuccess] Processing success for session {}",
-        session_id
-    );
-
     // 1. Cleanup Login Cookie (Flow is done)
     headers.append(
         header::SET_COOKIE,
@@ -99,7 +94,6 @@ async fn handle_flow_success(
 
     // 3. PRIORITY 1: OIDC (Dummy App / External Clients)
     if let Some(oidc_value) = final_session.context.get("oidc") {
-        info!("[FlowSuccess] OIDC context detected.");
         if let Ok(oidc_ctx) = serde_json::from_value::<OidcContext>(oidc_value.clone()) {
             // [OPTIMIZATION] Root Session Management
             // We only create a NEW persistent Root (SSO) Session if the user
@@ -208,8 +202,6 @@ pub async fn start_login_flow_handler(
     Path(realm_name): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse> {
-    info!("[StartFlow] Request for Realm: {}", realm_name);
-
     // 1. Resolve Realm
     let realm = state
         .realm_service
@@ -287,11 +279,6 @@ pub async fn start_login_flow_handler(
     let session_id = if let Some(sid) = valid_session_id {
         sid
     } else {
-        info!(
-            "[StartFlow] Starting New Session for realm '{}'",
-            realm.name
-        );
-
         let flow_id_str = realm
             .browser_flow_id
             .ok_or(Error::System("Realm has no browser flow configured".into()))?;
@@ -388,8 +375,6 @@ pub async fn execute_login_step_handler(
     Path(realm_name): Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> Result<impl IntoResponse> {
-    info!("[ExecuteStep] Processing step for Realm: {}", realm_name);
-
     // We fetch the realm just to ensure it exists (Validation)
     let realm = state
         .realm_service
