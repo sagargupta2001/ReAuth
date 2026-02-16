@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 
-import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core'
 import { ChevronRight, Folder, GripVertical, MoreVertical, Plus } from 'lucide-react'
 
 import { Button } from '@/components/button'
@@ -36,24 +35,30 @@ export function GroupTreeItem({
   onMoveToRoot,
   onDelete,
 }: GroupTreeItemProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: item.id,
-  })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+  const { active } = useDndContext()
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDraggableNodeRef,
+    setActivatorNodeRef,
+    isDragging,
+  } = useDraggable({ id: item.id })
+  const { isOver, setNodeRef: setDroppableNodeRef } = useDroppable({ id: item.id })
+  const setNodeRef = (node: HTMLDivElement | null) => {
+    setDraggableNodeRef(node)
+    setDroppableNodeRef(node)
   }
+  const isHovered = isOver && active?.id !== item.id
 
   const paddingLeft = useMemo(() => item.depth * indentationWidth, [item.depth])
 
   return (
     <div
       ref={setNodeRef}
-      style={style}
       className={cn(
-        'group flex items-center gap-2 rounded-md px-2 py-1 text-sm',
+        'group flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors',
         isSelected && 'bg-primary/10 text-primary',
+        isHovered && !isSelected && 'bg-accent/60 ring-2 ring-accent/80',
         isDragging && 'opacity-60',
       )}
     >
@@ -116,6 +121,7 @@ export function GroupTreeItem({
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground flex h-7 w-7 items-center justify-center"
+          ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
         >

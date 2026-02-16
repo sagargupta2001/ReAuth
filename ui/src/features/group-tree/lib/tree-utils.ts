@@ -2,6 +2,15 @@ import type { FlattenedGroupNode, GroupTreeNode } from '@/features/group-tree/mo
 
 export const indentationWidth = 18
 
+export function sortTreeByName(items: GroupTreeNode[]): GroupTreeNode[] {
+  return [...items]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((item) => ({
+      ...item,
+      children: item.children ? sortTreeByName(item.children) : item.children,
+    }))
+}
+
 export function flattenTree(
   items: GroupTreeNode[],
   parentId: string | null = null,
@@ -117,23 +126,5 @@ export function insertNode(
     const children = parent.children ? [...parent.children] : []
     children.splice(index, 0, node)
     return { ...parent, children, has_children: true }
-  })
-}
-
-export function reorderChildren(
-  items: GroupTreeNode[],
-  parentId: string | null,
-  orderedIds: string[],
-): GroupTreeNode[] {
-  if (!parentId) {
-    const byId = new Map(items.map((item) => [item.id, item]))
-    return orderedIds.map((id) => byId.get(id)).filter(Boolean) as GroupTreeNode[]
-  }
-
-  return updateNode(items, parentId, (parent) => {
-    if (!parent.children) return parent
-    const byId = new Map(parent.children.map((child) => [child.id, child]))
-    const ordered = orderedIds.map((id) => byId.get(id)).filter(Boolean) as GroupTreeNode[]
-    return { ...parent, children: ordered }
   })
 }

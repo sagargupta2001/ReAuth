@@ -10,7 +10,6 @@ import {
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -30,7 +29,7 @@ import {
   insertNode,
   removeChildrenOf,
   removeNode,
-  reorderChildren,
+  sortTreeByName,
   updateNode,
 } from '@/features/group-tree/lib/tree-utils'
 import { GroupTreeItem } from '@/features/group-tree/components/GroupTreeItem'
@@ -86,12 +85,12 @@ export function GroupTreePanel({
       const response = await fetchGroupRoots(realm, {
         page: 1,
         per_page: 200,
-        sort_by: 'sort_order',
+        sort_by: 'name',
         sort_dir: 'asc',
         q: search.trim() ? search.trim() : undefined,
       })
 
-      setTree(response.data)
+      setTree(sortTreeByName(response.data))
     } catch (err: any) {
       toast.error(err.message || 'Failed to load groups')
     } finally {
@@ -119,14 +118,14 @@ export function GroupTreePanel({
         const response = await fetchGroupChildren(realm, groupId, {
           page: 1,
           per_page: 200,
-          sort_by: 'sort_order',
+          sort_by: 'name',
           sort_dir: 'asc',
         })
 
         setTree((prev) =>
           updateNode(prev, groupId, (node) => ({
             ...node,
-            children: response.data,
+            children: sortTreeByName(response.data),
             has_children: response.meta.total > 0,
           })),
         )
@@ -221,8 +220,8 @@ export function GroupTreePanel({
     }
 
     const activeId = active.id as string
-    const overId = over.id as string
-    if (activeId === overId) {
+    const targetId = over.id as string
+    if (activeId === targetId) {
       setActiveId(null)
       return
     }
@@ -230,7 +229,7 @@ export function GroupTreePanel({
     const activeNode = findNode(tree, activeId)
     const oldParentId = activeNode?.parent_id ?? null
 
-    const overItem = visibleItems.find((item) => item.id === overId)
+    const overItem = visibleItems.find((item) => item.id === targetId)
     if (!overItem) {
       setActiveId(null)
       return
@@ -245,7 +244,7 @@ export function GroupTreePanel({
     const dropOnNode = centerY > upper && centerY < lower
 
     if (dropOnNode) {
-      const targetParentId = overId
+      const targetParentId = targetId
       const parentNode = findNode(tree, targetParentId)
       const insertIndex = parentNode?.children ? parentNode.children.length : 0
 
@@ -279,7 +278,7 @@ export function GroupTreePanel({
           }
         }
 
-        return nextTree
+        return sortTreeByName(nextTree)
       })
 
       try {
@@ -301,60 +300,6 @@ export function GroupTreePanel({
       setActiveId(null)
       return
     }
-
-    const targetParentId = overItem.parentId
-    const siblings = visibleItems.filter(
-      (item) => item.parentId === targetParentId && item.depth === overItem.depth,
-    )
-    const siblingIds = siblings.map((item) => item.id)
-    const activeIndex = siblingIds.indexOf(activeId)
-    const overIndex = siblingIds.indexOf(overId)
-
-    if (activeIndex === -1 || overIndex === -1) {
-      setActiveId(null)
-      return
-    }
-
-    const orderedIds = arrayMove(siblingIds, activeIndex, overIndex)
-    const newIndex = orderedIds.indexOf(activeId)
-
-    setTree((prev) => {
-      const { node, tree: removedTree } = removeNode(prev, activeId)
-      if (!node) return prev
-
-      const updatedNode = { ...node, parent_id: targetParentId, sort_order: newIndex }
-      let nextTree = insertNode(removedTree, targetParentId, updatedNode, newIndex)
-      nextTree = reorderChildren(nextTree, targetParentId, orderedIds)
-
-      if (node.parent_id && node.parent_id !== targetParentId) {
-        const oldParent = findNode(nextTree, node.parent_id)
-        if (oldParent && (!oldParent.children || oldParent.children.length === 0)) {
-          nextTree = updateNode(nextTree, node.parent_id, (parent) => ({
-            ...parent,
-            has_children: false,
-          }))
-        }
-      }
-
-      return nextTree
-    })
-
-    const beforeId = newIndex < orderedIds.length - 1 ? orderedIds[newIndex + 1] : null
-    const afterId = !beforeId && newIndex > 0 ? orderedIds[newIndex - 1] : null
-
-    try {
-      await moveGroup(realm, activeId, {
-        parent_id: targetParentId,
-        before_id: beforeId,
-        after_id: afterId,
-      })
-      invalidateChildren(oldParentId)
-      invalidateChildren(targetParentId)
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to move group')
-      void loadRoots()
-    }
-
     setActiveId(null)
   }
 
@@ -411,22 +356,20 @@ export function GroupTreePanel({
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
           >
-            <SortableContext items={visibleItems.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-1">
-                {visibleItems.map((item) => (
-                  <GroupTreeItem
-                    key={item.id}
-                    item={item}
-                    isExpanded={expandedIds.has(item.id)}
-                    isSelected={selectedId === item.id}
-                    onToggle={toggleExpand}
-                    onSelect={onSelect}
-                    onCreateChild={(parentId) => onCreateGroup(parentId)}
-                    onMoveToRoot={handleMoveToRoot}
-                  />
-                ))}
-              </div>
-            </SortableContext>
+            <div className="flex flex-col gap-1">
+              {visibleItems.map((item) => (
+                <GroupTreeItem
+                  key={item.id}
+                  item={item}
+                  isExpanded={expandedIds.has(item.id)}
+                  isSelected={selectedId === item.id}
+                  onToggle={toggleExpand}
+                  onSelect={onSelect}
+                  onCreateChild={(parentId) => onCreateGroup(parentId)}
+                  onMoveToRoot={handleMoveToRoot}
+                />
+              ))}
+            </div>
 
             <DragOverlay dropAnimation={null}>
               {activeItem ? (
