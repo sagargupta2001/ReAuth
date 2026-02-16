@@ -1,5 +1,6 @@
 use crate::adapters::persistence::connection::Database;
 use crate::domain::role::Permission;
+use crate::domain::rbac::{GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, RoleMemberFilter, RoleMemberRow};
 use crate::{
     domain::{group::Group, role::Role},
     error::{Error, Result},
@@ -50,6 +51,25 @@ impl SqliteRbacRepository {
             }
         }
     }
+
+    fn apply_group_filters<'a>(
+        builder: &mut QueryBuilder<'a, Sqlite>,
+        realm_id: &Uuid,
+        q: &Option<String>,
+    ) {
+        builder.push(" WHERE realm_id = ");
+        builder.push_bind(realm_id.to_string());
+
+        if let Some(query) = q {
+            if !query.trim().is_empty() {
+                builder.push(" AND (name LIKE ");
+                builder.push_bind(format!("%{}%", query));
+                builder.push(" OR description LIKE ");
+                builder.push_bind(format!("%{}%", query));
+                builder.push(")");
+            }
+        }
+    }
 }
 
 #[async_trait]
@@ -81,7 +101,7 @@ impl RbacRepository for SqliteRbacRepository {
     }
 
     async fn assign_role_to_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
-        sqlx::query("INSERT INTO group_roles (group_id, role_id) VALUES (?, ?)")
+        sqlx::query("INSERT OR IGNORE INTO group_roles (group_id, role_id) VALUES (?, ?)")
             .bind(group_id.to_string())
             .bind(role_id.to_string())
             .execute(&*self.pool)
@@ -91,7 +111,27 @@ impl RbacRepository for SqliteRbacRepository {
     }
 
     async fn assign_user_to_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
-        sqlx::query("INSERT INTO user_groups (user_id, group_id) VALUES (?, ?)")
+        sqlx::query("INSERT OR IGNORE INTO user_groups (user_id, group_id) VALUES (?, ?)")
+            .bind(user_id.to_string())
+            .bind(group_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn remove_role_from_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM group_roles WHERE group_id = ? AND role_id = ?")
+            .bind(group_id.to_string())
+            .bind(role_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn remove_user_from_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM user_groups WHERE user_id = ? AND group_id = ?")
             .bind(user_id.to_string())
             .bind(group_id.to_string())
             .execute(&*self.pool)
@@ -116,7 +156,17 @@ impl RbacRepository for SqliteRbacRepository {
 
     async fn assign_role_to_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()> {
         // We use the `user_roles` table created in Phase 1 migration
-        sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)")
+        sqlx::query("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)")
+            .bind(user_id.to_string())
+            .bind(role_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn remove_role_from_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM user_roles WHERE user_id = ? AND role_id = ?")
             .bind(user_id.to_string())
             .bind(role_id.to_string())
             .execute(&*self.pool)
@@ -140,6 +190,15 @@ impl RbacRepository for SqliteRbacRepository {
         let group = sqlx::query_as("SELECT * FROM groups WHERE realm_id = ? AND name = ?")
             .bind(realm_id.to_string())
             .bind(name)
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(group)
+    }
+
+    async fn find_group_by_id(&self, group_id: &Uuid) -> Result<Option<Group>> {
+        let group = sqlx::query_as("SELECT * FROM groups WHERE id = ?")
+            .bind(group_id.to_string())
             .fetch_optional(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
@@ -193,6 +252,372 @@ impl RbacRepository for SqliteRbacRepository {
 
         // Execute
         let roles: Vec<Role> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(roles, total, req.page, limit))
+    }
+
+    async fn list_groups(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<Group>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM groups");
+        Self::apply_group_filters(&mut count_builder, realm_id, &req.q);
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new("SELECT * FROM groups");
+        Self::apply_group_filters(&mut query_builder, realm_id, &req.q);
+
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "name",
+            _ => "name",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let groups: Vec<Group> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(groups, total, req.page, limit))
+    }
+
+    async fn list_role_members(
+        &self,
+        realm_id: &Uuid,
+        role_id: &Uuid,
+        filter: RoleMemberFilter,
+        req: &PageRequest,
+    ) -> Result<PageResponse<RoleMemberRow>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        // Count
+        let mut count_builder = QueryBuilder::new("");
+        count_builder.push(
+            "WITH RECURSIVE role_hierarchy(id) AS ( SELECT ",
+        );
+        count_builder.push_bind(role_id.to_string());
+        count_builder.push(
+            " AS id UNION SELECT rcr.child_role_id FROM role_composite_roles rcr JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id ),",
+        );
+        count_builder.push(" direct_users AS (SELECT user_id FROM user_roles WHERE role_id = ");
+        count_builder.push_bind(role_id.to_string());
+        count_builder.push("), effective_users AS (");
+        count_builder.push("SELECT user_id FROM user_roles WHERE role_id IN (SELECT id FROM role_hierarchy) ");
+        count_builder.push("UNION SELECT ug.user_id FROM user_groups ug JOIN group_roles gr ON ug.group_id = gr.group_id ");
+        count_builder.push("WHERE gr.role_id IN (SELECT id FROM role_hierarchy)) ");
+        count_builder.push("SELECT COUNT(*) FROM users u ");
+        count_builder.push("LEFT JOIN direct_users du ON u.id = du.user_id ");
+        count_builder.push("LEFT JOIN effective_users eu ON u.id = eu.user_id ");
+        count_builder.push("WHERE u.realm_id = ");
+        count_builder.push_bind(realm_id.to_string());
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                count_builder.push(" AND u.username LIKE ");
+                count_builder.push_bind(format!("%{}%", q));
+            }
+        }
+
+        match filter {
+            RoleMemberFilter::All => {}
+            RoleMemberFilter::Direct => {
+                count_builder.push(" AND du.user_id IS NOT NULL");
+            }
+            RoleMemberFilter::Effective => {
+                count_builder.push(" AND du.user_id IS NULL AND eu.user_id IS NOT NULL");
+            }
+            RoleMemberFilter::Unassigned => {
+                count_builder.push(" AND eu.user_id IS NULL");
+            }
+        }
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        // Select
+        let mut query_builder = QueryBuilder::new("");
+        query_builder.push(
+            "WITH RECURSIVE role_hierarchy(id) AS ( SELECT ",
+        );
+        query_builder.push_bind(role_id.to_string());
+        query_builder.push(
+            " AS id UNION SELECT rcr.child_role_id FROM role_composite_roles rcr JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id ),",
+        );
+        query_builder.push(" direct_users AS (SELECT user_id FROM user_roles WHERE role_id = ");
+        query_builder.push_bind(role_id.to_string());
+        query_builder.push("), effective_users AS (");
+        query_builder.push("SELECT user_id FROM user_roles WHERE role_id IN (SELECT id FROM role_hierarchy) ");
+        query_builder.push("UNION SELECT ug.user_id FROM user_groups ug JOIN group_roles gr ON ug.group_id = gr.group_id ");
+        query_builder.push("WHERE gr.role_id IN (SELECT id FROM role_hierarchy)) ");
+        query_builder.push("SELECT u.id, u.username, ");
+        query_builder.push("CASE WHEN du.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_direct, ");
+        query_builder.push("CASE WHEN eu.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_effective ");
+        query_builder.push("FROM users u ");
+        query_builder.push("LEFT JOIN direct_users du ON u.id = du.user_id ");
+        query_builder.push("LEFT JOIN effective_users eu ON u.id = eu.user_id ");
+        query_builder.push("WHERE u.realm_id = ");
+        query_builder.push_bind(realm_id.to_string());
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                query_builder.push(" AND u.username LIKE ");
+                query_builder.push_bind(format!("%{}%", q));
+            }
+        }
+
+        match filter {
+            RoleMemberFilter::All => {}
+            RoleMemberFilter::Direct => {
+                query_builder.push(" AND du.user_id IS NOT NULL");
+            }
+            RoleMemberFilter::Effective => {
+                query_builder.push(" AND du.user_id IS NULL AND eu.user_id IS NOT NULL");
+            }
+            RoleMemberFilter::Unassigned => {
+                query_builder.push(" AND eu.user_id IS NULL");
+            }
+        }
+
+        let sort_col = match req.sort_by.as_deref() {
+            Some("username") => "u.username",
+            Some("id") => "u.id",
+            _ => "u.username",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let users: Vec<RoleMemberRow> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(users, total, req.page, limit))
+    }
+
+    async fn list_group_members(
+        &self,
+        realm_id: &Uuid,
+        group_id: &Uuid,
+        filter: GroupMemberFilter,
+        req: &PageRequest,
+    ) -> Result<PageResponse<GroupMemberRow>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("");
+        count_builder.push("WITH members AS (SELECT user_id FROM user_groups WHERE group_id = ");
+        count_builder.push_bind(group_id.to_string());
+        count_builder.push(") ");
+        count_builder.push("SELECT COUNT(*) FROM users u ");
+        count_builder.push("LEFT JOIN members m ON u.id = m.user_id ");
+        count_builder.push("WHERE u.realm_id = ");
+        count_builder.push_bind(realm_id.to_string());
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                count_builder.push(" AND u.username LIKE ");
+                count_builder.push_bind(format!("%{}%", q));
+            }
+        }
+
+        match filter {
+            GroupMemberFilter::All => {}
+            GroupMemberFilter::Members => {
+                count_builder.push(" AND m.user_id IS NOT NULL");
+            }
+            GroupMemberFilter::NonMembers => {
+                count_builder.push(" AND m.user_id IS NULL");
+            }
+        }
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new("");
+        query_builder.push("WITH members AS (SELECT user_id FROM user_groups WHERE group_id = ");
+        query_builder.push_bind(group_id.to_string());
+        query_builder.push(") ");
+        query_builder.push("SELECT u.id, u.username, ");
+        query_builder.push("CASE WHEN m.user_id IS NOT NULL THEN 1 ELSE 0 END AS is_member ");
+        query_builder.push("FROM users u ");
+        query_builder.push("LEFT JOIN members m ON u.id = m.user_id ");
+        query_builder.push("WHERE u.realm_id = ");
+        query_builder.push_bind(realm_id.to_string());
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                query_builder.push(" AND u.username LIKE ");
+                query_builder.push_bind(format!("%{}%", q));
+            }
+        }
+
+        match filter {
+            GroupMemberFilter::All => {}
+            GroupMemberFilter::Members => {
+                query_builder.push(" AND m.user_id IS NOT NULL");
+            }
+            GroupMemberFilter::NonMembers => {
+                query_builder.push(" AND m.user_id IS NULL");
+            }
+        }
+
+        let sort_col = match req.sort_by.as_deref() {
+            Some("username") => "u.username",
+            Some("id") => "u.id",
+            _ => "u.username",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let users: Vec<GroupMemberRow> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(users, total, req.page, limit))
+    }
+
+    async fn list_group_roles(
+        &self,
+        realm_id: &Uuid,
+        group_id: &Uuid,
+        filter: GroupRoleFilter,
+        req: &PageRequest,
+    ) -> Result<PageResponse<GroupRoleRow>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("");
+        count_builder.push("WITH assigned AS (SELECT role_id FROM group_roles WHERE group_id = ");
+        count_builder.push_bind(group_id.to_string());
+        count_builder.push(") ");
+        count_builder.push("SELECT COUNT(*) FROM roles r ");
+        count_builder.push("LEFT JOIN assigned a ON r.id = a.role_id ");
+        count_builder.push("WHERE r.realm_id = ");
+        count_builder.push_bind(realm_id.to_string());
+        count_builder.push(" AND r.client_id IS NULL ");
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                count_builder.push(" AND (r.name LIKE ");
+                count_builder.push_bind(format!("%{}%", q));
+                count_builder.push(" OR r.description LIKE ");
+                count_builder.push_bind(format!("%{}%", q));
+                count_builder.push(")");
+            }
+        }
+
+        match filter {
+            GroupRoleFilter::All => {}
+            GroupRoleFilter::Assigned => {
+                count_builder.push(" AND a.role_id IS NOT NULL");
+            }
+            GroupRoleFilter::Unassigned => {
+                count_builder.push(" AND a.role_id IS NULL");
+            }
+        }
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new("");
+        query_builder.push("WITH assigned AS (SELECT role_id FROM group_roles WHERE group_id = ");
+        query_builder.push_bind(group_id.to_string());
+        query_builder.push(") ");
+        query_builder.push("SELECT r.id, r.name, r.description, ");
+        query_builder.push("CASE WHEN a.role_id IS NOT NULL THEN 1 ELSE 0 END AS is_assigned ");
+        query_builder.push("FROM roles r ");
+        query_builder.push("LEFT JOIN assigned a ON r.id = a.role_id ");
+        query_builder.push("WHERE r.realm_id = ");
+        query_builder.push_bind(realm_id.to_string());
+        query_builder.push(" AND r.client_id IS NULL ");
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                query_builder.push(" AND (r.name LIKE ");
+                query_builder.push_bind(format!("%{}%", q));
+                query_builder.push(" OR r.description LIKE ");
+                query_builder.push_bind(format!("%{}%", q));
+                query_builder.push(")");
+            }
+        }
+
+        match filter {
+            GroupRoleFilter::All => {}
+            GroupRoleFilter::Assigned => {
+                query_builder.push(" AND a.role_id IS NOT NULL");
+            }
+            GroupRoleFilter::Unassigned => {
+                query_builder.push(" AND a.role_id IS NULL");
+            }
+        }
+
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "r.name",
+            _ => "r.name",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let roles: Vec<GroupRoleRow> = query_builder
             .build_query_as()
             .fetch_all(&*self.pool)
             .await
@@ -256,15 +681,6 @@ impl RbacRepository for SqliteRbacRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(role)
     }
-    async fn find_groups_by_realm(&self, realm_id: &Uuid) -> Result<Vec<Group>> {
-        let groups = sqlx::query_as("SELECT * FROM groups WHERE realm_id = ? ORDER BY name ASC")
-            .bind(realm_id.to_string())
-            .fetch_all(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(groups)
-    }
-
     async fn find_user_ids_in_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
         // We query for a Vec of tuples, where each tuple contains one string (the user_id).
         let rows: Vec<(String,)> =
@@ -280,6 +696,21 @@ impl RbacRepository for SqliteRbacRepository {
             .filter_map(|(id,)| Uuid::parse_str(&id).ok()) // Safely parse, skipping any invalid IDs
             .collect();
 
+        Ok(uuids)
+    }
+
+    async fn find_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
+        let rows: Vec<(String,)> =
+            sqlx::query_as("SELECT role_id FROM group_roles WHERE group_id = ?")
+                .bind(group_id.to_string())
+                .fetch_all(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let uuids = rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect();
         Ok(uuids)
     }
 
@@ -345,11 +776,33 @@ impl RbacRepository for SqliteRbacRepository {
                 SELECT rcr.child_role_id FROM role_composite_roles rcr
                 JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id
             )
-            -- 3. Find all users in groups that have any of these roles
-            SELECT DISTINCT ug.user_id FROM user_groups ug
-            JOIN group_roles gr ON ug.group_id = gr.group_id
-            WHERE gr.role_id IN (SELECT id FROM role_hierarchy)
+            SELECT DISTINCT user_id FROM (
+                -- 3a. Direct user-role assignments
+                SELECT user_id FROM user_roles
+                WHERE role_id IN (SELECT id FROM role_hierarchy)
+                UNION
+                -- 3b. Users in groups that have any of these roles
+                SELECT ug.user_id FROM user_groups ug
+                JOIN group_roles gr ON ug.group_id = gr.group_id
+                WHERE gr.role_id IN (SELECT id FROM role_hierarchy)
+            )
         "#,
+        )
+        .bind(role_id.to_string())
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let uuids = rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect();
+        Ok(uuids)
+    }
+
+    async fn find_direct_user_ids_for_role(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT user_id FROM user_roles WHERE role_id = ?"
         )
         .bind(role_id.to_string())
         .fetch_all(&*self.pool)
@@ -477,6 +930,18 @@ impl RbacRepository for SqliteRbacRepository {
             .bind(&role.name)
             .bind(&role.description)
             .bind(role.id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(())
+    }
+
+    async fn update_group(&self, group: &Group) -> Result<()> {
+        sqlx::query("UPDATE groups SET name = ?, description = ? WHERE id = ?")
+            .bind(&group.name)
+            .bind(&group.description)
+            .bind(group.id.to_string())
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;

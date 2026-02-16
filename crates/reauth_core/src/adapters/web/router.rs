@@ -96,6 +96,10 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
         .route("/{id}", put(user_handler::update_user_handler))
         .route("/{id}", get(user_handler::get_user_handler))
         .route("/{id}/roles", post(rbac_handler::assign_user_role_handler))
+        .route(
+            "/{id}/roles/{role_id}",
+            delete(rbac_handler::remove_user_role_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -165,10 +169,51 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
                 .delete(rbac_handler::revoke_permission_handler)
         )
         .route(
+            "/roles/{id}/members",
+            get(rbac_handler::list_role_members_handler)
+        )
+        .route(
+            "/roles/{id}/members/list",
+            get(rbac_handler::list_role_members_page_handler)
+        )
+        .route(
             "/roles/{id}/permissions/bulk",
             post(rbac_handler::bulk_permissions_handler) // [NEW] Bulk
         )
-        .route("/groups", post(rbac_handler::create_group_handler))
+        .route(
+            "/groups",
+            post(rbac_handler::create_group_handler).get(rbac_handler::list_groups_handler),
+        )
+        .route(
+            "/groups/{id}",
+            get(rbac_handler::get_group_handler).put(rbac_handler::update_group_handler),
+        )
+        .route(
+            "/groups/{id}/members",
+            get(rbac_handler::list_group_members_handler)
+                .post(rbac_handler::assign_user_to_group_handler),
+        )
+        .route(
+            "/groups/{id}/members/list",
+            get(rbac_handler::list_group_members_page_handler),
+        )
+        .route(
+            "/groups/{id}/members/{user_id}",
+            delete(rbac_handler::remove_user_from_group_handler),
+        )
+        .route(
+            "/groups/{id}/roles",
+            get(rbac_handler::list_group_roles_handler)
+                .post(rbac_handler::assign_role_to_group_handler),
+        )
+        .route(
+            "/groups/{id}/roles/list",
+            get(rbac_handler::list_group_roles_page_handler),
+        )
+        .route(
+            "/groups/{id}/roles/{role_id}",
+            delete(rbac_handler::remove_role_from_group_handler),
+        )
         .route(
             "/roles/{id}",
             delete(rbac_handler::delete_role_handler)

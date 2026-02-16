@@ -9,9 +9,12 @@ use uuid::Uuid;
 pub enum DomainEvent {
     UserCreated(UserCreated),
     UserAssignedToGroup(UserGroupChanged),
+    UserRemovedFromGroup(UserGroupChanged),
     RoleAssignedToGroup(RoleGroupChanged),
+    RoleRemovedFromGroup(RoleGroupChanged),
     RolePermissionChanged(RolePermissionChanged),
     UserRoleAssigned(UserRoleChanged),
+    UserRoleRemoved(UserRoleChanged),
     RoleDeleted(RoleDeleted),
 }
 

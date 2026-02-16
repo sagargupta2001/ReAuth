@@ -32,10 +32,28 @@ impl EventHandler for CacheInvalidator {
                 // Simple case: Invalidate one user's permissions
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
+            DomainEvent::UserRemovedFromGroup(e) => {
+                info!("Invalidating cache for user: {} (Removed from Group)", e.user_id);
+                self.cache.clear_user_permissions(&e.user_id).await;
+            }
             DomainEvent::RoleAssignedToGroup(e) => {
                 info!("Invalidating cache for group: {}", e.group_id);
                 // Complex case: A role was added to a group.
                 // We must invalidate *all users* in that group.
+                match self.rbac_repo.find_user_ids_in_group(&e.group_id).await {
+                    Ok(user_ids) => {
+                        for user_id in user_ids {
+                            self.cache.clear_user_permissions(&user_id).await;
+                        }
+                    }
+                    Err(e) => error!(
+                        "Failed to find users in group for cache invalidation: {}",
+                        e
+                    ),
+                }
+            }
+            DomainEvent::RoleRemovedFromGroup(e) => {
+                info!("Invalidating cache for group: {} (Role Removed)", e.group_id);
                 match self.rbac_repo.find_user_ids_in_group(&e.group_id).await {
                     Ok(user_ids) => {
                         for user_id in user_ids {
@@ -73,6 +91,10 @@ impl EventHandler for CacheInvalidator {
 
             DomainEvent::UserRoleAssigned(e) => {
                 info!("Invalidating cache for user: {} (Role Assigned)", e.user_id);
+                self.cache.clear_user_permissions(&e.user_id).await;
+            }
+            DomainEvent::UserRoleRemoved(e) => {
+                info!("Invalidating cache for user: {} (Role Removed)", e.user_id);
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
 

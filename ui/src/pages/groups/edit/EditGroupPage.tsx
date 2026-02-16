@@ -6,52 +6,51 @@ import { useParams } from 'react-router-dom'
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation'
-import { useRole } from '@/features/roles/api/useRole'
-import { RoleHeader } from '@/features/roles/components/RoleHeader'
-import { RoleMembersTab } from '@/features/roles/components/RoleMembersTab'
-import { RolePermissionsTab } from '@/features/roles/components/RolePermissionsTab'
-import { RoleSettingsTab } from '@/features/roles/components/RoleSettingsTab'
+import { useGroup } from '@/features/group/api/useGroup'
+import { GroupHeader } from '@/features/group/components/GroupHeader'
+import { GroupMembersTab } from '@/features/group/components/GroupMembersTab'
+import { GroupRolesTab } from '@/features/group/components/GroupRolesTab'
+import { GroupSettingsTab } from '@/features/group/components/GroupSettingsTab'
 
-export function EditRolePage() {
-  const { roleId, tab } = useParams<{ roleId: string; tab?: string }>()
+export function EditGroupPage() {
+  const { groupId, tab } = useParams<{ groupId: string; tab?: string }>()
   const navigate = useRealmNavigate()
 
-  const { data: role, isLoading, isError } = useRole(roleId!)
+  const { data: group, isLoading, isError } = useGroup(groupId!)
 
-  const validTabs = ['settings', 'permissions', 'members']
+  const validTabs = ['settings', 'members', 'roles']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
 
   useEffect(() => {
-    !tab && navigate(`/roles/${roleId}/settings`, { replace: true })
-  }, [tab, roleId, navigate])
+    !tab && navigate(`/groups/${groupId}/settings`, { replace: true })
+  }, [tab, groupId, navigate])
 
-  const handleTabChange = (newTab: string) =>
-    navigate(`/roles/${roleId}/${newTab}`)
+  const handleTabChange = (newTab: string) => navigate(`/groups/${groupId}/${newTab}`)
 
-
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="text-muted-foreground flex h-full w-full flex-col items-center justify-center gap-4">
         <Loader2 className="text-primary h-8 w-8 animate-spin" />
-        <p>Loading Role...</p>
+        <p>Loading Group...</p>
       </div>
     )
+  }
 
-
-  if (isError || !role)
+  if (isError || !group) {
     return (
       <div className="text-destructive flex h-full w-full flex-col items-center justify-center gap-2">
-        <p>Role not found.</p>
-        <Button variant="outline" onClick={() => navigate('/roles')}>
+        <p>Group not found.</p>
+        <Button variant="outline" onClick={() => navigate('/groups')}>
           Go Back
         </Button>
       </div>
     )
+  }
 
   return (
     <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
       <div className="shrink-0">
-        <RoleHeader role={role} />
+        <GroupHeader group={group} />
       </div>
 
       <Tabs
@@ -65,27 +64,27 @@ export function EditRolePage() {
               <Settings className="mr-2 h-4 w-4" /> Settings
             </TabsTrigger>
 
-            <TabsTrigger value="permissions" className="tab-trigger-styles">
-              <ShieldCheck className="mr-2 h-4 w-4" /> Permissions
-            </TabsTrigger>
-
             <TabsTrigger value="members" className="tab-trigger-styles">
               <Users className="mr-2 h-4 w-4" /> Members
+            </TabsTrigger>
+
+            <TabsTrigger value="roles" className="tab-trigger-styles">
+              <ShieldCheck className="mr-2 h-4 w-4" /> Roles
             </TabsTrigger>
           </TabsList>
         </div>
 
         <div className="bg-muted/5 flex-1 overflow-y-auto">
           <TabsContent value="settings" className="mt-0 h-full w-full">
-            <RoleSettingsTab role={role} />
-          </TabsContent>
-
-          <TabsContent value="permissions" className="mt-0 h-full w-full">
-            <RolePermissionsTab roleId={role.id} />
+            <GroupSettingsTab group={group} />
           </TabsContent>
 
           <TabsContent value="members" className="mt-0 h-full w-full p-6">
-            <RoleMembersTab roleId={role.id} />
+            <GroupMembersTab groupId={group.id} />
+          </TabsContent>
+
+          <TabsContent value="roles" className="mt-0 h-full w-full p-6">
+            <GroupRolesTab groupId={group.id} />
           </TabsContent>
         </div>
       </Tabs>

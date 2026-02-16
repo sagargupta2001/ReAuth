@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import {
   type ColumnDef,
@@ -6,6 +6,7 @@ import {
   type OnChangeFn,
   type PaginationState,
   type SortingState,
+  type Table as Tb,
   type VisibilityState,
   flexRender,
   getCoreRowModel,
@@ -37,6 +38,9 @@ interface DataTableProps<TData, TValue> {
   searchValue?: string
   onSearch?: (value: string) => void
 
+  bulkEntityName?: string
+  renderBulkActions?: (table: Tb<TData>) => ReactNode
+
   className?: string
 }
 
@@ -53,6 +57,8 @@ export function DataTable<TData, TValue>({
   onSearch,
   searchKey = 'name',
   searchPlaceholder = 'Filter...',
+  bulkEntityName,
+  renderBulkActions,
   className,
 }: DataTableProps<TData, TValue>) {
   // These remain client-side as they don't usually affect the API fetch
@@ -91,6 +97,8 @@ export function DataTable<TData, TValue>({
     // We remove getPaginationRowModel and getSortedRowModel
     // because the server returns already sorted/paginated data.
   })
+
+  const bulkActions = renderBulkActions?.(table)
 
   return (
     <div className="space-y-4">
@@ -144,7 +152,11 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <DataTableBulkActions table={table} />
+      {bulkActions ? (
+        <DataTableBulkActions table={table} entityName={bulkEntityName ?? 'item'}>
+          {bulkActions}
+        </DataTableBulkActions>
+      ) : null}
       <DataTablePagination table={table} />
     </div>
   )

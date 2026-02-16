@@ -3,6 +3,7 @@ use crate::{
     domain::{
         events::{DomainEvent, RoleGroupChanged, RolePermissionChanged, UserGroupChanged},
         group::Group,
+        rbac::{GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, RoleMemberFilter, RoleMemberRow},
         role::{Permission, Role},
     },
     error::{Error, Result},
@@ -174,14 +175,96 @@ impl RbacService {
         Ok(group)
     }
 
-    pub async fn list_groups(&self, realm_id: Uuid, _page: usize) -> Result<Vec<Group>> {
-        self.rbac_repo.find_groups_by_realm(&realm_id).await
+    pub async fn list_groups(
+        &self,
+        realm_id: Uuid,
+        req: PageRequest,
+    ) -> Result<PageResponse<Group>> {
+        self.rbac_repo.list_groups(&realm_id, &req).await
+    }
+
+    pub async fn list_role_members(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        filter: RoleMemberFilter,
+        req: PageRequest,
+    ) -> Result<PageResponse<RoleMemberRow>> {
+        let _ = self.get_role(realm_id, role_id).await?;
+        self.rbac_repo
+            .list_role_members(&realm_id, &role_id, filter, &req)
+            .await
+    }
+
+    pub async fn list_group_members(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+        filter: GroupMemberFilter,
+        req: PageRequest,
+    ) -> Result<PageResponse<GroupMemberRow>> {
+        let _ = self.get_group(realm_id, group_id).await?;
+        self.rbac_repo
+            .list_group_members(&realm_id, &group_id, filter, &req)
+            .await
+    }
+
+    pub async fn list_group_roles(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+        filter: GroupRoleFilter,
+        req: PageRequest,
+    ) -> Result<PageResponse<GroupRoleRow>> {
+        let _ = self.get_group(realm_id, group_id).await?;
+        self.rbac_repo
+            .list_group_roles(&realm_id, &group_id, filter, &req)
+            .await
+    }
+
+    pub async fn get_group(&self, realm_id: Uuid, group_id: Uuid) -> Result<Group> {
+        let group = self
+            .rbac_repo
+            .find_group_by_id(&group_id)
+            .await?
+            .ok_or(Error::NotFound("Group not found".into()))?;
+
+        if group.realm_id != realm_id {
+            return Err(Error::SecurityViolation(
+                "Group belongs to different realm".into(),
+            ));
+        }
+
+        Ok(group)
+    }
+
+    pub async fn update_group(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+        payload: CreateGroupPayload,
+    ) -> Result<Group> {
+        let mut group = self.get_group(realm_id, group_id).await?;
+
+        group.name = payload.name;
+        group.description = payload.description;
+
+        self.rbac_repo.update_group(&group).await?;
+
+        Ok(group)
     }
 
     // --- Assignment Operations ---
 
-    pub async fn assign_role_to_group(&self, role_id: Uuid, group_id: Uuid) -> Result<()> {
-        // Note: Ideally verify role_id and group_id belong to same realm
+    pub async fn assign_role_to_group(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<()> {
+        let _ = self.get_role(realm_id, role_id).await?;
+        let _ = self.get_group(realm_id, group_id).await?;
+
         self.rbac_repo
             .assign_role_to_group(&role_id, &group_id)
             .await?;
@@ -196,13 +279,65 @@ impl RbacService {
         Ok(())
     }
 
-    pub async fn assign_user_to_group(&self, user_id: Uuid, group_id: Uuid) -> Result<()> {
+    pub async fn assign_user_to_group(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<()> {
+        let _ = self.get_group(realm_id, group_id).await?;
+
         self.rbac_repo
             .assign_user_to_group(&user_id, &group_id)
             .await?;
 
         self.event_bus
             .publish(DomainEvent::UserAssignedToGroup(UserGroupChanged {
+                user_id,
+                group_id,
+            }))
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn remove_role_from_group(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<()> {
+        let _ = self.get_role(realm_id, role_id).await?;
+        let _ = self.get_group(realm_id, group_id).await?;
+
+        self.rbac_repo
+            .remove_role_from_group(&role_id, &group_id)
+            .await?;
+
+        self.event_bus
+            .publish(DomainEvent::RoleRemovedFromGroup(RoleGroupChanged {
+                role_id,
+                group_id,
+            }))
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn remove_user_from_group(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<()> {
+        let _ = self.get_group(realm_id, group_id).await?;
+
+        self.rbac_repo
+            .remove_user_from_group(&user_id, &group_id)
+            .await?;
+
+        self.event_bus
+            .publish(DomainEvent::UserRemovedFromGroup(UserGroupChanged {
                 user_id,
                 group_id,
             }))
@@ -233,6 +368,36 @@ impl RbacService {
 
         self.event_bus
             .publish(DomainEvent::UserRoleAssigned(UserRoleChanged {
+                user_id,
+                role_id,
+            }))
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn remove_role_from_user(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<()> {
+        let role = self
+            .rbac_repo
+            .find_role_by_id(&role_id)
+            .await?
+            .ok_or(Error::NotFound("Role not found".into()))?;
+
+        if role.realm_id != realm_id {
+            return Err(Error::SecurityViolation("Cross-realm assignment".into()));
+        }
+
+        self.rbac_repo
+            .remove_role_from_user(&user_id, &role_id)
+            .await?;
+
+        self.event_bus
+            .publish(DomainEvent::UserRoleRemoved(UserRoleChanged {
                 user_id,
                 role_id,
             }))
@@ -354,6 +519,42 @@ impl RbacService {
             self.rbac_repo.find_group_names_for_user(user_id)
         )?;
         Ok((roles, groups))
+    }
+
+    pub async fn get_direct_user_ids_for_role(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let _ = self.get_role(realm_id, role_id).await?;
+        self.rbac_repo.find_direct_user_ids_for_role(&role_id).await
+    }
+
+    pub async fn get_effective_user_ids_for_role(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let _ = self.get_role(realm_id, role_id).await?;
+        self.rbac_repo.find_user_ids_for_role(&role_id).await
+    }
+
+    pub async fn get_group_member_ids(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let _ = self.get_group(realm_id, group_id).await?;
+        self.rbac_repo.find_user_ids_in_group(&group_id).await
+    }
+
+    pub async fn get_group_role_ids(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let _ = self.get_group(realm_id, group_id).await?;
+        self.rbac_repo.find_role_ids_for_group(&group_id).await
     }
 
     pub async fn user_has_permission(&self, user_id: &Uuid, permission: &str) -> Result<bool> {

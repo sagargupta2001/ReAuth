@@ -1,14 +1,16 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde::de::{self, Visitor};
+use std::fmt;
 
 #[derive(Debug, Deserialize, Default)]
 pub struct PageRequest {
-    #[serde(default = "default_page")]
+    #[serde(default = "default_page", deserialize_with = "deserialize_i64_from_string")]
     pub page: i64,
-    #[serde(default = "default_per_page")]
+    #[serde(default = "default_per_page", deserialize_with = "deserialize_i64_from_string")]
     pub per_page: i64,
     #[serde(default)]
     pub sort_by: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_sort_dir")]
     pub sort_dir: Option<SortDirection>,
     pub q: Option<String>, // Universal search query
 }
@@ -31,6 +33,64 @@ fn default_page() -> i64 {
 }
 fn default_per_page() -> i64 {
     20
+}
+
+fn deserialize_i64_from_string<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct I64Visitor;
+
+    impl<'de> Visitor<'de> for I64Visitor {
+        type Value = i64;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("an integer or a string containing an integer")
+        }
+
+        fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+            Ok(value)
+        }
+
+        fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            i64::try_from(value).map_err(|_| de::Error::custom("value out of range for i64"))
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            value
+                .parse::<i64>()
+                .map_err(|_| de::Error::custom("invalid integer string"))
+        }
+
+        fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            self.visit_str(&value)
+        }
+    }
+
+    deserializer.deserialize_any(I64Visitor)
+}
+
+fn deserialize_sort_dir<'de, D>(deserializer: D) -> Result<Option<SortDirection>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    let normalized = value.as_deref().map(|v| v.trim().to_lowercase());
+
+    Ok(match normalized.as_deref() {
+        Some("asc") => Some(SortDirection::Asc),
+        Some("desc") => Some(SortDirection::Desc),
+        _ => None,
+    })
 }
 
 #[derive(Debug, Serialize)]
