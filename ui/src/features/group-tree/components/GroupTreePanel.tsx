@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
+import type { Group } from '@/entities/group/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import {
   fetchGroupChildren,
@@ -34,6 +35,7 @@ import {
 } from '@/features/group-tree/lib/tree-utils'
 import { GroupTreeItem } from '@/features/group-tree/components/GroupTreeItem'
 import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
+import { apiClient } from '@/shared/api/client'
 import { cn } from '@/lib/utils'
 
 interface GroupTreePanelProps {
@@ -61,17 +63,19 @@ export function GroupTreePanel({
   const [activeId, setActiveId] = useState<string | null>(null)
   const loadingIdsRef = useRef<Set<string>>(new Set())
   const hydratedIdsRef = useRef<Set<string>>(new Set())
-  const prevSearchRef = useRef('')
   const expandedByRealm = useGroupTreeStore((state) => state.expandedByRealm)
   const treeByRealm = useGroupTreeStore((state) => state.treeByRealm)
   const expandedIdsList = expandedByRealm[realm] ?? EMPTY_IDS
-  const cachedTree = treeByRealm[realm] ?? EMPTY_TREE
-  const [tree, setTree] = useState<GroupTreeNode[]>(cachedTree)
+  const tree = treeByRealm[realm] ?? EMPTY_TREE
+  const [searchTree, setSearchTree] = useState<GroupTreeNode[]>([])
   const setExpanded = useGroupTreeStore((state) => state.setExpanded)
   const toggleExpandedStore = useGroupTreeStore((state) => state.toggleExpanded)
   const resetExpanded = useGroupTreeStore((state) => state.resetExpanded)
   const setTreeCache = useGroupTreeStore((state) => state.setTree)
+  const updateTreeCache = useGroupTreeStore((state) => state.updateTree)
   const expandedIds = useMemo(() => new Set(expandedIdsList), [expandedIdsList])
+  const viewTree = search.trim() ? searchTree : tree
+  const ensuredTargetRef = useRef<string | null>(null)
 
   const addExpanded = useCallback(
     (groupId: string) => {
@@ -97,39 +101,29 @@ export function GroupTreePanel({
 
       const nextTree = sortTreeByName(response.data)
       if (search.trim()) {
-        setTree(nextTree)
+        setSearchTree(nextTree)
       } else {
-        setTree(nextTree)
+        setTreeCache(realm, nextTree)
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load groups')
     } finally {
       setLoading(false)
     }
-  }, [realm, search])
+  }, [realm, search, setTreeCache])
 
   useEffect(() => {
-    if (!search.trim() && cachedTree.length > 0 && (refreshKey ?? 0) === 0) {
+    if (!search.trim() && tree.length > 0 && (refreshKey ?? 0) === 0) {
       return
     }
     void loadRoots()
-  }, [cachedTree.length, loadRoots, refreshKey, search])
+  }, [loadRoots, refreshKey, search, tree.length])
 
   useEffect(() => {
-    if (search.trim()) return
-    if (tree === cachedTree) return
-    setTreeCache(realm, tree)
-  }, [cachedTree, realm, search, setTreeCache, tree])
-
-  useEffect(() => {
-    const prevSearch = prevSearchRef.current
-    if (prevSearch.trim() && !search.trim()) {
-      if (tree !== cachedTree) {
-        setTree(cachedTree)
-      }
+    if (!search.trim()) {
+      setSearchTree([])
     }
-    prevSearchRef.current = search
-  }, [cachedTree, search, tree])
+  }, [search])
 
   useEffect(() => {
     if (!search.trim()) return
@@ -151,14 +145,23 @@ export function GroupTreePanel({
           sort_dir: 'asc',
         })
 
-        const updateTree = setTree
-        updateTree((prev) =>
-          updateNode(prev, groupId, (node) => ({
-            ...node,
-            children: sortTreeByName(response.data),
-            has_children: response.meta.total > 0,
-          })),
-        )
+        if (search.trim()) {
+          setSearchTree((prev) =>
+            updateNode(prev, groupId, (node) => ({
+              ...node,
+              children: sortTreeByName(response.data),
+              has_children: response.meta.total > 0,
+            })),
+          )
+        } else {
+          updateTreeCache(realm, (prev) =>
+            updateNode(prev, groupId, (node) => ({
+              ...node,
+              children: sortTreeByName(response.data),
+              has_children: response.meta.total > 0,
+            })),
+          )
+        }
         addExpanded(groupId)
       } catch (err: any) {
         toast.error(err.message || 'Failed to load group children')
@@ -166,7 +169,7 @@ export function GroupTreePanel({
         loadingIdsRef.current.delete(groupId)
       }
     },
-    [addExpanded, realm, search],
+    [addExpanded, realm, search, updateTreeCache],
   )
 
   useEffect(() => {
@@ -175,14 +178,14 @@ export function GroupTreePanel({
 
     expandedIdsList.forEach((groupId) => {
       if (hydratedIdsRef.current.has(groupId)) return
-      const node = findNode(tree, groupId)
+      const node = findNode(viewTree, groupId)
       if (!node) return
       if (node.has_children && !node.children) {
         hydratedIdsRef.current.add(groupId)
         void loadChildren(groupId)
       }
     })
-  }, [expandedIdsList, loadChildren, search, tree])
+  }, [expandedIdsList, loadChildren, search, viewTree])
 
   const toggleExpand = useCallback(
     (groupId: string) => {
@@ -192,7 +195,7 @@ export function GroupTreePanel({
         return
       }
 
-      const node = findNode(tree, groupId)
+      const node = findNode(viewTree, groupId)
       if (!node) return
 
       if (!node.children && node.has_children) {
@@ -202,10 +205,10 @@ export function GroupTreePanel({
 
       toggleExpandedStore(realm, groupId)
     },
-    [expandedIds, loadChildren, realm, toggleExpandedStore, tree],
+    [expandedIds, loadChildren, realm, toggleExpandedStore, viewTree],
   )
 
-  const flattenedTree = useMemo(() => flattenTree(tree), [tree])
+  const flattenedTree = useMemo(() => flattenTree(viewTree), [viewTree])
 
   const collapsedIds = useMemo(() => {
     const ids = new Set<string>()
@@ -256,7 +259,7 @@ export function GroupTreePanel({
       return
     }
 
-    const activeNode = findNode(tree, activeId)
+    const activeNode = findNode(viewTree, activeId)
     const oldParentId = activeNode?.parent_id ?? null
 
     const overItem = visibleItems.find((item) => item.id === targetId)
@@ -275,41 +278,76 @@ export function GroupTreePanel({
 
     if (dropOnNode) {
       const targetParentId = targetId
-      const parentNode = findNode(tree, targetParentId)
+      const parentNode = findNode(viewTree, targetParentId)
       const insertIndex = parentNode?.children ? parentNode.children.length : 0
 
-      setTree((prev) => {
-        const { node, tree: removedTree } = removeNode(prev, activeId)
-        if (!node) return prev
+      if (search.trim()) {
+        setSearchTree((prev) => {
+          const { node, tree: removedTree } = removeNode(prev, activeId)
+          if (!node) return prev
 
-        const updatedNode = { ...node, parent_id: targetParentId }
+          const updatedNode = { ...node, parent_id: targetParentId }
 
-        let nextTree = removedTree
-        if (parentNode?.children) {
-          nextTree = insertNode(nextTree, targetParentId, updatedNode, insertIndex)
-          nextTree = updateNode(nextTree, targetParentId, (parent) => ({
-            ...parent,
-            has_children: true,
-          }))
-        } else {
-          nextTree = updateNode(nextTree, targetParentId, (parent) => ({
-            ...parent,
-            has_children: true,
-          }))
-        }
-
-        if (node.parent_id && node.parent_id !== targetParentId) {
-          const oldParent = findNode(nextTree, node.parent_id)
-          if (oldParent && (!oldParent.children || oldParent.children.length === 0)) {
-            nextTree = updateNode(nextTree, node.parent_id, (parent) => ({
+          let nextTree = removedTree
+          if (parentNode?.children) {
+            nextTree = insertNode(nextTree, targetParentId, updatedNode, insertIndex)
+            nextTree = updateNode(nextTree, targetParentId, (parent) => ({
               ...parent,
-              has_children: false,
+              has_children: true,
+            }))
+          } else {
+            nextTree = updateNode(nextTree, targetParentId, (parent) => ({
+              ...parent,
+              has_children: true,
             }))
           }
-        }
 
-        return sortTreeByName(nextTree)
-      })
+          if (node.parent_id && node.parent_id !== targetParentId) {
+            const oldParent = findNode(nextTree, node.parent_id)
+            if (oldParent && (!oldParent.children || oldParent.children.length === 0)) {
+              nextTree = updateNode(nextTree, node.parent_id, (parent) => ({
+                ...parent,
+                has_children: false,
+              }))
+            }
+          }
+
+          return sortTreeByName(nextTree)
+        })
+      } else {
+        updateTreeCache(realm, (prev) => {
+          const { node, tree: removedTree } = removeNode(prev, activeId)
+          if (!node) return prev
+
+          const updatedNode = { ...node, parent_id: targetParentId }
+
+          let nextTree = removedTree
+          if (parentNode?.children) {
+            nextTree = insertNode(nextTree, targetParentId, updatedNode, insertIndex)
+            nextTree = updateNode(nextTree, targetParentId, (parent) => ({
+              ...parent,
+              has_children: true,
+            }))
+          } else {
+            nextTree = updateNode(nextTree, targetParentId, (parent) => ({
+              ...parent,
+              has_children: true,
+            }))
+          }
+
+          if (node.parent_id && node.parent_id !== targetParentId) {
+            const oldParent = findNode(nextTree, node.parent_id)
+            if (oldParent && (!oldParent.children || oldParent.children.length === 0)) {
+              nextTree = updateNode(nextTree, node.parent_id, (parent) => ({
+                ...parent,
+                has_children: false,
+              }))
+            }
+          }
+
+          return sortTreeByName(nextTree)
+        })
+      }
 
       try {
         await moveGroup(realm, activeId, {
@@ -338,7 +376,7 @@ export function GroupTreePanel({
   }
 
   const handleMoveToRoot = async (groupId: string) => {
-    const node = findNode(tree, groupId)
+    const node = findNode(viewTree, groupId)
     const oldParentId = node?.parent_id ?? null
     try {
       await moveGroup(realm, groupId, { parent_id: null })
@@ -348,6 +386,53 @@ export function GroupTreePanel({
       toast.error(err.message || 'Failed to move group')
     }
   }
+
+  const resolveAncestorIds = useCallback(
+    async (groupId: string) => {
+      const ancestors: string[] = []
+      let currentId: string | null = groupId
+      let safety = 0
+
+      while (currentId && safety < 25) {
+        const cached = queryClient.getQueryData<Group>(['group', realm, currentId])
+        const group =
+          cached ??
+          (await apiClient.get<Group>(`/api/realms/${realm}/rbac/groups/${currentId}`))
+        const parentId = group?.parent_id ?? null
+        if (!parentId) break
+        ancestors.unshift(parentId)
+        currentId = parentId
+        safety += 1
+      }
+
+      return ancestors
+    },
+    [queryClient, realm],
+  )
+
+  useEffect(() => {
+    if (!selectedId || search.trim()) return
+    let alive = true
+
+    const run = async () => {
+      const ancestors = await resolveAncestorIds(selectedId)
+      if (!alive || ancestors.length === 0) return
+
+      const alreadyExpanded = ancestors.every((id) => expandedIdsList.includes(id))
+      if (ensuredTargetRef.current === selectedId && alreadyExpanded) return
+
+      ensuredTargetRef.current = selectedId
+      if (!alreadyExpanded) {
+        setExpanded(realm, Array.from(new Set([...expandedIdsList, ...ancestors])))
+      }
+    }
+
+    void run()
+
+    return () => {
+      alive = false
+    }
+  }, [expandedIdsList, realm, resolveAncestorIds, search, selectedId, setExpanded])
 
   return (
     <div className="flex h-full flex-col">

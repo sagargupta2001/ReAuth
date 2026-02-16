@@ -12,6 +12,8 @@ import {
 } from '@/components/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import type { Group } from '@/entities/group/model/types'
 import { useGroup } from '@/features/group/api/useGroup'
 import { CreateGroupForm } from '@/features/group/forms/CreateGroupForm'
 import { GroupChildrenTab } from '@/features/group/components/GroupChildrenTab'
@@ -20,6 +22,14 @@ import { GroupMembersTab } from '@/features/group/components/GroupMembersTab'
 import { GroupRolesTab } from '@/features/group/components/GroupRolesTab'
 import { GroupSettingsTab } from '@/features/group/components/GroupSettingsTab'
 import { GroupTreePanel } from '@/features/group-tree/components/GroupTreePanel'
+import type { GroupTreeNode } from '@/features/group-tree/model/types'
+import {
+  findNode,
+  insertNode,
+  sortTreeByName,
+  updateNode,
+} from '@/features/group-tree/lib/tree-utils'
+import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
 
 interface GroupExplorerProps {
   groupId?: string
@@ -27,12 +37,16 @@ interface GroupExplorerProps {
 }
 
 const validTabs = ['settings', 'members', 'roles', 'children']
+const EMPTY_IDS: string[] = []
 
 export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
   const navigate = useRealmNavigate()
+  const realm = useActiveRealm()
   const [createOpen, setCreateOpen] = useState(false)
   const [createParentId, setCreateParentId] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
+  const updateTreeCache = useGroupTreeStore((state) => state.updateTree)
+  const expandedByRealm = useGroupTreeStore((state) => state.expandedByRealm)
+  const expandedIdsList = expandedByRealm[realm] ?? EMPTY_IDS
 
   const activeTab = useMemo(() => {
     if (!groupId) return 'settings'
@@ -63,6 +77,37 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
     setCreateParentId(null)
   }
 
+  const handleGroupCreated = (group: Group) => {
+    const node: GroupTreeNode = {
+      id: group.id,
+      parent_id: group.parent_id ?? null,
+      name: group.name,
+      description: group.description ?? null,
+      sort_order: group.sort_order ?? 0,
+      has_children: false,
+    }
+
+    updateTreeCache(realm, (prev) => {
+      if (!node.parent_id) {
+        return sortTreeByName([...prev, node])
+      }
+
+      const parent = findNode(prev, node.parent_id)
+      if (!parent) return prev
+
+      if (parent.children || expandedIdsList.includes(node.parent_id)) {
+        const insertIndex = parent.children ? parent.children.length : 0
+        const next = insertNode(prev, node.parent_id, node, insertIndex)
+        return sortTreeByName(next)
+      }
+
+      return updateNode(prev, node.parent_id, (existing) => ({
+        ...existing,
+        has_children: true,
+      }))
+    })
+  }
+
   return (
     <div className="flex h-full flex-1 flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -83,7 +128,6 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
             selectedId={groupId}
             onSelect={handleSelectGroup}
             onCreateGroup={handleCreateGroup}
-            refreshKey={refreshKey}
           />
         </div>
 
@@ -179,8 +223,8 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
           <CreateGroupForm
             isDialog
             parentId={createParentId}
+            onCreated={handleGroupCreated}
             onSuccess={() => {
-              setRefreshKey((prev) => prev + 1)
               handleCreateClose()
             }}
             onCancel={handleCreateClose}

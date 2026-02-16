@@ -9,6 +9,7 @@ interface GroupTreeStoreState {
   toggleExpanded: (realm: string, id: string) => void
   resetExpanded: (realm: string) => void
   setTree: (realm: string, tree: GroupTreeNode[]) => void
+  updateTree: (realm: string, updater: (prev: GroupTreeNode[]) => GroupTreeNode[]) => void
   resetTree: (realm: string) => void
 }
 
@@ -38,6 +39,14 @@ export const useGroupTreeStore = create<GroupTreeStoreState>((set, get) => ({
     set((state) => ({
       treeByRealm: { ...state.treeByRealm, [realm]: tree },
     })),
+  updateTree: (realm, updater) =>
+    set((state) => {
+      const prev = state.treeByRealm[realm] ?? []
+      const next = updater(prev)
+      return {
+        treeByRealm: { ...state.treeByRealm, [realm]: next },
+      }
+    }),
   resetTree: (realm) =>
     set((state) => ({
       treeByRealm: { ...state.treeByRealm, [realm]: [] },
