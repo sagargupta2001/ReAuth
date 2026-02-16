@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import {
   DndContext,
@@ -11,6 +11,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -25,7 +26,6 @@ import {
 import type { GroupTreeNode } from '@/features/group-tree/model/types'
 import {
   findNode,
-  findPath,
   flattenTree,
   insertNode,
   removeChildrenOf,
@@ -34,6 +34,7 @@ import {
   updateNode,
 } from '@/features/group-tree/lib/tree-utils'
 import { GroupTreeItem } from '@/features/group-tree/components/GroupTreeItem'
+import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
 import { cn } from '@/lib/utils'
 
 interface GroupTreePanelProps {
@@ -41,28 +42,46 @@ interface GroupTreePanelProps {
   onSelect: (groupId: string) => void
   onCreateGroup: (parentId: string | null) => void
   refreshKey?: number
-  onPathChange?: (path: GroupTreeNode[]) => void
 }
+
+const EMPTY_IDS: string[] = []
 
 export function GroupTreePanel({
   selectedId,
   onSelect,
   onCreateGroup,
   refreshKey,
-  onPathChange,
 }: GroupTreePanelProps) {
   const realm = useActiveRealm()
+  const queryClient = useQueryClient()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const [tree, setTree] = useState<GroupTreeNode[]>([])
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
-  const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
+  const loadingIdsRef = useRef<Set<string>>(new Set())
+  const hydratedIdsRef = useRef<Set<string>>(new Set())
+  const expandedByRealm = useGroupTreeStore((state) => state.expandedByRealm)
+  const expandedIdsList = expandedByRealm[realm] ?? EMPTY_IDS
+  const setExpanded = useGroupTreeStore((state) => state.setExpanded)
+  const toggleExpandedStore = useGroupTreeStore((state) => state.toggleExpanded)
+  const resetExpanded = useGroupTreeStore((state) => state.resetExpanded)
+  const expandedIds = useMemo(() => new Set(expandedIdsList), [expandedIdsList])
+
+  const addExpanded = useCallback(
+    (groupId: string) => {
+      if (expandedIdsList.includes(groupId)) return
+      const next = new Set(expandedIdsList)
+      next.add(groupId)
+      setExpanded(realm, Array.from(next))
+    },
+    [expandedIdsList, realm, setExpanded],
+  )
 
   const loadRoots = useCallback(async () => {
     setLoading(true)
+    hydratedIdsRef.current = new Set()
     try {
       const response = await fetchGroupRoots(realm, {
         page: 1,
@@ -73,7 +92,6 @@ export function GroupTreePanel({
       })
 
       setTree(response.data)
-      setExpandedIds(new Set())
     } catch (err: any) {
       toast.error(err.message || 'Failed to load groups')
     } finally {
@@ -86,18 +104,16 @@ export function GroupTreePanel({
   }, [loadRoots, refreshKey])
 
   useEffect(() => {
-    if (!selectedId) {
-      onPathChange?.([])
-      return
-    }
-    const path = findPath(tree, selectedId)
-    onPathChange?.(path ?? [])
-  }, [onPathChange, selectedId, tree])
+    if (!search.trim()) return
+    if (expandedIdsList.length === 0) return
+    hydratedIdsRef.current = new Set()
+    resetExpanded(realm)
+  }, [expandedIdsList.length, realm, resetExpanded, search])
 
   const loadChildren = useCallback(
     async (groupId: string) => {
-      if (loadingIds.has(groupId)) return
-      setLoadingIds((prev) => new Set(prev).add(groupId))
+      if (loadingIdsRef.current.has(groupId)) return
+      loadingIdsRef.current.add(groupId)
 
       try {
         const response = await fetchGroupChildren(realm, groupId, {
@@ -114,29 +130,36 @@ export function GroupTreePanel({
             has_children: response.meta.total > 0,
           })),
         )
-        setExpandedIds((prev) => new Set(prev).add(groupId))
+        addExpanded(groupId)
       } catch (err: any) {
         toast.error(err.message || 'Failed to load group children')
       } finally {
-        setLoadingIds((prev) => {
-          const next = new Set(prev)
-          next.delete(groupId)
-          return next
-        })
+        loadingIdsRef.current.delete(groupId)
       }
     },
-    [loadingIds, realm],
+    [addExpanded, realm],
   )
+
+  useEffect(() => {
+    if (search.trim()) return
+    if (expandedIdsList.length === 0) return
+
+    expandedIdsList.forEach((groupId) => {
+      if (hydratedIdsRef.current.has(groupId)) return
+      const node = findNode(tree, groupId)
+      if (!node) return
+      if (node.has_children && !node.children) {
+        hydratedIdsRef.current.add(groupId)
+        void loadChildren(groupId)
+      }
+    })
+  }, [expandedIdsList, loadChildren, search, tree])
 
   const toggleExpand = useCallback(
     (groupId: string) => {
       const isExpanded = expandedIds.has(groupId)
       if (isExpanded) {
-        setExpandedIds((prev) => {
-          const next = new Set(prev)
-          next.delete(groupId)
-          return next
-        })
+        toggleExpandedStore(realm, groupId)
         return
       }
 
@@ -148,9 +171,9 @@ export function GroupTreePanel({
         return
       }
 
-      setExpandedIds((prev) => new Set(prev).add(groupId))
+      toggleExpandedStore(realm, groupId)
     },
-    [expandedIds, loadChildren, tree],
+    [expandedIds, loadChildren, realm, toggleExpandedStore, tree],
   )
 
   const flattenedTree = useMemo(() => flattenTree(tree), [tree])
@@ -176,6 +199,17 @@ export function GroupTreePanel({
     [activeId, visibleItems],
   )
 
+  const invalidateChildren = useCallback(
+    (parentId: string | null | undefined) => {
+      if (!parentId) return
+      queryClient.invalidateQueries({
+        queryKey: ['group-children', realm, parentId],
+        exact: false,
+      })
+    },
+    [queryClient, realm],
+  )
+
   const handleDragStart = ({ active }: DragStartEvent) => {
     setActiveId(active.id as string)
   }
@@ -192,6 +226,9 @@ export function GroupTreePanel({
       setActiveId(null)
       return
     }
+
+    const activeNode = findNode(tree, activeId)
+    const oldParentId = activeNode?.parent_id ?? null
 
     const overItem = visibleItems.find((item) => item.id === overId)
     if (!overItem) {
@@ -252,8 +289,10 @@ export function GroupTreePanel({
         if (!parentNode?.children) {
           void loadChildren(targetParentId)
         } else {
-          setExpandedIds((prev) => new Set(prev).add(targetParentId))
+          addExpanded(targetParentId)
         }
+        invalidateChildren(oldParentId)
+        invalidateChildren(targetParentId)
       } catch (err: any) {
         toast.error(err.message || 'Failed to move group')
         void loadRoots()
@@ -309,6 +348,8 @@ export function GroupTreePanel({
         before_id: beforeId,
         after_id: afterId,
       })
+      invalidateChildren(oldParentId)
+      invalidateChildren(targetParentId)
     } catch (err: any) {
       toast.error(err.message || 'Failed to move group')
       void loadRoots()
@@ -322,8 +363,11 @@ export function GroupTreePanel({
   }
 
   const handleMoveToRoot = async (groupId: string) => {
+    const node = findNode(tree, groupId)
+    const oldParentId = node?.parent_id ?? null
     try {
       await moveGroup(realm, groupId, { parent_id: null })
+      invalidateChildren(oldParentId)
       void loadRoots()
     } catch (err: any) {
       toast.error(err.message || 'Failed to move group')

@@ -63,7 +63,6 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
     setCreateParentId(null)
   }
 
-
   return (
     <div className="flex h-full flex-1 flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
@@ -85,7 +84,6 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
             onSelect={handleSelectGroup}
             onCreateGroup={handleCreateGroup}
             refreshKey={refreshKey}
-            onPathChange={() => {}}
           />
         </div>
 

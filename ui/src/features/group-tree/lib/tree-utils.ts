@@ -1,5 +1,3 @@
-import { arrayMove } from '@dnd-kit/sortable'
-
 import type { FlattenedGroupNode, GroupTreeNode } from '@/features/group-tree/model/types'
 
 export const indentationWidth = 18
@@ -52,70 +50,12 @@ export function removeChildrenOf(
   })
 }
 
-function getMaxDepth(items: FlattenedGroupNode[], overIndex: number) {
-  if (overIndex === 0) return 0
-  return items[overIndex - 1].depth + 1
-}
-
-function getMinDepth(items: FlattenedGroupNode[], overIndex: number) {
-  if (overIndex === items.length - 1) return 0
-  return items[overIndex + 1].depth
-}
-
-function getParentIdForDepth(
-  items: FlattenedGroupNode[],
-  overIndex: number,
-  depth: number,
-): string | null {
-  for (let i = overIndex - 1; i >= 0; i -= 1) {
-    const item = items[i]
-    if (item.depth === depth - 1) return item.id
-  }
-
-  return null
-}
-
-export function getProjection(
-  items: FlattenedGroupNode[],
-  activeId: string,
-  overId: string,
-  offsetLeft: number,
-): { depth: number; parentId: string | null } | null {
-  const overIndex = items.findIndex((item) => item.id === overId)
-  const activeIndex = items.findIndex((item) => item.id === activeId)
-
-  if (overIndex === -1 || activeIndex === -1) return null
-
-  const activeItem = items[activeIndex]
-  const newItems = arrayMove(items, activeIndex, overIndex)
-
-  const projectedDepth = activeItem.depth + Math.round(offsetLeft / indentationWidth)
-  const maxDepth = getMaxDepth(newItems, overIndex)
-  const minDepth = getMinDepth(newItems, overIndex)
-  const depth = Math.max(minDepth, Math.min(projectedDepth, maxDepth))
-
-  const parentId = depth === 0 ? null : getParentIdForDepth(newItems, overIndex, depth)
-
-  return { depth, parentId }
-}
-
 export function findNode(items: GroupTreeNode[], id: string): GroupTreeNode | null {
   for (const item of items) {
     if (item.id === id) return item
     if (item.children) {
       const found = findNode(item.children, id)
       if (found) return found
-    }
-  }
-  return null
-}
-
-export function findPath(items: GroupTreeNode[], id: string): GroupTreeNode[] | null {
-  for (const item of items) {
-    if (item.id === id) return [item]
-    if (item.children) {
-      const childPath = findPath(item.children, id)
-      if (childPath) return [item, ...childPath]
     }
   }
   return null
