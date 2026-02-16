@@ -75,6 +75,12 @@ pub struct GroupListQuery {
     pub page: PageRequest,
 }
 
+#[derive(Deserialize)]
+pub struct GroupTreeQuery {
+    #[serde(flatten)]
+    pub page: PageRequest,
+}
+
 // GET /api/realms/{realm}/rbac/groups
 pub async fn list_groups_handler(
     State(state): State<AppState>,
@@ -88,6 +94,41 @@ pub async fn list_groups_handler(
         .ok_or(Error::RealmNotFound(realm_name))?;
 
     let response = state.rbac_service.list_groups(realm.id, req.page).await?;
+    Ok((StatusCode::OK, Json(response)))
+}
+
+// GET /api/realms/{realm}/rbac/groups/tree
+pub async fn list_group_roots_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Query(req): Query<GroupTreeQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let response = state.rbac_service.list_group_roots(realm.id, req.page).await?;
+    Ok((StatusCode::OK, Json(response)))
+}
+
+// GET /api/realms/{realm}/rbac/groups/{id}/children
+pub async fn list_group_children_handler(
+    State(state): State<AppState>,
+    Path((realm_name, group_id)): Path<(String, Uuid)>,
+    Query(req): Query<GroupTreeQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let response = state
+        .rbac_service
+        .list_group_children(realm.id, group_id, req.page)
+        .await?;
     Ok((StatusCode::OK, Json(response)))
 }
 
@@ -124,6 +165,32 @@ pub async fn update_group_handler(
         .await?;
 
     Ok((StatusCode::OK, Json(updated_group)))
+}
+
+// POST /api/realms/{realm}/rbac/groups/{id}/move
+pub async fn move_group_handler(
+    State(state): State<AppState>,
+    Path((realm_name, group_id)): Path<(String, Uuid)>,
+    Json(payload): Json<MoveGroupPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .rbac_service
+        .move_group(
+            realm.id,
+            group_id,
+            payload.parent_id,
+            payload.before_id,
+            payload.after_id,
+        )
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // GET /api/realms/{realm}/clients/{client_id}/roles
@@ -184,6 +251,13 @@ pub struct AssignGroupMemberPayload {
 #[derive(Deserialize)]
 pub struct AssignGroupRolePayload {
     pub role_id: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct MoveGroupPayload {
+    pub parent_id: Option<Uuid>,
+    pub before_id: Option<Uuid>,
+    pub after_id: Option<Uuid>,
 }
 
 // POST /api/realms/{realm}/users/{user_id}/roles

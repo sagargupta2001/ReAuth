@@ -3,7 +3,10 @@ use crate::{
     domain::{
         events::{DomainEvent, RoleGroupChanged, RolePermissionChanged, UserGroupChanged},
         group::Group,
-        rbac::{GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, RoleMemberFilter, RoleMemberRow},
+        rbac::{
+            GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, GroupTreeRow,
+            RoleMemberFilter, RoleMemberRow,
+        },
         role::{Permission, Role},
     },
     error::{Error, Result},
@@ -26,6 +29,7 @@ pub struct CreateRolePayload {
 pub struct CreateGroupPayload {
     pub name: String,
     pub description: Option<String>,
+    pub parent_id: Option<Uuid>,
 }
 
 /// The application service for handling all RBAC logic.
@@ -165,11 +169,22 @@ impl RbacService {
             return Err(Error::GroupAlreadyExists);
         }
 
+        if let Some(parent_id) = payload.parent_id {
+            let _ = self.get_group(realm_id, parent_id).await?;
+        }
+
+        let sort_order = self
+            .rbac_repo
+            .get_next_group_sort_order(&realm_id, payload.parent_id.as_ref())
+            .await?;
+
         let group = Group {
             id: Uuid::new_v4(),
             realm_id,
+            parent_id: payload.parent_id,
             name: payload.name,
             description: payload.description,
+            sort_order,
         };
         self.rbac_repo.create_group(&group).await?;
         Ok(group)
@@ -181,6 +196,120 @@ impl RbacService {
         req: PageRequest,
     ) -> Result<PageResponse<Group>> {
         self.rbac_repo.list_groups(&realm_id, &req).await
+    }
+
+    pub async fn list_group_roots(
+        &self,
+        realm_id: Uuid,
+        req: PageRequest,
+    ) -> Result<PageResponse<GroupTreeRow>> {
+        self.rbac_repo.list_group_roots(&realm_id, &req).await
+    }
+
+    pub async fn list_group_children(
+        &self,
+        realm_id: Uuid,
+        parent_id: Uuid,
+        req: PageRequest,
+    ) -> Result<PageResponse<GroupTreeRow>> {
+        let _ = self.get_group(realm_id, parent_id).await?;
+        self.rbac_repo
+            .list_group_children(&realm_id, &parent_id, &req)
+            .await
+    }
+
+    pub async fn move_group(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+        parent_id: Option<Uuid>,
+        before_id: Option<Uuid>,
+        after_id: Option<Uuid>,
+    ) -> Result<()> {
+        if before_id.is_some() && after_id.is_some() {
+            return Err(Error::Validation(
+                "Provide only one of before_id or after_id.".into(),
+            ));
+        }
+
+        let group = self.get_group(realm_id, group_id).await?;
+
+        if let Some(parent_id) = parent_id {
+            if parent_id == group_id {
+                return Err(Error::Validation("Group cannot be its own parent.".into()));
+            }
+
+            let _ = self.get_group(realm_id, parent_id).await?;
+
+            if self
+                .rbac_repo
+                .is_group_descendant(&realm_id, &group_id, &parent_id)
+                .await?
+            {
+                return Err(Error::Validation(
+                    "Cannot move a group inside its own subtree.".into(),
+                ));
+            }
+        }
+
+        if let Some(before_id) = before_id {
+            let before_group = self.get_group(realm_id, before_id).await?;
+            if before_group.parent_id != parent_id {
+                return Err(Error::Validation(
+                    "before_id must be a sibling under the target parent.".into(),
+                ));
+            }
+        }
+
+        if let Some(after_id) = after_id {
+            let after_group = self.get_group(realm_id, after_id).await?;
+            if after_group.parent_id != parent_id {
+                return Err(Error::Validation(
+                    "after_id must be a sibling under the target parent.".into(),
+                ));
+            }
+        }
+
+        let mut siblings = self
+            .rbac_repo
+            .list_group_ids_by_parent(&realm_id, parent_id.as_ref())
+            .await?;
+
+        siblings.retain(|id| id != &group_id);
+
+        let insert_index = if let Some(before_id) = before_id {
+            siblings
+                .iter()
+                .position(|id| id == &before_id)
+                .ok_or_else(|| Error::Validation("before_id not found.".into()))?
+        } else if let Some(after_id) = after_id {
+            let pos = siblings
+                .iter()
+                .position(|id| id == &after_id)
+                .ok_or_else(|| Error::Validation("after_id not found.".into()))?;
+            pos + 1
+        } else {
+            siblings.len()
+        };
+
+        siblings.insert(insert_index, group_id);
+
+        self.rbac_repo
+            .set_group_orders(&realm_id, parent_id.as_ref(), &siblings)
+            .await?;
+
+        if group.parent_id != parent_id {
+            let mut old_siblings = self
+                .rbac_repo
+                .list_group_ids_by_parent(&realm_id, group.parent_id.as_ref())
+                .await?;
+            old_siblings.retain(|id| id != &group_id);
+            self.rbac_repo
+                .set_group_orders(&realm_id, group.parent_id.as_ref(), &old_siblings)
+                .await?;
+        }
+
+        Ok(())
     }
 
     pub async fn list_role_members(

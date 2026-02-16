@@ -15,7 +15,7 @@ Source of truth: `reauth/migrations/20251214045651_initial_schema.sql` and subse
 
 ### roles / groups
 - `roles`: `id`, `realm_id`, optional `client_id`, `name`, `description`, `created_at`
-- `groups`: `id`, `realm_id`, `name`, `description`, `created_at`
+- `groups`: `id`, `realm_id`, optional `parent_id`, `name`, `description`, `sort_order`, `created_at`
 - Role name uniqueness: `(realm_id, client_id, name)`
 
 ### role_permissions / composites / mappings

@@ -243,7 +243,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
               </>
             )
           }}
-          className="h-[calc(100vh-440px)]"
+          className="h-[calc(100vh-590px)]"
         />
       )}
     </div>

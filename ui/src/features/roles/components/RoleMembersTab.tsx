@@ -195,9 +195,9 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Direct {directMemberIds.length}</Badge>
-            <Badge variant="outline">Effective {effectiveMemberIds.length}</Badge>
-            <Badge variant="outline">Users {memberPage?.meta.total ?? 0}</Badge>
+            <Badge className='p-2 pointer-events-none' variant="outline">Direct: {directMemberIds.length}</Badge>
+            <Badge className='p-2 pointer-events-none' variant="outline">Effective: {effectiveMemberIds.length}</Badge>
+            <Badge className='p-2 pointer-events-none' variant="outline">Users: {memberPage?.meta.total ?? 0}</Badge>
           </div>
         </div>
 

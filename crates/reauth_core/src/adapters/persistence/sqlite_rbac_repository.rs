@@ -1,6 +1,9 @@
 use crate::adapters::persistence::connection::Database;
 use crate::domain::role::Permission;
-use crate::domain::rbac::{GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, RoleMemberFilter, RoleMemberRow};
+use crate::domain::rbac::{
+    GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, GroupTreeRow,
+    RoleMemberFilter, RoleMemberRow,
+};
 use crate::{
     domain::{group::Group, role::Role},
     error::{Error, Result},
@@ -19,6 +22,36 @@ pub struct SqliteRbacRepository {
 impl SqliteRbacRepository {
     pub fn new(pool: Database) -> Self {
         Self { pool }
+    }
+
+    fn apply_group_tree_filters<'a>(
+        builder: &mut QueryBuilder<'a, Sqlite>,
+        realm_id: &Uuid,
+        parent_id: Option<&Uuid>,
+        q: &Option<String>,
+    ) {
+        builder.push(" WHERE g.realm_id = ");
+        builder.push_bind(realm_id.to_string());
+
+        match parent_id {
+            Some(pid) => {
+                builder.push(" AND g.parent_id = ");
+                builder.push_bind(pid.to_string());
+            }
+            None => {
+                builder.push(" AND g.parent_id IS NULL");
+            }
+        }
+
+        if let Some(query) = q {
+            if !query.trim().is_empty() {
+                builder.push(" AND (g.name LIKE ");
+                builder.push_bind(format!("%{}%", query));
+                builder.push(" OR g.description LIKE ");
+                builder.push_bind(format!("%{}%", query));
+                builder.push(")");
+            }
+        }
     }
 
     fn apply_filters<'a>(
@@ -89,11 +122,15 @@ impl RbacRepository for SqliteRbacRepository {
     }
 
     async fn create_group(&self, group: &Group) -> Result<()> {
-        sqlx::query("INSERT INTO groups (id, realm_id, name, description) VALUES (?, ?, ?, ?)")
+        sqlx::query(
+            "INSERT INTO groups (id, realm_id, parent_id, name, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
+        )
             .bind(group.id.to_string())
             .bind(group.realm_id.to_string()) // [NEW] Realm Scope
+            .bind(group.parent_id.map(|id| id.to_string()))
             .bind(&group.name)
             .bind(&group.description)
+            .bind(group.sort_order)
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
@@ -295,6 +332,113 @@ impl RbacRepository for SqliteRbacRepository {
         query_builder.push_bind(offset);
 
         let groups: Vec<Group> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(groups, total, req.page, limit))
+    }
+
+    async fn list_group_roots(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<GroupTreeRow>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM groups g");
+        Self::apply_group_tree_filters(&mut count_builder, realm_id, None, &req.q);
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new(
+            "SELECT g.id, g.parent_id, g.name, g.description, g.sort_order, \
+             EXISTS (SELECT 1 FROM groups c WHERE c.parent_id = g.id) AS has_children \
+             FROM groups g",
+        );
+        Self::apply_group_tree_filters(&mut query_builder, realm_id, None, &req.q);
+
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "g.name",
+            Some("sort_order") => "g.sort_order",
+            _ => "g.sort_order",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+        if sort_col != "g.name" {
+            query_builder.push(", g.name ASC");
+        } else {
+            query_builder.push(", g.sort_order ASC");
+        }
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let groups: Vec<GroupTreeRow> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(groups, total, req.page, limit))
+    }
+
+    async fn list_group_children(
+        &self,
+        realm_id: &Uuid,
+        parent_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<GroupTreeRow>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM groups g");
+        Self::apply_group_tree_filters(&mut count_builder, realm_id, Some(parent_id), &req.q);
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new(
+            "SELECT g.id, g.parent_id, g.name, g.description, g.sort_order, \
+             EXISTS (SELECT 1 FROM groups c WHERE c.parent_id = g.id) AS has_children \
+             FROM groups g",
+        );
+        Self::apply_group_tree_filters(&mut query_builder, realm_id, Some(parent_id), &req.q);
+
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "g.name",
+            Some("sort_order") => "g.sort_order",
+            _ => "g.sort_order",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+        if sort_col != "g.name" {
+            query_builder.push(", g.name ASC");
+        } else {
+            query_builder.push(", g.sort_order ASC");
+        }
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let groups: Vec<GroupTreeRow> = query_builder
             .build_query_as()
             .fetch_all(&*self.pool)
             .await
@@ -624,6 +768,101 @@ impl RbacRepository for SqliteRbacRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(PageResponse::new(roles, total, req.page, limit))
+    }
+
+    async fn list_group_ids_by_parent(
+        &self,
+        realm_id: &Uuid,
+        parent_id: Option<&Uuid>,
+    ) -> Result<Vec<Uuid>> {
+        let mut query_builder = QueryBuilder::new("SELECT id FROM groups g");
+        Self::apply_group_tree_filters(&mut query_builder, realm_id, parent_id, &None);
+        query_builder.push(" ORDER BY g.sort_order ASC, g.name ASC");
+
+        let rows: Vec<(String,)> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect())
+    }
+
+    async fn set_group_orders(
+        &self,
+        realm_id: &Uuid,
+        parent_id: Option<&Uuid>,
+        ordered_ids: &[Uuid],
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await.map_err(|e| Error::Unexpected(e.into()))?;
+        let parent = parent_id.map(|id| id.to_string());
+        let realm = realm_id.to_string();
+
+        for (index, group_id) in ordered_ids.iter().enumerate() {
+            sqlx::query(
+                "UPDATE groups SET parent_id = ?, sort_order = ? WHERE id = ? AND realm_id = ?",
+            )
+            .bind(parent.clone())
+            .bind(index as i64)
+            .bind(group_id.to_string())
+            .bind(&realm)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        }
+
+        tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn is_group_descendant(
+        &self,
+        realm_id: &Uuid,
+        ancestor_id: &Uuid,
+        candidate_id: &Uuid,
+    ) -> Result<bool> {
+        let row: (i64,) = sqlx::query_as(
+            r#"
+            WITH RECURSIVE descendants(id) AS (
+                SELECT id FROM groups WHERE parent_id = ? AND realm_id = ?
+                UNION ALL
+                SELECT g.id FROM groups g
+                JOIN descendants d ON g.parent_id = d.id
+                WHERE g.realm_id = ?
+            )
+            SELECT COUNT(1) FROM descendants WHERE id = ?
+            "#,
+        )
+        .bind(ancestor_id.to_string())
+        .bind(realm_id.to_string())
+        .bind(realm_id.to_string())
+        .bind(candidate_id.to_string())
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(row.0 > 0)
+    }
+
+    async fn get_next_group_sort_order(
+        &self,
+        realm_id: &Uuid,
+        parent_id: Option<&Uuid>,
+    ) -> Result<i64> {
+        let mut query_builder =
+            QueryBuilder::new("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM groups g");
+        Self::apply_group_tree_filters(&mut query_builder, realm_id, parent_id, &None);
+
+        let next: i64 = query_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(next)
     }
 
     async fn list_client_roles(

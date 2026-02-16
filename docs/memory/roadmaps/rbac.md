@@ -26,18 +26,23 @@
 - [x] Permission picker UI for system permissions (RolePermissionsTab).
 
 ## Now
-- [ ] Add UI for user-role mapping (role members tab is currently placeholder).
-- [ ] Add UI for group management (create, list, and membership assignment).
-- [ ] Add API endpoints for group membership and role-group assignment to match UI.
+- [x] Add UI for user-role mapping (role members tab).
+- [x] Add UI for group management (create, list, edit, assign members/roles).
+- [x] Add API endpoints for group membership and role-group assignment to match UI.
+- [x] Add server-side filtering/sorting/pagination for group and members lists.
+- [x] Add hierarchical groups schema (parent_id, sort_order, indices).
+- [ ] Split-pane Group Explorer UX for hierarchical groups (tree on left, tabs on right).
 
 ## Next
+- [x] Group tree APIs (tree/list roots + children, move/reorder).
+- [x] Split-pane Group Explorer UX with drag-and-drop (dnd-kit SortableTree) and modular FSD components.
+- [ ] Delete group endpoint with subtree safeguards (confirmations, cascade impact).
 - [ ] Composite roles management (API + UI): add/remove child roles.
 - [ ] Distinguish direct vs effective roles in UI (user details + role members).
-- [ ] Add delete group endpoint and safe delete workflows (confirmations, cascade impact).
 - [ ] Add “custom permissions” model (schema + API) or clarify that permissions are system-defined only.
 
 ## Later
-- [ ] Hierarchical groups (schema needs parent_id + tree UI).
+- [ ] Large-scale tree performance (virtualized tree, lazy loading, incremental search).
 - [ ] Fine-grained authorization policies (ABAC or policy engine integration).
 - [ ] Service accounts (client credentials flow + role binding).
 - [ ] Audit log persistence for RBAC changes (who/when/what) beyond in-memory events.
@@ -45,8 +50,11 @@
 ## Risks / dependencies
 - Composite roles exist in schema and queries but lack management interfaces.
 - Custom permissions are not modeled in DB; current UI uses system-defined permissions only.
-- Group hierarchy requires schema changes.
+- Group hierarchy requires schema changes and cycle-safe move semantics.
+- Drag-and-drop tree requires careful bundle sizing and performance testing.
 
 ## Open questions
 - Should permissions be system-only or allow custom per-client definitions?
 - Do we need audit log storage before exposing RBAC to enterprise users?
+- Should group moves be soft-validated (warn on large subtree moves) or hard-blocked?
+- Should group reordering be global (realm-wide) or only within a parent?

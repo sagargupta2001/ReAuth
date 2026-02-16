@@ -185,8 +185,20 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             post(rbac_handler::create_group_handler).get(rbac_handler::list_groups_handler),
         )
         .route(
+            "/groups/tree",
+            get(rbac_handler::list_group_roots_handler),
+        )
+        .route(
             "/groups/{id}",
             get(rbac_handler::get_group_handler).put(rbac_handler::update_group_handler),
+        )
+        .route(
+            "/groups/{id}/children",
+            get(rbac_handler::list_group_children_handler),
+        )
+        .route(
+            "/groups/{id}/move",
+            post(rbac_handler::move_group_handler),
         )
         .route(
             "/groups/{id}/members",

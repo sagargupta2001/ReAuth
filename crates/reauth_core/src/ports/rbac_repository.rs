@@ -1,5 +1,12 @@
 use crate::domain::role::Permission;
-use crate::domain::{group::Group, rbac::{GroupMemberRow, GroupRoleFilter, GroupRoleRow, GroupMemberFilter, RoleMemberFilter, RoleMemberRow}, role::Role};
+use crate::domain::{
+    group::Group,
+    rbac::{
+        GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, GroupTreeRow,
+        RoleMemberFilter, RoleMemberRow,
+    },
+    role::Role,
+};
 use crate::error::Result;
 use async_trait::async_trait;
 use std::collections::HashSet;
@@ -49,6 +56,17 @@ pub trait RbacRepository: Send + Sync {
         realm_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<Group>>;
+    async fn list_group_roots(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<GroupTreeRow>>;
+    async fn list_group_children(
+        &self,
+        realm_id: &Uuid,
+        parent_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<GroupTreeRow>>;
     async fn list_role_members(
         &self,
         realm_id: &Uuid,
@@ -70,6 +88,28 @@ pub trait RbacRepository: Send + Sync {
         filter: GroupRoleFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupRoleRow>>;
+    async fn list_group_ids_by_parent(
+        &self,
+        realm_id: &Uuid,
+        parent_id: Option<&Uuid>,
+    ) -> Result<Vec<Uuid>>;
+    async fn set_group_orders(
+        &self,
+        realm_id: &Uuid,
+        parent_id: Option<&Uuid>,
+        ordered_ids: &[Uuid],
+    ) -> Result<()>;
+    async fn is_group_descendant(
+        &self,
+        realm_id: &Uuid,
+        ancestor_id: &Uuid,
+        candidate_id: &Uuid,
+    ) -> Result<bool>;
+    async fn get_next_group_sort_order(
+        &self,
+        realm_id: &Uuid,
+        parent_id: Option<&Uuid>,
+    ) -> Result<i64>;
 
     async fn find_user_ids_in_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn find_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>>;

@@ -244,7 +244,7 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
               </>
             )
           }}
-          className="h-[calc(100vh-440px)]"
+          className="h-[calc(100vh-590px)]"
         />
       )}
     </div>

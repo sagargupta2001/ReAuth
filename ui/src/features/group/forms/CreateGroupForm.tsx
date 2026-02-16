@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/button'
@@ -12,14 +13,18 @@ import { FormTextarea } from '@/shared/ui/form-textarea'
 
 interface CreateGroupFormProps {
   onSuccess?: () => void
+  onCreated?: (group: { id: string; name: string }) => void
   onCancel?: () => void
   isDialog?: boolean
+  parentId?: string | null
 }
 
 export function CreateGroupForm({
   onSuccess,
+  onCreated,
   onCancel,
   isDialog = false,
+  parentId,
 }: CreateGroupFormProps) {
   const mutation = useCreateGroup()
 
@@ -28,13 +33,19 @@ export function CreateGroupForm({
     defaultValues: {
       name: '',
       description: '',
+      parent_id: parentId ?? null,
     },
   })
 
+  useEffect(() => {
+    form.setValue('parent_id', parentId ?? null)
+  }, [form, parentId])
+
   const onSubmit = (values: GroupFormValues) => {
     mutation.mutate(values, {
-      onSuccess: () => {
+      onSuccess: (data) => {
         form.reset()
+        onCreated?.(data)
         onSuccess?.()
       },
     })

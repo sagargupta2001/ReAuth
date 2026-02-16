@@ -13,9 +13,10 @@ import type { Group } from '@/entities/group/model/types'
 
 interface GroupHeaderProps {
   group: Group
+  showBack?: boolean
 }
 
-export function GroupHeader({ group }: GroupHeaderProps) {
+export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
   const navigate = useRealmNavigate()
 
   const copyId = () => {
@@ -25,7 +26,9 @@ export function GroupHeader({ group }: GroupHeaderProps) {
 
   return (
     <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b px-6 backdrop-blur">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-1">
+
+        <div className="flex items-center gap-4">
         <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
           <GroupIcon className="text-primary h-5 w-5" />
         </div>
@@ -37,16 +40,19 @@ export function GroupHeader({ group }: GroupHeaderProps) {
           <div className="text-muted-foreground flex items-center gap-1 text-xs">
             <span>ID:</span>
             <button onClick={copyId} className="hover:text-foreground font-mono hover:underline">
-              {group.id.slice(0, 8)}...
+              {group.id}
             </button>
           </div>
+        </div>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
-        <Button variant="outline" onClick={() => navigate('/groups')} size="sm">
-          Back
-        </Button>
+        {showBack ? (
+          <Button variant="outline" onClick={() => navigate('/groups')} size="sm">
+            Back
+          </Button>
+        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon">
