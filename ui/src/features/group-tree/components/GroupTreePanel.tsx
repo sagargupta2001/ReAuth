@@ -44,6 +44,7 @@ interface GroupTreePanelProps {
 }
 
 const EMPTY_IDS: string[] = []
+const EMPTY_TREE: GroupTreeNode[] = []
 
 export function GroupTreePanel({
   selectedId,
@@ -55,17 +56,21 @@ export function GroupTreePanel({
   const queryClient = useQueryClient()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  const [tree, setTree] = useState<GroupTreeNode[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
   const loadingIdsRef = useRef<Set<string>>(new Set())
   const hydratedIdsRef = useRef<Set<string>>(new Set())
+  const prevSearchRef = useRef('')
   const expandedByRealm = useGroupTreeStore((state) => state.expandedByRealm)
+  const treeByRealm = useGroupTreeStore((state) => state.treeByRealm)
   const expandedIdsList = expandedByRealm[realm] ?? EMPTY_IDS
+  const cachedTree = treeByRealm[realm] ?? EMPTY_TREE
+  const [tree, setTree] = useState<GroupTreeNode[]>(cachedTree)
   const setExpanded = useGroupTreeStore((state) => state.setExpanded)
   const toggleExpandedStore = useGroupTreeStore((state) => state.toggleExpanded)
   const resetExpanded = useGroupTreeStore((state) => state.resetExpanded)
+  const setTreeCache = useGroupTreeStore((state) => state.setTree)
   const expandedIds = useMemo(() => new Set(expandedIdsList), [expandedIdsList])
 
   const addExpanded = useCallback(
@@ -90,7 +95,12 @@ export function GroupTreePanel({
         q: search.trim() ? search.trim() : undefined,
       })
 
-      setTree(sortTreeByName(response.data))
+      const nextTree = sortTreeByName(response.data)
+      if (search.trim()) {
+        setTree(nextTree)
+      } else {
+        setTree(nextTree)
+      }
     } catch (err: any) {
       toast.error(err.message || 'Failed to load groups')
     } finally {
@@ -99,8 +109,27 @@ export function GroupTreePanel({
   }, [realm, search])
 
   useEffect(() => {
+    if (!search.trim() && cachedTree.length > 0 && (refreshKey ?? 0) === 0) {
+      return
+    }
     void loadRoots()
-  }, [loadRoots, refreshKey])
+  }, [cachedTree.length, loadRoots, refreshKey, search])
+
+  useEffect(() => {
+    if (search.trim()) return
+    if (tree === cachedTree) return
+    setTreeCache(realm, tree)
+  }, [cachedTree, realm, search, setTreeCache, tree])
+
+  useEffect(() => {
+    const prevSearch = prevSearchRef.current
+    if (prevSearch.trim() && !search.trim()) {
+      if (tree !== cachedTree) {
+        setTree(cachedTree)
+      }
+    }
+    prevSearchRef.current = search
+  }, [cachedTree, search, tree])
 
   useEffect(() => {
     if (!search.trim()) return
@@ -122,7 +151,8 @@ export function GroupTreePanel({
           sort_dir: 'asc',
         })
 
-        setTree((prev) =>
+        const updateTree = setTree
+        updateTree((prev) =>
           updateNode(prev, groupId, (node) => ({
             ...node,
             children: sortTreeByName(response.data),
@@ -136,7 +166,7 @@ export function GroupTreePanel({
         loadingIdsRef.current.delete(groupId)
       }
     },
-    [addExpanded, realm],
+    [addExpanded, realm, search],
   )
 
   useEffect(() => {

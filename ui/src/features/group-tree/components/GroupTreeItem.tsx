@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core'
 import { ChevronRight, Folder, GripVertical, MoreVertical, Plus } from 'lucide-react'
@@ -44,10 +44,13 @@ export function GroupTreeItem({
     isDragging,
   } = useDraggable({ id: item.id })
   const { isOver, setNodeRef: setDroppableNodeRef } = useDroppable({ id: item.id })
-  const setNodeRef = (node: HTMLDivElement | null) => {
-    setDraggableNodeRef(node)
-    setDroppableNodeRef(node)
-  }
+  const setNodeRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setDraggableNodeRef(node)
+      setDroppableNodeRef(node)
+    },
+    [setDraggableNodeRef, setDroppableNodeRef],
+  )
   const isHovered = isOver && active?.id !== item.id
 
   const paddingLeft = useMemo(() => item.depth * indentationWidth, [item.depth])
@@ -58,7 +61,9 @@ export function GroupTreeItem({
       className={cn(
         'group flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors',
         isSelected && 'bg-primary/10 text-primary',
-        isHovered && !isSelected && 'bg-accent/60 ring-2 ring-accent/80',
+        isHovered &&
+          !isSelected &&
+          'bg-primary/15 ring-2 ring-primary/60 ring-offset-2 ring-offset-background',
         isDragging && 'opacity-60',
       )}
     >
