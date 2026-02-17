@@ -345,14 +345,14 @@ pub async fn start_login_flow_handler(
         .build();
     headers.append(
         header::SET_COOKIE,
-        HeaderValue::from_str(&kill_root.to_string()).unwrap(),
+        HeaderValue::from_str(&kill_root.to_string())?,
     );
 
     // Set API-scoped login cookie
     let new_cookie = create_login_cookie(session_id);
     headers.append(
         header::SET_COOKIE,
-        HeaderValue::from_str(&new_cookie.to_string()).unwrap(),
+        HeaderValue::from_str(&new_cookie.to_string())?,
     );
 
     // Handle Result
