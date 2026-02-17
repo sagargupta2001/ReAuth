@@ -99,6 +99,17 @@ pub fn get_system_permissions() -> Vec<ResourceGroup> {
     ]
 }
 
+pub fn is_system_permission(permission: &str) -> bool {
+    if permission == ALL {
+        return true;
+    }
+
+    get_system_permissions()
+        .iter()
+        .flat_map(|g| g.permissions.iter())
+        .any(|p| p.id == permission)
+}
+
 // Helper to shorten the vector construction
 fn p(id: &str, name: &str, desc: &str) -> PermissionDef {
     PermissionDef {

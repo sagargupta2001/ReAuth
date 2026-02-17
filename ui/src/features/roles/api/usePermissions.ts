@@ -16,13 +16,18 @@ export interface ResourceGroup {
   permissions: PermissionDef[]
 }
 
-export function usePermissions() {
+export function usePermissions(clientId?: string | null) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['permissions-definitions', realm],
+    queryKey: ['permissions-definitions', realm, clientId ?? null],
     queryFn: async () => {
-      return apiClient.get<ResourceGroup[]>(`/api/realms/${realm}/rbac/permissions`)
+      const query = new URLSearchParams()
+      if (clientId) query.set('client_id', clientId)
+      const suffix = query.toString()
+      return apiClient.get<ResourceGroup[]>(
+        `/api/realms/${realm}/rbac/permissions${suffix ? `?${suffix}` : ''}`,
+      )
     },
     // Definitions rarely change, so cache them for a long time (1 hour)
     staleTime: 1000 * 60 * 60,

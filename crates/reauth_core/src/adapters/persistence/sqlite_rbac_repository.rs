@@ -1,9 +1,9 @@
 use crate::adapters::persistence::connection::Database;
 use crate::domain::role::Permission;
 use crate::domain::rbac::{
-    GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, GroupTreeRow,
-    RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow, UserRoleFilter,
-    UserRoleRow,
+    CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
+    GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
+    UserRoleFilter, UserRoleRow,
 };
 use crate::{
     domain::{group::Group, role::Role},
@@ -207,6 +207,130 @@ impl RbacRepository for SqliteRbacRepository {
         sqlx::query("DELETE FROM user_roles WHERE user_id = ? AND role_id = ?")
             .bind(user_id.to_string())
             .bind(role_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn create_custom_permission(&self, permission: &CustomPermission) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO custom_permissions (id, realm_id, client_id, permission, name, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(permission.id.to_string())
+        .bind(permission.realm_id.to_string())
+        .bind(permission.client_id.map(|id| id.to_string()))
+        .bind(&permission.permission)
+        .bind(&permission.name)
+        .bind(&permission.description)
+        .bind(permission.created_by.map(|id| id.to_string()))
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn update_custom_permission(&self, permission: &CustomPermission) -> Result<()> {
+        sqlx::query(
+            "UPDATE custom_permissions SET name = ?, description = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE id = ?",
+        )
+        .bind(&permission.name)
+        .bind(&permission.description)
+        .bind(permission.id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn delete_custom_permission(&self, permission_id: &Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM custom_permissions WHERE id = ?")
+            .bind(permission_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn find_custom_permission_by_key(
+        &self,
+        realm_id: &Uuid,
+        client_id: Option<&Uuid>,
+        permission: &str,
+    ) -> Result<Option<CustomPermission>> {
+        let mut query_builder = QueryBuilder::new("SELECT * FROM custom_permissions WHERE realm_id = ");
+        query_builder.push_bind(realm_id.to_string());
+        query_builder.push(" AND permission = ");
+        query_builder.push_bind(permission);
+
+        match client_id {
+            Some(id) => {
+                query_builder.push(" AND client_id = ");
+                query_builder.push_bind(id.to_string());
+            }
+            None => {
+                query_builder.push(" AND client_id IS NULL");
+            }
+        }
+
+        let permission = query_builder
+            .build_query_as()
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(permission)
+    }
+
+    async fn find_custom_permission_by_id(
+        &self,
+        realm_id: &Uuid,
+        permission_id: &Uuid,
+    ) -> Result<Option<CustomPermission>> {
+        let permission = sqlx::query_as(
+            "SELECT * FROM custom_permissions WHERE realm_id = ? AND id = ?",
+        )
+        .bind(realm_id.to_string())
+        .bind(permission_id.to_string())
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(permission)
+    }
+
+    async fn list_custom_permissions(
+        &self,
+        realm_id: &Uuid,
+        client_id: Option<&Uuid>,
+    ) -> Result<Vec<CustomPermission>> {
+        let mut query_builder = QueryBuilder::new("SELECT * FROM custom_permissions WHERE realm_id = ");
+        query_builder.push_bind(realm_id.to_string());
+
+        match client_id {
+            Some(id) => {
+                query_builder.push(" AND client_id = ");
+                query_builder.push_bind(id.to_string());
+            }
+            None => {
+                query_builder.push(" AND client_id IS NULL");
+            }
+        }
+
+        query_builder.push(" ORDER BY permission ASC");
+
+        let permissions: Vec<CustomPermission> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(permissions)
+    }
+
+    async fn remove_role_permissions_by_key(&self, permission: &str) -> Result<()> {
+        sqlx::query("DELETE FROM role_permissions WHERE permission_name = ?")
+            .bind(permission)
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;

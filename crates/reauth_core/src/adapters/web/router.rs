@@ -260,6 +260,15 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
                 .put(rbac_handler::update_role_handler),
         )
         .route("/permissions", get(rbac_handler::list_permissions_handler))
+        .route(
+            "/permissions/custom",
+            post(rbac_handler::create_custom_permission_handler),
+        )
+        .route(
+            "/permissions/custom/{id}",
+            put(rbac_handler::update_custom_permission_handler)
+                .delete(rbac_handler::delete_custom_permission_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state,
             move |state, req, next| {

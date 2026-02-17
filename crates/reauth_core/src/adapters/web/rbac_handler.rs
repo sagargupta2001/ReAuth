@@ -1,8 +1,10 @@
-use crate::application::rbac_service::{CreateGroupPayload, CreateRolePayload};
+use crate::application::rbac_service::{
+    CreateCustomPermissionPayload, CreateGroupPayload, CreateRolePayload, UpdateCustomPermissionPayload,
+};
 use crate::domain::rbac::{
     GroupMemberFilter, GroupRoleFilter, RoleCompositeFilter, RoleMemberFilter, UserRoleFilter,
 };
-use crate::domain::permissions;
+use crate::domain::permissions::{self, PermissionDef, ResourceGroup};
 use crate::error::{Error, Result};
 use crate::AppState;
 use axum::{
@@ -784,17 +786,126 @@ pub async fn update_role_handler(
     Ok((StatusCode::OK, Json(updated_role)))
 }
 
+#[derive(Deserialize)]
+pub struct PermissionsQuery {
+    pub client_id: Option<Uuid>,
+}
+
 // GET /api/realms/{realm}/rbac/permissions
-pub async fn list_permissions_handler() -> impl IntoResponse {
-    // 1. Get System Permissions
-    let groups = permissions::get_system_permissions();
+pub async fn list_permissions_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Query(query): Query<PermissionsQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
 
-    // 2. [Future] Fetch Custom Permissions (Client Scopes) from DB
-    // let custom_groups = client_service.get_all_scopes_as_groups().await?;
-    // groups.extend(custom_groups);
+    let mut groups: Vec<ResourceGroup> = if query.client_id.is_some() {
+        Vec::new()
+    } else {
+        permissions::get_system_permissions()
+    };
 
-    // 3. Return JSON
-    (StatusCode::OK, Json(groups))
+    let custom_permissions = state
+        .rbac_service
+        .list_custom_permissions(realm.id, query.client_id)
+        .await?;
+
+    let custom_group = ResourceGroup {
+        id: "custom".to_string(),
+        label: "Custom Permissions".to_string(),
+        description: if query.client_id.is_some() {
+            "Permissions defined for this client application.".to_string()
+        } else {
+            "Permissions defined at the realm level.".to_string()
+        },
+        permissions: custom_permissions
+            .into_iter()
+            .map(|perm| PermissionDef {
+                id: perm.permission,
+                name: perm.name,
+                description: perm.description.unwrap_or_default(),
+            })
+            .collect(),
+    };
+
+    groups.push(custom_group);
+
+    Ok((StatusCode::OK, Json(groups)))
+}
+
+// POST /api/realms/{realm}/rbac/permissions/custom
+pub async fn create_custom_permission_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Json(payload): Json<CreateCustomPermissionPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let created = state
+        .rbac_service
+        .create_custom_permission(realm.id, payload)
+        .await?;
+
+    let response = PermissionDef {
+        id: created.permission,
+        name: created.name,
+        description: created.description.unwrap_or_default(),
+    };
+
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+// PUT /api/realms/{realm}/rbac/permissions/custom/{id}
+pub async fn update_custom_permission_handler(
+    State(state): State<AppState>,
+    Path((realm_name, permission_id)): Path<(String, Uuid)>,
+    Json(payload): Json<UpdateCustomPermissionPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let updated = state
+        .rbac_service
+        .update_custom_permission(realm.id, permission_id, payload)
+        .await?;
+
+    let response = PermissionDef {
+        id: updated.permission,
+        name: updated.name,
+        description: updated.description.unwrap_or_default(),
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+// DELETE /api/realms/{realm}/rbac/permissions/custom/{id}
+pub async fn delete_custom_permission_handler(
+    State(state): State<AppState>,
+    Path((realm_name, permission_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .rbac_service
+        .delete_custom_permission(realm.id, permission_id)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]

@@ -3,10 +3,11 @@ use crate::{
     domain::{
         events::{DomainEvent, RoleGroupChanged, RolePermissionChanged, UserGroupChanged},
         group::Group,
+        permissions,
         rbac::{
-            GroupDeleteSummary, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-            GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
-            UserRoleFilter, UserRoleRow,
+            CustomPermission, GroupDeleteSummary, GroupMemberFilter, GroupMemberRow, GroupRoleFilter,
+            GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter,
+            RoleMemberRow, UserRoleFilter, UserRoleRow,
         },
         role::{Permission, Role},
     },
@@ -31,6 +32,20 @@ pub struct CreateGroupPayload {
     pub name: String,
     pub description: Option<String>,
     pub parent_id: Option<Uuid>,
+}
+
+#[derive(serde::Deserialize, Clone, Default)]
+pub struct CreateCustomPermissionPayload {
+    pub permission: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub client_id: Option<Uuid>,
+}
+
+#[derive(serde::Deserialize, Clone, Default)]
+pub struct UpdateCustomPermissionPayload {
+    pub name: String,
+    pub description: Option<String>,
 }
 
 /// The application service for handling all RBAC logic.
@@ -375,6 +390,130 @@ impl RbacService {
         self.rbac_repo
             .list_role_composites(&realm_id, &role_id, &role.client_id, filter, &req)
             .await
+    }
+
+    pub async fn list_custom_permissions(
+        &self,
+        realm_id: Uuid,
+        client_id: Option<Uuid>,
+    ) -> Result<Vec<CustomPermission>> {
+        self.rbac_repo
+            .list_custom_permissions(&realm_id, client_id.as_ref())
+            .await
+    }
+
+    pub async fn create_custom_permission(
+        &self,
+        realm_id: Uuid,
+        payload: CreateCustomPermissionPayload,
+    ) -> Result<CustomPermission> {
+        let permission = payload.permission.trim().to_string();
+
+        self.validate_custom_permission_key(&permission)?;
+
+        if payload.name.trim().is_empty() {
+            return Err(Error::Validation("Permission name cannot be empty".into()));
+        }
+
+        if permissions::is_system_permission(&permission) {
+            return Err(Error::Validation(
+                "Permission conflicts with a system permission".into(),
+            ));
+        }
+
+        if let Some(existing) = self
+            .rbac_repo
+            .find_custom_permission_by_key(&realm_id, payload.client_id.as_ref(), &permission)
+            .await?
+        {
+            return Err(Error::Validation(format!(
+                "Permission already exists: {}",
+                existing.permission
+            )));
+        }
+
+        let permission = CustomPermission {
+            id: Uuid::new_v4(),
+            realm_id,
+            client_id: payload.client_id,
+            permission: permission.clone(),
+            name: payload.name.trim().to_string(),
+            description: payload
+                .description
+                .and_then(|d| {
+                    let trimmed = d.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                }),
+            created_by: None,
+        };
+
+        self.rbac_repo.create_custom_permission(&permission).await?;
+
+        Ok(permission)
+    }
+
+    pub async fn update_custom_permission(
+        &self,
+        realm_id: Uuid,
+        permission_id: Uuid,
+        payload: UpdateCustomPermissionPayload,
+    ) -> Result<CustomPermission> {
+        if payload.name.trim().is_empty() {
+            return Err(Error::Validation("Permission name cannot be empty".into()));
+        }
+
+        let existing = self
+            .rbac_repo
+            .find_custom_permission_by_id(&realm_id, &permission_id)
+            .await?
+            .ok_or(Error::NotFound("Custom permission not found".into()))?;
+
+        let updated = CustomPermission {
+            id: existing.id,
+            realm_id: existing.realm_id,
+            client_id: existing.client_id,
+            permission: existing.permission.clone(),
+            name: payload.name.trim().to_string(),
+            description: payload
+                .description
+                .and_then(|d| {
+                    let trimmed = d.trim();
+                    if trimmed.is_empty() {
+                        None
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                }),
+            created_by: existing.created_by,
+        };
+
+        self.rbac_repo.update_custom_permission(&updated).await?;
+        Ok(updated)
+    }
+
+    pub async fn delete_custom_permission(
+        &self,
+        realm_id: Uuid,
+        permission_id: Uuid,
+    ) -> Result<()> {
+        let permission = self
+            .rbac_repo
+            .find_custom_permission_by_id(&realm_id, &permission_id)
+            .await?
+            .ok_or(Error::NotFound("Custom permission not found".into()))?;
+
+        self.rbac_repo
+            .remove_role_permissions_by_key(&permission.permission)
+            .await?;
+        self.rbac_repo
+            .delete_custom_permission(&permission_id)
+            .await?;
+
+        Ok(())
     }
 
     pub async fn get_group(&self, realm_id: Uuid, group_id: Uuid) -> Result<Group> {
@@ -731,7 +870,9 @@ impl RbacService {
         permission: Permission,
     ) -> Result<()> {
         // 1. Verify Role belongs to Realm
-        let _ = self.get_role(realm_id, role_id).await?;
+        let role = self.get_role(realm_id, role_id).await?;
+
+        self.ensure_permission_assignable(&role, &permission).await?;
 
         // 2. Assign
         self.rbac_repo
@@ -784,11 +925,17 @@ impl RbacService {
         action: String,
     ) -> Result<()> {
         // 1. Verify Role belongs to Realm
-        let _ = self.get_role(realm_id, role_id).await?;
+        let role = self.get_role(realm_id, role_id).await?;
 
         // 2. Validate Action
         if action != "add" && action != "remove" {
             return Err(Error::Validation("Invalid action. Use 'add' or 'remove'.".into()));
+        }
+
+        if action == "add" {
+            for permission in &permissions {
+                self.ensure_permission_assignable(&role, permission).await?;
+            }
         }
 
         // 3. Perform Bulk Update
@@ -945,5 +1092,60 @@ impl RbacService {
         self.cache.set_user_permissions(user_id, &permissions).await;
 
         Ok(permissions)
+    }
+
+    fn validate_custom_permission_key(&self, permission: &str) -> Result<()> {
+        let trimmed = permission.trim();
+        if trimmed.is_empty() {
+            return Err(Error::Validation("Permission ID cannot be empty".into()));
+        }
+
+        if trimmed.contains(char::is_whitespace) {
+            return Err(Error::Validation(
+                "Permission ID cannot contain whitespace".into(),
+            ));
+        }
+
+        if !trimmed.contains(':') {
+            return Err(Error::Validation(
+                "Permission ID must include a namespace (e.g. app:resource:action)".into(),
+            ));
+        }
+
+        if trimmed == "*" {
+            return Err(Error::Validation(
+                "Wildcard permissions are reserved for system roles".into(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    async fn ensure_permission_assignable(&self, role: &Role, permission: &str) -> Result<()> {
+        if permissions::is_system_permission(permission) {
+            if role.client_id.is_some() {
+                return Err(Error::Validation(
+                    "System permissions cannot be assigned to client roles".into(),
+                ));
+            }
+            return Ok(());
+        }
+
+        let custom = self
+            .rbac_repo
+            .find_custom_permission_by_key(
+                &role.realm_id,
+                role.client_id.as_ref(),
+                permission,
+            )
+            .await?;
+
+        if custom.is_none() {
+            return Err(Error::Validation(
+                "Permission not found in custom permissions".into(),
+            ));
+        }
+
+        Ok(())
     }
 }

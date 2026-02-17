@@ -2,7 +2,8 @@ use crate::domain::role::Permission;
 use crate::domain::{
     group::Group,
     rbac::{
-        GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, GroupTreeRow,
+        CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
+        GroupTreeRow,
         RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow, UserRoleFilter,
         UserRoleRow,
     },
@@ -164,4 +165,25 @@ pub trait RbacRepository: Send + Sync {
         ancestor_id: &Uuid,
         candidate_id: &Uuid,
     ) -> Result<bool>;
+
+    async fn create_custom_permission(&self, permission: &CustomPermission) -> Result<()>;
+    async fn update_custom_permission(&self, permission: &CustomPermission) -> Result<()>;
+    async fn delete_custom_permission(&self, permission_id: &Uuid) -> Result<()>;
+    async fn find_custom_permission_by_key(
+        &self,
+        realm_id: &Uuid,
+        client_id: Option<&Uuid>,
+        permission: &str,
+    ) -> Result<Option<CustomPermission>>;
+    async fn find_custom_permission_by_id(
+        &self,
+        realm_id: &Uuid,
+        permission_id: &Uuid,
+    ) -> Result<Option<CustomPermission>>;
+    async fn list_custom_permissions(
+        &self,
+        realm_id: &Uuid,
+        client_id: Option<&Uuid>,
+    ) -> Result<Vec<CustomPermission>>;
+    async fn remove_role_permissions_by_key(&self, permission: &str) -> Result<()>;
 }

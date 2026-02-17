@@ -69,6 +69,17 @@ pub struct GroupDeleteSummary {
     pub role_count: i64,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct CustomPermission {
+    pub id: Uuid,
+    pub realm_id: Uuid,
+    pub client_id: Option<Uuid>,
+    pub permission: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_by: Option<Uuid>,
+}
+
 impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for GroupTreeRow {
     fn from_row(row: &'r sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         let parse_uuid = |val: String, col_name: &str| -> Result<Uuid, sqlx::Error> {
@@ -92,6 +103,38 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for GroupTreeRow {
             description: row.try_get("description")?,
             sort_order: row.try_get("sort_order")?,
             has_children: row.try_get("has_children")?,
+        })
+    }
+}
+
+impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for CustomPermission {
+    fn from_row(row: &'r sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
+        let parse_uuid = |val: String, col_name: &str| -> Result<Uuid, sqlx::Error> {
+            Uuid::parse_str(&val).map_err(|e| sqlx::Error::ColumnDecode {
+                index: col_name.into(),
+                source: Box::new(e),
+            })
+        };
+
+        let id_str: String = row.try_get("id")?;
+        let realm_id_str: String = row.try_get("realm_id")?;
+        let client_id_str: Option<String> = row.try_get("client_id")?;
+        let created_by_str: Option<String> = row.try_get("created_by")?;
+
+        Ok(CustomPermission {
+            id: parse_uuid(id_str, "id")?,
+            realm_id: parse_uuid(realm_id_str, "realm_id")?,
+            client_id: match client_id_str {
+                Some(s) => Some(parse_uuid(s, "client_id")?),
+                None => None,
+            },
+            permission: row.try_get("permission")?,
+            name: row.try_get("name")?,
+            description: row.try_get("description")?,
+            created_by: match created_by_str {
+                Some(s) => Some(parse_uuid(s, "created_by")?),
+                None => None,
+            },
         })
     }
 }

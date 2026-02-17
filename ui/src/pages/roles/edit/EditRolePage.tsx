@@ -86,7 +86,7 @@ export function EditRolePage() {
           </TabsContent>
 
           <TabsContent value="permissions" className="mt-0 h-full w-full">
-            <RolePermissionsTab roleId={role.id} />
+            <RolePermissionsTab roleId={role.id} clientId={role.client_id ?? null} />
           </TabsContent>
 
           <TabsContent value="composites" className="mt-0 h-full w-full p-6">
