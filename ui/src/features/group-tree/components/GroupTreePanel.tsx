@@ -394,11 +394,15 @@ export function GroupTreePanel({
       let safety = 0
 
       while (currentId && safety < 25) {
-        const cached = queryClient.getQueryData<Group>(['group', realm, currentId])
-        const group =
+        const cached: Group | undefined = queryClient.getQueryData<Group>([
+          'group',
+          realm,
+          currentId,
+        ])
+        const group: Group =
           cached ??
           (await apiClient.get<Group>(`/api/realms/${realm}/rbac/groups/${currentId}`))
-        const parentId = group?.parent_id ?? null
+        const parentId: string | null = group.parent_id ?? null
         if (!parentId) break
         ancestors.unshift(parentId)
         currentId = parentId
