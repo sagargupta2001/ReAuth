@@ -7,7 +7,7 @@
 ### Core architecture
 - [x] Recursive resolution engine for effective permissions (SQLx recursive CTEs).
 - [x] Hybrid role scoping (realm roles + client roles in one table).
-- [x] Composite roles supported in schema and recursive queries (no management UI/API yet).
+- [x] Composite roles supported in schema, queries, and management UI/API.
 
 ### Backend API
 - [x] Role CRUD (create, list, get, update, delete).
@@ -40,8 +40,8 @@
 - [x] Group tree APIs (tree/list roots + children, move/reorder).
 - [x] Split-pane Group Explorer UX with drag-and-drop and modular FSD components.
 - [x] Delete group endpoint with subtree safeguards (confirmations, cascade impact).
-- [ ] Composite roles management (API + UI): add/remove child roles.
-- [ ] Distinguish direct vs effective roles in UI (user details + role members).
+- [x] Composite roles management (API + UI): add/remove child roles.
+- [x] Distinguish direct vs effective roles in UI (group + user roles).
 - [ ] Add “custom permissions” model (schema + API) or clarify that permissions are system-defined only.
 
 ## Later

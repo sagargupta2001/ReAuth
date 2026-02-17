@@ -1,11 +1,12 @@
-use crate::domain::events::UserRoleChanged;
+use crate::domain::events::{RoleCompositeChanged, UserRoleChanged};
 use crate::{
     domain::{
         events::{DomainEvent, RoleGroupChanged, RolePermissionChanged, UserGroupChanged},
         group::Group,
         rbac::{
             GroupDeleteSummary, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-            GroupTreeRow, RoleMemberFilter, RoleMemberRow,
+            GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
+            UserRoleFilter, UserRoleRow,
         },
         role::{Permission, Role},
     },
@@ -351,6 +352,31 @@ impl RbacService {
             .await
     }
 
+    pub async fn list_user_roles(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        filter: UserRoleFilter,
+        req: PageRequest,
+    ) -> Result<PageResponse<UserRoleRow>> {
+        self.rbac_repo
+            .list_user_roles(&realm_id, &user_id, filter, &req)
+            .await
+    }
+
+    pub async fn list_role_composites(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        filter: RoleCompositeFilter,
+        req: PageRequest,
+    ) -> Result<PageResponse<RoleCompositeRow>> {
+        let role = self.get_role(realm_id, role_id).await?;
+        self.rbac_repo
+            .list_role_composites(&realm_id, &role_id, &role.client_id, filter, &req)
+            .await
+    }
+
     pub async fn get_group(&self, realm_id: Uuid, group_id: Uuid) -> Result<Group> {
         let group = self
             .rbac_repo
@@ -484,6 +510,50 @@ impl RbacService {
         Ok(())
     }
 
+    pub async fn assign_composite_role(
+        &self,
+        realm_id: Uuid,
+        parent_role_id: Uuid,
+        child_role_id: Uuid,
+    ) -> Result<()> {
+        if parent_role_id == child_role_id {
+            return Err(Error::Validation("Cannot add a role as its own composite".into()));
+        }
+
+        let parent = self.get_role(realm_id, parent_role_id).await?;
+        let child = self.get_role(realm_id, child_role_id).await?;
+
+        if parent.client_id != child.client_id {
+            return Err(Error::Validation(
+                "Composite roles must belong to the same client scope".into(),
+            ));
+        }
+
+        if self
+            .rbac_repo
+            .is_role_descendant(&child_role_id, &parent_role_id)
+            .await?
+        {
+            return Err(Error::Validation(
+                "Composite assignment would create a cycle".into(),
+            ));
+        }
+
+        self.rbac_repo
+            .assign_composite_role(&parent_role_id, &child_role_id)
+            .await?;
+
+        self.event_bus
+            .publish(DomainEvent::RoleCompositeChanged(RoleCompositeChanged {
+                parent_role_id,
+                child_role_id,
+                action: "assigned".to_string(),
+            }))
+            .await;
+
+        Ok(())
+    }
+
     pub async fn assign_user_to_group(
         &self,
         realm_id: Uuid,
@@ -523,6 +593,36 @@ impl RbacService {
             .publish(DomainEvent::RoleRemovedFromGroup(RoleGroupChanged {
                 role_id,
                 group_id,
+            }))
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn remove_composite_role(
+        &self,
+        realm_id: Uuid,
+        parent_role_id: Uuid,
+        child_role_id: Uuid,
+    ) -> Result<()> {
+        let parent = self.get_role(realm_id, parent_role_id).await?;
+        let child = self.get_role(realm_id, child_role_id).await?;
+
+        if parent.client_id != child.client_id {
+            return Err(Error::Validation(
+                "Composite roles must belong to the same client scope".into(),
+            ));
+        }
+
+        self.rbac_repo
+            .remove_composite_role(&parent_role_id, &child_role_id)
+            .await?;
+
+        self.event_bus
+            .publish(DomainEvent::RoleCompositeChanged(RoleCompositeChanged {
+                parent_role_id,
+                child_role_id,
+                action: "removed".to_string(),
             }))
             .await;
 
@@ -760,6 +860,55 @@ impl RbacService {
     ) -> Result<Vec<Uuid>> {
         let _ = self.get_group(realm_id, group_id).await?;
         self.rbac_repo.find_role_ids_for_group(&group_id).await
+    }
+
+    pub async fn get_effective_group_role_ids(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let _ = self.get_group(realm_id, group_id).await?;
+        self.rbac_repo
+            .find_effective_role_ids_for_group(&group_id)
+            .await
+    }
+
+    pub async fn get_direct_role_ids_for_user(
+        &self,
+        _realm_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        self.rbac_repo.find_direct_role_ids_for_user(&user_id).await
+    }
+
+    pub async fn get_effective_role_ids_for_user(
+        &self,
+        _realm_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        self.rbac_repo
+            .find_effective_role_ids_for_user(&user_id)
+            .await
+    }
+
+    pub async fn get_role_composite_ids(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let _ = self.get_role(realm_id, role_id).await?;
+        self.rbac_repo.list_role_composite_ids(&role_id).await
+    }
+
+    pub async fn get_effective_role_composite_ids(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let _ = self.get_role(realm_id, role_id).await?;
+        self.rbac_repo
+            .list_effective_role_composite_ids(&role_id)
+            .await
     }
 
     pub async fn user_has_permission(&self, user_id: &Uuid, permission: &str) -> Result<bool> {

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { Loader2, Settings, ShieldCheck, Users } from 'lucide-react'
+import { Layers, Loader2, Settings, ShieldCheck, Users } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation'
 import { useRole } from '@/features/roles/api/useRole'
 import { RoleHeader } from '@/features/roles/components/RoleHeader'
+import { RoleCompositesTab } from '@/features/roles/components/RoleCompositesTab'
 import { RoleMembersTab } from '@/features/roles/components/RoleMembersTab'
 import { RolePermissionsTab } from '@/features/roles/components/RolePermissionsTab'
 import { RoleSettingsTab } from '@/features/roles/components/RoleSettingsTab'
@@ -18,7 +19,7 @@ export function EditRolePage() {
 
   const { data: role, isLoading, isError } = useRole(roleId!)
 
-  const validTabs = ['settings', 'permissions', 'members']
+  const validTabs = ['settings', 'permissions', 'composites', 'members']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
 
   useEffect(() => {
@@ -69,6 +70,10 @@ export function EditRolePage() {
               <ShieldCheck className="mr-2 h-4 w-4" /> Permissions
             </TabsTrigger>
 
+            <TabsTrigger value="composites" className="tab-trigger-styles">
+              <Layers className="mr-2 h-4 w-4" /> Composites
+            </TabsTrigger>
+
             <TabsTrigger value="members" className="tab-trigger-styles">
               <Users className="mr-2 h-4 w-4" /> Members
             </TabsTrigger>
@@ -82,6 +87,10 @@ export function EditRolePage() {
 
           <TabsContent value="permissions" className="mt-0 h-full w-full">
             <RolePermissionsTab roleId={role.id} />
+          </TabsContent>
+
+          <TabsContent value="composites" className="mt-0 h-full w-full p-6">
+            <RoleCompositesTab roleId={role.id} />
           </TabsContent>
 
           <TabsContent value="members" className="mt-0 h-full w-full p-6">

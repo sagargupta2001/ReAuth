@@ -80,6 +80,10 @@ impl DomainEvent {
                 "UserRoleRemoved".to_string(),
                 serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
             ),
+            DomainEvent::RoleCompositeChanged(e) => (
+                "RoleCompositeChanged".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
             DomainEvent::RoleDeleted(e) => (
                 "RoleDeleted".to_string(),
                 serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),

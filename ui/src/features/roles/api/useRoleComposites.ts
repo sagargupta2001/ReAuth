@@ -5,7 +5,7 @@ import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
 
-export interface GroupRoleRow {
+export interface RoleCompositeRow {
   id: string
   name: string
   description?: string | null
@@ -13,7 +13,7 @@ export interface GroupRoleRow {
   is_effective: boolean
 }
 
-export interface GroupRoleListParams {
+export interface RoleCompositeListParams {
   page?: number
   per_page?: number
   q?: string
@@ -22,11 +22,11 @@ export interface GroupRoleListParams {
   filter?: 'all' | 'direct' | 'effective' | 'unassigned'
 }
 
-export function useGroupRolesList(groupId: string, params: GroupRoleListParams) {
+export function useRoleCompositesList(roleId: string, params: RoleCompositeListParams) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-role-list', realm, groupId, params],
+    queryKey: ['role-composite-list', realm, roleId, params],
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
@@ -36,108 +36,112 @@ export function useGroupRolesList(groupId: string, params: GroupRoleListParams) 
       if (params.sort_dir) query.set('sort_dir', params.sort_dir)
       if (params.filter) query.set('filter', params.filter)
 
-      return apiClient.get<PaginatedResponse<GroupRoleRow>>(
-        `/api/realms/${realm}/rbac/groups/${groupId}/roles/list?${query.toString()}`,
+      return apiClient.get<PaginatedResponse<RoleCompositeRow>>(
+        `/api/realms/${realm}/rbac/roles/${roleId}/composites/list?${query.toString()}`,
       )
     },
     placeholderData: keepPreviousData,
   })
 }
 
-export function useGroupRoleIds(groupId: string, scope: 'direct' | 'effective' = 'direct') {
+export function useRoleCompositeIds(roleId: string, scope: 'direct' | 'effective' = 'direct') {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-roles', realm, groupId, scope],
+    queryKey: ['role-composites', realm, roleId, scope],
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('scope', scope)
       return apiClient.get<string[]>(
-        `/api/realms/${realm}/rbac/groups/${groupId}/roles?${query.toString()}`,
+        `/api/realms/${realm}/rbac/roles/${roleId}/composites?${query.toString()}`,
       )
     },
   })
 }
 
-export function useManageGroupRoles(groupId: string) {
+export function useManageRoleComposites(roleId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
-  const directQueryKey = ['group-roles', realm, groupId, 'direct']
-  const effectiveQueryKey = ['group-roles', realm, groupId, 'effective']
-  const listQueryKey = ['group-role-list', realm, groupId]
+  const directQueryKey = ['role-composites', realm, roleId, 'direct']
+  const effectiveQueryKey = ['role-composites', realm, roleId, 'effective']
+  const listQueryKey = ['role-composite-list', realm, roleId]
 
   const addMutation = useMutation({
-    mutationFn: async (roleId: string) => {
-      return apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/roles`, {
-        role_id: roleId,
+    mutationFn: async (childRoleId: string) => {
+      return apiClient.post(`/api/realms/${realm}/rbac/roles/${roleId}/composites`, {
+        role_id: childRoleId,
       })
     },
-    onSuccess: (_, roleId) => {
+    onSuccess: (_, childRoleId) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) => {
-        if (old.includes(roleId)) return old
-        return [...old, roleId]
+        if (old.includes(childRoleId)) return old
+        return [...old, childRoleId]
       })
       void queryClient.invalidateQueries({ queryKey: effectiveQueryKey })
       void queryClient.invalidateQueries({ queryKey: listQueryKey })
-      toast.success('Role assigned to group')
+      toast.success('Composite role added')
     },
-    onError: () => toast.error('Failed to assign role'),
+    onError: () => toast.error('Failed to add composite role'),
   })
 
   const removeMutation = useMutation({
-    mutationFn: async (roleId: string) => {
-      return apiClient.delete(`/api/realms/${realm}/rbac/groups/${groupId}/roles/${roleId}`)
+    mutationFn: async (childRoleId: string) => {
+      return apiClient.delete(
+        `/api/realms/${realm}/rbac/roles/${roleId}/composites/${childRoleId}`,
+      )
     },
-    onSuccess: (_, roleId) => {
+    onSuccess: (_, childRoleId) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) =>
-        old.filter((id) => id !== roleId),
+        old.filter((id) => id !== childRoleId),
       )
       void queryClient.invalidateQueries({ queryKey: effectiveQueryKey })
       void queryClient.invalidateQueries({ queryKey: listQueryKey })
-      toast.success('Role removed from group')
+      toast.success('Composite role removed')
     },
-    onError: () => toast.error('Failed to remove role'),
+    onError: () => toast.error('Failed to remove composite role'),
   })
 
   const bulkAddMutation = useMutation({
-    mutationFn: async (roleIds: string[]) => {
+    mutationFn: async (childRoleIds: string[]) => {
       await Promise.all(
-        roleIds.map((roleId) =>
-          apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/roles`, {
-            role_id: roleId,
+        childRoleIds.map((childRoleId) =>
+          apiClient.post(`/api/realms/${realm}/rbac/roles/${roleId}/composites`, {
+            role_id: childRoleId,
           }),
         ),
       )
     },
-    onSuccess: (_, roleIds) => {
+    onSuccess: (_, childRoleIds) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) => {
-        const merged = new Set([...old, ...roleIds])
+        const merged = new Set([...old, ...childRoleIds])
         return Array.from(merged)
       })
       void queryClient.invalidateQueries({ queryKey: effectiveQueryKey })
       void queryClient.invalidateQueries({ queryKey: listQueryKey })
-      toast.success('Roles assigned to group')
+      toast.success('Composite roles added')
     },
-    onError: () => toast.error('Failed to assign roles'),
+    onError: () => toast.error('Failed to add composite roles'),
   })
 
   const bulkRemoveMutation = useMutation({
-    mutationFn: async (roleIds: string[]) => {
+    mutationFn: async (childRoleIds: string[]) => {
       await Promise.all(
-        roleIds.map((roleId) =>
-          apiClient.delete(`/api/realms/${realm}/rbac/groups/${groupId}/roles/${roleId}`),
+        childRoleIds.map((childRoleId) =>
+          apiClient.delete(
+            `/api/realms/${realm}/rbac/roles/${roleId}/composites/${childRoleId}`,
+          ),
         ),
       )
     },
-    onSuccess: (_, roleIds) => {
+    onSuccess: (_, childRoleIds) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) =>
-        old.filter((id) => !roleIds.includes(id)),
+        old.filter((id) => !childRoleIds.includes(id)),
       )
       void queryClient.invalidateQueries({ queryKey: effectiveQueryKey })
       void queryClient.invalidateQueries({ queryKey: listQueryKey })
-      toast.success('Roles removed from group')
+      toast.success('Composite roles removed')
     },
-    onError: () => toast.error('Failed to remove roles'),
+    onError: () => toast.error('Failed to remove composite roles'),
   })
 
   return { addMutation, removeMutation, bulkAddMutation, bulkRemoveMutation }

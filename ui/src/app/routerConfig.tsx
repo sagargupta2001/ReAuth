@@ -113,7 +113,7 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/users/:userId',
+    path: '/:realm/users/:userId/:tab?',
     element: EditUserPage,
     layout: AuthenticatedLayout,
     isProtected: true,

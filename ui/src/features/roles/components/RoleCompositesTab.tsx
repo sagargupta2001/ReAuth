@@ -6,29 +6,29 @@ import {
   type PaginationState,
   type SortingState,
 } from '@tanstack/react-table'
-import { Shield } from 'lucide-react'
+import { Layers } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Switch } from '@/components/switch'
 import {
-  useGroupRoleIds,
-  useGroupRolesList,
-  useManageGroupRoles,
-  type GroupRoleRow,
-} from '@/features/group/api/useGroupRoles'
+  type RoleCompositeRow,
+  useManageRoleComposites,
+  useRoleCompositeIds,
+  useRoleCompositesList,
+} from '@/features/roles/api/useRoleComposites'
 import { DataTableColumnHeader } from '@/shared/ui/data-table'
 import { DataTable } from '@/shared/ui/data-table/data-table'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
 import { Checkbox } from '@/shared/ui/checkbox'
 
-interface GroupRolesTabProps {
-  groupId: string
+interface RoleCompositesTabProps {
+  roleId: string
 }
 
 type RoleFilter = 'all' | 'direct' | 'effective' | 'unassigned'
 
-export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
+export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
 
@@ -38,7 +38,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
   })
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }])
 
-  const { data: rolesPage, isLoading: isRolesLoading } = useGroupRolesList(groupId, {
+  const { data: rolesPage, isLoading: isRolesLoading } = useRoleCompositesList(roleId, {
     page: pagination.pageIndex + 1,
     per_page: pagination.pageSize,
     sort_by: sorting[0]?.id,
@@ -47,16 +47,17 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
     filter: roleFilter,
   })
 
-  const { data: directRoleIds = [], isLoading: isDirectRolesLoading } = useGroupRoleIds(
-    groupId,
+  const { data: directRoleIds = [], isLoading: isDirectRolesLoading } = useRoleCompositeIds(
+    roleId,
     'direct',
   )
-  const { data: effectiveRoleIds = [], isLoading: isEffectiveRolesLoading } = useGroupRoleIds(
-    groupId,
+  const { data: effectiveRoleIds = [], isLoading: isEffectiveRolesLoading } = useRoleCompositeIds(
+    roleId,
     'effective',
   )
+
   const { addMutation, removeMutation, bulkAddMutation, bulkRemoveMutation } =
-    useManageGroupRoles(groupId)
+    useManageRoleComposites(roleId)
 
   const isMutating =
     addMutation.isPending ||
@@ -64,7 +65,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
     bulkAddMutation.isPending ||
     bulkRemoveMutation.isPending
 
-  const columns = useMemo<ColumnDef<GroupRoleRow>[]>(
+  const columns = useMemo<ColumnDef<RoleCompositeRow>[]>(
     () => [
       {
         id: 'select',
@@ -100,7 +101,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
         header: ({ column }) => <DataTableColumnHeader column={column} title="Role" />,
         cell: ({ row }) => (
           <div className="flex items-center gap-2 font-medium">
-            <Shield className="text-muted-foreground h-4 w-4" />
+            <Layers className="text-muted-foreground h-4 w-4" />
             {row.getValue('name')}
           </div>
         ),
@@ -126,7 +127,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
           }
 
           if (role.is_effective) {
-            return <Badge variant="outline">Composite</Badge>
+            return <Badge variant="outline">Inherited</Badge>
           }
 
           return <span className="text-muted-foreground text-xs">—</span>
@@ -138,12 +139,11 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
         header: 'Direct',
         cell: ({ row }) => {
           const role = row.original
-          const isDirect = role.is_direct
 
           return (
             <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
               <Switch
-                checked={isDirect}
+                checked={role.is_direct}
                 disabled={isMutating}
                 onCheckedChange={(checked) => {
                   if (checked) {
@@ -180,7 +180,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
   const filterOptions: { value: RoleFilter; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'direct', label: 'Direct' },
-    { value: 'effective', label: 'Composite' },
+    { value: 'effective', label: 'Inherited' },
     { value: 'unassigned', label: 'Unassigned' },
   ]
 
@@ -189,9 +189,9 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-lg font-semibold">Roles</h3>
+            <h3 className="text-lg font-semibold">Composite Roles</h3>
             <p className="text-muted-foreground text-sm">
-              Direct roles are assigned here. Composite roles inherit from assigned roles.
+              Build composite roles by combining existing roles.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -253,7 +253,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
                     })
                   }
                 >
-                  Assign Roles
+                  Add Composites
                 </Button>
                 <Button
                   size="sm"
@@ -265,12 +265,12 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
                     })
                   }
                 >
-                  Remove Roles
+                  Remove Composites
                 </Button>
               </>
             )
           }}
-          className="h-[calc(100vh-590px)]"
+          className="h-[calc(100vh-440px)]"
         />
       )}
     </div>

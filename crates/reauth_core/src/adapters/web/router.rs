@@ -95,7 +95,15 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
     let write_routes = Router::new()
         .route("/{id}", put(user_handler::update_user_handler))
         .route("/{id}", get(user_handler::get_user_handler))
-        .route("/{id}/roles", post(rbac_handler::assign_user_role_handler))
+        .route(
+            "/{id}/roles",
+            get(rbac_handler::list_user_roles_handler)
+                .post(rbac_handler::assign_user_role_handler),
+        )
+        .route(
+            "/{id}/roles/list",
+            get(rbac_handler::list_user_roles_page_handler),
+        )
         .route(
             "/{id}/roles/{role_id}",
             delete(rbac_handler::remove_user_role_handler),
@@ -167,6 +175,19 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             post(rbac_handler::assign_permission_handler)
                 .get(rbac_handler::list_role_permissions_handler)
                 .delete(rbac_handler::revoke_permission_handler)
+        )
+        .route(
+            "/roles/{id}/composites",
+            get(rbac_handler::list_role_composites_handler)
+                .post(rbac_handler::assign_composite_role_handler),
+        )
+        .route(
+            "/roles/{id}/composites/list",
+            get(rbac_handler::list_role_composites_page_handler),
+        )
+        .route(
+            "/roles/{id}/composites/{child_role_id}",
+            delete(rbac_handler::remove_composite_role_handler),
         )
         .route(
             "/roles/{id}/members",

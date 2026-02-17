@@ -25,7 +25,28 @@ pub struct GroupRoleRow {
     pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
-    pub is_assigned: bool,
+    pub is_direct: bool,
+    pub is_effective: bool,
+}
+
+#[derive(Debug, Serialize, Clone, sqlx::FromRow)]
+pub struct UserRoleRow {
+    #[sqlx(try_from = "String")]
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_direct: bool,
+    pub is_effective: bool,
+}
+
+#[derive(Debug, Serialize, Clone, sqlx::FromRow)]
+pub struct RoleCompositeRow {
+    #[sqlx(try_from = "String")]
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub is_direct: bool,
+    pub is_effective: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -93,6 +114,23 @@ pub enum GroupMemberFilter {
 #[derive(Debug, Clone, Copy)]
 pub enum GroupRoleFilter {
     All,
-    Assigned,
+    Direct,
+    Effective,
+    Unassigned,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum UserRoleFilter {
+    All,
+    Direct,
+    Effective,
+    Unassigned,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum RoleCompositeFilter {
+    All,
+    Direct,
+    Effective,
     Unassigned,
 }

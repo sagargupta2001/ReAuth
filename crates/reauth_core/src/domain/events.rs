@@ -15,6 +15,7 @@ pub enum DomainEvent {
     RolePermissionChanged(RolePermissionChanged),
     UserRoleAssigned(UserRoleChanged),
     UserRoleRemoved(UserRoleChanged),
+    RoleCompositeChanged(RoleCompositeChanged),
     RoleDeleted(RoleDeleted),
     GroupDeleted(GroupDeleted),
 }
@@ -48,6 +49,13 @@ pub struct RolePermissionChanged {
 pub struct UserRoleChanged {
     pub user_id: Uuid,
     pub role_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RoleCompositeChanged {
+    pub parent_role_id: Uuid,
+    pub child_role_id: Uuid,
+    pub action: String,
 }
 
 #[derive(Clone, Debug, Serialize)]

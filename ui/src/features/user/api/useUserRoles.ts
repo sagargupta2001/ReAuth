@@ -5,7 +5,7 @@ import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
 
-export interface GroupRoleRow {
+export interface UserRoleRow {
   id: string
   name: string
   description?: string | null
@@ -13,7 +13,7 @@ export interface GroupRoleRow {
   is_effective: boolean
 }
 
-export interface GroupRoleListParams {
+export interface UserRoleListParams {
   page?: number
   per_page?: number
   q?: string
@@ -22,11 +22,11 @@ export interface GroupRoleListParams {
   filter?: 'all' | 'direct' | 'effective' | 'unassigned'
 }
 
-export function useGroupRolesList(groupId: string, params: GroupRoleListParams) {
+export function useUserRolesList(userId: string, params: UserRoleListParams) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-role-list', realm, groupId, params],
+    queryKey: ['user-role-list', realm, userId, params],
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
@@ -36,41 +36,39 @@ export function useGroupRolesList(groupId: string, params: GroupRoleListParams) 
       if (params.sort_dir) query.set('sort_dir', params.sort_dir)
       if (params.filter) query.set('filter', params.filter)
 
-      return apiClient.get<PaginatedResponse<GroupRoleRow>>(
-        `/api/realms/${realm}/rbac/groups/${groupId}/roles/list?${query.toString()}`,
+      return apiClient.get<PaginatedResponse<UserRoleRow>>(
+        `/api/realms/${realm}/users/${userId}/roles/list?${query.toString()}`,
       )
     },
     placeholderData: keepPreviousData,
   })
 }
 
-export function useGroupRoleIds(groupId: string, scope: 'direct' | 'effective' = 'direct') {
+export function useUserRoleIds(userId: string, scope: 'direct' | 'effective' = 'direct') {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-roles', realm, groupId, scope],
+    queryKey: ['user-roles', realm, userId, scope],
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('scope', scope)
       return apiClient.get<string[]>(
-        `/api/realms/${realm}/rbac/groups/${groupId}/roles?${query.toString()}`,
+        `/api/realms/${realm}/users/${userId}/roles?${query.toString()}`,
       )
     },
   })
 }
 
-export function useManageGroupRoles(groupId: string) {
+export function useManageUserRoles(userId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
-  const directQueryKey = ['group-roles', realm, groupId, 'direct']
-  const effectiveQueryKey = ['group-roles', realm, groupId, 'effective']
-  const listQueryKey = ['group-role-list', realm, groupId]
+  const directQueryKey = ['user-roles', realm, userId, 'direct']
+  const effectiveQueryKey = ['user-roles', realm, userId, 'effective']
+  const listQueryKey = ['user-role-list', realm, userId]
 
   const addMutation = useMutation({
     mutationFn: async (roleId: string) => {
-      return apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/roles`, {
-        role_id: roleId,
-      })
+      return apiClient.post(`/api/realms/${realm}/users/${userId}/roles`, { role_id: roleId })
     },
     onSuccess: (_, roleId) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) => {
@@ -79,14 +77,14 @@ export function useManageGroupRoles(groupId: string) {
       })
       void queryClient.invalidateQueries({ queryKey: effectiveQueryKey })
       void queryClient.invalidateQueries({ queryKey: listQueryKey })
-      toast.success('Role assigned to group')
+      toast.success('Role assigned to user')
     },
     onError: () => toast.error('Failed to assign role'),
   })
 
   const removeMutation = useMutation({
     mutationFn: async (roleId: string) => {
-      return apiClient.delete(`/api/realms/${realm}/rbac/groups/${groupId}/roles/${roleId}`)
+      return apiClient.delete(`/api/realms/${realm}/users/${userId}/roles/${roleId}`)
     },
     onSuccess: (_, roleId) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) =>
@@ -94,7 +92,7 @@ export function useManageGroupRoles(groupId: string) {
       )
       void queryClient.invalidateQueries({ queryKey: effectiveQueryKey })
       void queryClient.invalidateQueries({ queryKey: listQueryKey })
-      toast.success('Role removed from group')
+      toast.success('Role removed from user')
     },
     onError: () => toast.error('Failed to remove role'),
   })
@@ -103,9 +101,7 @@ export function useManageGroupRoles(groupId: string) {
     mutationFn: async (roleIds: string[]) => {
       await Promise.all(
         roleIds.map((roleId) =>
-          apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/roles`, {
-            role_id: roleId,
-          }),
+          apiClient.post(`/api/realms/${realm}/users/${userId}/roles`, { role_id: roleId }),
         ),
       )
     },
@@ -116,7 +112,7 @@ export function useManageGroupRoles(groupId: string) {
       })
       void queryClient.invalidateQueries({ queryKey: effectiveQueryKey })
       void queryClient.invalidateQueries({ queryKey: listQueryKey })
-      toast.success('Roles assigned to group')
+      toast.success('Roles assigned to user')
     },
     onError: () => toast.error('Failed to assign roles'),
   })
@@ -125,7 +121,7 @@ export function useManageGroupRoles(groupId: string) {
     mutationFn: async (roleIds: string[]) => {
       await Promise.all(
         roleIds.map((roleId) =>
-          apiClient.delete(`/api/realms/${realm}/rbac/groups/${groupId}/roles/${roleId}`),
+          apiClient.delete(`/api/realms/${realm}/users/${userId}/roles/${roleId}`),
         ),
       )
     },
@@ -135,7 +131,7 @@ export function useManageGroupRoles(groupId: string) {
       )
       void queryClient.invalidateQueries({ queryKey: effectiveQueryKey })
       void queryClient.invalidateQueries({ queryKey: listQueryKey })
-      toast.success('Roles removed from group')
+      toast.success('Roles removed from user')
     },
     onError: () => toast.error('Failed to remove roles'),
   })

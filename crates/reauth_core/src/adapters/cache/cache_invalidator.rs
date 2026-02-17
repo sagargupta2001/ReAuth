@@ -88,6 +88,27 @@ impl EventHandler for CacheInvalidator {
                     ),
                 }
             }
+            DomainEvent::RoleCompositeChanged(e) => {
+                info!(
+                    "Event: RoleCompositeChanged. Invalidating cache for users with role: {}",
+                    e.parent_role_id
+                );
+                match self
+                    .rbac_repo
+                    .find_user_ids_for_role(&e.parent_role_id)
+                    .await
+                {
+                    Ok(user_ids) => {
+                        for user_id in user_ids {
+                            self.cache.clear_user_permissions(&user_id).await;
+                        }
+                    }
+                    Err(e) => error!(
+                        "Failed to find users for composite role cache invalidation: {}",
+                        e
+                    ),
+                }
+            }
 
             DomainEvent::UserRoleAssigned(e) => {
                 info!("Invalidating cache for user: {} (Role Assigned)", e.user_id);

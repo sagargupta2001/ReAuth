@@ -12,23 +12,23 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Switch } from '@/components/switch'
 import {
-  useGroupRoleIds,
-  useGroupRolesList,
-  useManageGroupRoles,
-  type GroupRoleRow,
-} from '@/features/group/api/useGroupRoles'
+  type UserRoleRow,
+  useManageUserRoles,
+  useUserRoleIds,
+  useUserRolesList,
+} from '@/features/user/api/useUserRoles'
 import { DataTableColumnHeader } from '@/shared/ui/data-table'
 import { DataTable } from '@/shared/ui/data-table/data-table'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
 import { Checkbox } from '@/shared/ui/checkbox'
 
-interface GroupRolesTabProps {
-  groupId: string
+interface UserRolesTabProps {
+  userId: string
 }
 
 type RoleFilter = 'all' | 'direct' | 'effective' | 'unassigned'
 
-export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
+export function UserRolesTab({ userId }: UserRolesTabProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
 
@@ -38,7 +38,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
   })
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }])
 
-  const { data: rolesPage, isLoading: isRolesLoading } = useGroupRolesList(groupId, {
+  const { data: rolesPage, isLoading: isRolesLoading } = useUserRolesList(userId, {
     page: pagination.pageIndex + 1,
     per_page: pagination.pageSize,
     sort_by: sorting[0]?.id,
@@ -47,16 +47,17 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
     filter: roleFilter,
   })
 
-  const { data: directRoleIds = [], isLoading: isDirectRolesLoading } = useGroupRoleIds(
-    groupId,
+  const { data: directRoleIds = [], isLoading: isDirectRolesLoading } = useUserRoleIds(
+    userId,
     'direct',
   )
-  const { data: effectiveRoleIds = [], isLoading: isEffectiveRolesLoading } = useGroupRoleIds(
-    groupId,
+  const { data: effectiveRoleIds = [], isLoading: isEffectiveRolesLoading } = useUserRoleIds(
+    userId,
     'effective',
   )
+
   const { addMutation, removeMutation, bulkAddMutation, bulkRemoveMutation } =
-    useManageGroupRoles(groupId)
+    useManageUserRoles(userId)
 
   const isMutating =
     addMutation.isPending ||
@@ -64,7 +65,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
     bulkAddMutation.isPending ||
     bulkRemoveMutation.isPending
 
-  const columns = useMemo<ColumnDef<GroupRoleRow>[]>(
+  const columns = useMemo<ColumnDef<UserRoleRow>[]>(
     () => [
       {
         id: 'select',
@@ -126,7 +127,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
           }
 
           if (role.is_effective) {
-            return <Badge variant="outline">Composite</Badge>
+            return <Badge variant="outline">Effective</Badge>
           }
 
           return <span className="text-muted-foreground text-xs">—</span>
@@ -138,12 +139,11 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
         header: 'Direct',
         cell: ({ row }) => {
           const role = row.original
-          const isDirect = role.is_direct
 
           return (
             <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
               <Switch
-                checked={isDirect}
+                checked={role.is_direct}
                 disabled={isMutating}
                 onCheckedChange={(checked) => {
                   if (checked) {
@@ -180,7 +180,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
   const filterOptions: { value: RoleFilter; label: string }[] = [
     { value: 'all', label: 'All' },
     { value: 'direct', label: 'Direct' },
-    { value: 'effective', label: 'Composite' },
+    { value: 'effective', label: 'Effective' },
     { value: 'unassigned', label: 'Unassigned' },
   ]
 
@@ -191,7 +191,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
           <div>
             <h3 className="text-lg font-semibold">Roles</h3>
             <p className="text-muted-foreground text-sm">
-              Direct roles are assigned here. Composite roles inherit from assigned roles.
+              Direct roles are assigned here. Effective roles include group and composite access.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -253,7 +253,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
                     })
                   }
                 >
-                  Assign Roles
+                  Assign Direct
                 </Button>
                 <Button
                   size="sm"
@@ -265,12 +265,12 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
                     })
                   }
                 >
-                  Remove Roles
+                  Remove Direct
                 </Button>
               </>
             )
           }}
-          className="h-[calc(100vh-590px)]"
+          className="h-[calc(100vh-440px)]"
         />
       )}
     </div>

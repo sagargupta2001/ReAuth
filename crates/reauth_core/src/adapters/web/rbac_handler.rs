@@ -1,5 +1,7 @@
 use crate::application::rbac_service::{CreateGroupPayload, CreateRolePayload};
-use crate::domain::rbac::{GroupMemberFilter, GroupRoleFilter, RoleMemberFilter};
+use crate::domain::rbac::{
+    GroupMemberFilter, GroupRoleFilter, RoleCompositeFilter, RoleMemberFilter, UserRoleFilter,
+};
 use crate::domain::permissions;
 use crate::error::{Error, Result};
 use crate::AppState;
@@ -455,10 +457,16 @@ pub async fn remove_role_from_group_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// GET /api/realms/{realm}/rbac/groups/{group_id}/roles
+#[derive(Deserialize)]
+pub struct GroupRolesScopeQuery {
+    pub scope: Option<String>,
+}
+
+// GET /api/realms/{realm}/rbac/groups/{group_id}/roles?scope=direct|effective
 pub async fn list_group_roles_handler(
     State(state): State<AppState>,
     Path((realm_name, group_id)): Path<(String, Uuid)>,
+    Query(query): Query<GroupRolesScopeQuery>,
 ) -> Result<impl IntoResponse> {
     let realm = state
         .realm_service
@@ -466,10 +474,23 @@ pub async fn list_group_roles_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    let roles = state
-        .rbac_service
-        .get_group_role_ids(realm.id, group_id)
-        .await?;
+    let scope = query.scope.unwrap_or_else(|| "direct".to_string());
+
+    let roles = match scope.as_str() {
+        "direct" => state
+            .rbac_service
+            .get_group_role_ids(realm.id, group_id)
+            .await?,
+        "effective" => state
+            .rbac_service
+            .get_effective_group_role_ids(realm.id, group_id)
+            .await?,
+        _ => {
+            return Err(Error::Validation(
+                "Invalid scope. Use 'direct' or 'effective'.".into(),
+            ))
+        }
+    };
 
     Ok((StatusCode::OK, Json(roles)))
 }
@@ -478,7 +499,7 @@ pub async fn list_group_roles_handler(
 pub struct GroupRolesListQuery {
     #[serde(flatten)]
     pub page: PageRequest,
-    pub filter: Option<String>, // all | assigned | unassigned
+    pub filter: Option<String>, // all | direct | effective | unassigned
 }
 
 // GET /api/realms/{realm}/rbac/groups/{group_id}/roles/list
@@ -495,7 +516,9 @@ pub async fn list_group_roles_page_handler(
 
     let filter = match query.filter.as_deref().unwrap_or("all") {
         "all" => GroupRoleFilter::All,
-        "assigned" => GroupRoleFilter::Assigned,
+        "assigned" => GroupRoleFilter::Direct,
+        "direct" => GroupRoleFilter::Direct,
+        "effective" => GroupRoleFilter::Effective,
         "unassigned" => GroupRoleFilter::Unassigned,
         _ => GroupRoleFilter::All,
     };
@@ -506,6 +529,191 @@ pub async fn list_group_roles_page_handler(
         .await?;
 
     Ok((StatusCode::OK, Json(response)))
+}
+
+#[derive(Deserialize)]
+pub struct UserRolesScopeQuery {
+    pub scope: Option<String>,
+}
+
+// GET /api/realms/{realm}/users/{user_id}/roles?scope=direct|effective
+pub async fn list_user_roles_handler(
+    State(state): State<AppState>,
+    Path((realm_name, user_id)): Path<(String, Uuid)>,
+    Query(query): Query<UserRolesScopeQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let scope = query.scope.unwrap_or_else(|| "direct".to_string());
+
+    let roles = match scope.as_str() {
+        "direct" => state
+            .rbac_service
+            .get_direct_role_ids_for_user(realm.id, user_id)
+            .await?,
+        "effective" => state
+            .rbac_service
+            .get_effective_role_ids_for_user(realm.id, user_id)
+            .await?,
+        _ => {
+            return Err(Error::Validation(
+                "Invalid scope. Use 'direct' or 'effective'.".into(),
+            ))
+        }
+    };
+
+    Ok((StatusCode::OK, Json(roles)))
+}
+
+#[derive(Deserialize)]
+pub struct UserRolesListQuery {
+    #[serde(flatten)]
+    pub page: PageRequest,
+    pub filter: Option<String>, // all | direct | effective | unassigned
+}
+
+// GET /api/realms/{realm}/users/{user_id}/roles/list
+pub async fn list_user_roles_page_handler(
+    State(state): State<AppState>,
+    Path((realm_name, user_id)): Path<(String, Uuid)>,
+    Query(query): Query<UserRolesListQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let filter = match query.filter.as_deref().unwrap_or("all") {
+        "all" => UserRoleFilter::All,
+        "direct" => UserRoleFilter::Direct,
+        "effective" => UserRoleFilter::Effective,
+        "unassigned" => UserRoleFilter::Unassigned,
+        _ => UserRoleFilter::All,
+    };
+
+    let response = state
+        .rbac_service
+        .list_user_roles(realm.id, user_id, filter, query.page)
+        .await?;
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+#[derive(Deserialize)]
+pub struct RoleCompositesScopeQuery {
+    pub scope: Option<String>,
+}
+
+// GET /api/realms/{realm}/rbac/roles/{role_id}/composites?scope=direct|effective
+pub async fn list_role_composites_handler(
+    State(state): State<AppState>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+    Query(query): Query<RoleCompositesScopeQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let scope = query.scope.unwrap_or_else(|| "direct".to_string());
+
+    let roles = match scope.as_str() {
+        "direct" => state
+            .rbac_service
+            .get_role_composite_ids(realm.id, role_id)
+            .await?,
+        "effective" => state
+            .rbac_service
+            .get_effective_role_composite_ids(realm.id, role_id)
+            .await?,
+        _ => {
+            return Err(Error::Validation(
+                "Invalid scope. Use 'direct' or 'effective'.".into(),
+            ))
+        }
+    };
+
+    Ok((StatusCode::OK, Json(roles)))
+}
+
+#[derive(Deserialize)]
+pub struct RoleCompositesListQuery {
+    #[serde(flatten)]
+    pub page: PageRequest,
+    pub filter: Option<String>, // all | direct | effective | unassigned
+}
+
+// GET /api/realms/{realm}/rbac/roles/{role_id}/composites/list
+pub async fn list_role_composites_page_handler(
+    State(state): State<AppState>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+    Query(query): Query<RoleCompositesListQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let filter = match query.filter.as_deref().unwrap_or("all") {
+        "all" => RoleCompositeFilter::All,
+        "direct" => RoleCompositeFilter::Direct,
+        "effective" => RoleCompositeFilter::Effective,
+        "unassigned" => RoleCompositeFilter::Unassigned,
+        _ => RoleCompositeFilter::All,
+    };
+
+    let response = state
+        .rbac_service
+        .list_role_composites(realm.id, role_id, filter, query.page)
+        .await?;
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+// POST /api/realms/{realm}/rbac/roles/{role_id}/composites
+pub async fn assign_composite_role_handler(
+    State(state): State<AppState>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+    Json(payload): Json<AssignRolePayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .rbac_service
+        .assign_composite_role(realm.id, role_id, payload.role_id)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// DELETE /api/realms/{realm}/rbac/roles/{role_id}/composites/{child_role_id}
+pub async fn remove_composite_role_handler(
+    State(state): State<AppState>,
+    Path((realm_name, role_id, child_role_id)): Path<(String, Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .rbac_service
+        .remove_composite_role(realm.id, role_id, child_role_id)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // DELETE /api/realms/{realm}/users/{user_id}/roles/{role_id}

@@ -2,7 +2,8 @@ use crate::adapters::persistence::connection::Database;
 use crate::domain::role::Permission;
 use crate::domain::rbac::{
     GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, GroupTreeRow,
-    RoleMemberFilter, RoleMemberRow,
+    RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow, UserRoleFilter,
+    UserRoleRow,
 };
 use crate::{
     domain::{group::Group, role::Role},
@@ -209,6 +210,30 @@ impl RbacRepository for SqliteRbacRepository {
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn assign_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()> {
+        sqlx::query(
+            "INSERT OR IGNORE INTO role_composite_roles (parent_role_id, child_role_id) VALUES (?, ?)",
+        )
+        .bind(parent_role_id.to_string())
+        .bind(child_role_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn remove_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM role_composite_roles WHERE parent_role_id = ? AND child_role_id = ?",
+        )
+        .bind(parent_role_id.to_string())
+        .bind(child_role_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
@@ -679,11 +704,16 @@ impl RbacRepository for SqliteRbacRepository {
         let offset = (req.page - 1) * limit;
 
         let mut count_builder = QueryBuilder::new("");
-        count_builder.push("WITH assigned AS (SELECT role_id FROM group_roles WHERE group_id = ");
+        count_builder.push("WITH direct_roles AS (SELECT role_id FROM group_roles WHERE group_id = ");
         count_builder.push_bind(group_id.to_string());
+        count_builder.push("), role_hierarchy(id) AS (");
+        count_builder.push("SELECT role_id FROM direct_roles ");
+        count_builder.push("UNION SELECT rcr.child_role_id FROM role_composite_roles rcr ");
+        count_builder.push("JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id");
         count_builder.push(") ");
         count_builder.push("SELECT COUNT(*) FROM roles r ");
-        count_builder.push("LEFT JOIN assigned a ON r.id = a.role_id ");
+        count_builder.push("LEFT JOIN direct_roles dr ON r.id = dr.role_id ");
+        count_builder.push("LEFT JOIN role_hierarchy rh ON r.id = rh.id ");
         count_builder.push("WHERE r.realm_id = ");
         count_builder.push_bind(realm_id.to_string());
         count_builder.push(" AND r.client_id IS NULL ");
@@ -700,11 +730,14 @@ impl RbacRepository for SqliteRbacRepository {
 
         match filter {
             GroupRoleFilter::All => {}
-            GroupRoleFilter::Assigned => {
-                count_builder.push(" AND a.role_id IS NOT NULL");
+            GroupRoleFilter::Direct => {
+                count_builder.push(" AND dr.role_id IS NOT NULL");
+            }
+            GroupRoleFilter::Effective => {
+                count_builder.push(" AND dr.role_id IS NULL AND rh.id IS NOT NULL");
             }
             GroupRoleFilter::Unassigned => {
-                count_builder.push(" AND a.role_id IS NULL");
+                count_builder.push(" AND rh.id IS NULL");
             }
         }
 
@@ -715,13 +748,19 @@ impl RbacRepository for SqliteRbacRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         let mut query_builder = QueryBuilder::new("");
-        query_builder.push("WITH assigned AS (SELECT role_id FROM group_roles WHERE group_id = ");
+        query_builder.push("WITH direct_roles AS (SELECT role_id FROM group_roles WHERE group_id = ");
         query_builder.push_bind(group_id.to_string());
+        query_builder.push("), role_hierarchy(id) AS (");
+        query_builder.push("SELECT role_id FROM direct_roles ");
+        query_builder.push("UNION SELECT rcr.child_role_id FROM role_composite_roles rcr ");
+        query_builder.push("JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id");
         query_builder.push(") ");
         query_builder.push("SELECT r.id, r.name, r.description, ");
-        query_builder.push("CASE WHEN a.role_id IS NOT NULL THEN 1 ELSE 0 END AS is_assigned ");
+        query_builder.push("CASE WHEN dr.role_id IS NOT NULL THEN 1 ELSE 0 END AS is_direct, ");
+        query_builder.push("CASE WHEN rh.id IS NOT NULL THEN 1 ELSE 0 END AS is_effective ");
         query_builder.push("FROM roles r ");
-        query_builder.push("LEFT JOIN assigned a ON r.id = a.role_id ");
+        query_builder.push("LEFT JOIN direct_roles dr ON r.id = dr.role_id ");
+        query_builder.push("LEFT JOIN role_hierarchy rh ON r.id = rh.id ");
         query_builder.push("WHERE r.realm_id = ");
         query_builder.push_bind(realm_id.to_string());
         query_builder.push(" AND r.client_id IS NULL ");
@@ -738,11 +777,14 @@ impl RbacRepository for SqliteRbacRepository {
 
         match filter {
             GroupRoleFilter::All => {}
-            GroupRoleFilter::Assigned => {
-                query_builder.push(" AND a.role_id IS NOT NULL");
+            GroupRoleFilter::Direct => {
+                query_builder.push(" AND dr.role_id IS NOT NULL");
+            }
+            GroupRoleFilter::Effective => {
+                query_builder.push(" AND dr.role_id IS NULL AND rh.id IS NOT NULL");
             }
             GroupRoleFilter::Unassigned => {
-                query_builder.push(" AND a.role_id IS NULL");
+                query_builder.push(" AND rh.id IS NULL");
             }
         }
 
@@ -762,6 +804,283 @@ impl RbacRepository for SqliteRbacRepository {
         query_builder.push_bind(offset);
 
         let roles: Vec<GroupRoleRow> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(roles, total, req.page, limit))
+    }
+
+    async fn list_user_roles(
+        &self,
+        realm_id: &Uuid,
+        user_id: &Uuid,
+        filter: UserRoleFilter,
+        req: &PageRequest,
+    ) -> Result<PageResponse<UserRoleRow>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("");
+        count_builder.push("WITH direct_roles AS (SELECT role_id FROM user_roles WHERE user_id = ");
+        count_builder.push_bind(user_id.to_string());
+        count_builder.push("), group_roles_cte AS (");
+        count_builder.push(
+            "SELECT gr.role_id FROM group_roles gr JOIN user_groups ug ON gr.group_id = ug.group_id WHERE ug.user_id = ",
+        );
+        count_builder.push_bind(user_id.to_string());
+        count_builder.push("), base_roles AS (");
+        count_builder.push("SELECT role_id FROM direct_roles UNION SELECT role_id FROM group_roles_cte");
+        count_builder.push("), role_hierarchy(id) AS (");
+        count_builder.push("SELECT role_id FROM base_roles ");
+        count_builder.push("UNION SELECT rcr.child_role_id FROM role_composite_roles rcr ");
+        count_builder.push("JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id");
+        count_builder.push(") ");
+        count_builder.push("SELECT COUNT(*) FROM roles r ");
+        count_builder.push("LEFT JOIN direct_roles dr ON r.id = dr.role_id ");
+        count_builder.push("LEFT JOIN role_hierarchy rh ON r.id = rh.id ");
+        count_builder.push("WHERE r.realm_id = ");
+        count_builder.push_bind(realm_id.to_string());
+        count_builder.push(" AND r.client_id IS NULL ");
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                count_builder.push(" AND (r.name LIKE ");
+                count_builder.push_bind(format!("%{}%", q));
+                count_builder.push(" OR r.description LIKE ");
+                count_builder.push_bind(format!("%{}%", q));
+                count_builder.push(")");
+            }
+        }
+
+        match filter {
+            UserRoleFilter::All => {}
+            UserRoleFilter::Direct => {
+                count_builder.push(" AND dr.role_id IS NOT NULL");
+            }
+            UserRoleFilter::Effective => {
+                count_builder.push(" AND dr.role_id IS NULL AND rh.id IS NOT NULL");
+            }
+            UserRoleFilter::Unassigned => {
+                count_builder.push(" AND rh.id IS NULL");
+            }
+        }
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new("");
+        query_builder.push("WITH direct_roles AS (SELECT role_id FROM user_roles WHERE user_id = ");
+        query_builder.push_bind(user_id.to_string());
+        query_builder.push("), group_roles_cte AS (");
+        query_builder.push(
+            "SELECT gr.role_id FROM group_roles gr JOIN user_groups ug ON gr.group_id = ug.group_id WHERE ug.user_id = ",
+        );
+        query_builder.push_bind(user_id.to_string());
+        query_builder.push("), base_roles AS (");
+        query_builder.push("SELECT role_id FROM direct_roles UNION SELECT role_id FROM group_roles_cte");
+        query_builder.push("), role_hierarchy(id) AS (");
+        query_builder.push("SELECT role_id FROM base_roles ");
+        query_builder.push("UNION SELECT rcr.child_role_id FROM role_composite_roles rcr ");
+        query_builder.push("JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id");
+        query_builder.push(") ");
+        query_builder.push("SELECT r.id, r.name, r.description, ");
+        query_builder.push("CASE WHEN dr.role_id IS NOT NULL THEN 1 ELSE 0 END AS is_direct, ");
+        query_builder.push("CASE WHEN rh.id IS NOT NULL THEN 1 ELSE 0 END AS is_effective ");
+        query_builder.push("FROM roles r ");
+        query_builder.push("LEFT JOIN direct_roles dr ON r.id = dr.role_id ");
+        query_builder.push("LEFT JOIN role_hierarchy rh ON r.id = rh.id ");
+        query_builder.push("WHERE r.realm_id = ");
+        query_builder.push_bind(realm_id.to_string());
+        query_builder.push(" AND r.client_id IS NULL ");
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                query_builder.push(" AND (r.name LIKE ");
+                query_builder.push_bind(format!("%{}%", q));
+                query_builder.push(" OR r.description LIKE ");
+                query_builder.push_bind(format!("%{}%", q));
+                query_builder.push(")");
+            }
+        }
+
+        match filter {
+            UserRoleFilter::All => {}
+            UserRoleFilter::Direct => {
+                query_builder.push(" AND dr.role_id IS NOT NULL");
+            }
+            UserRoleFilter::Effective => {
+                query_builder.push(" AND dr.role_id IS NULL AND rh.id IS NOT NULL");
+            }
+            UserRoleFilter::Unassigned => {
+                query_builder.push(" AND rh.id IS NULL");
+            }
+        }
+
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "r.name",
+            _ => "r.name",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let roles: Vec<UserRoleRow> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(roles, total, req.page, limit))
+    }
+
+    async fn list_role_composites(
+        &self,
+        realm_id: &Uuid,
+        role_id: &Uuid,
+        client_id: &Option<Uuid>,
+        filter: RoleCompositeFilter,
+        req: &PageRequest,
+    ) -> Result<PageResponse<RoleCompositeRow>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("");
+        count_builder.push("WITH direct_roles AS (");
+        count_builder.push("SELECT child_role_id AS role_id FROM role_composite_roles WHERE parent_role_id = ");
+        count_builder.push_bind(role_id.to_string());
+        count_builder.push("), role_hierarchy(id) AS (");
+        count_builder.push("SELECT role_id FROM direct_roles ");
+        count_builder.push("UNION SELECT rcr.child_role_id FROM role_composite_roles rcr ");
+        count_builder.push("JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id");
+        count_builder.push(") ");
+        count_builder.push("SELECT COUNT(*) FROM roles r ");
+        count_builder.push("LEFT JOIN direct_roles dr ON r.id = dr.role_id ");
+        count_builder.push("LEFT JOIN role_hierarchy rh ON r.id = rh.id ");
+        count_builder.push("WHERE r.realm_id = ");
+        count_builder.push_bind(realm_id.to_string());
+        count_builder.push(" AND r.id != ");
+        count_builder.push_bind(role_id.to_string());
+
+        match client_id {
+            Some(id) => {
+                count_builder.push(" AND r.client_id = ");
+                count_builder.push_bind(id.to_string());
+            }
+            None => {
+                count_builder.push(" AND r.client_id IS NULL");
+            }
+        }
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                count_builder.push(" AND (r.name LIKE ");
+                count_builder.push_bind(format!("%{}%", q));
+                count_builder.push(" OR r.description LIKE ");
+                count_builder.push_bind(format!("%{}%", q));
+                count_builder.push(")");
+            }
+        }
+
+        match filter {
+            RoleCompositeFilter::All => {}
+            RoleCompositeFilter::Direct => {
+                count_builder.push(" AND dr.role_id IS NOT NULL");
+            }
+            RoleCompositeFilter::Effective => {
+                count_builder.push(" AND dr.role_id IS NULL AND rh.id IS NOT NULL");
+            }
+            RoleCompositeFilter::Unassigned => {
+                count_builder.push(" AND rh.id IS NULL");
+            }
+        }
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new("");
+        query_builder.push("WITH direct_roles AS (");
+        query_builder.push("SELECT child_role_id AS role_id FROM role_composite_roles WHERE parent_role_id = ");
+        query_builder.push_bind(role_id.to_string());
+        query_builder.push("), role_hierarchy(id) AS (");
+        query_builder.push("SELECT role_id FROM direct_roles ");
+        query_builder.push("UNION SELECT rcr.child_role_id FROM role_composite_roles rcr ");
+        query_builder.push("JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id");
+        query_builder.push(") ");
+        query_builder.push("SELECT r.id, r.name, r.description, ");
+        query_builder.push("CASE WHEN dr.role_id IS NOT NULL THEN 1 ELSE 0 END AS is_direct, ");
+        query_builder.push("CASE WHEN rh.id IS NOT NULL THEN 1 ELSE 0 END AS is_effective ");
+        query_builder.push("FROM roles r ");
+        query_builder.push("LEFT JOIN direct_roles dr ON r.id = dr.role_id ");
+        query_builder.push("LEFT JOIN role_hierarchy rh ON r.id = rh.id ");
+        query_builder.push("WHERE r.realm_id = ");
+        query_builder.push_bind(realm_id.to_string());
+        query_builder.push(" AND r.id != ");
+        query_builder.push_bind(role_id.to_string());
+
+        match client_id {
+            Some(id) => {
+                query_builder.push(" AND r.client_id = ");
+                query_builder.push_bind(id.to_string());
+            }
+            None => {
+                query_builder.push(" AND r.client_id IS NULL");
+            }
+        }
+
+        if let Some(q) = &req.q {
+            if !q.trim().is_empty() {
+                query_builder.push(" AND (r.name LIKE ");
+                query_builder.push_bind(format!("%{}%", q));
+                query_builder.push(" OR r.description LIKE ");
+                query_builder.push_bind(format!("%{}%", q));
+                query_builder.push(")");
+            }
+        }
+
+        match filter {
+            RoleCompositeFilter::All => {}
+            RoleCompositeFilter::Direct => {
+                query_builder.push(" AND dr.role_id IS NOT NULL");
+            }
+            RoleCompositeFilter::Effective => {
+                query_builder.push(" AND dr.role_id IS NULL AND rh.id IS NOT NULL");
+            }
+            RoleCompositeFilter::Unassigned => {
+                query_builder.push(" AND rh.id IS NULL");
+            }
+        }
+
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "r.name",
+            _ => "r.name",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let roles: Vec<RoleCompositeRow> = query_builder
             .build_query_as()
             .fetch_all(&*self.pool)
             .await
@@ -869,6 +1188,32 @@ impl RbacRepository for SqliteRbacRepository {
         .bind(ancestor_id.to_string())
         .bind(realm_id.to_string())
         .bind(realm_id.to_string())
+        .bind(candidate_id.to_string())
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(row.0 > 0)
+    }
+
+    async fn is_role_descendant(
+        &self,
+        ancestor_id: &Uuid,
+        candidate_id: &Uuid,
+    ) -> Result<bool> {
+        let row: (i64,) = sqlx::query_as(
+            r#"
+            WITH RECURSIVE descendants(id) AS (
+                SELECT child_role_id FROM role_composite_roles WHERE parent_role_id = ?
+                UNION ALL
+                SELECT rcr.child_role_id
+                FROM role_composite_roles rcr
+                JOIN descendants d ON rcr.parent_role_id = d.id
+            )
+            SELECT COUNT(1) FROM descendants WHERE id = ?
+            "#,
+        )
+        .bind(ancestor_id.to_string())
         .bind(candidate_id.to_string())
         .fetch_one(&*self.pool)
         .await
@@ -1008,6 +1353,30 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(uuids)
     }
 
+    async fn find_effective_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            r#"
+            WITH RECURSIVE role_hierarchy(id) AS (
+                SELECT role_id FROM group_roles WHERE group_id = ?
+                UNION
+                SELECT rcr.child_role_id
+                FROM role_composite_roles rcr
+                JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id
+            )
+            SELECT DISTINCT id FROM role_hierarchy
+            "#,
+        )
+        .bind(group_id.to_string())
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect())
+    }
+
     async fn count_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64> {
         if group_ids.is_empty() {
             return Ok(0);
@@ -1069,6 +1438,50 @@ impl RbacRepository for SqliteRbacRepository {
             .filter_map(|(id,)| Uuid::parse_str(&id).ok())
             .collect();
         Ok(uuids)
+    }
+
+    async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        let rows: Vec<(String,)> =
+            sqlx::query_as("SELECT role_id FROM user_roles WHERE user_id = ?")
+                .bind(user_id.to_string())
+                .fetch_all(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect())
+    }
+
+    async fn find_effective_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            r#"
+            WITH RECURSIVE role_hierarchy(id) AS (
+                SELECT role_id FROM user_roles WHERE user_id = ?
+                UNION
+                SELECT gr.role_id
+                FROM group_roles gr
+                JOIN user_groups ug ON gr.group_id = ug.group_id
+                WHERE ug.user_id = ?
+                UNION
+                SELECT rcr.child_role_id
+                FROM role_composite_roles rcr
+                JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id
+            )
+            SELECT DISTINCT id FROM role_hierarchy
+            "#,
+        )
+        .bind(user_id.to_string())
+        .bind(user_id.to_string())
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect())
     }
 
     async fn find_permissions_for_roles(&self, role_ids: &[Uuid]) -> Result<HashSet<Permission>> {
@@ -1154,6 +1567,45 @@ impl RbacRepository for SqliteRbacRepository {
             .filter_map(|(id,)| Uuid::parse_str(&id).ok())
             .collect();
         Ok(uuids)
+    }
+
+    async fn list_role_composite_ids(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT child_role_id FROM role_composite_roles WHERE parent_role_id = ?",
+        )
+        .bind(role_id.to_string())
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect())
+    }
+
+    async fn list_effective_role_composite_ids(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
+        let rows: Vec<(String,)> = sqlx::query_as(
+            r#"
+            WITH RECURSIVE role_hierarchy(id) AS (
+                SELECT child_role_id FROM role_composite_roles WHERE parent_role_id = ?
+                UNION
+                SELECT rcr.child_role_id
+                FROM role_composite_roles rcr
+                JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id
+            )
+            SELECT DISTINCT id FROM role_hierarchy
+            "#,
+        )
+        .bind(role_id.to_string())
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect())
     }
 
     async fn get_effective_permissions_for_user(&self, user_id: &Uuid) -> Result<HashSet<String>> {
