@@ -54,7 +54,7 @@ impl FlowEngine {
             .await?
             .ok_or(Error::NotFound("Session not found".into()))?;
 
-        if session.status != SessionStatus::active {
+        if session.status != SessionStatus::Active {
             return Err(Error::Validation("Session is not active".into()));
         }
 
@@ -107,7 +107,7 @@ impl FlowEngine {
                         session.current_node_id = next_id.clone();
                         // Proceed to main loop
                     }
-                    NodeOutcome::Reject { error } => {
+                    NodeOutcome::Reject { error: _ } => {
                         // Failure! Stay here and show error.
                         self.session_repo.update(&session).await?;
                         // Re-run execute to get the UI again (with error context)
@@ -181,14 +181,14 @@ impl FlowEngine {
                         });
                     }
                     NodeOutcome::FlowSuccess { .. } => {
-                        session.status = SessionStatus::completed;
+                        session.status = SessionStatus::Completed;
                         self.session_repo.update(&session).await?;
                         return Ok(EngineResult::Redirect {
                             url: "/".to_string(),
                         }); // TODO: OIDC Callback
                     }
                     NodeOutcome::FlowFailure { reason } => {
-                        session.status = SessionStatus::failed;
+                        session.status = SessionStatus::Failed;
                         self.session_repo.update(&session).await?;
                         // Return error page
                         return Ok(EngineResult::ShowUI {

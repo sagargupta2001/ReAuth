@@ -1,6 +1,6 @@
-import { AuthenticatorNode } from '@/entities/flow/ui/nodes/AuthenticatorNode.tsx'
-import { StartNode } from '@/entities/flow/ui/nodes/StartNode.tsx'
-import { TerminalNode } from '@/entities/flow/ui/nodes/TerminalNode.tsx'
+import { AuthenticatorNode } from '@/features/flow-builder/nodes/AuthenticatorNode.tsx'
+import { StartNode } from '@/features/flow-builder/nodes/StartNode.tsx'
+import { TerminalNode } from '@/features/flow-builder/nodes/TerminalNode.tsx'
 
 export const flowNodeTypes = {
   // --- LOGIC NODES ---

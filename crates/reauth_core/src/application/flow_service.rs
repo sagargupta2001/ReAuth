@@ -1,4 +1,3 @@
-use crate::domain::auth_flow::AuthFlowStep;
 use crate::ports::transaction_manager::Transaction;
 use crate::{domain::auth_flow::AuthFlow, error::Result, ports::flow_repository::FlowRepository};
 use std::sync::Arc;
@@ -38,7 +37,6 @@ impl FlowService {
                 "browser-login",
                 "Browser Login",
                 "browser",
-                vec!["builtin-password-auth"],
                 // Re-borrow the transaction for this call
                 tx.as_mut().map(|t| &mut **t),
             )
@@ -50,7 +48,6 @@ impl FlowService {
                 "direct-grant",
                 "Direct Grant",
                 "direct",
-                vec!["builtin-password-auth"],
                 tx.as_mut().map(|t| &mut **t),
             )
             .await?;
@@ -61,7 +58,6 @@ impl FlowService {
                 "registration",
                 "Registration",
                 "registration",
-                vec![],
                 tx.as_mut().map(|t| &mut **t),
             )
             .await?;
@@ -72,7 +68,6 @@ impl FlowService {
                 "reset-credentials",
                 "Reset Credentials",
                 "reset",
-                vec![],
                 tx.as_mut().map(|t| &mut **t),
             )
             .await?;
@@ -85,14 +80,13 @@ impl FlowService {
         })
     }
 
-    // Helper to create flow + steps
+    // Helper to create flow metadata (runtime record)
     async fn create_builtin_flow<'a>(
         &self,
         realm_id: Uuid,
         name: &str,
         alias: &str,
         type_: &str,
-        steps: Vec<&str>,
         // Accept the transaction here
         mut tx: Option<&'a mut dyn Transaction>,
     ) -> Result<Uuid> {
@@ -118,22 +112,6 @@ impl FlowService {
         self.flow_repo
             .create_flow(&flow, tx.as_mut().map(|t| &mut **t))
             .await?;
-
-        for (i, auth_name) in steps.iter().enumerate() {
-            let step = AuthFlowStep {
-                id: Uuid::new_v4(),
-                flow_id: id,
-                authenticator_name: auth_name.to_string(),
-                priority: (i as i64) * 10,
-                requirement: "REQUIRED".to_string(),
-                config: None,
-                parent_step_id: None,
-            };
-            // 3. Pass transaction to add_step_to_flow
-            self.flow_repo
-                .add_step_to_flow(&step, tx.as_mut().map(|t| &mut **t))
-                .await?;
-        }
 
         Ok(id)
     }

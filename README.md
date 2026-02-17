@@ -1,164 +1,115 @@
-# REAUTH
+<div align="center">
+  <img src="ui/public/reauth.svg" alt="ReAuth" width="120" height="120" />
 
-A Rust backend powered by [Diesel](https://diesel.rs/) ORM and SQLite.  
-This project uses database migrations for schema management and is fully reproducible.
+  # ReAuth
 
----
+  **A modern, high‑performance, single‑binary IdP in Rust + React**
 
-## 🛠 Prerequisites
-
-Make sure you have the following installed:
-
-- [Rust](https://www.rust-lang.org/) (via [rustup](https://rustup.rs/))
-- [Diesel CLI](https://diesel.rs/guides/getting-started/)  
-  Install with SQLite support:
-  ```bash
-  cargo install diesel_cli --no-default-features --features sqlite
-  ```
-
-- SQLite (usually pre-installed on macOS/Linux; check with `sqlite3 --version`)
+  Multi‑realm · Flow Builder · OIDC/SSO · RBAC · gRPC Plugin POC
+</div>
 
 ---
 
-## 📦 Setup
+## What is ReAuth?
+ReAuth is a lightweight identity provider inspired by Keycloak, designed for fast startup, minimal footprint, and a clean architecture. It ships as a single Rust binary that can optionally embed the React UI, or run the UI separately for rapid development.
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-org/reauth.git
-   cd reauth
-   ```
+## Features (current)
+- Multi‑realm identity management
+- OIDC Authorization Code + PKCE (basic implementation)
+- SSO via refresh‑token cookie
+- Graph‑based flow builder (React Flow)
+- Basic RBAC (roles, permissions, groups)
+- gRPC plugin system (proof‑of‑concept)
+- SQLite‑first persistence
 
-2. **Set up environment variables**  
-   Copy the example environment file:
-   ```bash
-   cp .env.example .env
-   ```
-   Make sure `.env` contains:
-   ```env
-   DATABASE_URL=reauth.db
-   ```
+## Architecture
+- Backend: Hexagonal architecture (ports/adapters)
+- UI: Feature‑Sliced Design (FSD)
+- Styling: shadcn/ui + Tailwind
 
-3. **Run database migrations**
-   ```bash
-   diesel setup
-   diesel migration run
-   ```
-
-4. **Generate the schema file**
-   ```bash
-   diesel print-schema > src/schema.rs
-   ```
+For deeper documentation, see `docs/memory/`.
 
 ---
 
-## 🚀 Running the Project
+## Quick start (local dev)
 
-Start the app:
+### 1) Backend (API)
 ```bash
-cargo run
+cargo run --package reauth_core --bin reauth_core
+```
+API runs at: `http://127.0.0.1:3000`
+
+### 2) UI (hot reload)
+```bash
+cd ui
+npm install
+npm run dev
+```
+UI runs at: `http://localhost:5173`
+
+---
+
+## Embed UI (single binary)
+```bash
+cd ui
+npm install
+npm run build
+
+# back to repo root
+cd ..
+cargo run --package reauth_core --features embed-ui
 ```
 
 ---
 
-## 🧪 Development Workflow
+## Config
+Default config lives at `config/default.toml`.
+You can override values with env vars using the `REAUTH__` prefix:
 
-- **Add a new migration**
-  ```bash
-  diesel migration generate create_users
-  ```
-
-- **Run migrations**
-  ```bash
-  diesel migration run
-  ```
-
-- **Revert last migration**
-  ```bash
-  diesel migration revert
-  ```
-
-- **Regenerate schema.rs**
-  ```bash
-  diesel print-schema > src/schema.rs
-  ```
-
----
-
-## 📂 Project Structure
-
-```
-REAUTH/
-├─ Cargo.toml              # Workspace manifest (root, can manage multiple crates)
-├─ diesel.toml             # Diesel config (database_url, etc.)
-├─ .env.example            # Example environment variables
-├─ migrations/             # Database migrations (Diesel-managed)
-│   ├─ 2025XXXX_create_users/
-│   │   ├─ up.sql
-│   │   └─ down.sql
-│   └─ ... (future migrations)
-│
-├─ core/                   # Main Rust backend executable
-│   ├─ Cargo.toml
-│   └─ src/
-│       ├─ main.rs         # bootstrap: load config, logging, DB, start server
-│       ├─ lib.rs          # core library (optional, reusable code)
-│       │
-│       ├─ config/
-│       │   ├─ mod.rs      # central config module
-│       │   └─ settings.rs # typed config structs, feature toggles
-│       │
-│       ├─ logging/
-│       │   ├─ mod.rs      # centralized logging (tracing)
-│       │   └─ banner.rs   # pretty CLI banner
-│       │
-│       ├─ database/
-│       │   ├─ mod.rs
-│       │   ├─ connection.rs   # SQLite initialization (Diesel/SQLx)
-│       │   ├─ migrate.rs      # migration runner (with safety checks)
-│       │   └─ repository.rs   # DB queries & data access
-│       │
-│       ├─ server/
-│       │   ├─ mod.rs
-│       │   ├─ routes.rs   # API routes
-│       │   ├─ handlers.rs # endpoint handlers
-│       │   └─ static.rs   # embedded React UI (serve SPA)
-│       │
-│       └─ schema.rs       # Diesel schema (auto-generated, don't edit)
-│
-├─ plugins/                # Dynamic plugins (Wasm + React components)
-│   └─ ...
-│
-├─ ui/                     # React frontend (core + plugin loader)
-│   └─ ...
-│
-└─ scripts/                # Bash scripts (dev, prod, build, migrations, etc.)
-    ├─ dev.sh
-    ├─ build.sh
-    ├─ migrate.sh
-    └─ ...
-
+```bash
+REAUTH__SERVER__PORT=4000
+REAUTH__DATABASE__URL=sqlite:data/reauth.db
 ```
 
 ---
 
-## 🛑 What Not to Commit
+## Database & migrations
+Migrations are applied automatically on startup. To run migrations and exit:
 
-- The SQLite database file (`reauth.db`)
-- `.env` (use `.env.example` instead)
-- `src/schema.rs` (can always be regenerated)
+```bash
+cargo run --package reauth_core --bin reauth_core -- --benchmark
+```
 
----
-
-## 👥 Contributing
-
-1. Fork the repo
-2. Create your feature branch (`git checkout -b feature/amazing`)
-3. Commit changes (`git commit -m "feat: add amazing feature"`)
-4. Push to branch (`git push origin feature/amazing`)
-5. Open a Pull Request 🚀
+Default DB: `sqlite:data/reauth.db`
 
 ---
 
-## 📜 License
+## Plugins (POC)
+Plugins are discovered in `plugins/` and managed via the API:
+- `GET /api/plugins/manifests`
+- `POST /api/plugins/{id}/enable`
+- `POST /api/plugins/{id}/disable`
 
+---
 
+## Project structure (high‑level)
+```
+reauth/
+├─ crates/reauth_core/         # Rust backend
+├─ ui/                         # React UI
+├─ migrations/                 # SQLite schema
+├─ plugins/                    # Plugin binaries + manifests
+├─ proto/                      # gRPC proto files
+└─ docs/memory/                # Architecture + flow docs
+```
+
+---
+
+## Roadmaps & docs
+- Memory docs: `docs/memory/`
+- Feature roadmaps: `docs/memory/roadmaps/`
+
+---
+
+## License
+TBD

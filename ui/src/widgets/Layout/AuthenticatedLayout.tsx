@@ -41,7 +41,7 @@ function LayoutContent({ children }: { children: ReactNode }) {
             : primaryWidth,
         }}
       >
-        <main className="flex flex-1 flex-col overflow-x-hidden p-6">
+        <main className="flex flex-1 flex-col overflow-x-hidden h-[calc(100vh-64px)]">
           <div key={location.pathname} className="flex h-full flex-1 flex-col">
             {children ?? <Outlet />}
           </div>

@@ -56,6 +56,8 @@ impl TokenService for JwtService {
         user: &User,
         session_id: Uuid,
         permissions: &HashSet<String>,
+        roles: &[String],
+        groups: &[String],
     ) -> Result<String> {
         let expiration = Utc::now()
             .checked_add_signed(Duration::seconds(self.access_token_ttl_secs))
@@ -66,6 +68,8 @@ impl TokenService for JwtService {
             sub: user.id,
             sid: session_id,
             perms: permissions.clone(),
+            roles: roles.to_vec(),
+            groups: groups.to_vec(),
             exp: expiration,
         };
 
@@ -79,7 +83,12 @@ impl TokenService for JwtService {
         )
     }
 
-    async fn create_id_token(&self, user: &User, client_id: &str) -> Result<String> {
+    async fn create_id_token(
+        &self,
+        user: &User,
+        client_id: &str,
+        groups: &[String],
+    ) -> Result<String> {
         let now = Utc::now();
         let expiration = (now + Duration::seconds(self.access_token_ttl_secs)).timestamp();
 
@@ -90,6 +99,7 @@ impl TokenService for JwtService {
             exp: expiration,
             iat: now.timestamp(),
             preferred_username: user.username.clone(),
+            groups: groups.to_vec(),
         };
 
         let mut header = Header::new(Algorithm::RS256);

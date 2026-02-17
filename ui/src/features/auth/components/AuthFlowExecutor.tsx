@@ -10,7 +10,7 @@ import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { authApi } from '@/features/auth/api/authApi.ts'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken'
 import { getScreenComponent } from '@/features/auth/components/ScreenRegistry.tsx'
-import type { AuthExecutionResponse } from '@/features/auth/model/types.ts'
+import type { AuthExecutionResponse } from '@/entities/auth/model/types.ts'
 
 // Global Singleton to prevent double-fetch in Strict Mode
 let initializationPromise: Promise<any> | null = null

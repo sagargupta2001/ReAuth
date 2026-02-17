@@ -18,6 +18,9 @@ impl IntoResponse for Error {
             | Error::InvalidRefreshToken
             | Error::OidcInvalidCode => (StatusCode::UNAUTHORIZED, self.to_string()),
 
+            // 403 Forbidden
+            Error::SecurityViolation(_) => (StatusCode::FORBIDDEN, self.to_string()),
+
             // 409 Conflict
             Error::UserAlreadyExists
             | Error::RoleAlreadyExists

@@ -56,12 +56,40 @@ impl DomainEvent {
                 "UserAssignedToGroup".to_string(),
                 serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
             ),
+            DomainEvent::UserRemovedFromGroup(e) => (
+                "UserRemovedFromGroup".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
             DomainEvent::RoleAssignedToGroup(e) => (
                 "RoleAssignedToGroup".to_string(),
                 serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
             ),
+            DomainEvent::RoleRemovedFromGroup(e) => (
+                "RoleRemovedFromGroup".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
             DomainEvent::RolePermissionChanged(e) => (
                 "RolePermissionChanged".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
+            DomainEvent::UserRoleAssigned(e) => (
+                "UserRoleAssigned".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
+            DomainEvent::UserRoleRemoved(e) => (
+                "UserRoleRemoved".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
+            DomainEvent::RoleCompositeChanged(e) => (
+                "RoleCompositeChanged".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
+            DomainEvent::RoleDeleted(e) => (
+                "RoleDeleted".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
+            DomainEvent::GroupDeleted(e) => (
+                "GroupDeleted".to_string(),
                 serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
             ),
         }

@@ -1,39 +1,67 @@
+use crate::constants::ACCESS_TOKEN_COOKIE;
 use crate::{domain::user::User, AppState};
 use axum::{
-    extract::{Request, State},
+    body::Body,
+    extract::State,
+    http::{header, Request, StatusCode},
     middleware::Next,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
-use axum_extra::{
-    headers::{authorization::Bearer, Authorization},
-    TypedHeader,
-};
+use axum_extra::extract::cookie::CookieJar;
 
 /// A struct to hold the authenticated user, which we will attach to the request.
 #[derive(Clone)]
 pub struct AuthUser(pub User);
 
-/// The Axum middleware for checking a user's Access Token (JWT).
-/// This is the "Adapter" that calls the "Application Service".
 pub async fn auth_guard(
-    State(state): State<AppState>, // 1. Get the unified state
-    TypedHeader(auth_header): TypedHeader<Authorization<Bearer>>,
-    mut request: Request,
+    State(state): State<AppState>,
+    // We ADD CookieJar to read browser cookies
+    cookie_jar: CookieJar,
+    // We REMOVE TypedHeader from args to prevent auto-rejection
+    mut req: Request<Body>,
     next: Next,
-) -> impl IntoResponse {
-    let token = auth_header.token();
+) -> Response {
+    // 1. Try to extract token from the "Authorization" Header first
+    let token_from_header = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| {
+            if value.starts_with("Bearer ") {
+                Some(value[7..].to_string())
+            } else {
+                None
+            }
+        });
 
-    // 2. Call the single application service method
-    match state.auth_service.validate_token_and_get_user(token).await {
+    // 2. Fallback: Try to extract from the "access_token" Cookie
+    let token = match token_from_header {
+        Some(t) => t,
+        None => match cookie_jar.get(ACCESS_TOKEN_COOKIE) {
+            Some(c) => c.value().to_string(),
+            None => {
+                // If neither exists, return 401 immediately
+                return Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .body(Body::from("Missing Authentication Token"))
+                    .unwrap();
+            }
+        },
+    };
+
+    // 3. Validate via Service
+    match state.auth_service.validate_token_and_get_user(&token).await {
         Ok(user) => {
-            // 3. Attach the user to the request
-            request.extensions_mut().insert(AuthUser(user));
+            // [CRITICAL] Insert ONLY the UUID if your permission_guard expects Uuid
+            req.extensions_mut().insert(user.id);
 
-            // 4. Continue to the next handler
-            next.run(request).await
+            // Optional: Insert the full User struct if other handlers need it
+            req.extensions_mut().insert(AuthUser(user));
+
+            next.run(req).await
         }
         Err(e) => {
-            // 5. If it fails, our web/error.rs adapter handles it
+            // Convert your domain error into an Axum response
             e.into_response()
         }
     }

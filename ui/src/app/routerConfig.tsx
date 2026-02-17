@@ -16,6 +16,12 @@ import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
+import { CreateRolePage } from '@/pages/roles/create/CreateRolePage.tsx'
+import { EditRolePage } from '@/pages/roles/edit/EditRolePage.tsx'
+import { RolesPage } from '@/pages/roles/listing/RolesPage.tsx'
+import { CreateGroupPage } from '@/pages/groups/create/CreateGroupPage.tsx'
+import { EditGroupPage } from '@/pages/groups/edit/EditGroupPage.tsx'
+import { GroupsPage } from '@/pages/groups/listing/GroupsPage.tsx'
 import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx'
 import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx'
 import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
@@ -94,7 +100,7 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/clients/:clientId',
+    path: '/:realm/clients/:clientId/:tab?',
     element: EditClientPage,
     layout: AuthenticatedLayout,
     isProtected: true,
@@ -107,7 +113,7 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/users/:userId',
+    path: '/:realm/users/:userId/:tab?',
     element: EditUserPage,
     layout: AuthenticatedLayout,
     isProtected: true,
@@ -140,6 +146,42 @@ export const staticRoutes: RouteConfig[] = [
     path: '/:realm/flows/:flowId/builder',
     element: FlowBuilderPage,
     layout: FlowBuilderLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/roles',
+    element: RolesPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/groups',
+    element: GroupsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/roles/:roleId/:tab?',
+    element: EditRolePage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/groups/:groupId/:tab?',
+    element: EditGroupPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/roles/new',
+    element: CreateRolePage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/groups/new',
+    element: CreateGroupPage,
+    layout: AuthenticatedLayout,
     isProtected: true,
   },
   {

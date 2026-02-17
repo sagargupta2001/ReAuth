@@ -9,8 +9,15 @@ use uuid::Uuid;
 pub enum DomainEvent {
     UserCreated(UserCreated),
     UserAssignedToGroup(UserGroupChanged),
+    UserRemovedFromGroup(UserGroupChanged),
     RoleAssignedToGroup(RoleGroupChanged),
-    RolePermissionChanged(RolePermissionChanged)
+    RoleRemovedFromGroup(RoleGroupChanged),
+    RolePermissionChanged(RolePermissionChanged),
+    UserRoleAssigned(UserRoleChanged),
+    UserRoleRemoved(UserRoleChanged),
+    RoleCompositeChanged(RoleCompositeChanged),
+    RoleDeleted(RoleDeleted),
+    GroupDeleted(GroupDeleted),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -34,4 +41,31 @@ pub struct RoleGroupChanged {
 #[derive(Clone, Debug, Serialize)]
 pub struct RolePermissionChanged {
     pub role_id: Uuid,
+    pub permission: String,
+    pub action: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct UserRoleChanged {
+    pub user_id: Uuid,
+    pub role_id: Uuid,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RoleCompositeChanged {
+    pub parent_role_id: Uuid,
+    pub child_role_id: Uuid,
+    pub action: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct RoleDeleted {
+    pub role_id: Uuid,
+    pub affected_user_ids: Vec<Uuid>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct GroupDeleted {
+    pub group_ids: Vec<Uuid>,
+    pub affected_user_ids: Vec<Uuid>,
 }

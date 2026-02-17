@@ -8,6 +8,8 @@ pub mod flow;
 pub mod group;
 pub mod oidc;
 pub mod pagination;
+pub mod permissions;
+pub mod rbac;
 pub mod realm;
 pub mod role;
 pub mod session;

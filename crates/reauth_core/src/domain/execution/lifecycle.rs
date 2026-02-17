@@ -1,4 +1,3 @@
-use crate::domain::auth_flow::LoginSession;
 use crate::domain::auth_session::AuthenticationSession;
 use crate::error::Result;
 use async_trait::async_trait;
@@ -30,7 +29,7 @@ pub enum NodeOutcome {
     /// Terminal Success: The flow is finished. Issue tokens.
     FlowSuccess { user_id: uuid::Uuid },
 
-    /// Terminal Failure: The flow is finished. Deny access.
+    /// Terminal Failure: The flow is finished. Deny roles.
     FlowFailure { reason: String },
 }
 

@@ -1,4 +1,4 @@
-import { CreateRealmForm } from '@/features/realm/create/CreateRealmForm.tsx'
+import { CreateRealmForm } from '@/features/realm/forms/CreateRealmForm.tsx'
 
 export function CreateRealmPage() {
   return (

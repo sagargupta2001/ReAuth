@@ -1,14 +1,8 @@
-use crate::domain::flow::provider::NodeProvider;
 use serde_json::{json, Value};
 
 pub struct FlowTemplates;
 
 impl FlowTemplates {
-    /// Helper to get IDs dynamically (optional, but safer)
-    fn id<T: NodeProvider + Default>() -> String {
-        T::default().id().to_string()
-    }
-
     pub fn browser_flow() -> Value {
         json!({
             "nodes": [

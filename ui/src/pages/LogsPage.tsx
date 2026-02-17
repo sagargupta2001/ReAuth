@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Main } from '@/widgets/Layout/Main'
-import { LogViewerWidget } from '@/widgets/LogViewer/LogViewerWidget.tsx'
+import { LogViewer } from '@/features/logs/components/LogViewer.tsx'
 
 export function LogsPage() {
   const { t } = useTranslation('logs')
@@ -14,7 +14,7 @@ export function LogsPage() {
       </div>
 
       <div className="bg-background relative min-h-0 flex-1 rounded-md border">
-        <LogViewerWidget />
+        <LogViewer />
       </div>
     </Main>
   )

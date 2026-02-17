@@ -31,56 +31,97 @@ CREATE TABLE IF NOT EXISTS users
 );
 
 -- 3. ROLES (Global/System level based on provided schema)
-CREATE TABLE IF NOT EXISTS roles
+-- Can be global (Realm Role) or specific to an app (Client Role)
+CREATE TABLE roles
 (
-    id          TEXT PRIMARY KEY NOT NULL, -- UUID
-    name        TEXT             NOT NULL UNIQUE,
-    description TEXT
+    id          TEXT PRIMARY KEY NOT NULL,
+    realm_id    TEXT             NOT NULL, -- Always belongs to a realm
+    client_id   TEXT,                      -- NULL = Realm Role, NOT NULL = Client Role
+    name        TEXT             NOT NULL,
+    description TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (realm_id) REFERENCES realms (id) ON DELETE CASCADE,
+    FOREIGN KEY (client_id) REFERENCES oidc_clients (id) ON DELETE CASCADE,
+
+    -- Constraint: A role name must be unique within its "namespace" (Realm or Client)
+    UNIQUE (realm_id, client_id, name)
 );
 
 -- 4. GROUPS (Global/System level based on provided schema)
-CREATE TABLE IF NOT EXISTS groups
+CREATE TABLE groups
 (
     id          TEXT PRIMARY KEY NOT NULL, -- UUID
-    name        TEXT             NOT NULL UNIQUE,
-    description TEXT
+    realm_id    TEXT             NOT NULL,
+    name        TEXT             NOT NULL,
+    description TEXT,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (realm_id) REFERENCES realms (id) ON DELETE CASCADE,
+    UNIQUE (realm_id, name)
 );
 
 -- 5. PERMISSIONS & HIERARCHY
-CREATE TABLE IF NOT EXISTS role_permissions
+CREATE TABLE role_permissions
 (
     role_id         TEXT NOT NULL,
-    permission_name TEXT NOT NULL,
+    permission_name TEXT NOT NULL, -- e.g., "client:create", "realm:write"
+
     PRIMARY KEY (role_id, permission_name),
     FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS role_composite_roles
+-- Allows Role A to inherit Role B
+CREATE TABLE role_composite_roles
 (
     parent_role_id TEXT NOT NULL,
     child_role_id  TEXT NOT NULL,
+
     PRIMARY KEY (parent_role_id, child_role_id),
     FOREIGN KEY (parent_role_id) REFERENCES roles (id) ON DELETE CASCADE,
-    FOREIGN KEY (child_role_id) REFERENCES roles (id) ON DELETE CASCADE
+    FOREIGN KEY (child_role_id) REFERENCES roles (id) ON DELETE CASCADE,
+    CHECK (parent_role_id <> child_role_id) -- Prevent self-reference
 );
 
-CREATE TABLE IF NOT EXISTS user_groups
+CREATE TABLE user_groups
 (
     user_id  TEXT NOT NULL,
     group_id TEXT NOT NULL,
+
     PRIMARY KEY (user_id, group_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS group_roles
+CREATE TABLE group_roles
 (
     group_id TEXT NOT NULL,
     role_id  TEXT NOT NULL,
+
     PRIMARY KEY (group_id, role_id),
     FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
     FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE
 );
+
+CREATE TABLE user_roles
+(
+    user_id TEXT NOT NULL,
+    role_id TEXT NOT NULL,
+
+    PRIMARY KEY (user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE
+);
+
+-- PERFORMANCE INDEXES (Critical for Speed)
+CREATE INDEX idx_roles_realm ON roles (realm_id);
+CREATE INDEX idx_groups_realm ON groups (realm_id);
+CREATE INDEX idx_user_groups_user ON user_groups (user_id);
+CREATE INDEX idx_group_roles_group ON group_roles (group_id);
+CREATE INDEX idx_user_roles_user ON user_roles (user_id);
+-- These indices speed up the Recursive CTE joins
+CREATE INDEX idx_role_composite_parent ON role_composite_roles (parent_role_id);
+CREATE INDEX idx_role_composite_child ON role_composite_roles (child_role_id);
 
 -- 6. OIDC CLIENTS
 CREATE TABLE IF NOT EXISTS oidc_clients
@@ -89,7 +130,8 @@ CREATE TABLE IF NOT EXISTS oidc_clients
     realm_id      TEXT             NOT NULL,
     client_id     TEXT             NOT NULL UNIQUE,
     client_secret TEXT,
-    redirect_uris TEXT             NOT NULL, -- JSON array
+    redirect_uris TEXT             NOT NULL,
+    web_origins   TEXT             NOT NULL DEFAULT '[]',
     scopes        TEXT             NOT NULL,
     FOREIGN KEY (realm_id) REFERENCES realms (id) ON DELETE CASCADE
 );
@@ -97,12 +139,12 @@ CREATE TABLE IF NOT EXISTS oidc_clients
 -- 7. AUTHENTICATION FLOWS & CONFIG
 CREATE TABLE IF NOT EXISTS auth_flows
 (
-    id          TEXT PRIMARY KEY NOT NULL,                   -- UUID
+    id          TEXT PRIMARY KEY NOT NULL,
     realm_id    TEXT             NOT NULL,
     name        TEXT             NOT NULL,
     description TEXT,
     alias       TEXT,
-    type        TEXT             NOT NULL DEFAULT 'browser', -- 'browser', 'registration', 'direct'
+    type        TEXT             NOT NULL DEFAULT 'browser',
     built_in    BOOLEAN          NOT NULL DEFAULT FALSE,
 
     FOREIGN KEY (realm_id) REFERENCES realms (id) ON DELETE CASCADE,
@@ -183,6 +225,8 @@ CREATE TABLE IF NOT EXISTS auth_sessions
     flow_version_id TEXT             NOT NULL,
     current_node_id TEXT             NOT NULL,
     context         TEXT             NOT NULL DEFAULT '{}',
+    execution_state TEXT             NOT NULL DEFAULT 'idle', -- idle, waiting_for_input, waiting_for_async
+    last_ui_output  TEXT,                                     -- The last JSON form schema sent to the UI
     status          TEXT             NOT NULL DEFAULT 'active',
     user_id         TEXT,
     created_at      DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,

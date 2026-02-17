@@ -13,6 +13,7 @@ pub struct IdTokenClaims {
 
     // Profile Claims
     pub preferred_username: String,
+    pub groups: Vec<String>,
     // You can add email, picture, etc. here later
 }
 
@@ -22,7 +23,9 @@ pub struct AccessTokenClaims {
     pub sub: Uuid,              // Subject (the User ID)
     pub sid: Uuid,              // Session ID (the Refresh Token ID)
     pub perms: HashSet<String>, // Flattened permissions
-    pub exp: usize,             // Expiration
+    pub roles: Vec<String>,
+    pub groups: Vec<String>,
+    pub exp: usize, // Expiration
 }
 
 #[async_trait::async_trait]
@@ -33,12 +36,15 @@ pub trait TokenService: Send + Sync {
         user: &User,
         session_id: Uuid,
         permissions: &HashSet<String>,
+        roles: &[String],
+        groups: &[String],
     ) -> Result<String>;
 
     async fn create_id_token(
         &self,
         user: &User,
         client_id: &str, // ID Token needs to know who it's for
+        groups: &[String],
     ) -> Result<String>;
 
     /// Validates an Access Token and returns its claims

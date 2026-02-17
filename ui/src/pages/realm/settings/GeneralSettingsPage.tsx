@@ -1,8 +1,8 @@
-import { GeneralSettingsForm } from '@/features/realm/settings/GeneralSettingsForm.tsx'
+import { GeneralSettingsForm } from '@/features/realm/forms/GeneralSettingsForm.tsx'
 
 export function GeneralSettingsPage() {
   return (
-    <div className="max-w-4xl">
+    <div className="max-w-4xl p-12">
       <GeneralSettingsForm />
     </div>
   )

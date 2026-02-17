@@ -85,4 +85,7 @@ pub enum Error {
 
     #[error("Flow validation failed: {0}")]
     System(String),
+
+    #[error("Security violation: {0}")]
+    SecurityViolation(String),
 }

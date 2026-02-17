@@ -1,8 +1,6 @@
 use crate::domain::pagination::{PageRequest, PageResponse};
-use crate::error::Error;
 use crate::{domain::session::RefreshToken, error::Result};
 use async_trait::async_trait;
-use std::format;
 use uuid::Uuid;
 
 #[async_trait]

@@ -2,14 +2,14 @@ import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { RealmLink } from '@/entities/realm/lib/navigation.tsx'
-import { CreateClientForm } from '@/features/client/create/CreateClientForm.tsx'
+import { CreateClientForm } from '@/features/client/forms/CreateClientForm.tsx'
 import { cn } from '@/lib/utils.ts'
 import { buttonVariants } from '@/shared/ui/button.tsx'
 
 export function CreateClientPage() {
   const { t } = useTranslation('client')
   return (
-    <div className="w-full py-6">
+    <div className="w-full p-12">
       <div className="mb-2">
         <RealmLink
           to="/clients"
