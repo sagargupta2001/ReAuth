@@ -148,20 +148,20 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(())
     }
 
-    async fn assign_user_to_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
-        sqlx::query("INSERT OR IGNORE INTO user_groups (user_id, group_id) VALUES (?, ?)")
-            .bind(user_id.to_string())
+    async fn remove_role_from_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM group_roles WHERE group_id = ? AND role_id = ?")
             .bind(group_id.to_string())
+            .bind(role_id.to_string())
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
-    async fn remove_role_from_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
-        sqlx::query("DELETE FROM group_roles WHERE group_id = ? AND role_id = ?")
+    async fn assign_user_to_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
+        sqlx::query("INSERT OR IGNORE INTO user_groups (user_id, group_id) VALUES (?, ?)")
+            .bind(user_id.to_string())
             .bind(group_id.to_string())
-            .bind(role_id.to_string())
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
@@ -210,30 +210,6 @@ impl RbacRepository for SqliteRbacRepository {
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(())
-    }
-
-    async fn assign_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()> {
-        sqlx::query(
-            "INSERT OR IGNORE INTO role_composite_roles (parent_role_id, child_role_id) VALUES (?, ?)",
-        )
-        .bind(parent_role_id.to_string())
-        .bind(child_role_id.to_string())
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(())
-    }
-
-    async fn remove_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()> {
-        sqlx::query(
-            "DELETE FROM role_composite_roles WHERE parent_role_id = ? AND child_role_id = ?",
-        )
-        .bind(parent_role_id.to_string())
-        .bind(child_role_id.to_string())
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
@@ -320,6 +296,62 @@ impl RbacRepository for SqliteRbacRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(PageResponse::new(roles, total, req.page, limit))
+    }
+
+    async fn list_client_roles(
+        &self,
+        realm_id: &Uuid,
+        client_id: &Uuid,
+        req: &PageRequest,
+    ) -> Result<PageResponse<Role>> {
+        let limit = req.per_page.clamp(1, 100);
+        let offset = (req.page - 1) * limit;
+
+        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM roles");
+        // Pass `Some(client_id)` to filter by client
+        Self::apply_filters(&mut count_builder, realm_id, Some(client_id), &req.q);
+
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
+        Self::apply_filters(&mut query_builder, realm_id, Some(client_id), &req.q);
+
+        // Sorting (Copy sorting logic from list_roles)
+        let sort_col = match req.sort_by.as_deref() {
+            Some("name") => "name",
+            _ => "name",
+        };
+        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit);
+        query_builder.push(" OFFSET ");
+        query_builder.push_bind(offset);
+
+        let roles: Vec<Role> = query_builder
+            .build_query_as()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(PageResponse::new(roles, total, req.page, limit))
+    }
+
+    async fn find_role_by_id(&self, role_id: &Uuid) -> Result<Option<Role>> {
+        let role = sqlx::query_as("SELECT * FROM roles WHERE id = ?")
+            .bind(role_id.to_string())
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(role)
     }
 
     async fn list_groups(
@@ -1196,32 +1228,6 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(row.0 > 0)
     }
 
-    async fn is_role_descendant(
-        &self,
-        ancestor_id: &Uuid,
-        candidate_id: &Uuid,
-    ) -> Result<bool> {
-        let row: (i64,) = sqlx::query_as(
-            r#"
-            WITH RECURSIVE descendants(id) AS (
-                SELECT child_role_id FROM role_composite_roles WHERE parent_role_id = ?
-                UNION ALL
-                SELECT rcr.child_role_id
-                FROM role_composite_roles rcr
-                JOIN descendants d ON rcr.parent_role_id = d.id
-            )
-            SELECT COUNT(1) FROM descendants WHERE id = ?
-            "#,
-        )
-        .bind(ancestor_id.to_string())
-        .bind(candidate_id.to_string())
-        .fetch_one(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
-
-        Ok(row.0 > 0)
-    }
-
     async fn get_next_group_sort_order(
         &self,
         realm_id: &Uuid,
@@ -1240,61 +1246,6 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(next)
     }
 
-    async fn list_client_roles(
-        &self,
-        realm_id: &Uuid,
-        client_id: &Uuid,
-        req: &PageRequest,
-    ) -> Result<PageResponse<Role>> {
-        let limit = req.per_page.clamp(1, 100);
-        let offset = (req.page - 1) * limit;
-
-        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM roles");
-        // Pass `Some(client_id)` to filter by client
-        Self::apply_filters(&mut count_builder, realm_id, Some(client_id), &req.q);
-
-        let total: i64 = count_builder
-            .build_query_scalar()
-            .fetch_one(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-
-        let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
-        Self::apply_filters(&mut query_builder, realm_id, Some(client_id), &req.q);
-
-        // Sorting (Copy sorting logic from list_roles)
-        let sort_col = match req.sort_by.as_deref() {
-            Some("name") => "name",
-            _ => "name",
-        };
-        let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
-            SortDirection::Asc => "ASC",
-            SortDirection::Desc => "DESC",
-        };
-        query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
-
-        query_builder.push(" LIMIT ");
-        query_builder.push_bind(limit);
-        query_builder.push(" OFFSET ");
-        query_builder.push_bind(offset);
-
-        let roles: Vec<Role> = query_builder
-            .build_query_as()
-            .fetch_all(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-
-        Ok(PageResponse::new(roles, total, req.page, limit))
-    }
-
-    async fn find_role_by_id(&self, role_id: &Uuid) -> Result<Option<Role>> {
-        let role = sqlx::query_as("SELECT * FROM roles WHERE id = ?")
-            .bind(role_id.to_string())
-            .fetch_optional(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(role)
-    }
     async fn find_user_ids_in_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
         // We query for a Vec of tuples, where each tuple contains one string (the user_id).
         let rows: Vec<(String,)> =
@@ -1352,7 +1303,6 @@ impl RbacRepository for SqliteRbacRepository {
             .collect();
         Ok(uuids)
     }
-
     async fn find_effective_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
         let rows: Vec<(String,)> = sqlx::query_as(
             r#"
@@ -1423,23 +1373,6 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(count)
     }
 
-    async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
-        // Find all roles directly assigned to the user via groups
-        let rows: Vec<(String,)> = sqlx::query_as(
-            "SELECT role_id FROM group_roles WHERE group_id IN (SELECT group_id FROM user_groups WHERE user_id = ?)"
-        )
-            .bind(user_id.to_string())
-            .fetch_all(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-
-        let uuids = rows
-            .into_iter()
-            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
-            .collect();
-        Ok(uuids)
-    }
-
     async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
         let rows: Vec<(String,)> =
             sqlx::query_as("SELECT role_id FROM user_roles WHERE user_id = ?")
@@ -1482,6 +1415,23 @@ impl RbacRepository for SqliteRbacRepository {
             .into_iter()
             .filter_map(|(id,)| Uuid::parse_str(&id).ok())
             .collect())
+    }
+
+    async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        // Find all roles directly assigned to the user via groups
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT role_id FROM group_roles WHERE group_id IN (SELECT group_id FROM user_groups WHERE user_id = ?)"
+        )
+            .bind(user_id.to_string())
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let uuids = rows
+            .into_iter()
+            .filter_map(|(id,)| Uuid::parse_str(&id).ok())
+            .collect();
+        Ok(uuids)
     }
 
     async fn find_permissions_for_roles(&self, role_ids: &[Uuid]) -> Result<HashSet<Permission>> {
@@ -1762,7 +1712,6 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(())
     }
 
-
     async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>> {
         let perms = sqlx::query_scalar::<_, String>(
             "SELECT permission_name FROM role_permissions WHERE role_id = ?"
@@ -1811,5 +1760,56 @@ impl RbacRepository for SqliteRbacRepository {
 
         tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
+    }
+
+
+    async fn assign_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()> {
+        sqlx::query(
+            "INSERT OR IGNORE INTO role_composite_roles (parent_role_id, child_role_id) VALUES (?, ?)",
+        )
+        .bind(parent_role_id.to_string())
+        .bind(child_role_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn remove_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM role_composite_roles WHERE parent_role_id = ? AND child_role_id = ?",
+        )
+        .bind(parent_role_id.to_string())
+        .bind(child_role_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn is_role_descendant(
+        &self,
+        ancestor_id: &Uuid,
+        candidate_id: &Uuid,
+    ) -> Result<bool> {
+        let row: (i64,) = sqlx::query_as(
+            r#"
+            WITH RECURSIVE descendants(id) AS (
+                SELECT child_role_id FROM role_composite_roles WHERE parent_role_id = ?
+                UNION ALL
+                SELECT rcr.child_role_id
+                FROM role_composite_roles rcr
+                JOIN descendants d ON rcr.parent_role_id = d.id
+            )
+            SELECT COUNT(1) FROM descendants WHERE id = ?
+            "#,
+        )
+        .bind(ancestor_id.to_string())
+        .bind(candidate_id.to_string())
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(row.0 > 0)
     }
 }
