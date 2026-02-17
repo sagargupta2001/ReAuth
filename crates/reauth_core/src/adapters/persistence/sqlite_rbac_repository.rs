@@ -791,6 +791,36 @@ impl RbacRepository for SqliteRbacRepository {
             .collect())
     }
 
+    async fn list_group_subtree_ids(
+        &self,
+        realm_id: &Uuid,
+        root_id: &Uuid,
+    ) -> Result<Vec<Uuid>> {
+        let rows: Vec<String> = sqlx::query_scalar(
+            r#"
+            WITH RECURSIVE subtree(id) AS (
+                SELECT id FROM groups WHERE id = ? AND realm_id = ?
+                UNION ALL
+                SELECT g.id FROM groups g
+                JOIN subtree s ON g.parent_id = s.id
+                WHERE g.realm_id = ?
+            )
+            SELECT id FROM subtree
+            "#,
+        )
+        .bind(root_id.to_string())
+        .bind(realm_id.to_string())
+        .bind(realm_id.to_string())
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|id| Uuid::parse_str(&id).ok())
+            .collect())
+    }
+
     async fn set_group_orders(
         &self,
         realm_id: &Uuid,
@@ -938,6 +968,31 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(uuids)
     }
 
+    async fn find_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<Vec<Uuid>> {
+        if group_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut query_builder =
+            QueryBuilder::new("SELECT DISTINCT user_id FROM user_groups WHERE group_id IN (");
+        let mut separated = query_builder.separated(", ");
+        for id in group_ids {
+            separated.push_bind(id.to_string());
+        }
+        query_builder.push(")");
+
+        let rows: Vec<String> = query_builder
+            .build_query_scalar()
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .filter_map(|id| Uuid::parse_str(&id).ok())
+            .collect())
+    }
+
     async fn find_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
         let rows: Vec<(String,)> =
             sqlx::query_as("SELECT role_id FROM group_roles WHERE group_id = ?")
@@ -951,6 +1006,52 @@ impl RbacRepository for SqliteRbacRepository {
             .filter_map(|(id,)| Uuid::parse_str(&id).ok())
             .collect();
         Ok(uuids)
+    }
+
+    async fn count_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64> {
+        if group_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let mut query_builder = QueryBuilder::new(
+            "SELECT COUNT(DISTINCT user_id) FROM user_groups WHERE group_id IN (",
+        );
+        let mut separated = query_builder.separated(", ");
+        for id in group_ids {
+            separated.push_bind(id.to_string());
+        }
+        query_builder.push(")");
+
+        let count: i64 = query_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(count)
+    }
+
+    async fn count_role_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64> {
+        if group_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let mut query_builder = QueryBuilder::new(
+            "SELECT COUNT(DISTINCT role_id) FROM group_roles WHERE group_id IN (",
+        );
+        let mut separated = query_builder.separated(", ");
+        for id in group_ids {
+            separated.push_bind(id.to_string());
+        }
+        query_builder.push(")");
+
+        let count: i64 = query_builder
+            .build_query_scalar()
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(count)
     }
 
     async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
@@ -1158,6 +1259,27 @@ impl RbacRepository for SqliteRbacRepository {
         if result.rows_affected() == 0 {
             return Err(Error::NotFound("Role not found for deletion".into()));
         }
+
+        Ok(())
+    }
+
+    async fn delete_groups(&self, group_ids: &[Uuid]) -> Result<()> {
+        if group_ids.is_empty() {
+            return Ok(());
+        }
+
+        let mut query_builder = QueryBuilder::new("DELETE FROM groups WHERE id IN (");
+        let mut separated = query_builder.separated(", ");
+        for id in group_ids {
+            separated.push_bind(id.to_string());
+        }
+        query_builder.push(")");
+
+        query_builder
+            .build()
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(())
     }

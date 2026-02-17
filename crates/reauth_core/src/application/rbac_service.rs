@@ -4,8 +4,8 @@ use crate::{
         events::{DomainEvent, RoleGroupChanged, RolePermissionChanged, UserGroupChanged},
         group::Group,
         rbac::{
-            GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow, GroupTreeRow,
-            RoleMemberFilter, RoleMemberRow,
+            GroupDeleteSummary, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
+            GroupTreeRow, RoleMemberFilter, RoleMemberRow,
         },
         role::{Permission, Role},
     },
@@ -381,6 +381,82 @@ impl RbacService {
         self.rbac_repo.update_group(&group).await?;
 
         Ok(group)
+    }
+
+    pub async fn get_group_delete_summary(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<GroupDeleteSummary> {
+        let group = self.get_group(realm_id, group_id).await?;
+        let subtree_ids = self
+            .rbac_repo
+            .list_group_subtree_ids(&realm_id, &group_id)
+            .await?;
+
+        let direct_children_count = self
+            .rbac_repo
+            .list_group_ids_by_parent(&realm_id, Some(&group_id))
+            .await?
+            .len() as i64;
+
+        let descendant_count = subtree_ids.len().saturating_sub(1) as i64;
+        let member_count = self.rbac_repo.count_user_ids_in_groups(&subtree_ids).await?;
+        let role_count = self.rbac_repo.count_role_ids_in_groups(&subtree_ids).await?;
+
+        Ok(GroupDeleteSummary {
+            group_id,
+            name: group.name,
+            direct_children_count,
+            descendant_count,
+            member_count,
+            role_count,
+        })
+    }
+
+    pub async fn delete_group(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+        cascade: bool,
+    ) -> Result<()> {
+        let _ = self.get_group(realm_id, group_id).await?;
+
+        let direct_children = self
+            .rbac_repo
+            .list_group_ids_by_parent(&realm_id, Some(&group_id))
+            .await?;
+        if !cascade && !direct_children.is_empty() {
+            return Err(Error::Validation(
+                "Group has child groups. Use cascade delete to remove the subtree.".into(),
+            ));
+        }
+
+        let group_ids = if cascade {
+            self.rbac_repo
+                .list_group_subtree_ids(&realm_id, &group_id)
+                .await?
+        } else {
+            vec![group_id]
+        };
+
+        let affected_users = self
+            .rbac_repo
+            .find_user_ids_in_groups(&group_ids)
+            .await?;
+
+        self.rbac_repo.delete_groups(&group_ids).await?;
+
+        self.event_bus
+            .publish(DomainEvent::GroupDeleted(
+                crate::domain::events::GroupDeleted {
+                    group_ids,
+                    affected_user_ids: affected_users,
+                },
+            ))
+            .await;
+
+        Ok(())
     }
 
     // --- Assignment Operations ---

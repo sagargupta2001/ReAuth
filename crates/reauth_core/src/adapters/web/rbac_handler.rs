@@ -81,6 +81,11 @@ pub struct GroupTreeQuery {
     pub page: PageRequest,
 }
 
+#[derive(Deserialize)]
+pub struct GroupDeleteQuery {
+    pub cascade: Option<bool>,
+}
+
 // GET /api/realms/{realm}/rbac/groups
 pub async fn list_groups_handler(
     State(state): State<AppState>,
@@ -147,6 +152,24 @@ pub async fn get_group_handler(
     Ok((StatusCode::OK, Json(group)))
 }
 
+// GET /api/realms/{realm}/rbac/groups/{id}/delete-summary
+pub async fn get_group_delete_summary_handler(
+    State(state): State<AppState>,
+    Path((realm_name, group_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let summary = state
+        .rbac_service
+        .get_group_delete_summary(realm.id, group_id)
+        .await?;
+    Ok((StatusCode::OK, Json(summary)))
+}
+
 // PUT /api/realms/{realm}/rbac/groups/{id}
 pub async fn update_group_handler(
     State(state): State<AppState>,
@@ -165,6 +188,27 @@ pub async fn update_group_handler(
         .await?;
 
     Ok((StatusCode::OK, Json(updated_group)))
+}
+
+// DELETE /api/realms/{realm}/rbac/groups/{id}
+pub async fn delete_group_handler(
+    State(state): State<AppState>,
+    Path((realm_name, group_id)): Path<(String, Uuid)>,
+    Query(query): Query<GroupDeleteQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let cascade = query.cascade.unwrap_or(false);
+    state
+        .rbac_service
+        .delete_group(realm.id, group_id, cascade)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // POST /api/realms/{realm}/rbac/groups/{id}/move

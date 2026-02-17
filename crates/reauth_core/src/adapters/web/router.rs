@@ -190,7 +190,13 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         )
         .route(
             "/groups/{id}",
-            get(rbac_handler::get_group_handler).put(rbac_handler::update_group_handler),
+            get(rbac_handler::get_group_handler)
+                .put(rbac_handler::update_group_handler)
+                .delete(rbac_handler::delete_group_handler),
+        )
+        .route(
+            "/groups/{id}/delete-summary",
+            get(rbac_handler::get_group_delete_summary_handler),
         )
         .route(
             "/groups/{id}/children",

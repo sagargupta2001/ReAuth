@@ -111,6 +111,16 @@ impl EventHandler for CacheInvalidator {
                     self.cache.clear_user_permissions(user_id).await;
                 }
             }
+            DomainEvent::GroupDeleted(e) => {
+                info!(
+                    "Groups deleted. Invalidating cache for {} users.",
+                    e.affected_user_ids.len()
+                );
+
+                for user_id in &e.affected_user_ids {
+                    self.cache.clear_user_permissions(user_id).await;
+                }
+            }
         }
     }
 }

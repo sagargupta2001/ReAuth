@@ -84,6 +84,10 @@ impl DomainEvent {
                 "RoleDeleted".to_string(),
                 serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
             ),
+            DomainEvent::GroupDeleted(e) => (
+                "GroupDeleted".to_string(),
+                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
+            ),
         }
     }
 }

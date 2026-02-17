@@ -93,6 +93,11 @@ pub trait RbacRepository: Send + Sync {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
     ) -> Result<Vec<Uuid>>;
+    async fn list_group_subtree_ids(
+        &self,
+        realm_id: &Uuid,
+        root_id: &Uuid,
+    ) -> Result<Vec<Uuid>>;
     async fn set_group_orders(
         &self,
         realm_id: &Uuid,
@@ -112,7 +117,10 @@ pub trait RbacRepository: Send + Sync {
     ) -> Result<i64>;
 
     async fn find_user_ids_in_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>>;
+    async fn find_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<Vec<Uuid>>;
     async fn find_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>>;
+    async fn count_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64>;
+    async fn count_role_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64>;
     async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn find_permissions_for_roles(&self, role_ids: &[Uuid]) -> Result<HashSet<Permission>>;
     async fn find_user_ids_for_role(&self, role_id: &Uuid) -> Result<Vec<Uuid>>;
@@ -121,6 +129,7 @@ pub trait RbacRepository: Send + Sync {
     async fn find_role_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>>;
     async fn find_group_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>>;
     async fn delete_role(&self, role_id: &Uuid) -> Result<()>;
+    async fn delete_groups(&self, group_ids: &[Uuid]) -> Result<()>;
     async fn update_role(&self, role: &Role) -> Result<()>;
     async fn update_group(&self, group: &Group) -> Result<()>;
     async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>>;

@@ -31,12 +31,15 @@
 - [x] Add API endpoints for group membership and role-group assignment to match UI.
 - [x] Add server-side filtering/sorting/pagination for group and members lists.
 - [x] Add hierarchical groups schema (parent_id, sort_order, indices).
-- [ ] Split-pane Group Explorer UX for hierarchical groups (tree on left, tabs on right).
+- [x] Split-pane Group Explorer UX for hierarchical groups (tree on left, tabs on right).
+- [x] Tree drag-and-drop for reparenting (drop-on-node) with alphabetical ordering.
+- [x] Tree state persistence (expanded nodes) and auto-expand ancestor chain on load.
+- [x] Group creation updates tree immediately without full refresh.
 
 ## Next
 - [x] Group tree APIs (tree/list roots + children, move/reorder).
-- [x] Split-pane Group Explorer UX with drag-and-drop (dnd-kit SortableTree) and modular FSD components.
-- [ ] Delete group endpoint with subtree safeguards (confirmations, cascade impact).
+- [x] Split-pane Group Explorer UX with drag-and-drop and modular FSD components.
+- [x] Delete group endpoint with subtree safeguards (confirmations, cascade impact).
 - [ ] Composite roles management (API + UI): add/remove child roles.
 - [ ] Distinguish direct vs effective roles in UI (user details + role members).
 - [ ] Add “custom permissions” model (schema + API) or clarify that permissions are system-defined only.
@@ -52,9 +55,10 @@
 - Custom permissions are not modeled in DB; current UI uses system-defined permissions only.
 - Group hierarchy requires schema changes and cycle-safe move semantics.
 - Drag-and-drop tree requires careful bundle sizing and performance testing.
+- Alphabetical ordering means manual reordering is not supported unless explicitly added.
 
 ## Open questions
 - Should permissions be system-only or allow custom per-client definitions?
 - Do we need audit log storage before exposing RBAC to enterprise users?
 - Should group moves be soft-validated (warn on large subtree moves) or hard-blocked?
-- Should group reordering be global (realm-wide) or only within a parent?
+- Should group ordering remain alphabetical or allow manual ordering within a parent?

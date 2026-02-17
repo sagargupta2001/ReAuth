@@ -38,6 +38,16 @@ pub struct GroupTreeRow {
     pub has_children: bool,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct GroupDeleteSummary {
+    pub group_id: Uuid,
+    pub name: String,
+    pub direct_children_count: i64,
+    pub descendant_count: i64,
+    pub member_count: i64,
+    pub role_count: i64,
+}
+
 impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for GroupTreeRow {
     fn from_row(row: &'r sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
         let parse_uuid = |val: String, col_name: &str| -> Result<Uuid, sqlx::Error> {
