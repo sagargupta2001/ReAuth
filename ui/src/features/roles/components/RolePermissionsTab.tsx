@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Loader2, Plus, Search } from 'lucide-react'
+import { Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -17,12 +17,17 @@ import { Label } from '@/components/label'
 import { ScrollArea } from '@/components/scroll-area'
 import { Switch } from '@/components/switch'
 import { Textarea } from '@/components/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/tooltip'
 import { cn } from '@/lib/utils'
 import { useScrollSpy } from '@/shared/hooks/useScrollSpy'
 
 // Import extracted API hooks (Solid/FSD)
-import { useCreateCustomPermission } from '@/features/roles/api/useCustomPermissions'
-import { usePermissions } from '@/features/roles/api/usePermissions'
+import {
+  useCreateCustomPermission,
+  useDeleteCustomPermission,
+  useUpdateCustomPermission,
+} from '@/features/roles/api/useCustomPermissions'
+import { type PermissionDef, usePermissions } from '@/features/roles/api/usePermissions'
 import { useRolePermissions, useManagePermissions } from '@/features/roles/api/useManagePermissions'
 
 interface RolePermissionsTabProps {
@@ -35,9 +40,14 @@ const CUSTOM_GROUP_ID = 'custom'
 export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps) {
   const [search, setSearch] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
-  const [permissionId, setPermissionId] = useState('')
-  const [permissionName, setPermissionName] = useState('')
-  const [permissionDescription, setPermissionDescription] = useState('')
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [activePermission, setActivePermission] = useState<PermissionDef | null>(null)
+  const [newPermissionId, setNewPermissionId] = useState('')
+  const [newPermissionName, setNewPermissionName] = useState('')
+  const [newPermissionDescription, setNewPermissionDescription] = useState('')
+  const [editPermissionName, setEditPermissionName] = useState('')
+  const [editPermissionDescription, setEditPermissionDescription] = useState('')
   const [assignOnCreate, setAssignOnCreate] = useState(true)
 
   // 1. Fetch Data via Hooks
@@ -47,6 +57,8 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
   // 2. Mutations
   const { toggleMutation, bulkMutation } = useManagePermissions(roleId)
   const createPermission = useCreateCustomPermission()
+  const updatePermission = useUpdateCustomPermission()
+  const deletePermission = useDeleteCustomPermission()
 
   // 3. Scroll Spy
   // We map the IDs only when data exists.
@@ -86,9 +98,9 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
   const handleCreatePermission = () => {
     createPermission.mutate(
       {
-        permission: permissionId.trim(),
-        name: permissionName.trim(),
-        description: permissionDescription.trim() || undefined,
+        permission: newPermissionId.trim(),
+        name: newPermissionName.trim(),
+        description: newPermissionDescription.trim() || undefined,
         client_id: clientId ?? undefined,
       },
       {
@@ -97,19 +109,64 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             toggleMutation.mutate({ permission: created.id, action: 'add' })
           }
           setCreateOpen(false)
-          setPermissionId('')
-          setPermissionName('')
-          setPermissionDescription('')
+          setNewPermissionId('')
+          setNewPermissionName('')
+          setNewPermissionDescription('')
           setAssignOnCreate(true)
         },
       },
     )
   }
 
+  const openEditPermission = (permission: PermissionDef) => {
+    setActivePermission(permission)
+    setEditPermissionName(permission.name)
+    setEditPermissionDescription(permission.description ?? '')
+    setEditOpen(true)
+  }
+
+  const handleUpdatePermission = () => {
+    if (!activePermission?.custom_id) return
+    updatePermission.mutate(
+      {
+        id: activePermission.custom_id,
+        data: {
+          name: editPermissionName.trim(),
+          description: editPermissionDescription.trim() || undefined,
+        },
+      },
+      {
+        onSuccess: (updated) => {
+          setActivePermission(updated)
+          setEditOpen(false)
+          setEditPermissionName('')
+          setEditPermissionDescription('')
+        },
+      },
+    )
+  }
+
+  const openDeletePermission = (permission: PermissionDef) => {
+    setActivePermission(permission)
+    setDeleteOpen(true)
+  }
+
+  const handleDeletePermission = () => {
+    if (!activePermission?.custom_id) return
+    deletePermission.mutate(activePermission.custom_id, {
+      onSuccess: () => {
+        setDeleteOpen(false)
+        setActivePermission(null)
+      },
+    })
+  }
+
   const canCreate =
-    permissionId.trim().length > 0 &&
-    permissionName.trim().length > 0 &&
+    newPermissionId.trim().length > 0 &&
+    newPermissionName.trim().length > 0 &&
     !createPermission.isPending
+  const canUpdate =
+    editPermissionName.trim().length > 0 && !updatePermission.isPending && !!activePermission
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
@@ -258,13 +315,52 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
                           </span>
                         </div>
                         <p className="text-muted-foreground mt-0.5 text-xs">{perm.description}</p>
+                        {resource.id === CUSTOM_GROUP_ID && perm.custom_id && (
+                          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                            <span className="bg-muted/60 rounded px-1.5 py-0.5 font-mono">
+                              UUID: {perm.custom_id}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <Switch
-                        checked={assignedPermissions.includes(perm.id)}
-                        onCheckedChange={(c) =>
-                          toggleMutation.mutate({ permission: perm.id, action: c ? 'add' : 'remove' })
-                        }
-                      />
+                      <div className="flex items-center gap-2">
+                        {resource.id === CUSTOM_GROUP_ID && perm.custom_id && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => openEditPermission(perm)}
+                                  aria-label="Edit custom permission"
+                                >
+                                  <Pencil />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Edit</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => openDeletePermission(perm)}
+                                  aria-label="Delete custom permission"
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Delete</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        <Switch
+                          checked={assignedPermissions.includes(perm.id)}
+                          onCheckedChange={(c) =>
+                            toggleMutation.mutate({ permission: perm.id, action: c ? 'add' : 'remove' })
+                          }
+                        />
+                      </div>
                     </div>
                   ))}
                 </CardContent>
@@ -290,8 +386,8 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
               <Input
                 id="permission-id"
                 placeholder="app:resource:action"
-                value={permissionId}
-                onChange={(e) => setPermissionId(e.target.value)}
+                value={newPermissionId}
+                onChange={(e) => setNewPermissionId(e.target.value)}
               />
               <p className="text-muted-foreground text-xs">
                 Use a namespaced format like <span className="font-mono">billing:invoices:read</span>.
@@ -303,8 +399,8 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
               <Input
                 id="permission-name"
                 placeholder="View invoices"
-                value={permissionName}
-                onChange={(e) => setPermissionName(e.target.value)}
+                value={newPermissionName}
+                onChange={(e) => setNewPermissionName(e.target.value)}
               />
             </div>
 
@@ -313,8 +409,8 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
               <Textarea
                 id="permission-description"
                 placeholder="Optional description"
-                value={permissionDescription}
-                onChange={(e) => setPermissionDescription(e.target.value)}
+                value={newPermissionDescription}
+                onChange={(e) => setNewPermissionDescription(e.target.value)}
               />
             </div>
 
@@ -336,6 +432,90 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             </Button>
             <Button onClick={handleCreatePermission} disabled={!canCreate}>
               {createPermission.isPending ? 'Creating...' : 'Create Permission'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Custom Permission</DialogTitle>
+            <DialogDescription>
+              Update the name or description for this permission.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Permission ID</Label>
+              <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-sm font-mono">
+                {activePermission?.id}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Permission UUID</Label>
+              <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-xs font-mono">
+                {activePermission?.custom_id}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-permission-name">Name</Label>
+              <Input
+                id="edit-permission-name"
+                value={editPermissionName}
+                onChange={(e) => setEditPermissionName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-permission-description">Description</Label>
+              <Textarea
+                id="edit-permission-description"
+                value={editPermissionDescription}
+                onChange={(e) => setEditPermissionDescription(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdatePermission} disabled={!canUpdate}>
+              {updatePermission.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Custom Permission</DialogTitle>
+            <DialogDescription>
+              This will remove the permission from all roles. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-xs font-mono">
+              {activePermission?.id}
+            </div>
+            <div className="text-muted-foreground text-[10px] font-mono">
+              UUID: {activePermission?.custom_id}
+            </div>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeletePermission}
+              disabled={deletePermission.isPending}
+            >
+              {deletePermission.isPending ? 'Deleting...' : 'Delete Permission'}
             </Button>
           </div>
         </DialogContent>

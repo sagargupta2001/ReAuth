@@ -27,3 +27,43 @@ export function useCreateCustomPermission() {
     onError: () => toast.error('Failed to create permission'),
   })
 }
+
+export interface UpdateCustomPermissionPayload {
+  name: string
+  description?: string | null
+}
+
+export function useUpdateCustomPermission() {
+  const realm = useActiveRealm()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: { id: string; data: UpdateCustomPermissionPayload }) => {
+      return apiClient.put<PermissionDef>(
+        `/api/realms/${realm}/rbac/permissions/custom/${payload.id}`,
+        payload.data,
+      )
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['permissions-definitions', realm] })
+      toast.success('Custom permission updated')
+    },
+    onError: () => toast.error('Failed to update permission'),
+  })
+}
+
+export function useDeleteCustomPermission() {
+  const realm = useActiveRealm()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      return apiClient.delete(`/api/realms/${realm}/rbac/permissions/custom/${id}`)
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['permissions-definitions', realm] })
+      toast.success('Custom permission deleted')
+    },
+    onError: () => toast.error('Failed to delete permission'),
+  })
+}

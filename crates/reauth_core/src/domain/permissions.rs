@@ -32,6 +32,8 @@ pub struct PermissionDef {
     pub id: String,
     pub name: String,
     pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -116,5 +118,6 @@ fn p(id: &str, name: &str, desc: &str) -> PermissionDef {
         id: id.to_string(),
         name: name.to_string(),
         description: desc.to_string(),
+        custom_id: None,
     }
 }

@@ -828,6 +828,7 @@ pub async fn list_permissions_handler(
                 id: perm.permission,
                 name: perm.name,
                 description: perm.description.unwrap_or_default(),
+                custom_id: Some(perm.id.to_string()),
             })
             .collect(),
     };
@@ -858,6 +859,7 @@ pub async fn create_custom_permission_handler(
         id: created.permission,
         name: created.name,
         description: created.description.unwrap_or_default(),
+        custom_id: Some(created.id.to_string()),
     };
 
     Ok((StatusCode::CREATED, Json(response)))
@@ -884,6 +886,7 @@ pub async fn update_custom_permission_handler(
         id: updated.permission,
         name: updated.name,
         description: updated.description.unwrap_or_default(),
+        custom_id: Some(updated.id.to_string()),
     };
 
     Ok((StatusCode::OK, Json(response)))

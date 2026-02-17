@@ -7,6 +7,7 @@ export interface PermissionDef {
   id: string
   name: string
   description: string
+  custom_id?: string
 }
 
 export interface ResourceGroup {
