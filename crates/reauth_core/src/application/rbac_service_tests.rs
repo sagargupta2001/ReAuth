@@ -54,7 +54,6 @@ struct BulkUpdateCall {
     action: String,
 }
 
-#[derive(Default)]
 struct TestRbacRepo {
     roles: Mutex<HashMap<Uuid, Role>>,
     groups: Mutex<HashMap<Uuid, Group>>,
@@ -64,6 +63,19 @@ struct TestRbacRepo {
     next_group_sort_order: Mutex<i64>,
     count_user_ids_in_groups_result: Mutex<i64>,
     count_role_ids_in_groups_result: Mutex<i64>,
+    list_roles_result: Mutex<PageResponse<Role>>,
+    list_client_roles_result: Mutex<PageResponse<Role>>,
+    list_groups_result: Mutex<PageResponse<Group>>,
+    list_group_roots_result: Mutex<PageResponse<GroupTreeRow>>,
+    list_group_children_result: Mutex<PageResponse<GroupTreeRow>>,
+    list_role_members_result: Mutex<PageResponse<RoleMemberRow>>,
+    list_group_members_result: Mutex<PageResponse<GroupMemberRow>>,
+    list_group_roles_result: Mutex<PageResponse<GroupRoleRow>>,
+    list_user_roles_result: Mutex<PageResponse<UserRoleRow>>,
+    list_role_composites_result: Mutex<PageResponse<RoleCompositeRow>>,
+    list_custom_permissions_result: Mutex<Vec<CustomPermission>>,
+    list_role_composites_client_id: Mutex<Option<Option<Uuid>>>,
+    get_permissions_for_role_result: Mutex<Vec<String>>,
     custom_permissions: Mutex<HashMap<Uuid, CustomPermission>>,
     custom_permissions_by_key: Mutex<HashMap<String, Uuid>>,
     role_descendant: Mutex<bool>,
@@ -86,6 +98,56 @@ struct TestRbacRepo {
     remove_role_permissions_by_key_calls: Mutex<Vec<String>>,
     delete_groups_calls: Mutex<Vec<Vec<Uuid>>>,
     set_group_orders_calls: Mutex<Vec<SetGroupOrdersCall>>,
+}
+
+impl Default for TestRbacRepo {
+    fn default() -> Self {
+        Self {
+            roles: Mutex::new(HashMap::new()),
+            groups: Mutex::new(HashMap::new()),
+            group_children_by_parent: Mutex::new(HashMap::new()),
+            group_subtree_by_root: Mutex::new(HashMap::new()),
+            group_descendant: Mutex::new(false),
+            next_group_sort_order: Mutex::new(0),
+            count_user_ids_in_groups_result: Mutex::new(0),
+            count_role_ids_in_groups_result: Mutex::new(0),
+            list_roles_result: Mutex::new(Self::empty_page()),
+            list_client_roles_result: Mutex::new(Self::empty_page()),
+            list_groups_result: Mutex::new(Self::empty_page()),
+            list_group_roots_result: Mutex::new(Self::empty_page()),
+            list_group_children_result: Mutex::new(Self::empty_page()),
+            list_role_members_result: Mutex::new(Self::empty_page()),
+            list_group_members_result: Mutex::new(Self::empty_page()),
+            list_group_roles_result: Mutex::new(Self::empty_page()),
+            list_user_roles_result: Mutex::new(Self::empty_page()),
+            list_role_composites_result: Mutex::new(Self::empty_page()),
+            list_custom_permissions_result: Mutex::new(Vec::new()),
+            list_role_composites_client_id: Mutex::new(None),
+            get_permissions_for_role_result: Mutex::new(Vec::new()),
+            custom_permissions: Mutex::new(HashMap::new()),
+            custom_permissions_by_key: Mutex::new(HashMap::new()),
+            role_descendant: Mutex::new(false),
+            effective_permissions: Mutex::new(HashMap::new()),
+            find_user_ids_for_role: Mutex::new(HashMap::new()),
+            find_direct_user_ids_for_role: Mutex::new(HashMap::new()),
+            find_user_ids_in_groups_result: Mutex::new(Vec::new()),
+            find_user_ids_in_group: Mutex::new(HashMap::new()),
+            find_role_ids_for_group: Mutex::new(HashMap::new()),
+            find_effective_role_ids_for_group: Mutex::new(HashMap::new()),
+            find_direct_role_ids_for_user: Mutex::new(HashMap::new()),
+            find_effective_role_ids_for_user: Mutex::new(HashMap::new()),
+            list_role_composite_ids: Mutex::new(HashMap::new()),
+            list_effective_role_composite_ids: Mutex::new(HashMap::new()),
+            find_role_names_for_user: Mutex::new(HashMap::new()),
+            find_group_names_for_user: Mutex::new(HashMap::new()),
+            assign_permission_to_role_calls: Mutex::new(Vec::new()),
+            remove_permission_calls: Mutex::new(Vec::new()),
+            bulk_update_permissions_calls: Mutex::new(Vec::new()),
+            remove_role_permissions_by_key_calls: Mutex::new(Vec::new()),
+            delete_groups_calls: Mutex::new(Vec::new()),
+            set_group_orders_calls: Mutex::new(Vec::new()),
+        }
+    }
 }
 
 impl TestRbacRepo {
@@ -229,6 +291,54 @@ impl TestRbacRepo {
     fn empty_page<T>() -> PageResponse<T> {
         PageResponse::new(Vec::new(), 0, 1, 20)
     }
+
+    fn set_list_roles_result(&self, result: PageResponse<Role>) {
+        *self.list_roles_result.lock().unwrap() = result;
+    }
+
+    fn set_list_client_roles_result(&self, result: PageResponse<Role>) {
+        *self.list_client_roles_result.lock().unwrap() = result;
+    }
+
+    fn set_list_groups_result(&self, result: PageResponse<Group>) {
+        *self.list_groups_result.lock().unwrap() = result;
+    }
+
+    fn set_list_group_roots_result(&self, result: PageResponse<GroupTreeRow>) {
+        *self.list_group_roots_result.lock().unwrap() = result;
+    }
+
+    fn set_list_group_children_result(&self, result: PageResponse<GroupTreeRow>) {
+        *self.list_group_children_result.lock().unwrap() = result;
+    }
+
+    fn set_list_role_members_result(&self, result: PageResponse<RoleMemberRow>) {
+        *self.list_role_members_result.lock().unwrap() = result;
+    }
+
+    fn set_list_group_members_result(&self, result: PageResponse<GroupMemberRow>) {
+        *self.list_group_members_result.lock().unwrap() = result;
+    }
+
+    fn set_list_group_roles_result(&self, result: PageResponse<GroupRoleRow>) {
+        *self.list_group_roles_result.lock().unwrap() = result;
+    }
+
+    fn set_list_user_roles_result(&self, result: PageResponse<UserRoleRow>) {
+        *self.list_user_roles_result.lock().unwrap() = result;
+    }
+
+    fn set_list_role_composites_result(&self, result: PageResponse<RoleCompositeRow>) {
+        *self.list_role_composites_result.lock().unwrap() = result;
+    }
+
+    fn set_list_custom_permissions_result(&self, result: Vec<CustomPermission>) {
+        *self.list_custom_permissions_result.lock().unwrap() = result;
+    }
+
+    fn set_get_permissions_for_role_result(&self, result: Vec<String>) {
+        *self.get_permissions_for_role_result.lock().unwrap() = result;
+    }
 }
 
 #[async_trait]
@@ -305,7 +415,13 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn list_roles(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Role>> {
-        Ok(Self::empty_page())
+        let page = self.list_roles_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_client_roles(
@@ -314,7 +430,13 @@ impl RbacRepository for TestRbacRepo {
         client_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<Role>> {
-        Ok(Self::empty_page())
+        let page = self.list_client_roles_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn find_role_by_id(&self, role_id: &Uuid) -> Result<Option<Role>> {
@@ -322,7 +444,13 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn list_groups(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Group>> {
-        Ok(Self::empty_page())
+        let page = self.list_groups_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_group_roots(
@@ -330,7 +458,13 @@ impl RbacRepository for TestRbacRepo {
         realm_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupTreeRow>> {
-        Ok(Self::empty_page())
+        let page = self.list_group_roots_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_group_children(
@@ -339,7 +473,13 @@ impl RbacRepository for TestRbacRepo {
         parent_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupTreeRow>> {
-        Ok(Self::empty_page())
+        let page = self.list_group_children_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_role_members(
@@ -349,7 +489,13 @@ impl RbacRepository for TestRbacRepo {
         filter: RoleMemberFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<RoleMemberRow>> {
-        Ok(Self::empty_page())
+        let page = self.list_role_members_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_group_members(
@@ -359,7 +505,13 @@ impl RbacRepository for TestRbacRepo {
         filter: GroupMemberFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupMemberRow>> {
-        Ok(Self::empty_page())
+        let page = self.list_group_members_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_group_roles(
@@ -369,7 +521,13 @@ impl RbacRepository for TestRbacRepo {
         filter: GroupRoleFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupRoleRow>> {
-        Ok(Self::empty_page())
+        let page = self.list_group_roles_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_user_roles(
@@ -379,7 +537,13 @@ impl RbacRepository for TestRbacRepo {
         filter: UserRoleFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<UserRoleRow>> {
-        Ok(Self::empty_page())
+        let page = self.list_user_roles_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_role_composites(
@@ -390,7 +554,14 @@ impl RbacRepository for TestRbacRepo {
         filter: RoleCompositeFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<RoleCompositeRow>> {
-        Ok(Self::empty_page())
+        *self.list_role_composites_client_id.lock().unwrap() = Some(*client_id);
+        let page = self.list_role_composites_result.lock().unwrap();
+        Ok(PageResponse::new(
+            page.data.clone(),
+            page.meta.total,
+            page.meta.page,
+            page.meta.per_page,
+        ))
     }
 
     async fn list_group_ids_by_parent(
@@ -618,7 +789,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>> {
-        Ok(Vec::new())
+        Ok(self.get_permissions_for_role_result.lock().unwrap().clone())
     }
 
     async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()> {
@@ -734,13 +905,7 @@ impl RbacRepository for TestRbacRepo {
         realm_id: &Uuid,
         client_id: Option<&Uuid>,
     ) -> Result<Vec<CustomPermission>> {
-        Ok(self
-            .custom_permissions
-            .lock()
-            .unwrap()
-            .values()
-            .cloned()
-            .collect())
+        Ok(self.list_custom_permissions_result.lock().unwrap().clone())
     }
 
     async fn remove_role_permissions_by_key(&self, permission: &str) -> Result<()> {
@@ -2469,4 +2634,476 @@ async fn get_user_roles_and_groups_returns_repo_data() {
 
     assert_eq!(result.0, roles);
     assert_eq!(result.1, groups);
+}
+
+#[tokio::test]
+async fn find_role_by_name_returns_match() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "viewer".to_string(),
+        description: None,
+    });
+
+    let found = harness
+        .service
+        .find_role_by_name(realm_id, "viewer")
+        .await
+        .expect("find role");
+
+    assert!(found.is_some());
+    let found = found.expect("role");
+    assert_eq!(found.id, role_id);
+}
+
+#[tokio::test]
+async fn list_roles_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    let role = Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "viewer".to_string(),
+        description: None,
+    };
+    let page = PageResponse::new(vec![role.clone()], 1, 1, 20);
+    harness.repo.set_list_roles_result(page);
+
+    let result = harness
+        .service
+        .list_roles(realm_id, PageRequest::default())
+        .await
+        .expect("list roles");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, role.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn list_client_roles_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let client_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    let role = Role {
+        id: role_id,
+        realm_id,
+        client_id: Some(client_id),
+        name: "client-viewer".to_string(),
+        description: None,
+    };
+    let page = PageResponse::new(vec![role.clone()], 1, 1, 20);
+    harness.repo.set_list_client_roles_result(page);
+
+    let result = harness
+        .service
+        .list_client_roles(realm_id, client_id, PageRequest::default())
+        .await
+        .expect("list client roles");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, role.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn list_role_members_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let row = RoleMemberRow {
+        id: Uuid::new_v4(),
+        username: "user1".to_string(),
+        is_direct: true,
+        is_effective: true,
+    };
+    let page = PageResponse::new(vec![row.clone()], 1, 1, 20);
+    harness.repo.set_list_role_members_result(page);
+
+    let result = harness
+        .service
+        .list_role_members(
+            realm_id,
+            role_id,
+            RoleMemberFilter::All,
+            PageRequest::default(),
+        )
+        .await
+        .expect("list role members");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, row.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn list_group_members_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    let row = GroupMemberRow {
+        id: Uuid::new_v4(),
+        username: "user1".to_string(),
+        is_member: true,
+    };
+    let page = PageResponse::new(vec![row.clone()], 1, 1, 20);
+    harness.repo.set_list_group_members_result(page);
+
+    let result = harness
+        .service
+        .list_group_members(
+            realm_id,
+            group_id,
+            GroupMemberFilter::All,
+            PageRequest::default(),
+        )
+        .await
+        .expect("list group members");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, row.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn list_group_roles_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    let row = GroupRoleRow {
+        id: Uuid::new_v4(),
+        name: "viewer".to_string(),
+        description: None,
+        is_direct: true,
+        is_effective: true,
+    };
+    let page = PageResponse::new(vec![row.clone()], 1, 1, 20);
+    harness.repo.set_list_group_roles_result(page);
+
+    let result = harness
+        .service
+        .list_group_roles(
+            realm_id,
+            group_id,
+            GroupRoleFilter::All,
+            PageRequest::default(),
+        )
+        .await
+        .expect("list group roles");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, row.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn list_user_roles_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    let row = UserRoleRow {
+        id: Uuid::new_v4(),
+        name: "viewer".to_string(),
+        description: None,
+        is_direct: true,
+        is_effective: true,
+    };
+    let page = PageResponse::new(vec![row.clone()], 1, 1, 20);
+    harness.repo.set_list_user_roles_result(page);
+
+    let result = harness
+        .service
+        .list_user_roles(
+            realm_id,
+            user_id,
+            UserRoleFilter::All,
+            PageRequest::default(),
+        )
+        .await
+        .expect("list user roles");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, row.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn list_role_composites_returns_repo_page_and_client_scope() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let client_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: Some(client_id),
+        name: "parent".to_string(),
+        description: None,
+    });
+
+    let row = RoleCompositeRow {
+        id: Uuid::new_v4(),
+        name: "child".to_string(),
+        description: None,
+        is_direct: true,
+        is_effective: true,
+    };
+    let page = PageResponse::new(vec![row.clone()], 1, 1, 20);
+    harness.repo.set_list_role_composites_result(page);
+
+    let result = harness
+        .service
+        .list_role_composites(
+            realm_id,
+            role_id,
+            RoleCompositeFilter::All,
+            PageRequest::default(),
+        )
+        .await
+        .expect("list role composites");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, row.id);
+    assert_eq!(result.meta.total, 1);
+
+    let recorded = *harness.repo.list_role_composites_client_id.lock().unwrap();
+    assert_eq!(recorded, Some(Some(client_id)));
+}
+
+#[tokio::test]
+async fn list_custom_permissions_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let permission = CustomPermission {
+        id: Uuid::new_v4(),
+        realm_id,
+        client_id: None,
+        permission: "app:read".to_string(),
+        name: "App Read".to_string(),
+        description: None,
+        created_by: None,
+    };
+
+    harness
+        .repo
+        .set_list_custom_permissions_result(vec![permission.clone()]);
+
+    let result = harness
+        .service
+        .list_custom_permissions(realm_id, None)
+        .await
+        .expect("list custom permissions");
+
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].id, permission.id);
+    assert_eq!(result[0].permission, permission.permission);
+}
+
+#[tokio::test]
+async fn list_groups_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    let group = Group {
+        id: group_id,
+        realm_id,
+        parent_id: None,
+        name: "group".to_string(),
+        description: None,
+        sort_order: 0,
+    };
+    let page = PageResponse::new(vec![group.clone()], 1, 1, 20);
+    harness.repo.set_list_groups_result(page);
+
+    let result = harness
+        .service
+        .list_groups(realm_id, PageRequest::default())
+        .await
+        .expect("list groups");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, group.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn list_group_roots_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let row = GroupTreeRow {
+        id: Uuid::new_v4(),
+        parent_id: None,
+        name: "root".to_string(),
+        description: None,
+        sort_order: 0,
+        has_children: true,
+    };
+    let page = PageResponse::new(vec![row.clone()], 1, 1, 20);
+    harness.repo.set_list_group_roots_result(page);
+
+    let result = harness
+        .service
+        .list_group_roots(realm_id, PageRequest::default())
+        .await
+        .expect("list group roots");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, row.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn list_group_children_returns_repo_page() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        parent_id,
+        Group {
+            id: parent_id,
+            realm_id,
+            parent_id: None,
+            name: "parent".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    let row = GroupTreeRow {
+        id: Uuid::new_v4(),
+        parent_id: Some(parent_id),
+        name: "child".to_string(),
+        description: None,
+        sort_order: 1,
+        has_children: false,
+    };
+    let page = PageResponse::new(vec![row.clone()], 1, 1, 20);
+    harness.repo.set_list_group_children_result(page);
+
+    let result = harness
+        .service
+        .list_group_children(realm_id, parent_id, PageRequest::default())
+        .await
+        .expect("list group children");
+
+    assert_eq!(result.data.len(), 1);
+    assert_eq!(result.data[0].id, row.id);
+    assert_eq!(result.meta.total, 1);
+}
+
+#[tokio::test]
+async fn update_group_updates_repo_state() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    let updated = harness
+        .service
+        .update_group(
+            realm_id,
+            group_id,
+            CreateGroupPayload {
+                parent_id: None,
+                name: "updated".to_string(),
+                description: Some("Updated".to_string()),
+            },
+        )
+        .await
+        .expect("update group");
+
+    assert_eq!(updated.name, "updated");
+    let stored = harness.repo.groups.lock().unwrap().get(&group_id).cloned();
+    assert!(stored.is_some());
+    let stored = stored.expect("stored group");
+    assert_eq!(stored.name, "updated");
+    assert_eq!(stored.description.as_deref(), Some("Updated"));
+}
+
+#[tokio::test]
+async fn get_permissions_for_role_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let permissions = vec!["app:read".to_string(), "app:write".to_string()];
+    harness
+        .repo
+        .set_get_permissions_for_role_result(permissions.clone());
+
+    let result = harness
+        .service
+        .get_permissions_for_role(realm_id, role_id)
+        .await
+        .expect("get permissions");
+
+    assert_eq!(result, permissions);
 }
