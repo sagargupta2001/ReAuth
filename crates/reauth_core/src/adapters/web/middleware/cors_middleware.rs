@@ -88,6 +88,12 @@ fn is_allowed_origin(state: &AppState, origin: &str) -> bool {
         allowed.push(ui_origin);
     }
 
+    for configured_origin in &state.settings.cors.allowed_origins {
+        if let Some(origin) = normalize_origin(configured_origin) {
+            allowed.push(origin);
+        }
+    }
+
     for configured_origin in &state.settings.default_oidc_client.web_origins {
         if let Some(origin) = normalize_origin(configured_origin) {
             allowed.push(origin);

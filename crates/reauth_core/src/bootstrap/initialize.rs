@@ -13,9 +13,10 @@ use crate::AppState;
 use std::sync::Arc;
 
 pub async fn initialize() -> anyhow::Result<AppState> {
-    let settings = Settings::new()?;
     let log_bus = init_logging();
+    let settings = Settings::new()?;
     print_banner();
+    log_config_summary(&settings);
 
     let plugins_path = determine_plugins_path()?;
     let db_pool = initialize_database(&settings).await?;
@@ -77,4 +78,15 @@ pub async fn initialize() -> anyhow::Result<AppState> {
         flow_executor: services.flow_executor,
         session_repo: repos.session_repo,
     })
+}
+
+fn log_config_summary(settings: &Settings) {
+    tracing::info!(
+        "Config summary: public_url={}, data_dir={}, db_url={}, ui_dev_url={}, cors_allowed_origins={}",
+        settings.server.public_url,
+        settings.database.data_dir,
+        settings.database.url,
+        settings.ui.dev_url,
+        settings.cors.allowed_origins.len()
+    );
 }

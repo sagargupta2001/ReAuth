@@ -73,9 +73,25 @@ REAUTH__SERVER__PORT=4000
 REAUTH__DATABASE__URL=sqlite:data/reauth.db
 ```
 
+Example `reauth.toml` for CORS:
+
+```toml
+[cors]
+allowed_origins = ["http://localhost:5173"]
+```
+
 You can also place a `reauth.toml` beside the executable or pass `--config /path/to/reauth.toml`.
 `server.public_url` (if set) drives defaults for `auth.issuer` and the default OIDC client URLs.
 The default OIDC client (`reauth-admin`) is auto‑synced from config on startup.
+
+---
+
+## CLI Flags
+`reauth_core` supports a small set of flags:
+
+- `--benchmark`: run initialization and migrations, then exit (used to validate startup).
+- `--config <path>`: load config from a specific file instead of relying on `reauth.toml`.
+- `--print-config`: print the resolved config (with secrets redacted) and exit.
 
 ---
 

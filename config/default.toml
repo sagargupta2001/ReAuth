@@ -7,6 +7,9 @@ public_url = "" # Leave empty to derive from scheme/host/port
 [ui]
 dev_url = "http://localhost:5173"
 
+[cors]
+allowed_origins = []
+
 [plugins]
 handshake_timeout_secs = 5
 

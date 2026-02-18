@@ -1,5 +1,5 @@
 use std::env::{args, set_var};
-use reauth_core::{initialize, run};
+use reauth_core::{config::Settings, initialize, run};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -7,6 +7,14 @@ async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = args().collect();
     if let Some(config_path) = parse_config_path(&args)? {
         set_var("REAUTH_CONFIG", config_path);
+    }
+
+    if args.iter().any(|a| a == "--print-config") {
+        let settings = Settings::new()?;
+        let redacted = settings.redacted();
+        let output = serde_json::to_string_pretty(&redacted)?;
+        println!("{}", output);
+        return Ok(());
     }
 
     if args.iter().any(|a| a == "--benchmark") {

@@ -10,17 +10,21 @@
 - [x] Env overrides use `REAUTH__` prefix with `__` separators.
 - [x] `server.public_url` drives derived defaults (OIDC issuer + default redirect URIs).
 - [x] Default OIDC client is auto-synced from config (managed-by-config).
+- [x] Config precedence documented in README/DevOps docs.
+- [x] Vite proxy target configurable via `VITE_API_PROXY_TARGET`.
+- [x] Startup validation with clear errors for invalid config.
+- [x] Startup diagnostics log (public URL, data dir, DB URL, UI dev URL, CORS count).
+- [x] CORS allowlist configurable via `cors.allowed_origins`.
 
 ## Now
-1. **Document config precedence**
-   - Document order: embedded defaults → optional local defaults → `reauth.toml`/`--config` → env.
-   - Provide examples for overriding port, issuer, and default client URLs.
-2. **UI dev proxy**
-   - Make Vite proxy target configurable via `VITE_API_PROXY_TARGET`.
+1. **Config introspection**
+   - Add a CLI flag to print resolved config (`--print-config`) without starting the server.
+2. **Env list parsing**
+   - Define supported syntax for list env vars (comma‑separated vs JSON) and document it.
 
 ## Later
-- Support config files (e.g., TOML/YAML) in addition to env vars.
-- Hot reload for dev config.
+- Support additional config formats (e.g., YAML) if needed.
+- Hot reload for dev config (watch the config file and reload on change without restarting the server).
 
 ## Open questions
-- Which env var naming convention should be standardized (`REAUTH_*`)?
+- Env var naming convention: **`REAUTH__` with `__` separators** (accepted).

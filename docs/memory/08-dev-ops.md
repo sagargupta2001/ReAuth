@@ -15,6 +15,7 @@
 - Default config: `reauth/config/default.toml`.
 - Overrides via environment variables using `REAUTH__` prefix.
 - Config precedence (low → high): embedded defaults → `config/default.toml` (dev) → `reauth.toml` / `--config` / `REAUTH_CONFIG` → env.
+- CORS allowlist: `cors.allowed_origins` (TOML array).
 - Examples:
   - `REAUTH__SERVER__PORT=4000`
   - `REAUTH__DATABASE__URL=sqlite:data/reauth.db`

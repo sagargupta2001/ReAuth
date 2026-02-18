@@ -1,13 +1,14 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
+use url::Url;
 
 const DEFAULT_CONFIG: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../config/default.toml"
 ));
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Server {
     pub scheme: String,
     pub host: String,
@@ -16,17 +17,23 @@ pub struct Server {
     pub public_url: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Ui {
     pub dev_url: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct CorsConfig {
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PluginsConfig {
     pub handshake_timeout_secs: u64,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
@@ -34,7 +41,7 @@ pub struct DatabaseConfig {
     pub data_dir: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AuthConfig {
     pub jwt_secret: String,
     pub jwt_key_id: String,
@@ -44,13 +51,13 @@ pub struct AuthConfig {
     pub refresh_token_ttl_secs: i64,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DefaultAdminConfig {
     pub username: String,
     pub password: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DefaultOidcClientConfig {
     pub client_id: String,
     #[serde(default)]
@@ -59,10 +66,12 @@ pub struct DefaultOidcClientConfig {
     pub web_origins: Vec<String>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
     pub server: Server,
     pub ui: Ui,
+    #[serde(default)]
+    pub cors: CorsConfig,
     pub plugins: PluginsConfig,
     pub database: DatabaseConfig,
     pub auth: AuthConfig,
@@ -92,6 +101,7 @@ impl Settings {
 
         let mut settings: Settings = s.try_deserialize()?;
         settings.apply_defaults();
+        settings.validate()?;
         Ok(settings)
     }
 
@@ -138,6 +148,46 @@ impl Settings {
             }
         }
     }
+
+    fn validate(&self) -> Result<(), config::ConfigError> {
+        let scheme = self.server.scheme.trim();
+        if scheme.is_empty() {
+            return Err(config::ConfigError::Message(
+                "server.scheme must not be empty".to_string(),
+            ));
+        }
+        if scheme != "http" && scheme != "https" {
+            return Err(config::ConfigError::Message(format!(
+                "server.scheme must be http or https (got {})",
+                scheme
+            )));
+        }
+        if self.server.host.trim().is_empty() {
+            return Err(config::ConfigError::Message(
+                "server.host must not be empty".to_string(),
+            ));
+        }
+
+        validate_url("server.public_url", &self.server.public_url)?;
+        if !self.ui.dev_url.trim().is_empty() {
+            validate_url("ui.dev_url", &self.ui.dev_url)?;
+        }
+
+        validate_url_list("cors.allowed_origins", &self.cors.allowed_origins)?;
+        validate_url_list(
+            "default_oidc_client.web_origins",
+            &self.default_oidc_client.web_origins,
+        )?;
+
+        Ok(())
+    }
+
+    pub fn redacted(&self) -> Self {
+        let mut redacted = self.clone();
+        redacted.auth.jwt_secret = "<redacted>".to_string();
+        redacted.default_admin.password = "<redacted>".to_string();
+        redacted
+    }
 }
 
 fn default_data_dir() -> String {
@@ -174,4 +224,36 @@ fn push_unique(urls: &mut Vec<String>, value: &str) {
     if !urls.iter().any(|u| u == value) {
         urls.push(value.to_string());
     }
+}
+
+fn validate_url(field: &str, value: &str) -> Result<(), config::ConfigError> {
+    if value.trim().is_empty() {
+        return Err(config::ConfigError::Message(format!(
+            "{} must not be empty",
+            field
+        )));
+    }
+    Url::parse(value).map_err(|e| {
+        config::ConfigError::Message(format!("{} must be a valid URL: {}", field, e))
+    })?;
+    Ok(())
+}
+
+fn validate_url_list(field: &str, values: &[String]) -> Result<(), config::ConfigError> {
+    for value in values {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(config::ConfigError::Message(format!(
+                "{} must not contain empty entries",
+                field
+            )));
+        }
+        Url::parse(trimmed).map_err(|e| {
+            config::ConfigError::Message(format!(
+                "{} entry '{}' must be a valid URL: {}",
+                field, trimmed, e
+            ))
+        })?;
+    }
+    Ok(())
 }
