@@ -18,7 +18,7 @@ use tracing::{info, warn};
 pub async fn initialize() -> anyhow::Result<AppState> {
     let settings = Settings::new()?;
     let log_bus = init_logging(&settings);
-    print_banner();
+    print_banner(&settings);
     log_config_summary(&settings);
     warn_public_url_mismatch(&settings);
 
