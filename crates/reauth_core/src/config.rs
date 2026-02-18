@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const DEFAULT_CONFIG: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -124,11 +124,28 @@ impl Settings {
             self.default_oidc_client.web_origins =
                 build_default_urls(&public_url, &self.ui.dev_url);
         }
+
+        self.apply_database_defaults();
+    }
+
+    fn apply_database_defaults(&mut self) {
+        let url = self.database.url.trim();
+        if url.is_empty() || url == "sqlite:data/reauth.db" || url == "sqlite:./data/reauth.db" {
+            let data_dir = self.database.data_dir.trim();
+            if !data_dir.is_empty() {
+                let db_path = Path::new(data_dir).join("reauth.db");
+                self.database.url = format!("sqlite:{}", db_path.to_string_lossy());
+            }
+        }
     }
 }
 
 fn default_data_dir() -> String {
-    "./data".to_string()
+    env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("data")))
+        .map(|path| path.to_string_lossy().to_string())
+        .unwrap_or_else(|| "./data".to_string())
 }
 
 fn resolve_config_path() -> Option<PathBuf> {

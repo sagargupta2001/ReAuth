@@ -64,7 +64,9 @@ cargo run --package reauth_core --features embed-ui
 
 ## Config
 Default config lives at `config/default.toml`.
-You can override values with env vars using the `REAUTH__` prefix:
+Config precedence (low → high): embedded defaults → `config/default.toml` (dev) → `reauth.toml` / `--config` / `REAUTH_CONFIG` → env.
+
+Env overrides use the `REAUTH__` prefix with `__` separators:
 
 ```bash
 REAUTH__SERVER__PORT=4000
