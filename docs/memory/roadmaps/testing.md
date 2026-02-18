@@ -28,6 +28,7 @@
 2. **Unit tests (domain + application)**
    - Flow compiler/validator, RBAC permission resolution, auth/session validation.
    - Focus on pure logic and critical invariants.
+   - **In progress:** RBAC unit tests for custom permission validation and composite role checks.
 3. **Integration tests (API + persistence)**
    - Auth login + OIDC start/finish, RBAC CRUD + permission assignment,
      group/role composites, flow publish/execute.
