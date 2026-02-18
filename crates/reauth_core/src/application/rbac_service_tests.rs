@@ -1602,6 +1602,106 @@ async fn update_custom_permission_rejects_empty_name() {
 }
 
 #[tokio::test]
+async fn create_custom_permission_rejects_empty_name() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let result = harness
+        .service
+        .create_custom_permission(
+            realm_id,
+            CreateCustomPermissionPayload {
+                permission: "app:read".to_string(),
+                name: "   ".to_string(),
+                description: None,
+                client_id: None,
+            },
+        )
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("name cannot be empty"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn update_custom_permission_updates_fields() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let created = harness
+        .service
+        .create_custom_permission(
+            realm_id,
+            CreateCustomPermissionPayload {
+                permission: "app:read".to_string(),
+                name: "App Read".to_string(),
+                description: Some("Original".to_string()),
+                client_id: None,
+            },
+        )
+        .await
+        .expect("create custom permission");
+
+    let updated = harness
+        .service
+        .update_custom_permission(
+            realm_id,
+            created.id,
+            UpdateCustomPermissionPayload {
+                name: "Updated".to_string(),
+                description: Some("  ".to_string()),
+            },
+        )
+        .await
+        .expect("update custom permission");
+
+    assert_eq!(updated.id, created.id);
+    assert_eq!(updated.permission, created.permission);
+    assert_eq!(updated.name, "Updated");
+    assert!(updated.description.is_none());
+
+    let stored = harness
+        .repo
+        .custom_permissions
+        .lock()
+        .unwrap()
+        .get(&created.id)
+        .cloned();
+    assert!(stored.is_some());
+    let stored = stored.expect("stored permission");
+    assert_eq!(stored.name, "Updated");
+    assert!(stored.description.is_none());
+}
+
+#[tokio::test]
+async fn get_group_rejects_cross_realm() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let other_realm = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    let result = harness.service.get_group(other_realm, group_id).await;
+
+    assert!(matches!(result, Err(Error::SecurityViolation(_))));
+}
+
+#[tokio::test]
 async fn delete_custom_permission_removes_role_permissions_by_key() {
     let harness = harness();
     let realm_id = Uuid::new_v4();
