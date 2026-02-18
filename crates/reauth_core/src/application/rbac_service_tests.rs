@@ -319,12 +319,13 @@ impl RbacRepository for TestRbacRepo {
         parent_id: Option<&Uuid>,
         ordered_ids: &[Uuid],
     ) -> Result<()> {
-        self.set_group_orders_calls.lock().unwrap().push(
-            SetGroupOrdersCall {
+        self.set_group_orders_calls
+            .lock()
+            .unwrap()
+            .push(SetGroupOrdersCall {
                 parent_id: parent_id.copied(),
                 ordered_ids: ordered_ids.to_vec(),
-            },
-        );
+            });
         Ok(())
     }
 
@@ -840,4 +841,413 @@ async fn get_effective_permissions_caches_repo_result() {
 
     let cached = harness.cache.get_user_permissions(&user_id).await;
     assert_eq!(cached, Some(permissions_set));
+}
+
+#[tokio::test]
+async fn create_role_rejects_duplicate_name() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let existing = Role {
+        id: Uuid::new_v4(),
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    };
+    harness.repo.insert_role(existing);
+
+    let result = harness
+        .service
+        .create_role(
+            realm_id,
+            CreateRolePayload {
+                client_id: None,
+                name: "admin".to_string(),
+                description: None,
+            },
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::RoleAlreadyExists)));
+}
+
+#[tokio::test]
+async fn create_group_rejects_duplicate_name() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let existing = Group {
+        id: Uuid::new_v4(),
+        realm_id,
+        parent_id: None,
+        name: "engineering".to_string(),
+        description: None,
+        sort_order: 0,
+    };
+    harness
+        .repo
+        .groups
+        .lock()
+        .unwrap()
+        .insert(existing.id, existing);
+
+    let result = harness
+        .service
+        .create_group(
+            realm_id,
+            CreateGroupPayload {
+                parent_id: None,
+                name: "engineering".to_string(),
+                description: None,
+            },
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::GroupAlreadyExists)));
+}
+
+#[tokio::test]
+async fn create_group_uses_next_sort_order() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    harness.repo.set_next_group_sort_order(42);
+
+    let group = harness
+        .service
+        .create_group(
+            realm_id,
+            CreateGroupPayload {
+                parent_id: None,
+                name: "engineering".to_string(),
+                description: None,
+            },
+        )
+        .await
+        .expect("create group");
+
+    assert_eq!(group.sort_order, 42);
+}
+
+#[tokio::test]
+async fn delete_role_publishes_event_with_affected_users() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let affected_users = vec![Uuid::new_v4(), Uuid::new_v4()];
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+    harness
+        .repo
+        .set_find_user_ids_for_role(role_id, affected_users.clone());
+
+    harness
+        .service
+        .delete_role(realm_id, role_id)
+        .await
+        .expect("delete role");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::RoleDeleted(payload) => {
+            payload.role_id == role_id && payload.affected_user_ids == affected_users
+        }
+        _ => false,
+    });
+
+    assert!(has_event, "expected RoleDeleted event");
+}
+
+#[tokio::test]
+async fn delete_group_requires_cascade_when_children_exist() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "root".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness
+        .repo
+        .set_group_children(Some(group_id), vec![Uuid::new_v4()]);
+
+    let result = harness
+        .service
+        .delete_group(realm_id, group_id, false)
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("cascade"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn delete_group_cascade_deletes_subtree_and_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let root_id = Uuid::new_v4();
+    let child_id = Uuid::new_v4();
+    let subtree = vec![root_id, child_id];
+    let affected_users = vec![Uuid::new_v4()];
+
+    harness.repo.groups.lock().unwrap().insert(
+        root_id,
+        Group {
+            id: root_id,
+            realm_id,
+            parent_id: None,
+            name: "root".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        child_id,
+        Group {
+            id: child_id,
+            realm_id,
+            parent_id: Some(root_id),
+            name: "child".to_string(),
+            description: None,
+            sort_order: 1,
+        },
+    );
+    harness.repo.set_group_subtree(root_id, subtree.clone());
+    harness
+        .repo
+        .set_find_user_ids_in_groups_result(affected_users.clone());
+
+    harness
+        .service
+        .delete_group(realm_id, root_id, true)
+        .await
+        .expect("delete group");
+
+    let delete_calls = harness.repo.delete_groups_calls.lock().unwrap().clone();
+    assert!(delete_calls.iter().any(|call| call == &subtree));
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::GroupDeleted(payload) => {
+            payload.group_ids == subtree && payload.affected_user_ids == affected_users
+        }
+        _ => false,
+    });
+
+    assert!(has_event, "expected GroupDeleted event");
+}
+
+#[tokio::test]
+async fn assign_permission_to_role_requires_custom_permission() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let result = harness
+        .service
+        .assign_permission_to_role(realm_id, role_id, "app:read".to_string())
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("custom permissions"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn update_custom_permission_requires_existing_record() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let permission_id = Uuid::new_v4();
+
+    let result = harness
+        .service
+        .update_custom_permission(
+            realm_id,
+            permission_id,
+            UpdateCustomPermissionPayload {
+                name: "Updated".to_string(),
+                description: None,
+            },
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::NotFound(_))));
+}
+
+#[tokio::test]
+async fn delete_custom_permission_removes_role_permissions_by_key() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let created = harness
+        .service
+        .create_custom_permission(
+            realm_id,
+            CreateCustomPermissionPayload {
+                permission: "app:read".to_string(),
+                name: "App Read".to_string(),
+                description: None,
+                client_id: None,
+            },
+        )
+        .await
+        .expect("create custom permission");
+
+    harness
+        .service
+        .delete_custom_permission(realm_id, created.id)
+        .await
+        .expect("delete custom permission");
+
+    let calls = harness
+        .repo
+        .remove_role_permissions_by_key_calls
+        .lock()
+        .unwrap()
+        .clone();
+    assert_eq!(calls, vec![created.permission]);
+}
+
+#[tokio::test]
+async fn bulk_update_permissions_rejects_invalid_action() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_permissions(
+            realm_id,
+            role_id,
+            vec!["app:read".to_string()],
+            "invalid".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
+
+#[tokio::test]
+async fn move_group_rejects_before_not_sibling() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let before_id = Uuid::new_v4();
+    let other_parent = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "target".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        before_id,
+        Group {
+            id: before_id,
+            realm_id,
+            parent_id: Some(other_parent),
+            name: "before".to_string(),
+            description: None,
+            sort_order: 1,
+        },
+    );
+
+    let result = harness
+        .service
+        .move_group(realm_id, group_id, None, Some(before_id), None)
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("before_id"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn move_group_rejects_descendant_parent() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "target".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        parent_id,
+        Group {
+            id: parent_id,
+            realm_id,
+            parent_id: None,
+            name: "parent".to_string(),
+            description: None,
+            sort_order: 1,
+        },
+    );
+    harness.repo.set_group_descendant(true);
+
+    let result = harness
+        .service
+        .move_group(realm_id, group_id, Some(parent_id), None, None)
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("subtree"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
 }
