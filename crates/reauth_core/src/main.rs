@@ -1,4 +1,6 @@
 use std::env::{args, set_var};
+use std::fs;
+use std::path::PathBuf;
 use reauth_core::{config::Settings, initialize, run};
 
 #[tokio::main]
@@ -14,6 +16,13 @@ async fn main() -> anyhow::Result<()> {
         let redacted = settings.redacted();
         let output = serde_json::to_string_pretty(&redacted)?;
         println!("{}", output);
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--init-config") {
+        let target_path = resolve_init_config_path()?;
+        write_config_template(&target_path)?;
+        println!("Initialized config template at {}", target_path.display());
         return Ok(());
     }
 
@@ -41,4 +50,24 @@ fn parse_config_path(args: &[String]) -> anyhow::Result<Option<String>> {
         }
     }
     Ok(None)
+}
+
+fn resolve_init_config_path() -> anyhow::Result<PathBuf> {
+    let exe_path = std::env::current_exe()?;
+    let exe_dir = exe_path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("Failed to resolve executable directory"))?;
+    Ok(exe_dir.join("reauth.toml"))
+}
+
+fn write_config_template(dest_path: &PathBuf) -> anyhow::Result<()> {
+    let template = include_str!("../../../config/reauth.toml.template");
+    if dest_path.exists() {
+        return Err(anyhow::anyhow!(
+            "Config already exists at {}",
+            dest_path.display()
+        ));
+    }
+    fs::write(dest_path, template)?;
+    Ok(())
 }

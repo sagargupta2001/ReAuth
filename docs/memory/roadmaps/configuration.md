@@ -17,9 +17,11 @@
 - [x] CORS allowlist configurable via `cors.allowed_origins`.
 - [x] `--print-config` supported for resolved config output.
 - [x] Build generates a commented `reauth.toml` template beside the binary (if missing).
+- [x] `--init-config` supported to create a local config template on demand.
 
 ## Now
 1. **Config introspection**
+   - Add a `--print-config`/`--init-config` docs section with examples (README).
 2. **Env list parsing**
    - Define supported syntax for list env vars (comma‑separated vs JSON) and document it.
 

@@ -93,6 +93,7 @@ Builds generate a commented `reauth.toml` template next to the binary if one doe
 - `--benchmark`: run initialization and migrations, then exit (used to validate startup).
 - `--config <path>`: load config from a specific file instead of relying on `reauth.toml`.
 - `--print-config`: print the resolved config (with secrets redacted) and exit.
+- `--init-config`: write a commented `reauth.toml` template next to the binary and exit.
 
 ---
 
