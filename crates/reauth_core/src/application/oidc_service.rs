@@ -334,3 +334,6 @@ impl OidcService {
         self.oidc_repo.is_origin_allowed(origin).await
     }
 }
+
+#[cfg(test)]
+mod oidc_service_tests;

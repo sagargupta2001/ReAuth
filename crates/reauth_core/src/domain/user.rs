@@ -11,3 +11,6 @@ pub struct User {
     #[serde(skip_serializing)] // Don't send hash to UI
     pub hashed_password: String,
 }
+
+#[cfg(test)]
+mod user_tests;

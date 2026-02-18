@@ -25,3 +25,6 @@ impl Realm {
             .and_then(|s| Uuid::parse_str(s).ok())
     }
 }
+
+#[cfg(test)]
+mod realm_tests;

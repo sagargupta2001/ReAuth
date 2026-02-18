@@ -374,3 +374,6 @@ impl FlowManager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod flow_manager_tests;

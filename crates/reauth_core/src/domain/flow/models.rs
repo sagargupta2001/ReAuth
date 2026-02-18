@@ -60,3 +60,6 @@ pub struct NodeMetadata {
     pub inputs: Vec<String>,              // e.g., ["flow"]
     pub outputs: Vec<String>,             // e.g., ["success", "failure"]
 }
+
+#[cfg(test)]
+mod models_tests;

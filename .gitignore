@@ -13,6 +13,8 @@ src/schema.rs
 # Env files
 .env
 
+.DS_Store
+
 ui/node_modules
 
 plugins/hello-world/frontend/node_modules

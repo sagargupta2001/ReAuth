@@ -17,3 +17,6 @@ pub struct RefreshToken {
     pub created_at: DateTime<Utc>,
     pub last_used_at: DateTime<Utc>,
 }
+
+#[cfg(test)]
+mod session_tests;

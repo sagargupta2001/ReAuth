@@ -14,3 +14,6 @@ pub struct AuthFlow {
     pub r#type: String, // "type" is a reserved keyword
     pub built_in: bool,
 }
+
+#[cfg(test)]
+mod auth_flow_tests;

@@ -163,3 +163,6 @@ impl RealmService {
         Ok(realm)
     }
 }
+
+#[cfg(test)]
+mod realm_service_tests;

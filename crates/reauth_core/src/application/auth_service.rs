@@ -241,3 +241,6 @@ impl AuthService {
         self.session_repo.list(&realm_id, &req).await
     }
 }
+
+#[cfg(test)]
+mod auth_service_tests;

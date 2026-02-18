@@ -116,3 +116,6 @@ impl FlowService {
         Ok(id)
     }
 }
+
+#[cfg(test)]
+mod flow_service_tests;

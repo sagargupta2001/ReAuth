@@ -49,3 +49,6 @@ pub enum ExecutionResult {
     #[serde(skip)] // Frontend never sees this!
     Continue,
 }
+
+#[cfg(test)]
+mod execution_tests;
