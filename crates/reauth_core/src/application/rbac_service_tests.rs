@@ -2554,6 +2554,30 @@ async fn remove_role_from_user_publishes_event() {
 }
 
 #[tokio::test]
+async fn remove_role_from_user_rejects_cross_realm() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let other_realm = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let result = harness
+        .service
+        .remove_role_from_user(other_realm, user_id, role_id)
+        .await;
+
+    assert!(matches!(result, Err(Error::SecurityViolation(_))));
+}
+
+#[tokio::test]
 async fn assign_role_to_user_rejects_cross_realm() {
     let harness = harness();
     let realm_id = Uuid::new_v4();
@@ -2655,6 +2679,42 @@ async fn remove_composite_role_publishes_event() {
         _ => false,
     });
     assert!(has_event, "expected RoleCompositeChanged removed event");
+}
+
+#[tokio::test]
+async fn remove_composite_role_rejects_mismatched_client_ids() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+    let child_role_id = Uuid::new_v4();
+    let client_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: parent_role_id,
+        realm_id,
+        client_id: Some(client_id),
+        name: "parent".to_string(),
+        description: None,
+    });
+    harness.repo.insert_role(Role {
+        id: child_role_id,
+        realm_id,
+        client_id: None,
+        name: "child".to_string(),
+        description: None,
+    });
+
+    let result = harness
+        .service
+        .remove_composite_role(realm_id, parent_role_id, child_role_id)
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("client scope"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
 }
 
 #[tokio::test]
