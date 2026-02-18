@@ -127,3 +127,6 @@ impl<T> PageResponse<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod pagination_tests;

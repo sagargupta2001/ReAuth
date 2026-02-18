@@ -69,3 +69,6 @@ pub struct OidcRequest {
     pub code_challenge: Option<String>,
     pub code_challenge_method: Option<String>,
 }
+
+#[cfg(test)]
+mod oidc_tests;

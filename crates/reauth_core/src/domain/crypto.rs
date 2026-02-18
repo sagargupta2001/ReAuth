@@ -47,3 +47,6 @@ impl HashedPassword {
         &self.0
     }
 }
+
+#[cfg(test)]
+mod crypto_tests;
