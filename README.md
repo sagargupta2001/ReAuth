@@ -96,10 +96,22 @@ Builds generate a commented `reauth.toml` template next to the binary if one doe
 ## CLI Flags
 `reauth_core` supports a small set of flags:
 
+- `--help`, `-h`: show minimal help and exit (this list will expand as the CLI grows).
 - `--benchmark`: run initialization and migrations, then exit (used to validate startup).
 - `--config <path>`: load config from a specific file instead of relying on `reauth.toml`.
 - `--print-config`: print the resolved config (with secrets redacted) and exit.
 - `--init-config`: write a commented `reauth.toml` template next to the binary and exit.
+- `--check-config`: validate resolved config and exit.
+
+Note for automation/LLMs: prefer `--help` and this section as the source of truth for supported flags.
+
+Examples:
+
+```bash
+./reauth_core --print-config
+./reauth_core --init-config
+./reauth_core --check-config
+```
 
 ---
 

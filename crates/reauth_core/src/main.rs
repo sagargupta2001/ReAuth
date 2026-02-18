@@ -3,10 +3,30 @@ use std::fs;
 use std::path::PathBuf;
 use reauth_core::{config::Settings, initialize, run};
 
+const HELP_TEXT: &str = r#"ReAuth Core
+
+Usage:
+  reauth_core [flags]
+
+Flags:
+  --help, -h        Show this help text and exit
+  --config <path>   Load config from a specific file
+  --print-config    Print resolved config (secrets redacted) and exit
+  --check-config    Validate resolved config and exit
+  --init-config     Write a commented reauth.toml template next to the binary
+  --benchmark       Run initialization and migrations, then exit
+"#;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
     let args: Vec<String> = args().collect();
+
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{}", HELP_TEXT);
+        return Ok(());
+    }
+
     if let Some(config_path) = parse_config_path(&args)? {
         set_var("REAUTH_CONFIG", config_path);
     }
@@ -16,6 +36,12 @@ async fn main() -> anyhow::Result<()> {
         let redacted = settings.redacted();
         let output = serde_json::to_string_pretty(&redacted)?;
         println!("{}", output);
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--check-config") {
+        let _settings = Settings::new()?;
+        println!("Config OK");
         return Ok(());
     }
 
