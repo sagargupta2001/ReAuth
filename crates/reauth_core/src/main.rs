@@ -40,7 +40,13 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if args.iter().any(|a| a == "--check-config") {
-        let _settings = Settings::new()?;
+        let settings = Settings::new()?;
+        if let Some((public_origin, bind_origins)) = settings.public_url_mismatch() {
+            eprintln!(
+                "Warning: server.public_url origin ({}) does not match bind origin(s) {:?}. This may break cookies or redirect URIs.",
+                public_origin, bind_origins
+            );
+        }
         println!("Config OK");
         return Ok(());
     }

@@ -219,6 +219,30 @@ impl Settings {
         None
     }
 
+    pub fn public_url_mismatch(&self) -> Option<(String, Vec<String>)> {
+        let public_origin = Url::parse(&self.server.public_url)
+            .ok()?
+            .origin()
+            .unicode_serialization();
+
+        let scheme = self.server.scheme.trim();
+        let host = self.server.host.trim();
+        if scheme.is_empty() || host.is_empty() {
+            return None;
+        }
+
+        let mut bind_origins = vec![format!("{}://{}:{}", scheme, host, self.server.port)];
+        if host == "127.0.0.1" {
+            bind_origins.push(format!("{}://localhost:{}", scheme, self.server.port));
+        }
+
+        if bind_origins.iter().any(|origin| origin == &public_origin) {
+            None
+        } else {
+            Some((public_origin, bind_origins))
+        }
+    }
+
     fn normalize_lists(&mut self) {
         normalize_list(&mut self.cors.allowed_origins);
         normalize_list(&mut self.default_oidc_client.redirect_uris);

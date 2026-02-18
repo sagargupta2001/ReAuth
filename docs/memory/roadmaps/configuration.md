@@ -24,10 +24,11 @@
 - [x] Warn when `server.public_url` origin doesn’t match the bind origin.
 - [x] README includes `--print-config` / `--init-config` examples.
 - [x] Hot reload for config file changes (with non‑reloadable fields warning).
+- [x] `--check-config` includes public URL/bind origin mismatch warning.
 
 ## Now
 1. **Config guardrails**
-   - Include the public URL/bind origin mismatch warning in `--check-config`.
+   - Add a warning when the config file watch target disappears while running.
 2. **Config UX**
    - Expand CLI examples as flags grow.
 

@@ -14,7 +14,6 @@ use notify::{RecursiveMode, Watcher};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
-use url::Url;
 
 pub async fn initialize() -> anyhow::Result<AppState> {
     let log_bus = init_logging();
@@ -100,23 +99,7 @@ fn log_config_summary(settings: &Settings) {
 }
 
 fn warn_public_url_mismatch(settings: &Settings) {
-    let public_origin = match Url::parse(&settings.server.public_url) {
-        Ok(url) => url.origin().unicode_serialization(),
-        Err(_) => return,
-    };
-
-    let scheme = settings.server.scheme.trim();
-    let host = settings.server.host.trim();
-    if scheme.is_empty() || host.is_empty() {
-        return;
-    }
-
-    let mut bind_origins = vec![format!("{}://{}:{}", scheme, host, settings.server.port)];
-    if host == "127.0.0.1" {
-        bind_origins.push(format!("{}://localhost:{}", scheme, settings.server.port));
-    }
-
-    if !bind_origins.iter().any(|origin| origin == &public_origin) {
+    if let Some((public_origin, bind_origins)) = settings.public_url_mismatch() {
         warn!(
             "server.public_url origin ({}) does not match bind origin(s) {:?}. This may break cookies or redirect URIs.",
             public_origin, bind_origins
