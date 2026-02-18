@@ -99,6 +99,11 @@ You can also place a `reauth.toml` beside the executable or pass `--config /path
 The default OIDC client (`reauth-admin`) is auto‑synced from config on startup.
 Builds generate a commented `reauth.toml` template next to the binary if one does not already exist.
 If a config file is present, changes are hot‑reloaded at runtime (note: bind address/port, DB path, and JWT settings still require a restart).
+You can also trigger a manual reload via API (requires `realm:write`):
+
+```bash
+curl -X POST http://localhost:3000/api/config/reload
+```
 
 ---
 
@@ -112,6 +117,7 @@ If a config file is present, changes are hot‑reloaded at runtime (note: bind a
 - `--init-config`: write a commented `reauth.toml` template next to the binary and exit.
 - `--check-config`: validate resolved config and exit.
 - `--seed-only`: run migrations + seeding, then exit.
+- `--seed-status`: print applied seeders and exit.
 
 Note for automation/LLMs: prefer `--help` and this section as the source of truth for supported flags.
 
@@ -123,6 +129,7 @@ Examples:
 ./reauth_core --check-config
 ./reauth_core --config /path/to/reauth.toml --print-config
 ./reauth_core --seed-only
+./reauth_core --seed-status
 ./reauth_core --benchmark
 ```
 

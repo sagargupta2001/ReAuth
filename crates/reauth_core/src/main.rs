@@ -1,7 +1,9 @@
 use std::env::{args, set_var};
 use std::fs;
 use std::path::PathBuf;
-use reauth_core::{config::Settings, initialize, run};
+use reauth_core::bootstrap::database::initialize_database;
+use reauth_core::bootstrap::seed::history::SeedHistory;
+use reauth_core::{adapters::run_migrations, config::Settings, initialize, run};
 
 const HELP_TEXT: &str = r#"ReAuth Core
 
@@ -15,6 +17,7 @@ Flags:
   --check-config    Validate resolved config and exit
   --init-config     Write a commented reauth.toml template next to the binary
   --seed-only       Run migrations + seeding, then exit
+  --seed-status     Print applied seeders and exit
   --benchmark       Run initialization and migrations, then exit
 "#;
 
@@ -55,6 +58,27 @@ async fn main() -> anyhow::Result<()> {
     if args.iter().any(|a| a == "--seed-only") {
         let _ = initialize().await?;
         println!("Seeding complete — exiting (seed-only mode)");
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--seed-status") {
+        let settings = Settings::new()?;
+        let db = initialize_database(&settings).await?;
+        if let Err(err) = run_migrations(db.as_ref()).await {
+            eprintln!("Migration warning: {}", err);
+        }
+        let history = SeedHistory::new(db.as_ref());
+        let records = history.list_all().await?;
+        if records.is_empty() {
+            println!("No seed history found.");
+        } else {
+            for record in records {
+                println!(
+                    "{} v{} ({}): {}",
+                    record.name, record.version, record.checksum, record.applied_at
+                );
+            }
+        }
         return Ok(());
     }
 

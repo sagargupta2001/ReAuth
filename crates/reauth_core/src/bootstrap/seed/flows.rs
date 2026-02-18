@@ -83,7 +83,10 @@ pub async fn ensure_default_flows(
     }
 
     if needs_update {
-        ctx.realm_service.update_realm(realm.id, update_payload).await?;
+        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        ctx.realm_service
+            .update_realm_with_tx(realm.id, update_payload, tx_ref)
+            .await?;
         info!("Updated realm with default flow bindings.");
         if let Some(updated) = ctx.realm_service.find_by_id(realm.id).await? {
             *realm = updated;
@@ -133,16 +136,27 @@ async fn ensure_flow(
     };
 
     if !draft_exists {
-        ctx.flow_store.create_draft(&draft_obj).await?;
+        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        ctx.flow_store
+            .create_draft_with_tx(&draft_obj, tx_ref)
+            .await?;
     }
 
     let latest_version = ctx.flow_store.get_latest_version_number(&flow_id).await?;
     let has_valid_version = latest_version.unwrap_or(0) > 0;
 
     if !has_valid_version {
-        match ctx.flow_manager.publish_flow(*realm_id, flow_id).await {
+        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        match ctx
+            .flow_manager
+            .publish_flow_with_tx(*realm_id, flow_id, tx_ref)
+            .await
+        {
             Ok(_) => {
-                ctx.flow_store.create_draft(&draft_obj).await?;
+                let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+                ctx.flow_store
+                    .create_draft_with_tx(&draft_obj, tx_ref)
+                    .await?;
             }
             Err(e) => {
                 tracing::error!("FAILURE - Could not publish {}: {:?}", alias, e);

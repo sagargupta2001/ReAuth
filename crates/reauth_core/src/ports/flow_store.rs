@@ -1,4 +1,5 @@
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
+use crate::ports::transaction_manager::Transaction;
 use crate::{
     domain::pagination::{PageRequest, PageResponse},
     error::Result,
@@ -10,7 +11,21 @@ use uuid::Uuid;
 pub trait FlowStore: Send + Sync {
     // --- Drafts ---
     async fn create_draft(&self, draft: &FlowDraft) -> Result<()>;
+    async fn create_draft_with_tx(
+        &self,
+        draft: &FlowDraft,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        self.create_draft(draft).await
+    }
     async fn update_draft(&self, draft: &FlowDraft) -> Result<()>;
+    async fn update_draft_with_tx(
+        &self,
+        draft: &FlowDraft,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        self.update_draft(draft).await
+    }
     async fn get_draft_by_id(&self, id: &Uuid) -> Result<Option<FlowDraft>>;
     async fn list_drafts(
         &self,
@@ -20,9 +35,23 @@ pub trait FlowStore: Send + Sync {
 
     async fn list_all_drafts(&self, realm_id: &Uuid) -> Result<Vec<FlowDraft>>;
     async fn delete_draft(&self, id: &Uuid) -> Result<()>;
+    async fn delete_draft_with_tx(
+        &self,
+        id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        self.delete_draft(id).await
+    }
 
     // --- Versions ---
     async fn create_version(&self, version: &FlowVersion) -> Result<()>;
+    async fn create_version_with_tx(
+        &self,
+        version: &FlowVersion,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        self.create_version(version).await
+    }
     async fn get_version(&self, id: &Uuid) -> Result<Option<FlowVersion>>;
     async fn list_versions(
         &self,
@@ -32,6 +61,13 @@ pub trait FlowStore: Send + Sync {
 
     // --- Deployments ---
     async fn set_deployment(&self, deployment: &FlowDeployment) -> Result<()>;
+    async fn set_deployment_with_tx(
+        &self,
+        deployment: &FlowDeployment,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        self.set_deployment(deployment).await
+    }
     async fn get_deployment(
         &self,
         realm_id: &Uuid,

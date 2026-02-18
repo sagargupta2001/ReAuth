@@ -8,6 +8,14 @@ pub struct SeedRecord {
     pub checksum: String,
 }
 
+#[derive(Debug)]
+pub struct SeedStatus {
+    pub name: String,
+    pub version: i32,
+    pub checksum: String,
+    pub applied_at: String,
+}
+
 pub struct SeedHistory<'a> {
     pool: &'a SqlitePool,
 }
@@ -58,5 +66,23 @@ impl<'a> SeedHistory<'a> {
         .execute(self.pool)
         .await?;
         Ok(())
+    }
+
+    pub async fn list_all(&self) -> anyhow::Result<Vec<SeedStatus>> {
+        let rows = sqlx::query(
+            "SELECT name, version, checksum, applied_at FROM seed_history ORDER BY name",
+        )
+        .fetch_all(self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| SeedStatus {
+                name: row.get::<String, _>("name"),
+                version: row.get::<i64, _>("version") as i32,
+                checksum: row.get::<String, _>("checksum"),
+                applied_at: row.get::<String, _>("applied_at"),
+            })
+            .collect())
     }
 }

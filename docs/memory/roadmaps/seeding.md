@@ -12,8 +12,10 @@
 - [x] Seed history table tracks `name` + `version` + `checksum`.
 - [x] Seeder registry executes versioned seeders in order.
 - [x] Per‑seeder transactions supported for atomic steps where possible.
+- [x] Flow seeding now uses transactions across flow drafts/versions/deployments.
 - [x] Admin seeding now reuses existing roles/users instead of skipping.
 - [x] `--seed-only` flag added for CI/dev workflows.
+- [x] `--seed-status` flag prints applied seeders.
 
 ## Now
 1. **Modularize seeders**
@@ -23,9 +25,9 @@
 
 ## Next
 1. **Seeder transaction coverage**
-   - Expand transactional support across repositories that currently ignore TX context.
+   - Expand transactional support to admin/oidc seeders if needed.
 2. **Seed history introspection**
-   - Add a `--seed-status` flag to print applied seeders.
+   - Add a summary endpoint or admin UI for seed status.
 
 ## Later
 - Externalize default data into `config/seed/*.toml` (or embedded JSON).

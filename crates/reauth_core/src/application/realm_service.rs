@@ -1,6 +1,6 @@
 use crate::application::flow_service::FlowService;
 use crate::config::Settings;
-use crate::ports::transaction_manager::TransactionManager;
+use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use crate::{
     domain::realm::Realm,
     error::{Error, Result},
@@ -120,6 +120,15 @@ impl RealmService {
     }
 
     pub async fn update_realm(&self, id: Uuid, payload: UpdateRealmPayload) -> Result<Realm> {
+        self.update_realm_with_tx(id, payload, None).await
+    }
+
+    pub async fn update_realm_with_tx(
+        &self,
+        id: Uuid,
+        payload: UpdateRealmPayload,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<Realm> {
         let mut realm = self
             .realm_repo
             .find_by_id(&id)
@@ -149,9 +158,7 @@ impl RealmService {
             realm.reset_credentials_flow_id = val.map(|id| id.to_string());
         }
 
-        // We pass `None` for transaction here as it's a single atomic update.
-        // If your repo trait requires the argument, passing None tells it to use the pool.
-        self.realm_repo.update(&realm, None).await?;
+        self.realm_repo.update(&realm, tx).await?;
 
         Ok(realm)
     }

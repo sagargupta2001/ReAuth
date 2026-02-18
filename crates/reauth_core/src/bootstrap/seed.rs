@@ -1,7 +1,7 @@
 mod admin;
 mod context;
 mod flows;
-mod history;
+pub mod history;
 mod oidc;
 mod realm;
 

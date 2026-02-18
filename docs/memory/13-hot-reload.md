@@ -40,3 +40,11 @@ When these change, the server logs a warning after reload.
 - For quick iteration, keep a `reauth.toml` beside the binary and edit it during runtime.
 - Use `--check-config` before a reload to validate changes.
 - Use `--print-config` to verify effective values (secrets redacted).
+
+## Manual reload endpoint
+You can trigger a reload via API (useful when file watchers are disabled or events are missed):
+- `POST /api/config/reload` (requires `realm:write`)
+
+Behavior:
+- Re-runs `Settings::new()` and applies changes to the shared config.
+- Returns `400` if no config file is found or the file no longer exists.

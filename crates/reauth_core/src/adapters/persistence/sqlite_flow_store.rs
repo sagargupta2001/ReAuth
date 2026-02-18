@@ -1,9 +1,11 @@
 use crate::adapters::persistence::connection::Database;
+use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::{
     domain::pagination::{PageRequest, PageResponse, SortDirection},
     error::{Error, Result},
     ports::flow_store::FlowStore,
+    ports::transaction_manager::Transaction,
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -69,6 +71,34 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    async fn create_draft_with_tx(
+        &self,
+        draft: &FlowDraft,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "INSERT INTO flow_drafts (id, realm_id, name, description, graph_json, flow_type, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(draft.id.to_string())
+        .bind(draft.realm_id.to_string())
+        .bind(&draft.name)
+        .bind(&draft.description)
+        .bind(&draft.graph_json)
+        .bind(&draft.flow_type)
+        .bind(draft.created_at)
+        .bind(draft.updated_at);
+
+        if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
     async fn update_draft(&self, draft: &FlowDraft) -> Result<()> {
         sqlx::query(
             "UPDATE flow_drafts SET name = ?, description = ?, graph_json = ?, updated_at = ? WHERE id = ?"
@@ -81,6 +111,30 @@ impl FlowStore for SqliteFlowStore {
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn update_draft_with_tx(
+        &self,
+        draft: &FlowDraft,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "UPDATE flow_drafts SET name = ?, description = ?, graph_json = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(&draft.name)
+        .bind(&draft.description)
+        .bind(&draft.graph_json)
+        .bind(draft.updated_at)
+        .bind(draft.id.to_string());
+
+        if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
@@ -162,6 +216,23 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    async fn delete_draft_with_tx(
+        &self,
+        id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query("DELETE FROM flow_drafts WHERE id = ?").bind(id.to_string());
+
+        if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
     // --- VERSIONS ---
 
     async fn create_version(&self, version: &FlowVersion) -> Result<()> {
@@ -179,6 +250,33 @@ impl FlowStore for SqliteFlowStore {
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn create_version_with_tx(
+        &self,
+        version: &FlowVersion,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "INSERT INTO flow_versions (id, flow_id, version_number, execution_artifact, graph_json, checksum, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&version.id)
+        .bind(&version.flow_id)
+        .bind(version.version_number)
+        .bind(&version.execution_artifact)
+        .bind(&version.graph_json)
+        .bind(&version.checksum)
+        .bind(version.created_at);
+
+        if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
@@ -261,6 +359,34 @@ impl FlowStore for SqliteFlowStore {
         .bind(deployment.updated_at)
         .execute(&*self.pool)
         .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn set_deployment_with_tx(
+        &self,
+        deployment: &FlowDeployment,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "INSERT INTO flow_deployments (id, realm_id, flow_type, active_version_id, updated_at)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(realm_id, flow_type) DO UPDATE SET
+             active_version_id = excluded.active_version_id,
+             updated_at = excluded.updated_at",
+        )
+        .bind(&deployment.id)
+        .bind(deployment.realm_id.to_string())
+        .bind(&deployment.flow_type)
+        .bind(&deployment.active_version_id)
+        .bind(deployment.updated_at);
+
+        if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
         .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }

@@ -179,7 +179,10 @@ fn spawn_config_watcher(settings: Arc<RwLock<Settings>>) {
     });
 }
 
-async fn apply_settings_update(settings: &Arc<RwLock<Settings>>, new_settings: Settings) {
+pub(crate) async fn apply_settings_update(
+    settings: &Arc<RwLock<Settings>>,
+    new_settings: Settings,
+) {
     let mut guard = settings.write().await;
     let old_settings = guard.clone();
     *guard = new_settings.clone();
