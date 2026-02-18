@@ -1,7 +1,7 @@
 use crate::application::realm_service::CreateRealmPayload;
+use crate::bootstrap::seed::context::SeedContext;
 use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::realm::Realm;
-use crate::bootstrap::seed::context::SeedContext;
 use tracing::info;
 
 pub async fn ensure_default_realm(ctx: &SeedContext<'_>) -> anyhow::Result<Realm> {

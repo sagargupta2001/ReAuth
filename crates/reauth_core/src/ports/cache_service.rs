@@ -12,11 +12,7 @@ pub trait CacheService: Send + Sync {
     async fn get_user_permissions(&self, user_id: &Uuid) -> Option<HashSet<String>>;
 
     /// Stores a user's permission set in the cache.
-    async fn set_user_permissions(
-        &self,
-        user_id: &Uuid,
-        permissions: &HashSet<String>,
-    );
+    async fn set_user_permissions(&self, user_id: &Uuid, permissions: &HashSet<String>);
 
     /// Removes a user's permission set from the cache (invalidation).
     async fn clear_user_permissions(&self, user_id: &Uuid);

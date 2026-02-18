@@ -22,6 +22,12 @@ impl InMemoryEventBus {
     }
 }
 
+impl Default for InMemoryEventBus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl EventPublisher for InMemoryEventBus {
     /// Publishes an event to all subscribers.

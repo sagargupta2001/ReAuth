@@ -1,3 +1,5 @@
+#![allow(clippy::needless_option_as_deref)]
+
 use crate::application::flow_manager::FlowManager;
 use crate::application::realm_service::UpdateRealmPayload;
 use crate::bootstrap::seed::context::SeedContext;
@@ -24,15 +26,8 @@ pub async fn ensure_default_flows(
     )
     .await?;
 
-    let direct_flow_id = ensure_flow(
-        ctx,
-        &realm.id,
-        "direct-grant",
-        "Direct Grant",
-        "direct",
-        tx,
-    )
-    .await?;
+    let direct_flow_id =
+        ensure_flow(ctx, &realm.id, "direct-grant", "Direct Grant", "direct", tx).await?;
 
     let registration_flow_id = ensure_flow(
         ctx,
@@ -83,7 +78,7 @@ pub async fn ensure_default_flows(
     }
 
     if needs_update {
-        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        let tx_ref = tx.as_deref_mut();
         ctx.realm_service
             .update_realm_with_tx(realm.id, update_payload, tx_ref)
             .await?;
@@ -117,7 +112,7 @@ async fn ensure_flow(
             r#type: type_.to_string(),
             built_in: true,
         };
-        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        let tx_ref = tx.as_deref_mut();
         ctx.flow_repo.create_flow(&flow, tx_ref).await?;
         new_id
     };
@@ -136,7 +131,7 @@ async fn ensure_flow(
     };
 
     if !draft_exists {
-        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        let tx_ref = tx.as_deref_mut();
         ctx.flow_store
             .create_draft_with_tx(&draft_obj, tx_ref)
             .await?;
@@ -146,14 +141,14 @@ async fn ensure_flow(
     let has_valid_version = latest_version.unwrap_or(0) > 0;
 
     if !has_valid_version {
-        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        let tx_ref = tx.as_deref_mut();
         match ctx
             .flow_manager
             .publish_flow_with_tx(*realm_id, flow_id, tx_ref)
             .await
         {
             Ok(_) => {
-                let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+                let tx_ref = tx.as_deref_mut();
                 ctx.flow_store
                     .create_draft_with_tx(&draft_obj, tx_ref)
                     .await?;

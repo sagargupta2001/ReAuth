@@ -20,11 +20,13 @@ pub fn init_logging(settings: &Settings) -> Arc<LogBroadcastBus> {
         }
     });
 
-    tracing_subscriber::registry()
+    let subscriber = tracing_subscriber::registry()
         .with(env_filter)
         .with(tracing_subscriber::fmt::layer())
-        .with(adapter)
-        .init();
+        .with(adapter);
+
+    // Avoid panicking if a global subscriber is already set (common in tests).
+    let _ = subscriber.try_init();
 
     log_bus
 }

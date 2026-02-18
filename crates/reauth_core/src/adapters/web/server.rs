@@ -9,9 +9,9 @@ use std::net::SocketAddr;
 pub(crate) mod ui_handler {
     use super::*;
     use crate::AppState;
+    use axum::body::Body;
     use axum::extract::State;
     use axum::http::{Request, StatusCode};
-    use axum::body::Body;
 
     /// Proxies all UI requests to the React dev server (e.g., http://localhost:5173)
     pub async fn static_handler(

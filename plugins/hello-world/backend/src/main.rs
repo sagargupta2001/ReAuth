@@ -70,8 +70,8 @@ async fn main() -> anyhow::Result<()> {
     info!("Plugin backend starting up...");
 
     let plugin = HelloWorldPlugin;
-    let greeter_service = GreeterService::default();
-    let event_listener_service = MyEventListener::default();
+    let greeter_service = GreeterService;
+    let event_listener_service = MyEventListener;
 
     run(plugin, |router| {
         router

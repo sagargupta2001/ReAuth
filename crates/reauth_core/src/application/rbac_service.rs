@@ -1,13 +1,14 @@
 use crate::domain::events::{RoleCompositeChanged, UserRoleChanged};
+use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::{
     domain::{
         events::{DomainEvent, RoleGroupChanged, RolePermissionChanged, UserGroupChanged},
         group::Group,
         permissions,
         rbac::{
-            CustomPermission, GroupDeleteSummary, GroupMemberFilter, GroupMemberRow, GroupRoleFilter,
-            GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter,
-            RoleMemberRow, UserRoleFilter, UserRoleRow,
+            CustomPermission, GroupDeleteSummary, GroupMemberFilter, GroupMemberRow,
+            GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
+            RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
         },
         role::{Permission, Role},
     },
@@ -18,7 +19,6 @@ use crate::{
 };
 use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
-use crate::domain::pagination::{PageRequest, PageResponse};
 
 #[derive(serde::Deserialize, Clone, Default)]
 pub struct CreateRolePayload {
@@ -105,7 +105,9 @@ impl RbacService {
         req: PageRequest,
     ) -> Result<PageResponse<Role>> {
         // Optional: Verify client exists and belongs to realm
-        self.rbac_repo.list_client_roles(&realm_id, &client_id, &req).await
+        self.rbac_repo
+            .list_client_roles(&realm_id, &client_id, &req)
+            .await
     }
 
     pub async fn get_role(&self, realm_id: Uuid, role_id: Uuid) -> Result<Role> {
@@ -128,7 +130,7 @@ impl RbacService {
         &self,
         realm_id: Uuid,
         role_id: Uuid,
-        payload: CreateRolePayload
+        payload: CreateRolePayload,
     ) -> Result<Role> {
         let mut role = self.get_role(realm_id, role_id).await?;
 
@@ -442,16 +444,14 @@ impl RbacService {
             client_id: payload.client_id,
             permission: permission.clone(),
             name: payload.name.trim().to_string(),
-            description: payload
-                .description
-                .and_then(|d| {
-                    let trimmed = d.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        Some(trimmed.to_string())
-                    }
-                }),
+            description: payload.description.and_then(|d| {
+                let trimmed = d.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                }
+            }),
             created_by: None,
         };
 
@@ -482,16 +482,14 @@ impl RbacService {
             client_id: existing.client_id,
             permission: existing.permission.clone(),
             name: payload.name.trim().to_string(),
-            description: payload
-                .description
-                .and_then(|d| {
-                    let trimmed = d.trim();
-                    if trimmed.is_empty() {
-                        None
-                    } else {
-                        Some(trimmed.to_string())
-                    }
-                }),
+            description: payload.description.and_then(|d| {
+                let trimmed = d.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                }
+            }),
             created_by: existing.created_by,
         };
 
@@ -570,8 +568,14 @@ impl RbacService {
             .len() as i64;
 
         let descendant_count = subtree_ids.len().saturating_sub(1) as i64;
-        let member_count = self.rbac_repo.count_user_ids_in_groups(&subtree_ids).await?;
-        let role_count = self.rbac_repo.count_role_ids_in_groups(&subtree_ids).await?;
+        let member_count = self
+            .rbac_repo
+            .count_user_ids_in_groups(&subtree_ids)
+            .await?;
+        let role_count = self
+            .rbac_repo
+            .count_role_ids_in_groups(&subtree_ids)
+            .await?;
 
         Ok(GroupDeleteSummary {
             group_id,
@@ -583,12 +587,7 @@ impl RbacService {
         })
     }
 
-    pub async fn delete_group(
-        &self,
-        realm_id: Uuid,
-        group_id: Uuid,
-        cascade: bool,
-    ) -> Result<()> {
+    pub async fn delete_group(&self, realm_id: Uuid, group_id: Uuid, cascade: bool) -> Result<()> {
         let _ = self.get_group(realm_id, group_id).await?;
 
         let direct_children = self
@@ -609,10 +608,7 @@ impl RbacService {
             vec![group_id]
         };
 
-        let affected_users = self
-            .rbac_repo
-            .find_user_ids_in_groups(&group_ids)
-            .await?;
+        let affected_users = self.rbac_repo.find_user_ids_in_groups(&group_ids).await?;
 
         self.rbac_repo.delete_groups(&group_ids).await?;
 
@@ -660,7 +656,9 @@ impl RbacService {
         child_role_id: Uuid,
     ) -> Result<()> {
         if parent_role_id == child_role_id {
-            return Err(Error::Validation("Cannot add a role as its own composite".into()));
+            return Err(Error::Validation(
+                "Cannot add a role as its own composite".into(),
+            ));
         }
 
         let parent = self.get_role(realm_id, parent_role_id).await?;
@@ -876,7 +874,8 @@ impl RbacService {
         // 1. Verify Role belongs to Realm
         let role = self.get_role(realm_id, role_id).await?;
 
-        self.ensure_permission_assignable(&role, &permission).await?;
+        self.ensure_permission_assignable(&role, &permission)
+            .await?;
 
         // 2. Assign
         self.rbac_repo
@@ -933,7 +932,9 @@ impl RbacService {
 
         // 2. Validate Action
         if action != "add" && action != "remove" {
-            return Err(Error::Validation("Invalid action. Use 'add' or 'remove'.".into()));
+            return Err(Error::Validation(
+                "Invalid action. Use 'add' or 'remove'.".into(),
+            ));
         }
 
         if action == "add" {
@@ -952,13 +953,17 @@ impl RbacService {
         // or emit one event per permission if strict audit is required.
         // Keeping it simple here:
         for perm in permissions {
-             self.event_bus
-            .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
-                role_id,
-                permission: perm,
-                action: if action == "add" { "assigned".to_string() } else { "revoked".to_string() },
-            }))
-            .await; // Note: awaiting inside loop might be slow for massive updates, consider backgrounding or batch event
+            self.event_bus
+                .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
+                    role_id,
+                    permission: perm,
+                    action: if action == "add" {
+                        "assigned".to_string()
+                    } else {
+                        "revoked".to_string()
+                    },
+                }))
+                .await; // Note: awaiting inside loop might be slow for massive updates, consider backgrounding or batch event
         }
 
         Ok(())
@@ -995,20 +1000,12 @@ impl RbacService {
         self.rbac_repo.find_user_ids_for_role(&role_id).await
     }
 
-    pub async fn get_group_member_ids(
-        &self,
-        realm_id: Uuid,
-        group_id: Uuid,
-    ) -> Result<Vec<Uuid>> {
+    pub async fn get_group_member_ids(&self, realm_id: Uuid, group_id: Uuid) -> Result<Vec<Uuid>> {
         let _ = self.get_group(realm_id, group_id).await?;
         self.rbac_repo.find_user_ids_in_group(&group_id).await
     }
 
-    pub async fn get_group_role_ids(
-        &self,
-        realm_id: Uuid,
-        group_id: Uuid,
-    ) -> Result<Vec<Uuid>> {
+    pub async fn get_group_role_ids(&self, realm_id: Uuid, group_id: Uuid) -> Result<Vec<Uuid>> {
         let _ = self.get_group(realm_id, group_id).await?;
         self.rbac_repo.find_role_ids_for_group(&group_id).await
     }
@@ -1042,11 +1039,7 @@ impl RbacService {
             .await
     }
 
-    pub async fn get_role_composite_ids(
-        &self,
-        realm_id: Uuid,
-        role_id: Uuid,
-    ) -> Result<Vec<Uuid>> {
+    pub async fn get_role_composite_ids(&self, realm_id: Uuid, role_id: Uuid) -> Result<Vec<Uuid>> {
         let _ = self.get_role(realm_id, role_id).await?;
         self.rbac_repo.list_role_composite_ids(&role_id).await
     }
@@ -1137,11 +1130,7 @@ impl RbacService {
 
         let custom = self
             .rbac_repo
-            .find_custom_permission_by_key(
-                &role.realm_id,
-                role.client_id.as_ref(),
-                permission,
-            )
+            .find_custom_permission_by_key(&role.realm_id, role.client_id.as_ref(), permission)
             .await?;
 
         if custom.is_none() {

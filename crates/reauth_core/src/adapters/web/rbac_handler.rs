@@ -1,22 +1,24 @@
 use crate::application::rbac_service::{
-    CreateCustomPermissionPayload, CreateGroupPayload, CreateRolePayload, UpdateCustomPermissionPayload,
+    CreateCustomPermissionPayload, CreateGroupPayload, CreateRolePayload,
+    UpdateCustomPermissionPayload,
 };
+use crate::domain::pagination::PageRequest;
+use crate::domain::permissions::{self, PermissionDef, ResourceGroup};
 use crate::domain::rbac::{
     GroupMemberFilter, GroupRoleFilter, RoleCompositeFilter, RoleMemberFilter, UserRoleFilter,
 };
-use crate::domain::permissions::{self, PermissionDef, ResourceGroup};
 use crate::error::{Error, Result};
 use crate::AppState;
+use axum::extract::Query;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
-use axum::extract::Query;
 use serde::Deserialize;
+use serde_json::json;
 use uuid::Uuid;
-use crate::domain::pagination::PageRequest;
 
 // POST /api/realms/{realm}/rbac/roles
 pub async fn create_role_handler(
@@ -118,7 +120,10 @@ pub async fn list_group_roots_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    let response = state.rbac_service.list_group_roots(realm.id, req.page).await?;
+    let response = state
+        .rbac_service
+        .list_group_roots(realm.id, req.page)
+        .await?;
     Ok((StatusCode::OK, Json(response)))
 }
 
@@ -283,7 +288,7 @@ pub async fn assign_permission_handler(
         .assign_permission_to_role(realm.id, role_id, payload.permission)
         .await?;
 
-    Ok((StatusCode::OK, Json({})))
+    Ok((StatusCode::OK, Json(json!({}))))
 }
 
 #[derive(Deserialize)]
@@ -479,14 +484,18 @@ pub async fn list_group_roles_handler(
     let scope = query.scope.unwrap_or_else(|| "direct".to_string());
 
     let roles = match scope.as_str() {
-        "direct" => state
-            .rbac_service
-            .get_group_role_ids(realm.id, group_id)
-            .await?,
-        "effective" => state
-            .rbac_service
-            .get_effective_group_role_ids(realm.id, group_id)
-            .await?,
+        "direct" => {
+            state
+                .rbac_service
+                .get_group_role_ids(realm.id, group_id)
+                .await?
+        }
+        "effective" => {
+            state
+                .rbac_service
+                .get_effective_group_role_ids(realm.id, group_id)
+                .await?
+        }
         _ => {
             return Err(Error::Validation(
                 "Invalid scope. Use 'direct' or 'effective'.".into(),
@@ -553,14 +562,18 @@ pub async fn list_user_roles_handler(
     let scope = query.scope.unwrap_or_else(|| "direct".to_string());
 
     let roles = match scope.as_str() {
-        "direct" => state
-            .rbac_service
-            .get_direct_role_ids_for_user(realm.id, user_id)
-            .await?,
-        "effective" => state
-            .rbac_service
-            .get_effective_role_ids_for_user(realm.id, user_id)
-            .await?,
+        "direct" => {
+            state
+                .rbac_service
+                .get_direct_role_ids_for_user(realm.id, user_id)
+                .await?
+        }
+        "effective" => {
+            state
+                .rbac_service
+                .get_effective_role_ids_for_user(realm.id, user_id)
+                .await?
+        }
         _ => {
             return Err(Error::Validation(
                 "Invalid scope. Use 'direct' or 'effective'.".into(),
@@ -626,14 +639,18 @@ pub async fn list_role_composites_handler(
     let scope = query.scope.unwrap_or_else(|| "direct".to_string());
 
     let roles = match scope.as_str() {
-        "direct" => state
-            .rbac_service
-            .get_role_composite_ids(realm.id, role_id)
-            .await?,
-        "effective" => state
-            .rbac_service
-            .get_effective_role_composite_ids(realm.id, role_id)
-            .await?,
+        "direct" => {
+            state
+                .rbac_service
+                .get_role_composite_ids(realm.id, role_id)
+                .await?
+        }
+        "effective" => {
+            state
+                .rbac_service
+                .get_effective_role_composite_ids(realm.id, role_id)
+                .await?
+        }
         _ => {
             return Err(Error::Validation(
                 "Invalid scope. Use 'direct' or 'effective'.".into(),
@@ -933,7 +950,10 @@ pub async fn list_role_permissions_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    let perms = state.rbac_service.get_permissions_for_role(realm.id, role_id).await?;
+    let perms = state
+        .rbac_service
+        .get_permissions_for_role(realm.id, role_id)
+        .await?;
     Ok(Json(perms)) // Returns ["user:read", "client:write"]
 }
 
@@ -957,14 +977,18 @@ pub async fn list_role_members_handler(
     let scope = query.scope.unwrap_or_else(|| "direct".to_string());
 
     let users = match scope.as_str() {
-        "direct" => state
-            .rbac_service
-            .get_direct_user_ids_for_role(realm.id, role_id)
-            .await?,
-        "effective" => state
-            .rbac_service
-            .get_effective_user_ids_for_role(realm.id, role_id)
-            .await?,
+        "direct" => {
+            state
+                .rbac_service
+                .get_direct_user_ids_for_role(realm.id, role_id)
+                .await?
+        }
+        "effective" => {
+            state
+                .rbac_service
+                .get_effective_user_ids_for_role(realm.id, role_id)
+                .await?
+        }
         _ => {
             return Err(Error::Validation(
                 "Invalid scope. Use 'direct' or 'effective'.".into(),
@@ -1026,7 +1050,10 @@ pub async fn revoke_permission_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    state.rbac_service.revoke_permission(realm.id, role_id, payload.permission).await?;
+    state
+        .rbac_service
+        .revoke_permission(realm.id, role_id, payload.permission)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1042,7 +1069,10 @@ pub async fn bulk_permissions_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    state.rbac_service.bulk_update_permissions(realm.id, role_id, payload.permissions, payload.action).await?;
+    state
+        .rbac_service
+        .bulk_update_permissions(realm.id, role_id, payload.permissions, payload.action)
+        .await?;
 
-    Ok((StatusCode::OK, Json({})))
+    Ok((StatusCode::OK, Json(json!({}))))
 }

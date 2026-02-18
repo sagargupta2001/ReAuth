@@ -25,19 +25,23 @@ impl MokaCacheService {
     }
 }
 
+impl Default for MokaCacheService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl CacheService for MokaCacheService {
     async fn get_user_permissions(&self, user_id: &Uuid) -> Option<HashSet<String>> {
         self.user_permissions.get(user_id).await
     }
 
-    async fn set_user_permissions(
-        &self,
-        user_id: &Uuid,
-        permissions: &HashSet<String>,
-    ) {
+    async fn set_user_permissions(&self, user_id: &Uuid, permissions: &HashSet<String>) {
         // We clone the permissions here because the cache needs to own its data.
-        self.user_permissions.insert(*user_id, permissions.clone()).await;
+        self.user_permissions
+            .insert(*user_id, permissions.clone())
+            .await;
     }
 
     async fn clear_user_permissions(&self, user_id: &Uuid) {

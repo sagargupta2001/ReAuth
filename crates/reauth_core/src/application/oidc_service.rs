@@ -143,6 +143,7 @@ impl OidcService {
     }
 
     /// Handles the creation of the authorization code AFTER login success.
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_authorization_code(
         &self,
         realm_id: Uuid,

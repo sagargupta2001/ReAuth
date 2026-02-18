@@ -1,12 +1,18 @@
-use serde::{Deserialize, Deserializer, Serialize};
 use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
 
 #[derive(Debug, Deserialize, Default)]
 pub struct PageRequest {
-    #[serde(default = "default_page", deserialize_with = "deserialize_i64_from_string")]
+    #[serde(
+        default = "default_page",
+        deserialize_with = "deserialize_i64_from_string"
+    )]
     pub page: i64,
-    #[serde(default = "default_per_page", deserialize_with = "deserialize_i64_from_string")]
+    #[serde(
+        default = "default_per_page",
+        deserialize_with = "deserialize_i64_from_string"
+    )]
     pub per_page: i64,
     #[serde(default)]
     pub sort_by: Option<String>,

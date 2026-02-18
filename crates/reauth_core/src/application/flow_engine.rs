@@ -143,7 +143,7 @@ impl FlowEngine {
                     .and_then(|v| v.as_str())
                     .unwrap_or("core.auth.password"),
                 // For Logic/Terminal, we can have generic workers or specific ones
-                _ => &node_def
+                _ => node_def
                     .config
                     .get("type")
                     .and_then(|v| v.as_str())

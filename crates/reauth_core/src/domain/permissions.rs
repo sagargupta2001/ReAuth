@@ -52,9 +52,21 @@ pub fn get_system_permissions() -> Vec<ResourceGroup> {
             label: "Realm Management".to_string(),
             description: "Control access to high-level realm settings and keys.".to_string(),
             permissions: vec![
-                p(REALM_READ, "View Realm", "Read-only access to general settings."),
-                p(REALM_WRITE, "Edit Realm", "Update realm configuration and keys."),
-                p(REALM_DELETE, "Delete Realm", "Critical access to destroy the realm."),
+                p(
+                    REALM_READ,
+                    "View Realm",
+                    "Read-only access to general settings.",
+                ),
+                p(
+                    REALM_WRITE,
+                    "Edit Realm",
+                    "Update realm configuration and keys.",
+                ),
+                p(
+                    REALM_DELETE,
+                    "Delete Realm",
+                    "Critical access to destroy the realm.",
+                ),
             ],
         },
         ResourceGroup {
@@ -62,10 +74,22 @@ pub fn get_system_permissions() -> Vec<ResourceGroup> {
             label: "Clients (Applications)".to_string(),
             description: "Manage OIDC clients, secrets, and redirect URIs.".to_string(),
             permissions: vec![
-                p(CLIENT_READ, "View Clients", "List and inspect registered applications."),
+                p(
+                    CLIENT_READ,
+                    "View Clients",
+                    "List and inspect registered applications.",
+                ),
                 p(CLIENT_CREATE, "Create Client", "Register new applications."),
-                p(CLIENT_UPDATE, "Edit Client", "Modify client settings and secrets."),
-                p(CLIENT_DELETE, "Delete Client", "Remove applications permanently."),
+                p(
+                    CLIENT_UPDATE,
+                    "Edit Client",
+                    "Modify client settings and secrets.",
+                ),
+                p(
+                    CLIENT_DELETE,
+                    "Delete Client",
+                    "Remove applications permanently.",
+                ),
             ],
         },
         ResourceGroup {
@@ -74,9 +98,17 @@ pub fn get_system_permissions() -> Vec<ResourceGroup> {
             description: "Control user directory, profiles, and credentials.".to_string(),
             permissions: vec![
                 p(USER_READ, "View Users", "Search and view user profiles."),
-                p(USER_WRITE, "Edit Users", "Update profiles, reset passwords."),
+                p(
+                    USER_WRITE,
+                    "Edit Users",
+                    "Update profiles, reset passwords.",
+                ),
                 p(USER_DELETE, "Delete Users", "Remove users permanently."),
-                p(USER_IMPERSONATE, "Impersonate", "Login as user (for debugging)."),
+                p(
+                    USER_IMPERSONATE,
+                    "Impersonate",
+                    "Login as user (for debugging).",
+                ),
             ],
         },
         ResourceGroup {
@@ -85,7 +117,11 @@ pub fn get_system_permissions() -> Vec<ResourceGroup> {
             description: "Manage roles, groups, and permissions.".to_string(),
             permissions: vec![
                 p(RBAC_READ, "View RBAC", "Inspect roles and permissions."),
-                p(RBAC_WRITE, "Manage RBAC", "Create roles and assign permissions."),
+                p(
+                    RBAC_WRITE,
+                    "Manage RBAC",
+                    "Create roles and assign permissions.",
+                ),
             ],
         },
         ResourceGroup {
@@ -94,13 +130,24 @@ pub fn get_system_permissions() -> Vec<ResourceGroup> {
             description: "View system events and user sessions.".to_string(),
             permissions: vec![
                 p(EVENT_READ, "View Logs", "Access the system audit trail."),
-                p(SESSION_READ, "View Sessions", "Inspect active user sessions."),
+                p(
+                    SESSION_READ,
+                    "View Sessions",
+                    "Inspect active user sessions.",
+                ),
                 p(SESSION_REVOKE, "Revoke Sessions", "Force logout users."),
             ],
         },
     ]
 }
 
+/// Returns true when a permission belongs to the system registry (or is the wildcard).
+///
+/// # Examples
+/// ```
+/// use reauth_core::domain::permissions::{is_system_permission, REALM_READ};
+/// assert!(is_system_permission(REALM_READ));
+/// ```
 pub fn is_system_permission(permission: &str) -> bool {
     if permission == ALL {
         return true;
@@ -119,5 +166,20 @@ fn p(id: &str, name: &str, desc: &str) -> PermissionDef {
         name: name.to_string(),
         description: desc.to_string(),
         custom_id: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn system_permissions_include_realm_read() {
+        assert!(is_system_permission(REALM_READ));
+    }
+
+    #[test]
+    fn non_system_permissions_are_rejected() {
+        assert!(!is_system_permission("custom:perm"));
     }
 }

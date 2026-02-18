@@ -89,8 +89,7 @@ pub async fn authorize_handler(
         .http_only(true)
         .same_site(SameSite::Lax)
         .secure(is_production)
-        .expires(expires_time)
-        .into();
+        .expires(expires_time);
 
     headers.insert(
         header::SET_COOKIE,

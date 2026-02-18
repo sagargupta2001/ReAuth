@@ -19,6 +19,7 @@ use axum_extra::extract::cookie::{Cookie, SameSite};
 use cookie::CookieBuilder;
 
 /// 1. START LOGIN: Logic to bootstrap a new session
+///
 /// GET /api/realms/{realm}/login
 pub async fn start_login(
     State(state): State<AppState>,
@@ -83,8 +84,7 @@ pub async fn start_login(
         .expires(
             time::OffsetDateTime::from_unix_timestamp(final_session.expires_at.timestamp())
                 .unwrap(),
-        )
-        .into();
+        );
 
     headers.insert(
         header::SET_COOKIE,

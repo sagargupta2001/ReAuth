@@ -1,3 +1,5 @@
+#![allow(clippy::needless_option_as_deref)]
+
 use crate::ports::transaction_manager::Transaction;
 use crate::{domain::auth_flow::AuthFlow, error::Result, ports::flow_repository::FlowRepository};
 use std::sync::Arc;
@@ -25,11 +27,11 @@ impl FlowService {
     }
 
     /// Creates standard built-in flows (Browser, Direct, etc.) for a specific realm.
-    pub async fn setup_default_flows_for_realm<'a>(
+    pub async fn setup_default_flows_for_realm(
         &self,
         realm_id: Uuid,
         // Accept the mutable transaction reference
-        mut tx: Option<&'a mut dyn Transaction>,
+        mut tx: Option<&mut dyn Transaction>,
     ) -> Result<DefaultFlows> {
         let browser_flow_id = self
             .create_builtin_flow(
@@ -38,7 +40,7 @@ impl FlowService {
                 "Browser Login",
                 "browser",
                 // Re-borrow the transaction for this call
-                tx.as_mut().map(|t| &mut **t),
+                tx.as_deref_mut(),
             )
             .await?;
 
@@ -48,7 +50,7 @@ impl FlowService {
                 "direct-grant",
                 "Direct Grant",
                 "direct",
-                tx.as_mut().map(|t| &mut **t),
+                tx.as_deref_mut(),
             )
             .await?;
 
@@ -58,7 +60,7 @@ impl FlowService {
                 "registration",
                 "Registration",
                 "registration",
-                tx.as_mut().map(|t| &mut **t),
+                tx.as_deref_mut(),
             )
             .await?;
 
@@ -68,7 +70,7 @@ impl FlowService {
                 "reset-credentials",
                 "Reset Credentials",
                 "reset",
-                tx.as_mut().map(|t| &mut **t),
+                tx.as_deref_mut(),
             )
             .await?;
 
@@ -81,14 +83,14 @@ impl FlowService {
     }
 
     // Helper to create flow metadata (runtime record)
-    async fn create_builtin_flow<'a>(
+    async fn create_builtin_flow(
         &self,
         realm_id: Uuid,
         name: &str,
         alias: &str,
         type_: &str,
         // Accept the transaction here
-        mut tx: Option<&'a mut dyn Transaction>,
+        mut tx: Option<&mut dyn Transaction>,
     ) -> Result<Uuid> {
         // 1. Idempotency check
         // (Reads usually don't need the Write TX unless you need Read-Your-Writes consistency.
@@ -109,9 +111,7 @@ impl FlowService {
         };
 
         // 2. Pass transaction to create_flow
-        self.flow_repo
-            .create_flow(&flow, tx.as_mut().map(|t| &mut **t))
-            .await?;
+        self.flow_repo.create_flow(&flow, tx.as_deref_mut()).await?;
 
         Ok(id)
     }

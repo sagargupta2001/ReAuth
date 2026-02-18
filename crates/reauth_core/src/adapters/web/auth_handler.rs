@@ -99,13 +99,7 @@ async fn handle_flow_success(
             // We only create a NEW persistent Root (SSO) Session if the user
             // did NOT come from an existing SSO session (i.e., they typed a password).
             // If they resumed via SSO, we trust the existing cookie and do not issue a new one.
-            let sso_cookie_update_needed = if let Some(_sso_id_val) =
-                final_session.context.get("sso_token_id")
-            {
-                false
-            } else {
-                true
-            };
+            let sso_cookie_update_needed = final_session.context.get("sso_token_id").is_none();
 
             if sso_cookie_update_needed {
                 let user = state.user_service.get_user(user_id).await?;
@@ -228,49 +222,45 @@ pub async fn start_login_flow_handler(
 
     for cookie in cookies {
         if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
-            match state.auth_session_repo.find_by_id(&parse_id).await {
-                Ok(Some(mut session)) => {
-                    // Verify the existing session belongs to the requested Realm.
-                    // If I am logged into "Tenant A" but request "Tenant B", ignore the cookie.
-                    if session.realm_id != realm.id {
-                        warn!(
-                            "[StartFlow] Ignoring session {} (Realm mismatch).",
-                            parse_id
-                        );
-                        continue;
-                    }
-
-                    if session.status == SessionStatus::Active {
-                        // [CRITICAL] Inject Context into Resumed Session
-                        let mut updated = false;
-                        if let Some(token) = &sso_token_id {
-                            session.context["sso_token_id"] =
-                                serde_json::Value::String(token.clone());
-                            updated = true;
-                        }
-                        if let Some(client_id) = params.get("client_id") {
-                            session.context["oidc"] = serde_json::json!({
-                                "client_id": client_id,
-                                "redirect_uri": params.get("redirect_uri"),
-                                "response_type": params.get("response_type"),
-                                "scope": params.get("scope"),
-                                "state": params.get("state"),
-                                "nonce": params.get("nonce"),
-                                "code_challenge": params.get("code_challenge"),
-                                "code_challenge_method": params.get("code_challenge_method"),
-                            });
-                            updated = true;
-                        }
-
-                        if updated {
-                            state.auth_session_repo.update(&session).await?;
-                        }
-
-                        valid_session_id = Some(parse_id);
-                        break;
-                    }
+            if let Ok(Some(mut session)) = state.auth_session_repo.find_by_id(&parse_id).await {
+                // Verify the existing session belongs to the requested Realm.
+                // If I am logged into "Tenant A" but request "Tenant B", ignore the cookie.
+                if session.realm_id != realm.id {
+                    warn!(
+                        "[StartFlow] Ignoring session {} (Realm mismatch).",
+                        parse_id
+                    );
+                    continue;
                 }
-                _ => {}
+
+                if session.status == SessionStatus::Active {
+                    // [CRITICAL] Inject Context into Resumed Session
+                    let mut updated = false;
+                    if let Some(token) = &sso_token_id {
+                        session.context["sso_token_id"] = serde_json::Value::String(token.clone());
+                        updated = true;
+                    }
+                    if let Some(client_id) = params.get("client_id") {
+                        session.context["oidc"] = serde_json::json!({
+                            "client_id": client_id,
+                            "redirect_uri": params.get("redirect_uri"),
+                            "response_type": params.get("response_type"),
+                            "scope": params.get("scope"),
+                            "state": params.get("state"),
+                            "nonce": params.get("nonce"),
+                            "code_challenge": params.get("code_challenge"),
+                            "code_challenge_method": params.get("code_challenge_method"),
+                        });
+                        updated = true;
+                    }
+
+                    if updated {
+                        state.auth_session_repo.update(&session).await?;
+                    }
+
+                    valid_session_id = Some(parse_id);
+                    break;
+                }
             }
         }
     }

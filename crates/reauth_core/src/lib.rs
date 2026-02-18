@@ -8,4 +8,4 @@ pub mod error;
 pub mod ports;
 
 // Re-export the main API structs/functions:
-pub use bootstrap::{initialize, run, AppState};
+pub use bootstrap::{initialize, initialize_for_tests, run, AppState};

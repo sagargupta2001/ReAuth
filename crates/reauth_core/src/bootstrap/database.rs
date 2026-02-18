@@ -21,7 +21,7 @@ pub async fn initialize_database(settings: &Settings) -> anyhow::Result<Database
     }
 
     info!("Initializing database...");
-    Ok(init_db(&settings.database).await?)
+    init_db(&settings.database).await
 }
 
 pub async fn ensure_sqlite_file_exists(path: &str) -> anyhow::Result<()> {
@@ -45,6 +45,7 @@ pub async fn ensure_sqlite_file_exists(path: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn run_migrations_and_seed(
     db_pool: &sqlx::SqlitePool,
     realm_service: &Arc<RealmService>,
@@ -60,6 +61,11 @@ pub async fn run_migrations_and_seed(
         warn!("Migration warning: {}", e);
     }
 
+    if should_skip_seed() {
+        info!("Skipping database seeding (REAUTH_TEST_SKIP_SEED enabled).");
+        return Ok(());
+    }
+
     info!("Running database seeding...");
     seed_database(
         db_pool,
@@ -68,11 +74,20 @@ pub async fn run_migrations_and_seed(
         &flow_repo,
         &flow_store,
         &flow_manager,
-        &settings,
+        settings,
         oidc_service,
         &rbac_service,
     )
     .await?;
 
     Ok(())
+}
+
+fn should_skip_seed() -> bool {
+    std::env::var("REAUTH_TEST_SKIP_SEED")
+        .map(|value| {
+            let value = value.trim().to_ascii_lowercase();
+            value == "1" || value == "true" || value == "yes"
+        })
+        .unwrap_or(false)
 }

@@ -1,9 +1,9 @@
-use std::env::{args, set_var};
-use std::fs;
-use std::path::PathBuf;
 use reauth_core::bootstrap::database::initialize_database;
 use reauth_core::bootstrap::seed::history::SeedHistory;
 use reauth_core::{adapters::run_migrations, config::Settings, initialize, run};
+use std::env::{args, set_var};
+use std::fs;
+use std::path::PathBuf;
 
 const HELP_TEXT: &str = r#"ReAuth Core
 

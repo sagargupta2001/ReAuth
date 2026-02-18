@@ -1,11 +1,10 @@
-use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt};
 use once_cell::sync::Lazy;
 use tracing::Level;
+use tracing_subscriber::{fmt, layer::SubscriberExt, EnvFilter};
 
 pub static LOGGER: Lazy<()> = Lazy::new(|| {
     // Read RUST_LOG env variable or default to info
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     // fmt subscriber with colors and structured output
     let subscriber = fmt::fmt()

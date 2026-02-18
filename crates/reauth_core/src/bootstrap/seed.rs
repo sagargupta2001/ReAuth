@@ -1,3 +1,5 @@
+#![allow(clippy::needless_option_as_deref)]
+
 mod admin;
 mod context;
 mod flows;
@@ -5,12 +7,12 @@ pub mod history;
 mod oidc;
 mod realm;
 
+use crate::adapters::persistence::transaction::SqliteTransactionManager;
 use crate::application::flow_manager::FlowManager;
 use crate::application::oidc_service::OidcService;
 use crate::application::rbac_service::RbacService;
 use crate::application::realm_service::RealmService;
 use crate::application::user_service::UserService;
-use crate::adapters::persistence::transaction::SqliteTransactionManager;
 use crate::config::Settings;
 use crate::domain::realm::Realm;
 use crate::ports::flow_repository::FlowRepository;
@@ -22,6 +24,7 @@ use history::SeedHistory;
 use std::sync::Arc;
 use tracing::info;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn seed_database(
     db_pool: &sqlx::SqlitePool,
     realm_service: &Arc<RealmService>,
@@ -84,7 +87,7 @@ pub async fn seed_database(
                     tx_manager.rollback(tx).await?;
                     return Err(err);
                 }
-                let tx_ref = tx_opt.as_mut().map(|inner| &mut **inner);
+                let tx_ref = tx_opt.as_deref_mut();
                 history.upsert(name, version, &checksum, tx_ref).await?;
             }
             tx_manager.commit(tx).await?;

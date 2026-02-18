@@ -11,5 +11,5 @@ pub mod seed;
 mod services;
 
 pub use app_state::AppState;
-pub use initialize::initialize;
+pub use initialize::{initialize, initialize_for_tests};
 pub use runtime::run;

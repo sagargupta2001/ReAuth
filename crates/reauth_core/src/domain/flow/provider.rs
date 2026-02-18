@@ -18,7 +18,9 @@ pub trait NodeProvider: Send + Sync {
     fn category(&self) -> &'static str;
 
     /// Inputs required by this node (e.g., "in")
-    fn inputs(&self) -> Vec<&'static str> { vec!["in"] }
+    fn inputs(&self) -> Vec<&'static str> {
+        vec!["in"]
+    }
 
     /// Outputs produced by this node (e.g., "success", "failure")
     fn outputs(&self) -> Vec<&'static str>;
@@ -28,5 +30,7 @@ pub trait NodeProvider: Send + Sync {
     fn config_schema(&self) -> Value;
 
     /// (Optional) Default configuration values
-    fn default_config(&self) -> Value { serde_json::json!({}) }
+    fn default_config(&self) -> Value {
+        serde_json::json!({})
+    }
 }
