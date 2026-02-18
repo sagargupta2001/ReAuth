@@ -2,7 +2,10 @@ use axum::body::Body;
 use axum::http::Request;
 use axum::response::Response;
 use axum::Router;
+use reauth_core::adapters::persistence::connection::Database;
 use reauth_core::adapters::web::router::create_router;
+use reauth_core::adapters::{init_db, run_migrations};
+use reauth_core::config::DatabaseConfig;
 use reauth_core::initialize_for_tests;
 use reauth_core::AppState;
 use std::collections::HashMap;
@@ -10,6 +13,7 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 use tower::ServiceExt;
 
+#[allow(dead_code)]
 pub struct TestContext {
     pub app_state: AppState,
     pub router: Router,
@@ -17,6 +21,7 @@ pub struct TestContext {
     _env_guard: EnvGuard,
 }
 
+#[allow(dead_code)]
 impl TestContext {
     pub async fn new() -> Self {
         Self::new_with_seed(false).await
@@ -72,6 +77,38 @@ impl TestContext {
     #[allow(dead_code)]
     pub fn plugins_path(&self) -> PathBuf {
         self.app_state.plugins_path.clone()
+    }
+}
+
+#[allow(dead_code)]
+pub struct TestDb {
+    pub pool: Database,
+    _temp_dir: TempDir,
+}
+
+#[allow(dead_code)]
+impl TestDb {
+    pub async fn new() -> Self {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let db_path = temp_dir.path().join("reauth-test.db");
+        std::fs::File::create(&db_path).expect("db file");
+        let db_url = format!("sqlite:{}", db_path.to_string_lossy());
+
+        let config = DatabaseConfig {
+            url: db_url,
+            max_connections: 1,
+            data_dir: temp_dir.path().to_string_lossy().to_string(),
+        };
+
+        let pool = init_db(&config).await.expect("failed to init db");
+        run_migrations(pool.as_ref())
+            .await
+            .expect("failed to run migrations");
+
+        Self {
+            pool,
+            _temp_dir: temp_dir,
+        }
     }
 }
 
