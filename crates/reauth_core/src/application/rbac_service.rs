@@ -1103,15 +1103,15 @@ impl RbacService {
             ));
         }
 
-        if !trimmed.contains(':') {
-            return Err(Error::Validation(
-                "Permission ID must include a namespace (e.g. app:resource:action)".into(),
-            ));
-        }
-
         if trimmed == "*" {
             return Err(Error::Validation(
                 "Wildcard permissions are reserved for system roles".into(),
+            ));
+        }
+
+        if !trimmed.contains(':') {
+            return Err(Error::Validation(
+                "Permission ID must include a namespace (e.g. app:resource:action)".into(),
             ));
         }
 

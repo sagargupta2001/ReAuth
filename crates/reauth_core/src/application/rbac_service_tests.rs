@@ -965,6 +965,84 @@ async fn create_custom_permission_rejects_missing_namespace() {
 }
 
 #[tokio::test]
+async fn create_custom_permission_rejects_empty_permission() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let result = harness
+        .service
+        .create_custom_permission(
+            realm_id,
+            CreateCustomPermissionPayload {
+                permission: "   ".to_string(),
+                name: "Test".to_string(),
+                description: None,
+                client_id: None,
+            },
+        )
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("empty"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn create_custom_permission_rejects_whitespace() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let result = harness
+        .service
+        .create_custom_permission(
+            realm_id,
+            CreateCustomPermissionPayload {
+                permission: "app: read".to_string(),
+                name: "Test".to_string(),
+                description: None,
+                client_id: None,
+            },
+        )
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("whitespace"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn create_custom_permission_rejects_wildcard_permission() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let result = harness
+        .service
+        .create_custom_permission(
+            realm_id,
+            CreateCustomPermissionPayload {
+                permission: "*".to_string(),
+                name: "Test".to_string(),
+                description: None,
+                client_id: None,
+            },
+        )
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("Wildcard"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn create_custom_permission_rejects_system_permission() {
     let harness = harness();
     let realm_id = Uuid::new_v4();
