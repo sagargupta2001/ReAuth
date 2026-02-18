@@ -1,17 +1,16 @@
 use crate::adapters::web::router::create_router;
 
 use crate::AppState;
-use axum::{
-    extract::State,
-    http::{Request, StatusCode, Uri},
-    response::IntoResponse,
-};
+use axum::http::Uri;
+use axum::response::IntoResponse;
 use std::net::SocketAddr;
 
 #[cfg(not(feature = "embed-ui"))]
 pub(crate) mod ui_handler {
     use super::*;
     use crate::AppState;
+    use axum::extract::State;
+    use axum::http::{Request, StatusCode};
     use axum::body::Body;
 
     /// Proxies all UI requests to the React dev server (e.g., http://localhost:5173)

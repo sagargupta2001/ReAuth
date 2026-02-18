@@ -96,11 +96,16 @@ impl Settings {
         }
 
         let s = builder
-            .add_source(config::Environment::with_prefix("REAUTH").separator("__"))
+            .add_source(
+                config::Environment::with_prefix("REAUTH")
+                    .separator("__")
+                    .list_separator(","),
+            )
             .build()?;
 
         let mut settings: Settings = s.try_deserialize()?;
         settings.apply_defaults();
+        settings.normalize_lists();
         settings.validate()?;
         Ok(settings)
     }
@@ -188,6 +193,12 @@ impl Settings {
         redacted.default_admin.password = "<redacted>".to_string();
         redacted
     }
+
+    fn normalize_lists(&mut self) {
+        normalize_list(&mut self.cors.allowed_origins);
+        normalize_list(&mut self.default_oidc_client.redirect_uris);
+        normalize_list(&mut self.default_oidc_client.web_origins);
+    }
 }
 
 fn default_data_dir() -> String {
@@ -256,4 +267,15 @@ fn validate_url_list(field: &str, values: &[String]) -> Result<(), config::Confi
         })?;
     }
     Ok(())
+}
+
+fn normalize_list(values: &mut Vec<String>) {
+    let mut normalized = Vec::new();
+    for value in values.iter() {
+        let trimmed = value.trim();
+        if !trimmed.is_empty() {
+            normalized.push(trimmed.to_string());
+        }
+    }
+    *values = normalized;
 }

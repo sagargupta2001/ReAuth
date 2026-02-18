@@ -18,12 +18,14 @@
 - [x] `--print-config` supported for resolved config output.
 - [x] Build generates a commented `reauth.toml` template beside the binary (if missing).
 - [x] `--init-config` supported to create a local config template on demand.
+- [x] Env list parsing for comma‑separated values (documented).
 
 ## Now
-1. **Config introspection**
-   - Add a `--print-config`/`--init-config` docs section with examples (README).
-2. **Env list parsing**
-   - Define supported syntax for list env vars (comma‑separated vs JSON) and document it.
+1. **Config guardrails**
+   - Warn when `server.public_url` origin doesn’t match the bind origin.
+   - Add a `--check-config` flag to validate config and exit.
+2. **Config UX**
+   - Add a minimal `--help` output that lists supported flags and examples.
 
 ## Later
 - Support additional config formats (e.g., YAML) if needed.

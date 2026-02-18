@@ -17,6 +17,7 @@
 - Config precedence (low → high): embedded defaults → `config/default.toml` (dev) → `reauth.toml` / `--config` / `REAUTH_CONFIG` → env.
 - CORS allowlist: `cors.allowed_origins` (TOML array).
 - Build generates a `reauth.toml` template next to the binary if missing.
+- List env vars use comma‑separated values (e.g. `REAUTH__CORS__ALLOWED_ORIGINS=http://a,http://b`).
 - Examples:
   - `REAUTH__SERVER__PORT=4000`
   - `REAUTH__DATABASE__URL=sqlite:data/reauth.db`

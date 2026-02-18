@@ -80,6 +80,12 @@ Example `reauth.toml` for CORS:
 allowed_origins = ["http://localhost:5173"]
 ```
 
+List env vars (like `cors.allowed_origins`) use comma‑separated values:
+
+```bash
+REAUTH__CORS__ALLOWED_ORIGINS=http://localhost:5173,http://localhost:4010
+```
+
 You can also place a `reauth.toml` beside the executable or pass `--config /path/to/reauth.toml`.
 `server.public_url` (if set) drives defaults for `auth.issuer` and the default OIDC client URLs.
 The default OIDC client (`reauth-admin`) is auto‑synced from config on startup.
