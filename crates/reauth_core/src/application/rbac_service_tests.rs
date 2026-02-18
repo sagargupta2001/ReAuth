@@ -98,6 +98,7 @@ struct TestRbacRepo {
     remove_role_permissions_by_key_calls: Mutex<Vec<String>>,
     delete_groups_calls: Mutex<Vec<Vec<Uuid>>>,
     set_group_orders_calls: Mutex<Vec<SetGroupOrdersCall>>,
+    failpoints: Mutex<HashMap<&'static str, String>>,
 }
 
 impl Default for TestRbacRepo {
@@ -146,6 +147,7 @@ impl Default for TestRbacRepo {
             remove_role_permissions_by_key_calls: Mutex::new(Vec::new()),
             delete_groups_calls: Mutex::new(Vec::new()),
             set_group_orders_calls: Mutex::new(Vec::new()),
+            failpoints: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -339,34 +341,55 @@ impl TestRbacRepo {
     fn set_get_permissions_for_role_result(&self, result: Vec<String>) {
         *self.get_permissions_for_role_result.lock().unwrap() = result;
     }
+
+    fn fail_once(&self, key: &'static str) {
+        self.failpoints
+            .lock()
+            .unwrap()
+            .insert(key, format!("failpoint:{key}"));
+    }
+
+    fn maybe_fail(&self, key: &'static str) -> Result<()> {
+        let message = self.failpoints.lock().unwrap().remove(key);
+        if let Some(message) = message {
+            return Err(Error::System(message));
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
 #[allow(unused_variables)]
 impl RbacRepository for TestRbacRepo {
     async fn create_role(&self, role: &Role) -> Result<()> {
+        self.maybe_fail("create_role")?;
         self.roles.lock().unwrap().insert(role.id, role.clone());
         Ok(())
     }
 
     async fn create_group(&self, group: &Group) -> Result<()> {
+        self.maybe_fail("create_group")?;
         self.groups.lock().unwrap().insert(group.id, group.clone());
         Ok(())
     }
 
     async fn assign_role_to_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
+        self.maybe_fail("assign_role_to_group")?;
         Ok(())
     }
 
     async fn remove_role_from_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
+        self.maybe_fail("remove_role_from_group")?;
         Ok(())
     }
 
     async fn assign_user_to_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
+        self.maybe_fail("assign_user_to_group")?;
         Ok(())
     }
 
     async fn remove_user_from_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
+        self.maybe_fail("remove_user_from_group")?;
         Ok(())
     }
 
@@ -375,6 +398,7 @@ impl RbacRepository for TestRbacRepo {
         permission: &Permission,
         role_id: &Uuid,
     ) -> Result<()> {
+        self.maybe_fail("assign_permission_to_role")?;
         self.assign_permission_to_role_calls
             .lock()
             .unwrap()
@@ -383,14 +407,17 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn assign_role_to_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()> {
+        self.maybe_fail("assign_role_to_user")?;
         Ok(())
     }
 
     async fn remove_role_from_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()> {
+        self.maybe_fail("remove_role_from_user")?;
         Ok(())
     }
 
     async fn find_role_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Role>> {
+        self.maybe_fail("find_role_by_name")?;
         Ok(self
             .roles
             .lock()
@@ -401,6 +428,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_group_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Group>> {
+        self.maybe_fail("find_group_by_name")?;
         Ok(self
             .groups
             .lock()
@@ -411,10 +439,12 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_group_by_id(&self, group_id: &Uuid) -> Result<Option<Group>> {
+        self.maybe_fail("find_group_by_id")?;
         Ok(self.groups.lock().unwrap().get(group_id).cloned())
     }
 
     async fn list_roles(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Role>> {
+        self.maybe_fail("list_roles")?;
         let page = self.list_roles_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -430,6 +460,7 @@ impl RbacRepository for TestRbacRepo {
         client_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<Role>> {
+        self.maybe_fail("list_client_roles")?;
         let page = self.list_client_roles_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -440,10 +471,12 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_role_by_id(&self, role_id: &Uuid) -> Result<Option<Role>> {
+        self.maybe_fail("find_role_by_id")?;
         Ok(self.roles.lock().unwrap().get(role_id).cloned())
     }
 
     async fn list_groups(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Group>> {
+        self.maybe_fail("list_groups")?;
         let page = self.list_groups_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -458,6 +491,7 @@ impl RbacRepository for TestRbacRepo {
         realm_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupTreeRow>> {
+        self.maybe_fail("list_group_roots")?;
         let page = self.list_group_roots_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -473,6 +507,7 @@ impl RbacRepository for TestRbacRepo {
         parent_id: &Uuid,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupTreeRow>> {
+        self.maybe_fail("list_group_children")?;
         let page = self.list_group_children_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -489,6 +524,7 @@ impl RbacRepository for TestRbacRepo {
         filter: RoleMemberFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<RoleMemberRow>> {
+        self.maybe_fail("list_role_members")?;
         let page = self.list_role_members_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -505,6 +541,7 @@ impl RbacRepository for TestRbacRepo {
         filter: GroupMemberFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupMemberRow>> {
+        self.maybe_fail("list_group_members")?;
         let page = self.list_group_members_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -521,6 +558,7 @@ impl RbacRepository for TestRbacRepo {
         filter: GroupRoleFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<GroupRoleRow>> {
+        self.maybe_fail("list_group_roles")?;
         let page = self.list_group_roles_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -537,6 +575,7 @@ impl RbacRepository for TestRbacRepo {
         filter: UserRoleFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<UserRoleRow>> {
+        self.maybe_fail("list_user_roles")?;
         let page = self.list_user_roles_result.lock().unwrap();
         Ok(PageResponse::new(
             page.data.clone(),
@@ -554,6 +593,7 @@ impl RbacRepository for TestRbacRepo {
         filter: RoleCompositeFilter,
         req: &PageRequest,
     ) -> Result<PageResponse<RoleCompositeRow>> {
+        self.maybe_fail("list_role_composites")?;
         *self.list_role_composites_client_id.lock().unwrap() = Some(*client_id);
         let page = self.list_role_composites_result.lock().unwrap();
         Ok(PageResponse::new(
@@ -569,6 +609,7 @@ impl RbacRepository for TestRbacRepo {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
     ) -> Result<Vec<Uuid>> {
+        self.maybe_fail("list_group_ids_by_parent")?;
         Ok(self
             .group_children_by_parent
             .lock()
@@ -579,6 +620,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn list_group_subtree_ids(&self, realm_id: &Uuid, root_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("list_group_subtree_ids")?;
         Ok(self
             .group_subtree_by_root
             .lock()
@@ -594,6 +636,7 @@ impl RbacRepository for TestRbacRepo {
         parent_id: Option<&Uuid>,
         ordered_ids: &[Uuid],
     ) -> Result<()> {
+        self.maybe_fail("set_group_orders")?;
         self.set_group_orders_calls
             .lock()
             .unwrap()
@@ -610,6 +653,7 @@ impl RbacRepository for TestRbacRepo {
         ancestor_id: &Uuid,
         candidate_id: &Uuid,
     ) -> Result<bool> {
+        self.maybe_fail("is_group_descendant")?;
         Ok(*self.group_descendant.lock().unwrap())
     }
 
@@ -618,10 +662,12 @@ impl RbacRepository for TestRbacRepo {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
     ) -> Result<i64> {
+        self.maybe_fail("get_next_group_sort_order")?;
         Ok(*self.next_group_sort_order.lock().unwrap())
     }
 
     async fn find_user_ids_in_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_user_ids_in_group")?;
         Ok(self
             .find_user_ids_in_group
             .lock()
@@ -632,10 +678,12 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_user_ids_in_groups")?;
         Ok(self.find_user_ids_in_groups_result.lock().unwrap().clone())
     }
 
     async fn find_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_role_ids_for_group")?;
         Ok(self
             .find_role_ids_for_group
             .lock()
@@ -646,6 +694,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_effective_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_effective_role_ids_for_group")?;
         Ok(self
             .find_effective_role_ids_for_group
             .lock()
@@ -656,14 +705,17 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn count_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64> {
+        self.maybe_fail("count_user_ids_in_groups")?;
         Ok(*self.count_user_ids_in_groups_result.lock().unwrap())
     }
 
     async fn count_role_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64> {
+        self.maybe_fail("count_role_ids_in_groups")?;
         Ok(*self.count_role_ids_in_groups_result.lock().unwrap())
     }
 
     async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_direct_role_ids_for_user")?;
         Ok(self
             .find_direct_role_ids_for_user
             .lock()
@@ -674,6 +726,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_effective_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_effective_role_ids_for_user")?;
         Ok(self
             .find_effective_role_ids_for_user
             .lock()
@@ -684,14 +737,17 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_role_ids_for_user")?;
         Ok(Vec::new())
     }
 
     async fn find_permissions_for_roles(&self, role_ids: &[Uuid]) -> Result<HashSet<Permission>> {
+        self.maybe_fail("find_permissions_for_roles")?;
         Ok(HashSet::new())
     }
 
     async fn find_user_ids_for_role(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_user_ids_for_role")?;
         Ok(self
             .find_user_ids_for_role
             .lock()
@@ -702,6 +758,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_direct_user_ids_for_role(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("find_direct_user_ids_for_role")?;
         Ok(self
             .find_direct_user_ids_for_role
             .lock()
@@ -712,6 +769,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn list_role_composite_ids(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("list_role_composite_ids")?;
         Ok(self
             .list_role_composite_ids
             .lock()
@@ -722,6 +780,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn list_effective_role_composite_ids(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
+        self.maybe_fail("list_effective_role_composite_ids")?;
         Ok(self
             .list_effective_role_composite_ids
             .lock()
@@ -732,6 +791,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn get_effective_permissions_for_user(&self, user_id: &Uuid) -> Result<HashSet<String>> {
+        self.maybe_fail("get_effective_permissions_for_user")?;
         Ok(self
             .effective_permissions
             .lock()
@@ -742,6 +802,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_role_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>> {
+        self.maybe_fail("find_role_names_for_user")?;
         Ok(self
             .find_role_names_for_user
             .lock()
@@ -752,6 +813,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_group_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>> {
+        self.maybe_fail("find_group_names_for_user")?;
         Ok(self
             .find_group_names_for_user
             .lock()
@@ -762,11 +824,13 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn delete_role(&self, role_id: &Uuid) -> Result<()> {
+        self.maybe_fail("delete_role")?;
         self.roles.lock().unwrap().remove(role_id);
         Ok(())
     }
 
     async fn delete_groups(&self, group_ids: &[Uuid]) -> Result<()> {
+        self.maybe_fail("delete_groups")?;
         let mut groups = self.groups.lock().unwrap();
         for id in group_ids {
             groups.remove(id);
@@ -779,20 +843,24 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn update_role(&self, role: &Role) -> Result<()> {
+        self.maybe_fail("update_role")?;
         self.roles.lock().unwrap().insert(role.id, role.clone());
         Ok(())
     }
 
     async fn update_group(&self, group: &Group) -> Result<()> {
+        self.maybe_fail("update_group")?;
         self.groups.lock().unwrap().insert(group.id, group.clone());
         Ok(())
     }
 
     async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>> {
+        self.maybe_fail("get_permissions_for_role")?;
         Ok(self.get_permissions_for_role_result.lock().unwrap().clone())
     }
 
     async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()> {
+        self.maybe_fail("remove_permission")?;
         self.remove_permission_calls
             .lock()
             .unwrap()
@@ -806,6 +874,7 @@ impl RbacRepository for TestRbacRepo {
         permissions: Vec<String>,
         action: &str,
     ) -> Result<()> {
+        self.maybe_fail("bulk_update_permissions")?;
         self.bulk_update_permissions_calls
             .lock()
             .unwrap()
@@ -822,6 +891,7 @@ impl RbacRepository for TestRbacRepo {
         parent_role_id: &Uuid,
         child_role_id: &Uuid,
     ) -> Result<()> {
+        self.maybe_fail("assign_composite_role")?;
         Ok(())
     }
 
@@ -830,14 +900,17 @@ impl RbacRepository for TestRbacRepo {
         parent_role_id: &Uuid,
         child_role_id: &Uuid,
     ) -> Result<()> {
+        self.maybe_fail("remove_composite_role")?;
         Ok(())
     }
 
     async fn is_role_descendant(&self, ancestor_id: &Uuid, candidate_id: &Uuid) -> Result<bool> {
+        self.maybe_fail("is_role_descendant")?;
         Ok(*self.role_descendant.lock().unwrap())
     }
 
     async fn create_custom_permission(&self, permission: &CustomPermission) -> Result<()> {
+        self.maybe_fail("create_custom_permission")?;
         let key = Self::permission_key(
             &permission.realm_id,
             permission.client_id.as_ref(),
@@ -855,6 +928,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn update_custom_permission(&self, permission: &CustomPermission) -> Result<()> {
+        self.maybe_fail("update_custom_permission")?;
         self.custom_permissions
             .lock()
             .unwrap()
@@ -863,6 +937,7 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn delete_custom_permission(&self, permission_id: &Uuid) -> Result<()> {
+        self.maybe_fail("delete_custom_permission")?;
         self.custom_permissions
             .lock()
             .unwrap()
@@ -876,6 +951,7 @@ impl RbacRepository for TestRbacRepo {
         client_id: Option<&Uuid>,
         permission: &str,
     ) -> Result<Option<CustomPermission>> {
+        self.maybe_fail("find_custom_permission_by_key")?;
         let key = Self::permission_key(realm_id, client_id, permission);
         let permissions = self.custom_permissions.lock().unwrap();
         Ok(self
@@ -892,6 +968,7 @@ impl RbacRepository for TestRbacRepo {
         realm_id: &Uuid,
         permission_id: &Uuid,
     ) -> Result<Option<CustomPermission>> {
+        self.maybe_fail("find_custom_permission_by_id")?;
         Ok(self
             .custom_permissions
             .lock()
@@ -905,10 +982,12 @@ impl RbacRepository for TestRbacRepo {
         realm_id: &Uuid,
         client_id: Option<&Uuid>,
     ) -> Result<Vec<CustomPermission>> {
+        self.maybe_fail("list_custom_permissions")?;
         Ok(self.list_custom_permissions_result.lock().unwrap().clone())
     }
 
     async fn remove_role_permissions_by_key(&self, permission: &str) -> Result<()> {
+        self.maybe_fail("remove_role_permissions_by_key")?;
         self.remove_role_permissions_by_key_calls
             .lock()
             .unwrap()
@@ -935,6 +1014,56 @@ fn harness() -> RbacTestHarness {
         cache,
         repo,
         events,
+    }
+}
+
+fn build_role(realm_id: Uuid, role_id: Uuid, name: &str) -> Role {
+    Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: name.to_string(),
+        description: None,
+    }
+}
+
+fn build_group(
+    realm_id: Uuid,
+    group_id: Uuid,
+    parent_id: Option<Uuid>,
+    name: &str,
+    sort_order: i64,
+) -> Group {
+    Group {
+        id: group_id,
+        realm_id,
+        parent_id,
+        name: name.to_string(),
+        description: None,
+        sort_order,
+    }
+}
+
+fn assert_failpoint_error(err: Error, key: &str) {
+    match err {
+        Error::System(message) => {
+            assert!(
+                message.contains(key),
+                "expected failpoint {key}, got {message}"
+            );
+        }
+        other => panic!("expected failpoint error for {key}, got {other:?}"),
+    }
+}
+
+async fn assert_failpoint<T, F>(repo: &TestRbacRepo, key: &'static str, fut: F)
+where
+    F: std::future::Future<Output = Result<T>>,
+{
+    repo.fail_once(key);
+    match fut.await {
+        Ok(_) => panic!("expected failpoint error"),
+        Err(err) => assert_failpoint_error(err, key),
     }
 }
 
@@ -3839,4 +3968,959 @@ async fn get_permissions_for_role_returns_repo_data() {
         .expect("get permissions");
 
     assert_eq!(result, permissions);
+}
+
+#[tokio::test]
+async fn create_role_propagates_repo_error_on_find_role_by_name() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_name",
+        harness.service.create_role(
+            realm_id,
+            CreateRolePayload {
+                name: "role".to_string(),
+                description: None,
+                client_id: None,
+            },
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn create_role_propagates_repo_error_on_create_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "create_role",
+        harness.service.create_role(
+            realm_id,
+            CreateRolePayload {
+                name: "role".to_string(),
+                description: None,
+                client_id: None,
+            },
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn get_role_propagates_repo_error_on_find_role_by_id() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness.service.get_role(realm_id, role_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn update_role_propagates_repo_error_on_update_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "update_role",
+        harness.service.update_role(
+            realm_id,
+            role_id,
+            CreateRolePayload {
+                name: "updated".to_string(),
+                description: None,
+                client_id: None,
+            },
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn delete_role_propagates_repo_error_on_find_user_ids_for_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_user_ids_for_role",
+        harness.service.delete_role(realm_id, role_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn delete_role_propagates_repo_error_on_delete_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "delete_role",
+        harness.service.delete_role(realm_id, role_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn create_group_propagates_repo_error_on_find_group_by_name() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_name",
+        harness.service.create_group(
+            realm_id,
+            CreateGroupPayload {
+                name: "group".to_string(),
+                description: None,
+                parent_id: None,
+            },
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn create_group_propagates_repo_error_on_parent_lookup() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness.service.create_group(
+            realm_id,
+            CreateGroupPayload {
+                name: "group".to_string(),
+                description: None,
+                parent_id: Some(parent_id),
+            },
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn create_group_propagates_repo_error_on_get_next_group_sort_order() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "get_next_group_sort_order",
+        harness.service.create_group(
+            realm_id,
+            CreateGroupPayload {
+                name: "group".to_string(),
+                description: None,
+                parent_id: None,
+            },
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn create_group_propagates_repo_error_on_create_group() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "create_group",
+        harness.service.create_group(
+            realm_id,
+            CreateGroupPayload {
+                name: "group".to_string(),
+                description: None,
+                parent_id: None,
+            },
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn list_group_children_propagates_repo_error_on_list_group_children() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+    let group = build_group(realm_id, parent_id, None, "parent", 0);
+    harness.repo.groups.lock().unwrap().insert(parent_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "list_group_children",
+        harness
+            .service
+            .list_group_children(realm_id, parent_id, PageRequest::default()),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn move_group_propagates_repo_error_on_list_group_ids_by_parent() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "list_group_ids_by_parent",
+        harness
+            .service
+            .move_group(realm_id, group_id, None, None, None),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn move_group_propagates_repo_error_on_set_group_orders() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "set_group_orders",
+        harness
+            .service
+            .move_group(realm_id, group_id, None, None, None),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn update_group_propagates_repo_error_on_update_group() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "update_group",
+        harness.service.update_group(
+            realm_id,
+            group_id,
+            CreateGroupPayload {
+                name: "updated".to_string(),
+                description: None,
+                parent_id: None,
+            },
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn get_group_delete_summary_propagates_repo_error_on_list_group_subtree_ids() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "list_group_subtree_ids",
+        harness.service.get_group_delete_summary(realm_id, group_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn get_group_delete_summary_propagates_repo_error_on_list_group_ids_by_parent() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "list_group_ids_by_parent",
+        harness.service.get_group_delete_summary(realm_id, group_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn get_group_delete_summary_propagates_repo_error_on_count_user_ids_in_groups() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "count_user_ids_in_groups",
+        harness.service.get_group_delete_summary(realm_id, group_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn get_group_delete_summary_propagates_repo_error_on_count_role_ids_in_groups() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "count_role_ids_in_groups",
+        harness.service.get_group_delete_summary(realm_id, group_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn delete_group_propagates_repo_error_on_list_group_ids_by_parent() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "list_group_ids_by_parent",
+        harness.service.delete_group(realm_id, group_id, true),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn delete_group_propagates_repo_error_on_list_group_subtree_ids() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "list_group_subtree_ids",
+        harness.service.delete_group(realm_id, group_id, true),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn delete_group_propagates_repo_error_on_find_user_ids_in_groups() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_user_ids_in_groups",
+        harness.service.delete_group(realm_id, group_id, true),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn delete_group_propagates_repo_error_on_delete_groups() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "delete_groups",
+        harness.service.delete_group(realm_id, group_id, true),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn assign_role_to_group_propagates_repo_error_on_assign_role_to_group() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.insert_role(role);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "assign_role_to_group",
+        harness
+            .service
+            .assign_role_to_group(realm_id, role_id, group_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn remove_role_from_group_propagates_repo_error_on_remove_role_from_group() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.insert_role(role);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "remove_role_from_group",
+        harness
+            .service
+            .remove_role_from_group(realm_id, role_id, group_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn assign_user_to_group_propagates_repo_error_on_assign_user_to_group() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "assign_user_to_group",
+        harness
+            .service
+            .assign_user_to_group(realm_id, user_id, group_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn remove_user_from_group_propagates_repo_error_on_remove_user_from_group() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let group = build_group(realm_id, group_id, None, "group", 0);
+    harness.repo.groups.lock().unwrap().insert(group_id, group);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "remove_user_from_group",
+        harness
+            .service
+            .remove_user_from_group(realm_id, user_id, group_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn assign_permission_to_role_propagates_repo_error_on_assign_permission_to_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "assign_permission_to_role",
+        harness.service.assign_permission_to_role(
+            realm_id,
+            role_id,
+            permissions::REALM_READ.to_string(),
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn revoke_permission_propagates_repo_error_on_remove_permission() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "remove_permission",
+        harness
+            .service
+            .revoke_permission(realm_id, role_id, permissions::REALM_READ.to_string()),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn bulk_update_permissions_propagates_repo_error_on_bulk_update_permissions() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "bulk_update_permissions",
+        harness.service.bulk_update_permissions(
+            realm_id,
+            role_id,
+            vec![permissions::REALM_READ.to_string()],
+            "add".to_string(),
+        ),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn assign_role_to_user_propagates_repo_error_on_assign_role_to_user() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "assign_role_to_user",
+        harness
+            .service
+            .assign_role_to_user(realm_id, user_id, role_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn remove_role_from_user_propagates_repo_error_on_remove_role_from_user() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "remove_role_from_user",
+        harness
+            .service
+            .remove_role_from_user(realm_id, user_id, role_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn assign_composite_role_propagates_repo_error_on_is_role_descendant() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+    let child_id = Uuid::new_v4();
+    let parent = build_role(realm_id, parent_id, "parent");
+    let child = build_role(realm_id, child_id, "child");
+    harness.repo.insert_role(parent);
+    harness.repo.insert_role(child);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "is_role_descendant",
+        harness
+            .service
+            .assign_composite_role(realm_id, parent_id, child_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn assign_composite_role_propagates_repo_error_on_assign_composite_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+    let child_id = Uuid::new_v4();
+    let parent = build_role(realm_id, parent_id, "parent");
+    let child = build_role(realm_id, child_id, "child");
+    harness.repo.insert_role(parent);
+    harness.repo.insert_role(child);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "assign_composite_role",
+        harness
+            .service
+            .assign_composite_role(realm_id, parent_id, child_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn remove_composite_role_propagates_repo_error_on_remove_composite_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+    let child_id = Uuid::new_v4();
+    let parent = build_role(realm_id, parent_id, "parent");
+    let child = build_role(realm_id, child_id, "child");
+    harness.repo.insert_role(parent);
+    harness.repo.insert_role(child);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "remove_composite_role",
+        harness
+            .service
+            .remove_composite_role(realm_id, parent_id, child_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn get_user_roles_and_groups_propagates_repo_error_on_find_role_names_for_user() {
+    let harness = harness();
+    let user_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_names_for_user",
+        harness.service.get_user_roles_and_groups(&user_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn get_effective_permissions_propagates_repo_error_on_repo_fetch() {
+    let harness = harness();
+    let user_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "get_effective_permissions_for_user",
+        harness.service.get_effective_permissions(&user_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn role_lookup_failures_propagate_in_role_scoped_methods() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness.service.update_role(
+            realm_id,
+            role_id,
+            CreateRolePayload {
+                name: "role".to_string(),
+                description: None,
+                client_id: None,
+            },
+        ),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness.service.list_role_members(
+            realm_id,
+            role_id,
+            RoleMemberFilter::All,
+            PageRequest::default(),
+        ),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness.service.list_role_composites(
+            realm_id,
+            role_id,
+            RoleCompositeFilter::All,
+            PageRequest::default(),
+        ),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness.service.get_permissions_for_role(realm_id, role_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness.service.assign_permission_to_role(
+            realm_id,
+            role_id,
+            permissions::REALM_READ.to_string(),
+        ),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .revoke_permission(realm_id, role_id, permissions::REALM_READ.to_string()),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness.service.bulk_update_permissions(
+            realm_id,
+            role_id,
+            vec![permissions::REALM_READ.to_string()],
+            "add".to_string(),
+        ),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .get_direct_user_ids_for_role(realm_id, role_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .get_effective_user_ids_for_role(realm_id, role_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness.service.get_role_composite_ids(realm_id, role_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .get_effective_role_composite_ids(realm_id, role_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .assign_role_to_group(realm_id, role_id, group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .remove_role_from_group(realm_id, role_id, group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .assign_composite_role(realm_id, role_id, Uuid::new_v4()),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .remove_composite_role(realm_id, role_id, Uuid::new_v4()),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .assign_role_to_user(realm_id, Uuid::new_v4(), role_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_role_by_id",
+        harness
+            .service
+            .remove_role_from_user(realm_id, Uuid::new_v4(), role_id),
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn group_lookup_failures_propagate_in_group_scoped_methods() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let role = build_role(realm_id, role_id, "role");
+    harness.repo.insert_role(role);
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness.service.list_group_members(
+            realm_id,
+            group_id,
+            GroupMemberFilter::All,
+            PageRequest::default(),
+        ),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness.service.list_group_roles(
+            realm_id,
+            group_id,
+            GroupRoleFilter::All,
+            PageRequest::default(),
+        ),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness
+            .service
+            .list_group_children(realm_id, group_id, PageRequest::default()),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness.service.get_group_member_ids(realm_id, group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness.service.get_group_role_ids(realm_id, group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness
+            .service
+            .get_effective_group_role_ids(realm_id, group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness
+            .service
+            .assign_role_to_group(realm_id, role_id, group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness
+            .service
+            .remove_role_from_group(realm_id, role_id, group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness
+            .service
+            .assign_user_to_group(realm_id, Uuid::new_v4(), group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness
+            .service
+            .remove_user_from_group(realm_id, Uuid::new_v4(), group_id),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness.service.delete_group(realm_id, group_id, true),
+    )
+    .await;
+
+    assert_failpoint(
+        harness.repo.as_ref(),
+        "find_group_by_id",
+        harness
+            .service
+            .move_group(realm_id, group_id, None, None, None),
+    )
+    .await;
 }
