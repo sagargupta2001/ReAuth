@@ -132,6 +132,7 @@ fn spawn_config_watcher(settings: Arc<RwLock<Settings>>) {
             return;
         }
 
+        let mut missing_warned = false;
         loop {
             let event = match rx.recv().await {
                 Some(event) => event,
@@ -146,6 +147,25 @@ fn spawn_config_watcher(settings: Arc<RwLock<Settings>>) {
             // Debounce rapid successive events.
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
             while rx.try_recv().is_ok() {}
+
+            if !config_path.exists() {
+                if !missing_warned {
+                    warn!(
+                        "Config hot reload disabled: watched config file {} no longer exists.",
+                        config_path.display()
+                    );
+                    missing_warned = true;
+                }
+                continue;
+            }
+
+            if missing_warned {
+                info!(
+                    "Config file {} restored; hot reload resumed.",
+                    config_path.display()
+                );
+                missing_warned = false;
+            }
 
             match Settings::new() {
                 Ok(new_settings) => {

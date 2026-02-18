@@ -25,6 +25,8 @@
 - [x] README includes `--print-config` / `--init-config` examples.
 - [x] Hot reload for config file changes (with non‑reloadable fields warning).
 - [x] `--check-config` includes public URL/bind origin mismatch warning.
+- [x] Hot reload warns when the watched config file disappears.
+- [x] README CLI examples expanded as flags grew.
 
 ## Now
 1. **Config guardrails**

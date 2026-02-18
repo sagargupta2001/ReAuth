@@ -112,6 +112,8 @@ Examples:
 ./reauth_core --print-config
 ./reauth_core --init-config
 ./reauth_core --check-config
+./reauth_core --config /path/to/reauth.toml --print-config
+./reauth_core --benchmark
 ```
 
 ---
