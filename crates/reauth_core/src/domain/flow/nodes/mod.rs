@@ -5,3 +5,6 @@ pub mod password_node;
 pub mod script_node;
 pub mod start_node;
 pub mod terminal_node;
+
+#[cfg(test)]
+mod nodes_tests;

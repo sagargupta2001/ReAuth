@@ -70,3 +70,6 @@ pub trait LifecycleNode: Send + Sync {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod lifecycle_tests;

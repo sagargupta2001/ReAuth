@@ -113,3 +113,6 @@ impl AuthenticationSession {
         }
     }
 }
+
+#[cfg(test)]
+mod auth_session_tests;

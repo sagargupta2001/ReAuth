@@ -34,3 +34,6 @@ pub trait NodeProvider: Send + Sync {
         serde_json::json!({})
     }
 }
+
+#[cfg(test)]
+mod provider_tests;
