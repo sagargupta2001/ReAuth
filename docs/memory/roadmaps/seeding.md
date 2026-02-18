@@ -4,25 +4,25 @@
 - Make default data seeding modular, idempotent, and scalable as new defaults are added.
 
 ## Current state (code-aligned)
-- [x] Seeding lives in a monolithic `bootstrap/seed.rs` function.
+- [x] Seeding is orchestrated in `bootstrap/seed.rs` with feature‑scoped modules.
 - [x] Defaults include realm, flows, admin user/role, and default OIDC client.
 - [x] Seeding is run on every startup (after migrations).
-- [ ] No seed versioning or history tracking.
+- [x] Seed versioning and history tracking are in place.
+- [x] Seed logic split into feature‑scoped modules with shared context.
+- [x] Seed history table tracks `name` + `version` + `checksum`.
+- [x] Seeder registry executes versioned seeders in order.
 
 ## Now
 1. **Modularize seeders**
-   - Split `seed.rs` into feature‑scoped modules (`realm`, `flows`, `admin`, `oidc`, `rbac`, …).
-   - Introduce a simple `SeedContext` to share common deps.
+   - Keep modules aligned as new defaults are added.
 2. **Idempotency contract**
    - Ensure each seeder is safe to run multiple times without duplicating data.
 
 ## Next
-1. **Seed history + versioning**
-   - Add a `seed_history` table: `name`, `version`, `checksum`, `applied_at`.
-   - Only re-run seeders if their version/checksum changes.
-2. **Seeder registry**
-   - Add a `Seeder` trait and a registry that executes seeders in order.
-   - Allow per‑seeder transactions.
+1. **Seeder transactions**
+   - Allow per‑seeder transactions for atomic seeding steps.
+2. **Admin seeding refinement**
+   - Improve role lookup if `super_admin` already exists (avoid silent skip).
 
 ## Later
 - Externalize default data into `config/seed/*.toml` (or embedded JSON).

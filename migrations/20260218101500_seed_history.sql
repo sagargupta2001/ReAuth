@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS seed_history (
+  name TEXT PRIMARY KEY,
+  version INTEGER NOT NULL,
+  checksum TEXT NOT NULL,
+  applied_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+);
