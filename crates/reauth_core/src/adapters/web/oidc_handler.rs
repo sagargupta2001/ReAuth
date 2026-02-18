@@ -216,6 +216,7 @@ pub async fn create_client_handler(
         redirect_uris: redirect_uris_json,
         web_origins: web_origins_json,
         scopes: "openid profile email".to_string(), // Default scopes
+        managed_by_config: false,
     };
 
     state.oidc_service.register_client(&mut client).await?;

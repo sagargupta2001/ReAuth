@@ -7,6 +7,7 @@ use axum::{
     response::Response,
 };
 use tracing::warn;
+use url::Url;
 
 pub async fn dynamic_cors_guard(
     State(state): State<AppState>,
@@ -28,9 +29,8 @@ pub async fn dynamic_cors_guard(
         }
     };
 
-    // 1. Allow own origin (Dashboard)
-    // You might want to make this configurable via env var
-    if origin_str == "http://localhost:3000" {
+    // 1. Allow configured UI + server origins from settings
+    if is_allowed_origin(&state, &origin_str) {
         return allow_response(next.run(req).await, &origin_str);
     }
 
@@ -71,4 +71,60 @@ fn allow_response(mut response: Response, origin: &str) -> Response {
         HeaderValue::from_static("Authorization, Content-Type, Cookie, Accept"),
     );
     response
+}
+
+fn is_allowed_origin(state: &AppState, origin: &str) -> bool {
+    let mut allowed = Vec::new();
+
+    for bind_origin in bind_origins(state) {
+        allowed.push(bind_origin);
+    }
+
+    if let Some(server_origin) = normalize_origin(&state.settings.server.public_url) {
+        allowed.push(server_origin);
+    }
+
+    if let Some(ui_origin) = normalize_origin(&state.settings.ui.dev_url) {
+        allowed.push(ui_origin);
+    }
+
+    for configured_origin in &state.settings.default_oidc_client.web_origins {
+        if let Some(origin) = normalize_origin(configured_origin) {
+            allowed.push(origin);
+        }
+    }
+
+    allowed.iter().any(|allowed_origin| allowed_origin == origin)
+}
+
+fn normalize_origin(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Ok(parsed) = Url::parse(trimmed) {
+        return Some(parsed.origin().unicode_serialization());
+    }
+
+    None
+}
+
+fn bind_origins(state: &AppState) -> Vec<String> {
+    let mut origins = Vec::new();
+    let scheme = state.settings.server.scheme.trim();
+    let host = state.settings.server.host.trim();
+
+    if scheme.is_empty() || host.is_empty() {
+        return origins;
+    }
+
+    let port = state.settings.server.port;
+    origins.push(format!("{}://{}:{}", scheme, host, port));
+
+    if host == "127.0.0.1" {
+        origins.push(format!("{}://localhost:{}", scheme, port));
+    }
+
+    origins
 }

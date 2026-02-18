@@ -15,7 +15,6 @@ use std::sync::Arc;
 pub async fn initialize() -> anyhow::Result<AppState> {
     let settings = Settings::new()?;
     let log_bus = init_logging();
-    dotenvy::dotenv().ok();
     print_banner();
 
     let plugins_path = determine_plugins_path()?;

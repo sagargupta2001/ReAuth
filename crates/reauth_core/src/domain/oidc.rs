@@ -15,6 +15,7 @@ pub struct OidcClient {
     pub redirect_uris: String, // Stored as JSON array string
     pub scopes: String,        // Stored as JSON array string
     pub web_origins: String,   // JSON array string (e.g. ["http://localhost:6565"])
+    pub managed_by_config: bool,
 }
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]

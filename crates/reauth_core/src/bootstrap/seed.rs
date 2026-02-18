@@ -151,57 +151,65 @@ pub async fn seed_database(
     // Seed Admin User & RBAC [EXTRACTED]
     seed_admin_user(realm.id, settings, user_service, rbac_service).await?;
 
-    //  SEED DEFAULT OIDC CLIENT
-    let client_id = "reauth-admin";
-    // Allow both dev and prod URLs
-    let check_uri = &settings
-        .default_oidc_client
-        .redirect_uris
-        .first()
-        .map(|s| s.as_str())
-        .unwrap_or("");
+    //  SEED / SYNC DEFAULT OIDC CLIENT
+    let client_id = settings.default_oidc_client.client_id.clone();
+    let desired_redirect_uris =
+        serde_json::to_string(&settings.default_oidc_client.redirect_uris)?;
+    let desired_web_origins =
+        serde_json::to_string(&settings.default_oidc_client.web_origins)?;
 
-    if oidc_service
-        .validate_client(
-            &realm.id,
-            &settings.default_oidc_client.client_id,
-            check_uri,
-        )
-        .await
-        .is_err()
+    match oidc_service
+        .find_client_by_client_id(&realm.id, &client_id)
+        .await?
     {
-        info!("Seeding default OIDC client '{}'...", client_id);
+        Some(mut client) => {
+            let mut needs_update = false;
 
-        // Note: OidcService doesn't have a `create_client` method exposed yet,
-        // so we might need to use the repo directly or add a method to the service.
-        // For Clean Architecture, let's add a helper to OidcService.
-        // For this snippet, I'll assume we added `register_client` to OidcService.
+            if !client.managed_by_config {
+                client.managed_by_config = true;
+                needs_update = true;
+            }
 
-        // *TEMPORARY FIX*: Use the repo directly via a new Service method or just
-        // assume the service has a create method. Let's add it to OidcService below.
+            if client.managed_by_config {
+                if client.redirect_uris != desired_redirect_uris {
+                    client.redirect_uris = desired_redirect_uris.clone();
+                    needs_update = true;
+                }
 
-        let secret: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .map(char::from)
-            .collect();
+                if client.web_origins != desired_web_origins {
+                    client.web_origins = desired_web_origins.clone();
+                    needs_update = true;
+                }
+            }
 
-        let web_origins_json = serde_json::to_string(&settings.default_oidc_client.web_origins)
-            .expect("Failed to serialize default web origins");
+            if needs_update {
+                oidc_service.update_client_record(&client).await?;
+                info!("Default OIDC client synced with config.");
+            }
+        }
+        None => {
+            info!("Seeding default OIDC client '{}'...", client_id);
 
-        let mut client = OidcClient {
-            id: uuid::Uuid::new_v4(),
-            realm_id: realm.id,
-            client_id: client_id.to_string(),
-            client_secret: Some(secret), // Public client (SPA)
-            redirect_uris: serde_json::to_string(&settings.default_oidc_client.redirect_uris)?,
-            scopes: "openid profile email".to_string(),
-            web_origins: web_origins_json,
-        };
+            let secret: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(32)
+                .map(char::from)
+                .collect();
 
-        // You need to expose a create method in OidcService, see Step 5 below.
-        oidc_service.register_client(&mut client).await?;
-        info!("Default OIDC client created.");
+            let mut client = OidcClient {
+                id: uuid::Uuid::new_v4(),
+                realm_id: realm.id,
+                client_id: client_id.to_string(),
+                client_secret: Some(secret), // Public client (SPA)
+                redirect_uris: desired_redirect_uris,
+                scopes: "openid profile email".to_string(),
+                web_origins: desired_web_origins,
+                managed_by_config: true,
+            };
+
+            oidc_service.register_client(&mut client).await?;
+            info!("Default OIDC client created.");
+        }
     }
 
     Ok(())

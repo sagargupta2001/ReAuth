@@ -71,6 +71,10 @@ REAUTH__SERVER__PORT=4000
 REAUTH__DATABASE__URL=sqlite:data/reauth.db
 ```
 
+You can also place a `reauth.toml` beside the executable or pass `--config /path/to/reauth.toml`.
+`server.public_url` (if set) drives defaults for `auth.issuer` and the default OIDC client URLs.
+The default OIDC client (`reauth-admin`) is auto‑synced from config on startup.
+
 ---
 
 ## Database & migrations
