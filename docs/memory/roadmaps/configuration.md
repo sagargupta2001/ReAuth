@@ -30,9 +30,9 @@
 
 ## Now
 1. **Config guardrails**
-   - Add a warning when the config file watch target disappears while running.
+   - Warn if the config watch target disappears (done; keep watching for regressions).
 2. **Config UX**
-   - Expand CLI examples as flags grow.
+   - Keep CLI examples up to date as new flags are added.
 
 ## Later
 - Support additional config formats (e.g., YAML) if needed.
