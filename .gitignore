@@ -1,5 +1,6 @@
 # Rust build
 /target/
+/target/llvm-cov/
 
 # SQLite database
 *.db

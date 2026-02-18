@@ -15,4 +15,4 @@ test-docs:
 	cargo test -p reauth_core --doc
 
 coverage:
-	cargo llvm-cov -p reauth_core
+	cargo llvm-cov -p reauth_core --html

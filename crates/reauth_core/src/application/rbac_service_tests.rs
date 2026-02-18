@@ -47,6 +47,13 @@ struct SetGroupOrdersCall {
     ordered_ids: Vec<Uuid>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct BulkUpdateCall {
+    role_id: Uuid,
+    permissions: Vec<String>,
+    action: String,
+}
+
 #[derive(Default)]
 struct TestRbacRepo {
     roles: Mutex<HashMap<Uuid, Role>>,
@@ -55,12 +62,27 @@ struct TestRbacRepo {
     group_subtree_by_root: Mutex<HashMap<Uuid, Vec<Uuid>>>,
     group_descendant: Mutex<bool>,
     next_group_sort_order: Mutex<i64>,
+    count_user_ids_in_groups_result: Mutex<i64>,
+    count_role_ids_in_groups_result: Mutex<i64>,
     custom_permissions: Mutex<HashMap<Uuid, CustomPermission>>,
     custom_permissions_by_key: Mutex<HashMap<String, Uuid>>,
     role_descendant: Mutex<bool>,
     effective_permissions: Mutex<HashMap<Uuid, HashSet<String>>>,
     find_user_ids_for_role: Mutex<HashMap<Uuid, Vec<Uuid>>>,
+    find_direct_user_ids_for_role: Mutex<HashMap<Uuid, Vec<Uuid>>>,
     find_user_ids_in_groups_result: Mutex<Vec<Uuid>>,
+    find_user_ids_in_group: Mutex<HashMap<Uuid, Vec<Uuid>>>,
+    find_role_ids_for_group: Mutex<HashMap<Uuid, Vec<Uuid>>>,
+    find_effective_role_ids_for_group: Mutex<HashMap<Uuid, Vec<Uuid>>>,
+    find_direct_role_ids_for_user: Mutex<HashMap<Uuid, Vec<Uuid>>>,
+    find_effective_role_ids_for_user: Mutex<HashMap<Uuid, Vec<Uuid>>>,
+    list_role_composite_ids: Mutex<HashMap<Uuid, Vec<Uuid>>>,
+    list_effective_role_composite_ids: Mutex<HashMap<Uuid, Vec<Uuid>>>,
+    find_role_names_for_user: Mutex<HashMap<Uuid, Vec<String>>>,
+    find_group_names_for_user: Mutex<HashMap<Uuid, Vec<String>>>,
+    assign_permission_to_role_calls: Mutex<Vec<(Uuid, String)>>,
+    remove_permission_calls: Mutex<Vec<(Uuid, String)>>,
+    bulk_update_permissions_calls: Mutex<Vec<BulkUpdateCall>>,
     remove_role_permissions_by_key_calls: Mutex<Vec<String>>,
     delete_groups_calls: Mutex<Vec<Vec<Uuid>>>,
     set_group_orders_calls: Mutex<Vec<SetGroupOrdersCall>>,
@@ -81,6 +103,14 @@ impl TestRbacRepo {
 
     fn set_next_group_sort_order(&self, value: i64) {
         *self.next_group_sort_order.lock().unwrap() = value;
+    }
+
+    fn set_count_user_ids_in_groups_result(&self, value: i64) {
+        *self.count_user_ids_in_groups_result.lock().unwrap() = value;
+    }
+
+    fn set_count_role_ids_in_groups_result(&self, value: i64) {
+        *self.count_role_ids_in_groups_result.lock().unwrap() = value;
     }
 
     fn set_group_children(&self, parent_id: Option<Uuid>, children: Vec<Uuid>) {
@@ -104,8 +134,78 @@ impl TestRbacRepo {
             .insert(role_id, user_ids);
     }
 
+    fn set_find_direct_user_ids_for_role(&self, role_id: Uuid, user_ids: Vec<Uuid>) {
+        self.find_direct_user_ids_for_role
+            .lock()
+            .unwrap()
+            .insert(role_id, user_ids);
+    }
+
     fn set_find_user_ids_in_groups_result(&self, user_ids: Vec<Uuid>) {
         *self.find_user_ids_in_groups_result.lock().unwrap() = user_ids;
+    }
+
+    fn set_find_user_ids_in_group(&self, group_id: Uuid, user_ids: Vec<Uuid>) {
+        self.find_user_ids_in_group
+            .lock()
+            .unwrap()
+            .insert(group_id, user_ids);
+    }
+
+    fn set_find_role_ids_for_group(&self, group_id: Uuid, role_ids: Vec<Uuid>) {
+        self.find_role_ids_for_group
+            .lock()
+            .unwrap()
+            .insert(group_id, role_ids);
+    }
+
+    fn set_find_effective_role_ids_for_group(&self, group_id: Uuid, role_ids: Vec<Uuid>) {
+        self.find_effective_role_ids_for_group
+            .lock()
+            .unwrap()
+            .insert(group_id, role_ids);
+    }
+
+    fn set_find_direct_role_ids_for_user(&self, user_id: Uuid, role_ids: Vec<Uuid>) {
+        self.find_direct_role_ids_for_user
+            .lock()
+            .unwrap()
+            .insert(user_id, role_ids);
+    }
+
+    fn set_find_effective_role_ids_for_user(&self, user_id: Uuid, role_ids: Vec<Uuid>) {
+        self.find_effective_role_ids_for_user
+            .lock()
+            .unwrap()
+            .insert(user_id, role_ids);
+    }
+
+    fn set_list_role_composite_ids(&self, role_id: Uuid, composites: Vec<Uuid>) {
+        self.list_role_composite_ids
+            .lock()
+            .unwrap()
+            .insert(role_id, composites);
+    }
+
+    fn set_list_effective_role_composite_ids(&self, role_id: Uuid, composites: Vec<Uuid>) {
+        self.list_effective_role_composite_ids
+            .lock()
+            .unwrap()
+            .insert(role_id, composites);
+    }
+
+    fn set_find_role_names_for_user(&self, user_id: Uuid, roles: Vec<String>) {
+        self.find_role_names_for_user
+            .lock()
+            .unwrap()
+            .insert(user_id, roles);
+    }
+
+    fn set_find_group_names_for_user(&self, user_id: Uuid, groups: Vec<String>) {
+        self.find_group_names_for_user
+            .lock()
+            .unwrap()
+            .insert(user_id, groups);
     }
 
     fn set_effective_permissions(&self, user_id: Uuid, permissions: HashSet<String>) {
@@ -165,6 +265,10 @@ impl RbacRepository for TestRbacRepo {
         permission: &Permission,
         role_id: &Uuid,
     ) -> Result<()> {
+        self.assign_permission_to_role_calls
+            .lock()
+            .unwrap()
+            .push((*role_id, permission.clone()));
         Ok(())
     }
 
@@ -347,7 +451,13 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_user_ids_in_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
-        Ok(Vec::new())
+        Ok(self
+            .find_user_ids_in_group
+            .lock()
+            .unwrap()
+            .get(group_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn find_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<Vec<Uuid>> {
@@ -355,27 +465,51 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
-        Ok(Vec::new())
+        Ok(self
+            .find_role_ids_for_group
+            .lock()
+            .unwrap()
+            .get(group_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn find_effective_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>> {
-        Ok(Vec::new())
+        Ok(self
+            .find_effective_role_ids_for_group
+            .lock()
+            .unwrap()
+            .get(group_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn count_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64> {
-        Ok(0)
+        Ok(*self.count_user_ids_in_groups_result.lock().unwrap())
     }
 
     async fn count_role_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64> {
-        Ok(0)
+        Ok(*self.count_role_ids_in_groups_result.lock().unwrap())
     }
 
     async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
-        Ok(Vec::new())
+        Ok(self
+            .find_direct_role_ids_for_user
+            .lock()
+            .unwrap()
+            .get(user_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn find_effective_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
-        Ok(Vec::new())
+        Ok(self
+            .find_effective_role_ids_for_user
+            .lock()
+            .unwrap()
+            .get(user_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
@@ -397,15 +531,33 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_direct_user_ids_for_role(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
-        Ok(Vec::new())
+        Ok(self
+            .find_direct_user_ids_for_role
+            .lock()
+            .unwrap()
+            .get(role_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn list_role_composite_ids(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
-        Ok(Vec::new())
+        Ok(self
+            .list_role_composite_ids
+            .lock()
+            .unwrap()
+            .get(role_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn list_effective_role_composite_ids(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
-        Ok(Vec::new())
+        Ok(self
+            .list_effective_role_composite_ids
+            .lock()
+            .unwrap()
+            .get(role_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn get_effective_permissions_for_user(&self, user_id: &Uuid) -> Result<HashSet<String>> {
@@ -419,11 +571,23 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn find_role_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>> {
-        Ok(Vec::new())
+        Ok(self
+            .find_role_names_for_user
+            .lock()
+            .unwrap()
+            .get(user_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn find_group_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>> {
-        Ok(Vec::new())
+        Ok(self
+            .find_group_names_for_user
+            .lock()
+            .unwrap()
+            .get(user_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     async fn delete_role(&self, role_id: &Uuid) -> Result<()> {
@@ -458,6 +622,10 @@ impl RbacRepository for TestRbacRepo {
     }
 
     async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()> {
+        self.remove_permission_calls
+            .lock()
+            .unwrap()
+            .push((*role_id, permission.to_string()));
         Ok(())
     }
 
@@ -467,6 +635,14 @@ impl RbacRepository for TestRbacRepo {
         permissions: Vec<String>,
         action: &str,
     ) -> Result<()> {
+        self.bulk_update_permissions_calls
+            .lock()
+            .unwrap()
+            .push(BulkUpdateCall {
+                role_id: *role_id,
+                permissions,
+                action: action.to_string(),
+            });
         Ok(())
     }
 
@@ -1250,4 +1426,1047 @@ async fn move_group_rejects_descendant_parent() {
         }
         other => panic!("expected validation error, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn create_role_persists_in_repo() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let role = harness
+        .service
+        .create_role(
+            realm_id,
+            CreateRolePayload {
+                client_id: None,
+                name: "admin".to_string(),
+                description: Some("Admin role".to_string()),
+            },
+        )
+        .await
+        .expect("create role");
+
+    let stored = harness.repo.roles.lock().unwrap().get(&role.id).cloned();
+    assert!(stored.is_some());
+    let stored = stored.expect("stored role");
+    assert_eq!(stored.name, "admin");
+    assert_eq!(stored.description.as_deref(), Some("Admin role"));
+}
+
+#[tokio::test]
+async fn get_role_rejects_cross_realm_access() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let other_realm = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let result = harness.service.get_role(other_realm, role_id).await;
+
+    assert!(matches!(result, Err(Error::SecurityViolation(_))));
+}
+
+#[tokio::test]
+async fn update_role_updates_repo_state() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let updated = harness
+        .service
+        .update_role(
+            realm_id,
+            role_id,
+            CreateRolePayload {
+                client_id: None,
+                name: "super-admin".to_string(),
+                description: Some("Updated".to_string()),
+            },
+        )
+        .await
+        .expect("update role");
+
+    assert_eq!(updated.name, "super-admin");
+    let stored = harness.repo.roles.lock().unwrap().get(&role_id).cloned();
+    assert!(stored.is_some());
+    let stored = stored.expect("stored role");
+    assert_eq!(stored.name, "super-admin");
+    assert_eq!(stored.description.as_deref(), Some("Updated"));
+}
+
+#[tokio::test]
+async fn delete_role_returns_not_found_for_missing_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    let result = harness.service.delete_role(realm_id, role_id).await;
+
+    assert!(matches!(result, Err(Error::NotFound(_))));
+}
+
+#[tokio::test]
+async fn create_group_requires_existing_parent() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+
+    let result = harness
+        .service
+        .create_group(
+            realm_id,
+            CreateGroupPayload {
+                parent_id: Some(parent_id),
+                name: "child".to_string(),
+                description: None,
+            },
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::NotFound(_))));
+}
+
+#[tokio::test]
+async fn move_group_rejects_before_and_after_together() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "target".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    let result = harness
+        .service
+        .move_group(
+            realm_id,
+            group_id,
+            None,
+            Some(Uuid::new_v4()),
+            Some(Uuid::new_v4()),
+        )
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => {
+            assert!(message.contains("before_id or after_id"));
+        }
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn move_group_updates_order_for_new_and_old_parent() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let old_parent = Uuid::new_v4();
+    let new_parent = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let before_id = Uuid::new_v4();
+    let old_sibling = Uuid::new_v4();
+    let new_sibling = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: Some(old_parent),
+            name: "target".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        before_id,
+        Group {
+            id: before_id,
+            realm_id,
+            parent_id: Some(new_parent),
+            name: "before".to_string(),
+            description: None,
+            sort_order: 1,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        new_parent,
+        Group {
+            id: new_parent,
+            realm_id,
+            parent_id: None,
+            name: "new-parent".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness
+        .repo
+        .set_group_children(Some(new_parent), vec![before_id, new_sibling]);
+    harness
+        .repo
+        .set_group_children(Some(old_parent), vec![group_id, old_sibling]);
+
+    harness
+        .service
+        .move_group(realm_id, group_id, Some(new_parent), Some(before_id), None)
+        .await
+        .expect("move group");
+
+    let calls = harness.repo.set_group_orders_calls.lock().unwrap().clone();
+    assert!(
+        calls.contains(&SetGroupOrdersCall {
+            parent_id: Some(new_parent),
+            ordered_ids: vec![group_id, before_id, new_sibling],
+        }),
+        "expected new parent order update"
+    );
+    assert!(
+        calls.contains(&SetGroupOrdersCall {
+            parent_id: Some(old_parent),
+            ordered_ids: vec![old_sibling],
+        }),
+        "expected old parent order update"
+    );
+}
+
+#[tokio::test]
+async fn get_group_delete_summary_returns_counts() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let root_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        root_id,
+        Group {
+            id: root_id,
+            realm_id,
+            parent_id: None,
+            name: "root".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness
+        .repo
+        .set_group_subtree(root_id, vec![root_id, Uuid::new_v4(), Uuid::new_v4()]);
+    harness
+        .repo
+        .set_group_children(Some(root_id), vec![Uuid::new_v4(), Uuid::new_v4()]);
+    harness.repo.set_count_user_ids_in_groups_result(5);
+    harness.repo.set_count_role_ids_in_groups_result(3);
+
+    let summary = harness
+        .service
+        .get_group_delete_summary(realm_id, root_id)
+        .await
+        .expect("summary");
+
+    assert_eq!(summary.direct_children_count, 2);
+    assert_eq!(summary.descendant_count, 2);
+    assert_eq!(summary.member_count, 5);
+    assert_eq!(summary.role_count, 3);
+}
+
+#[tokio::test]
+async fn delete_group_without_children_deletes_single_group() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let affected_users = vec![Uuid::new_v4()];
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "root".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness
+        .repo
+        .set_find_user_ids_in_groups_result(affected_users.clone());
+
+    harness
+        .service
+        .delete_group(realm_id, group_id, false)
+        .await
+        .expect("delete group");
+
+    let delete_calls = harness.repo.delete_groups_calls.lock().unwrap().clone();
+    assert!(delete_calls.iter().any(|call| call == &vec![group_id]));
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::GroupDeleted(payload) => {
+            payload.group_ids == vec![group_id] && payload.affected_user_ids == affected_users
+        }
+        _ => false,
+    });
+    assert!(has_event, "expected GroupDeleted event");
+}
+
+#[tokio::test]
+async fn assign_role_to_group_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    harness
+        .service
+        .assign_role_to_group(realm_id, role_id, group_id)
+        .await
+        .expect("assign role to group");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::RoleAssignedToGroup(RoleGroupChanged { role_id: rid, group_id: gid }) if *rid == role_id && *gid == group_id));
+    assert!(has_event, "expected RoleAssignedToGroup event");
+}
+
+#[tokio::test]
+async fn remove_role_from_group_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    harness
+        .service
+        .remove_role_from_group(realm_id, role_id, group_id)
+        .await
+        .expect("remove role from group");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::RoleRemovedFromGroup(RoleGroupChanged { role_id: rid, group_id: gid }) if *rid == role_id && *gid == group_id));
+    assert!(has_event, "expected RoleRemovedFromGroup event");
+}
+
+#[tokio::test]
+async fn assign_user_to_group_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    harness
+        .service
+        .assign_user_to_group(realm_id, user_id, group_id)
+        .await
+        .expect("assign user to group");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
+    assert!(has_event, "expected UserAssignedToGroup event");
+}
+
+#[tokio::test]
+async fn remove_user_from_group_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    harness
+        .service
+        .remove_user_from_group(realm_id, user_id, group_id)
+        .await
+        .expect("remove user from group");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
+    assert!(has_event, "expected UserRemovedFromGroup event");
+}
+
+#[tokio::test]
+async fn assign_role_to_user_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    harness
+        .service
+        .assign_role_to_user(realm_id, user_id, role_id)
+        .await
+        .expect("assign role to user");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRoleAssigned(UserRoleChanged { user_id: uid, role_id: rid }) if *uid == user_id && *rid == role_id));
+    assert!(has_event, "expected UserRoleAssigned event");
+}
+
+#[tokio::test]
+async fn remove_role_from_user_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    harness
+        .service
+        .remove_role_from_user(realm_id, user_id, role_id)
+        .await
+        .expect("remove role from user");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRoleRemoved(UserRoleChanged { user_id: uid, role_id: rid }) if *uid == user_id && *rid == role_id));
+    assert!(has_event, "expected UserRoleRemoved event");
+}
+
+#[tokio::test]
+async fn assign_role_to_user_rejects_cross_realm() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let other_realm = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let result = harness
+        .service
+        .assign_role_to_user(other_realm, user_id, role_id)
+        .await;
+
+    assert!(matches!(result, Err(Error::SecurityViolation(_))));
+}
+
+#[tokio::test]
+async fn assign_composite_role_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+    let child_role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: parent_role_id,
+        realm_id,
+        client_id: None,
+        name: "parent".to_string(),
+        description: None,
+    });
+    harness.repo.insert_role(Role {
+        id: child_role_id,
+        realm_id,
+        client_id: None,
+        name: "child".to_string(),
+        description: None,
+    });
+
+    harness
+        .service
+        .assign_composite_role(realm_id, parent_role_id, child_role_id)
+        .await
+        .expect("assign composite role");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::RoleCompositeChanged(payload) => {
+            payload.parent_role_id == parent_role_id
+                && payload.child_role_id == child_role_id
+                && payload.action == "assigned"
+        }
+        _ => false,
+    });
+    assert!(has_event, "expected RoleCompositeChanged assigned event");
+}
+
+#[tokio::test]
+async fn remove_composite_role_publishes_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+    let child_role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: parent_role_id,
+        realm_id,
+        client_id: None,
+        name: "parent".to_string(),
+        description: None,
+    });
+    harness.repo.insert_role(Role {
+        id: child_role_id,
+        realm_id,
+        client_id: None,
+        name: "child".to_string(),
+        description: None,
+    });
+
+    harness
+        .service
+        .remove_composite_role(realm_id, parent_role_id, child_role_id)
+        .await
+        .expect("remove composite role");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::RoleCompositeChanged(payload) => {
+            payload.parent_role_id == parent_role_id
+                && payload.child_role_id == child_role_id
+                && payload.action == "removed"
+        }
+        _ => false,
+    });
+    assert!(has_event, "expected RoleCompositeChanged removed event");
+}
+
+#[tokio::test]
+async fn assign_permission_to_role_allows_system_permission_for_realm_role() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    harness
+        .service
+        .assign_permission_to_role(realm_id, role_id, permissions::REALM_READ.to_string())
+        .await
+        .expect("assign permission");
+
+    let calls = harness
+        .repo
+        .assign_permission_to_role_calls
+        .lock()
+        .unwrap()
+        .clone();
+    assert!(calls.contains(&(role_id, permissions::REALM_READ.to_string())));
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::RolePermissionChanged(payload) => {
+            payload.role_id == role_id
+                && payload.permission == permissions::REALM_READ
+                && payload.action == "assigned"
+        }
+        _ => false,
+    });
+    assert!(has_event, "expected RolePermissionChanged assigned event");
+}
+
+#[tokio::test]
+async fn revoke_permission_publishes_event_and_calls_repo() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let permission = "app:read".to_string();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    harness
+        .service
+        .revoke_permission(realm_id, role_id, permission.clone())
+        .await
+        .expect("revoke permission");
+
+    let calls = harness.repo.remove_permission_calls.lock().unwrap().clone();
+    assert!(calls.contains(&(role_id, permission.clone())));
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::RolePermissionChanged(payload) => {
+            payload.role_id == role_id
+                && payload.permission == permission
+                && payload.action == "revoked"
+        }
+        _ => false,
+    });
+    assert!(has_event, "expected RolePermissionChanged revoked event");
+}
+
+#[tokio::test]
+async fn bulk_update_permissions_add_calls_repo_and_emits_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let perms = vec!["app:read".to_string(), "app:write".to_string()];
+    for perm in &perms {
+        harness
+            .service
+            .create_custom_permission(
+                realm_id,
+                CreateCustomPermissionPayload {
+                    permission: perm.clone(),
+                    name: perm.clone(),
+                    description: None,
+                    client_id: None,
+                },
+            )
+            .await
+            .expect("create custom permission");
+    }
+
+    harness
+        .service
+        .bulk_update_permissions(realm_id, role_id, perms.clone(), "add".to_string())
+        .await
+        .expect("bulk update add");
+
+    let calls = harness
+        .repo
+        .bulk_update_permissions_calls
+        .lock()
+        .unwrap()
+        .clone();
+    assert!(calls.contains(&BulkUpdateCall {
+        role_id,
+        permissions: perms.clone(),
+        action: "add".to_string(),
+    }));
+
+    let events = harness.events.events.lock().unwrap().clone();
+    for perm in &perms {
+        let has_event = events.iter().any(|event| match event {
+            DomainEvent::RolePermissionChanged(payload) => {
+                payload.role_id == role_id
+                    && payload.permission == *perm
+                    && payload.action == "assigned"
+            }
+            _ => false,
+        });
+        assert!(has_event, "expected assigned event for {perm}");
+    }
+}
+
+#[tokio::test]
+async fn bulk_update_permissions_remove_calls_repo_and_emits_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+
+    let perms = vec!["app:read".to_string(), "app:write".to_string()];
+
+    harness
+        .service
+        .bulk_update_permissions(realm_id, role_id, perms.clone(), "remove".to_string())
+        .await
+        .expect("bulk update remove");
+
+    let calls = harness
+        .repo
+        .bulk_update_permissions_calls
+        .lock()
+        .unwrap()
+        .clone();
+    assert!(calls.contains(&BulkUpdateCall {
+        role_id,
+        permissions: perms.clone(),
+        action: "remove".to_string(),
+    }));
+
+    let events = harness.events.events.lock().unwrap().clone();
+    for perm in &perms {
+        let has_event = events.iter().any(|event| match event {
+            DomainEvent::RolePermissionChanged(payload) => {
+                payload.role_id == role_id
+                    && payload.permission == *perm
+                    && payload.action == "revoked"
+            }
+            _ => false,
+        });
+        assert!(has_event, "expected revoked event for {perm}");
+    }
+}
+
+#[tokio::test]
+async fn get_direct_user_ids_for_role_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let users = vec![Uuid::new_v4(), Uuid::new_v4()];
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+    harness
+        .repo
+        .set_find_direct_user_ids_for_role(role_id, users.clone());
+
+    let result = harness
+        .service
+        .get_direct_user_ids_for_role(realm_id, role_id)
+        .await
+        .expect("direct user ids");
+
+    assert_eq!(result, users);
+}
+
+#[tokio::test]
+async fn get_effective_user_ids_for_role_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let users = vec![Uuid::new_v4()];
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+    harness
+        .repo
+        .set_find_user_ids_for_role(role_id, users.clone());
+
+    let result = harness
+        .service
+        .get_effective_user_ids_for_role(realm_id, role_id)
+        .await
+        .expect("effective user ids");
+
+    assert_eq!(result, users);
+}
+
+#[tokio::test]
+async fn get_group_member_ids_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let users = vec![Uuid::new_v4(), Uuid::new_v4()];
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness
+        .repo
+        .set_find_user_ids_in_group(group_id, users.clone());
+
+    let result = harness
+        .service
+        .get_group_member_ids(realm_id, group_id)
+        .await
+        .expect("group member ids");
+
+    assert_eq!(result, users);
+}
+
+#[tokio::test]
+async fn get_group_role_ids_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let roles = vec![Uuid::new_v4()];
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness
+        .repo
+        .set_find_role_ids_for_group(group_id, roles.clone());
+
+    let result = harness
+        .service
+        .get_group_role_ids(realm_id, group_id)
+        .await
+        .expect("group role ids");
+
+    assert_eq!(result, roles);
+}
+
+#[tokio::test]
+async fn get_effective_group_role_ids_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let roles = vec![Uuid::new_v4()];
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness
+        .repo
+        .set_find_effective_role_ids_for_group(group_id, roles.clone());
+
+    let result = harness
+        .service
+        .get_effective_group_role_ids(realm_id, group_id)
+        .await
+        .expect("effective group role ids");
+
+    assert_eq!(result, roles);
+}
+
+#[tokio::test]
+async fn get_direct_role_ids_for_user_returns_repo_data() {
+    let harness = harness();
+    let user_id = Uuid::new_v4();
+    let roles = vec![Uuid::new_v4(), Uuid::new_v4()];
+
+    harness
+        .repo
+        .set_find_direct_role_ids_for_user(user_id, roles.clone());
+
+    let result = harness
+        .service
+        .get_direct_role_ids_for_user(Uuid::new_v4(), user_id)
+        .await
+        .expect("direct role ids");
+
+    assert_eq!(result, roles);
+}
+
+#[tokio::test]
+async fn get_effective_role_ids_for_user_returns_repo_data() {
+    let harness = harness();
+    let user_id = Uuid::new_v4();
+    let roles = vec![Uuid::new_v4()];
+
+    harness
+        .repo
+        .set_find_effective_role_ids_for_user(user_id, roles.clone());
+
+    let result = harness
+        .service
+        .get_effective_role_ids_for_user(Uuid::new_v4(), user_id)
+        .await
+        .expect("effective role ids");
+
+    assert_eq!(result, roles);
+}
+
+#[tokio::test]
+async fn get_role_composite_ids_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let composites = vec![Uuid::new_v4()];
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+    harness
+        .repo
+        .set_list_role_composite_ids(role_id, composites.clone());
+
+    let result = harness
+        .service
+        .get_role_composite_ids(realm_id, role_id)
+        .await
+        .expect("role composite ids");
+
+    assert_eq!(result, composites);
+}
+
+#[tokio::test]
+async fn get_effective_role_composite_ids_returns_repo_data() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let composites = vec![Uuid::new_v4(), Uuid::new_v4()];
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+    });
+    harness
+        .repo
+        .set_list_effective_role_composite_ids(role_id, composites.clone());
+
+    let result = harness
+        .service
+        .get_effective_role_composite_ids(realm_id, role_id)
+        .await
+        .expect("effective role composite ids");
+
+    assert_eq!(result, composites);
+}
+
+#[tokio::test]
+async fn get_user_roles_and_groups_returns_repo_data() {
+    let harness = harness();
+    let user_id = Uuid::new_v4();
+    let roles = vec!["admin".to_string(), "viewer".to_string()];
+    let groups = vec!["engineering".to_string()];
+
+    harness
+        .repo
+        .set_find_role_names_for_user(user_id, roles.clone());
+    harness
+        .repo
+        .set_find_group_names_for_user(user_id, groups.clone());
+
+    let result = harness
+        .service
+        .get_user_roles_and_groups(&user_id)
+        .await
+        .expect("user roles and groups");
+
+    assert_eq!(result.0, roles);
+    assert_eq!(result.1, groups);
 }
