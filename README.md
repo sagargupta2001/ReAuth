@@ -83,6 +83,7 @@ allowed_origins = ["http://localhost:5173"]
 You can also place a `reauth.toml` beside the executable or pass `--config /path/to/reauth.toml`.
 `server.public_url` (if set) drives defaults for `auth.issuer` and the default OIDC client URLs.
 The default OIDC client (`reauth-admin`) is auto‑synced from config on startup.
+Builds generate a commented `reauth.toml` template next to the binary if one does not already exist.
 
 ---
 

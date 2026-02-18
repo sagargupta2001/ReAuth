@@ -15,10 +15,11 @@
 - [x] Startup validation with clear errors for invalid config.
 - [x] Startup diagnostics log (public URL, data dir, DB URL, UI dev URL, CORS count).
 - [x] CORS allowlist configurable via `cors.allowed_origins`.
+- [x] `--print-config` supported for resolved config output.
+- [x] Build generates a commented `reauth.toml` template beside the binary (if missing).
 
 ## Now
 1. **Config introspection**
-   - Add a CLI flag to print resolved config (`--print-config`) without starting the server.
 2. **Env list parsing**
    - Define supported syntax for list env vars (comma‑separated vs JSON) and document it.
 
