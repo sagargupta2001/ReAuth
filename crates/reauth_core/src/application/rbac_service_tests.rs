@@ -1678,6 +1678,52 @@ async fn update_custom_permission_updates_fields() {
 }
 
 #[tokio::test]
+async fn update_custom_permission_trims_description() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+
+    let created = harness
+        .service
+        .create_custom_permission(
+            realm_id,
+            CreateCustomPermissionPayload {
+                permission: "app:read".to_string(),
+                name: "App Read".to_string(),
+                description: Some("Original".to_string()),
+                client_id: None,
+            },
+        )
+        .await
+        .expect("create custom permission");
+
+    let updated = harness
+        .service
+        .update_custom_permission(
+            realm_id,
+            created.id,
+            UpdateCustomPermissionPayload {
+                name: "Updated".to_string(),
+                description: Some("  Updated description  ".to_string()),
+            },
+        )
+        .await
+        .expect("update custom permission");
+
+    assert_eq!(updated.description.as_deref(), Some("Updated description"));
+
+    let stored = harness
+        .repo
+        .custom_permissions
+        .lock()
+        .unwrap()
+        .get(&created.id)
+        .cloned();
+    assert!(stored.is_some());
+    let stored = stored.expect("stored permission");
+    assert_eq!(stored.description.as_deref(), Some("Updated description"));
+}
+
+#[tokio::test]
 async fn get_group_rejects_cross_realm() {
     let harness = harness();
     let realm_id = Uuid::new_v4();
@@ -2041,6 +2087,79 @@ async fn move_group_inserts_at_end_when_no_before_or_after() {
             ordered_ids: vec![sibling_a, sibling_b, group_id],
         }),
         "expected group inserted at end"
+    );
+}
+
+#[tokio::test]
+async fn move_group_inserts_after_sibling() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let after_id = Uuid::new_v4();
+    let other_sibling = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        parent_id,
+        Group {
+            id: parent_id,
+            realm_id,
+            parent_id: None,
+            name: "parent".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: Some(parent_id),
+            name: "target".to_string(),
+            description: None,
+            sort_order: 2,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        after_id,
+        Group {
+            id: after_id,
+            realm_id,
+            parent_id: Some(parent_id),
+            name: "after".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        other_sibling,
+        Group {
+            id: other_sibling,
+            realm_id,
+            parent_id: Some(parent_id),
+            name: "other".to_string(),
+            description: None,
+            sort_order: 1,
+        },
+    );
+    harness
+        .repo
+        .set_group_children(Some(parent_id), vec![after_id, other_sibling, group_id]);
+
+    harness
+        .service
+        .move_group(realm_id, group_id, Some(parent_id), None, Some(after_id))
+        .await
+        .expect("move group");
+
+    let calls = harness.repo.set_group_orders_calls.lock().unwrap().clone();
+    assert!(
+        calls.contains(&SetGroupOrdersCall {
+            parent_id: Some(parent_id),
+            ordered_ids: vec![after_id, group_id, other_sibling],
+        }),
+        "expected group inserted after after_id"
     );
 }
 
