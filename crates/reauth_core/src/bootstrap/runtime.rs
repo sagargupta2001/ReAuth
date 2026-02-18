@@ -6,14 +6,6 @@ use tracing::info;
 pub async fn run() -> anyhow::Result<()> {
     let app_state = initialize().await?;
 
-    let server_url = format!(
-        "{}://{}:{}",
-        app_state.settings.server.scheme,
-        "localhost",
-        app_state.settings.server.port
-    );
-
-    info!("Server started at: {}", server_url);
     info!("Database status: {}", "Up & Running");
 
     start_server(app_state).await?;

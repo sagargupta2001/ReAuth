@@ -15,10 +15,11 @@ use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::session_repository::SessionRepository;
 use manager::{log_bus::LogSubscriber, PluginManager};
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub settings: Settings,
+    pub settings: Arc<RwLock<Settings>>,
     pub plugin_manager: PluginManager,
     pub plugins_path: PathBuf,
 

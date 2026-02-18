@@ -1,5 +1,6 @@
 pub mod auth_handler;
 pub mod auth_middleware;
+pub mod config_handler;
 pub mod error;
 pub mod execution_handler;
 pub mod flow_handler;

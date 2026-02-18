@@ -62,8 +62,8 @@ impl OidcRepository for SqliteOidcRepository {
 
     async fn create_client(&self, client: &OidcClient) -> Result<()> {
         sqlx::query(
-            "INSERT INTO oidc_clients (id, realm_id, client_id, client_secret, redirect_uris, scopes, web_origins)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO oidc_clients (id, realm_id, client_id, client_secret, redirect_uris, scopes, web_origins, managed_by_config)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
             .bind(client.id.to_string())
             .bind(client.realm_id.to_string())
@@ -72,6 +72,7 @@ impl OidcRepository for SqliteOidcRepository {
             .bind(&client.redirect_uris)
             .bind(&client.scopes)
             .bind(&client.web_origins)
+            .bind(client.managed_by_config)
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
@@ -146,12 +147,13 @@ impl OidcRepository for SqliteOidcRepository {
 
     async fn update_client(&self, client: &OidcClient) -> Result<()> {
         sqlx::query(
-            "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ?, web_origins = ? WHERE id = ?",
+            "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ?, web_origins = ?, managed_by_config = ? WHERE id = ?",
         )
         .bind(&client.client_id)
         .bind(&client.redirect_uris)
         .bind(&client.scopes)
         .bind(&client.web_origins)
+        .bind(client.managed_by_config)
         .bind(client.id.to_string())
         .execute(&*self.pool)
         .await

@@ -2,6 +2,7 @@
 
 ## Local dev
 - UI dev server: `npm run dev` from `reauth/ui` (Vite on `http://localhost:5173`).
+- UI proxy target override: set `VITE_API_PROXY_TARGET` (defaults to `http://localhost:3000`).
 - Backend run: `cargo run --package reauth_core --bin reauth_core` (API on `http://127.0.0.1:3000`).
 - Embed UI mode: `npm run build` from `reauth/ui`, then `cargo run --package reauth_core --features embed-ui`.
 
@@ -13,6 +14,12 @@
 ## Config and environment
 - Default config: `reauth/config/default.toml`.
 - Overrides via environment variables using `REAUTH__` prefix.
+- Config precedence (low → high): embedded defaults → `config/default.toml` (dev) → `reauth.toml` / `--config` / `REAUTH_CONFIG` → env.
+- CORS allowlist: `cors.allowed_origins` (TOML array).
+- Build generates a `reauth.toml` template next to the binary if missing.
+- List env vars use comma‑separated values (e.g. `REAUTH__CORS__ALLOWED_ORIGINS=http://a,http://b`).
+- When a config file is present, runtime settings are hot‑reloaded (bind/DB/JWT still require restart).
+- Logging supports `logging.level` and optional `logging.filter` (or use `RUST_LOG`).
 - Examples:
   - `REAUTH__SERVER__PORT=4000`
   - `REAUTH__DATABASE__URL=sqlite:data/reauth.db`

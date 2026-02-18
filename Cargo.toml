@@ -52,6 +52,7 @@ chrono = { version = "0.4.38", features = ["serde"] }
 validator = { version = "0.20.0", features = ["derive"] }
 rust-embed = "8.3.0"
 cookie = "0.18.1"
+notify = "6.1.1"
 
 [profile.dev]
 incremental = true

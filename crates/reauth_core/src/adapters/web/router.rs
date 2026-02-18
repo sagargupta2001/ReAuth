@@ -1,7 +1,7 @@
 use super::{
-    auth_handler, auth_middleware, execution_handler, flow_handler, log_stream_handler,
-    oidc_handler, plugin_handler, rbac_handler, realm_handler, server::ui_handler, session_handler,
-    user_handler,
+    auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
+    log_stream_handler, oidc_handler, plugin_handler, rbac_handler, realm_handler,
+    server::ui_handler, session_handler, user_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard};
 use crate::AppState;
@@ -30,6 +30,7 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     // 2. Protected Routes (Require Login)
     // We construct these using the corrected helper functions
     let protected_api = Router::new()
+        .merge(config_routes(app_state.clone()))
         .nest("/realms", realm_routes(app_state.clone()))
         .nest("/realms/{realm}/clients", client_routes(app_state.clone()))
         .nest("/realms/{realm}/rbac", rbac_routes(app_state.clone()))
@@ -70,6 +71,17 @@ fn auth_routes() -> Router<AppState> {
         )
         .route("/refresh", post(auth_handler::refresh_handler))
         .route("/logout", post(auth_handler::logout_handler))
+}
+
+fn config_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        .route("/config/reload", post(config_handler::reload_config_handler))
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::REALM_WRITE)
+            },
+        ))
 }
 
 fn public_user_routes() -> Router<AppState> {

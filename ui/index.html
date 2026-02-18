@@ -8,7 +8,7 @@
             const resolved = theme === "dark" || (!theme && systemDark) ? "dark" : "light";
             document.documentElement.classList.add(resolved);
             document.documentElement.style.backgroundColor =
-                resolved === "dark" ? "#000000" : "#ffffff"; // match your --background
+                resolved === "dark" ? "#000000" : "#ffffff";
         } catch (e) {
             console.error("Theme detection failed:", e);
         }

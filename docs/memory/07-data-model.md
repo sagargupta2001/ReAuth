@@ -45,6 +45,9 @@ Source of truth: `reauth/migrations/20251214045651_initial_schema.sql` and subse
 ### refresh_tokens
 - Persistent refresh tokens for SSO/session management.
 
+### seed_history
+- Tracks applied seeders: `name`, `version`, `checksum`, `applied_at`.
+
 ## Indices
 - Role/group and mapping indices exist for RBAC lookups.
 - `idx_auth_sessions_expires` to clean or scan expiring sessions.

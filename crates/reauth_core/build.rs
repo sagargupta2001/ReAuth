@@ -1,41 +1,42 @@
-use std::process::Command;
-use std::path::Path;
+use std::env;
+use std::ffi::OsStr;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 fn main() {
-    // Only build UI if the "embed-ui" feature is enabled
-    if std::env::var("CARGO_FEATURE_EMBED_UI").is_ok() {
-        let ui_path = Path::new("../../ui");
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap_or_default());
+    let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
 
-        println!("cargo:warning=Running npm ci and npm run build for UI...");
+    let dest_dir = find_profile_dir(&out_dir, &profile).unwrap_or_else(|| out_dir.clone());
+    let dest_path = dest_dir.join("reauth.toml");
 
-        // Cross-platform npm executable
-        let npm = if cfg!(target_os = "windows") { "npm.cmd" } else { "npm" };
+    let template_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../config/reauth.toml.template");
 
-        // Always install dependencies
-        let status_ci = Command::new(npm)
-            .current_dir(&ui_path)
-            .args(["ci"])
-            .status()
-            .expect("Failed to run `npm ci`");
+    println!("cargo:rerun-if-changed={}", template_path.display());
 
-        if !status_ci.success() {
-            panic!("❌ npm ci failed. Run it manually in the ui folder.");
-        }
-
-        // Always run build
-        let status_build = Command::new(npm)
-            .current_dir(&ui_path)
-            .args(["run", "build"])
-            .status()
-            .expect("Failed to run `npm run build`");
-
-        if !status_build.success() {
-            panic!("❌ npm run build failed. Run it manually in the ui folder.");
-        }
-
-        println!("cargo:warning=✅ UI built successfully!");
-
-        // Re-run build.rs if UI source files change (optional, for Cargo caching)
-        println!("cargo:rerun-if-changed=../ui/src/");
+    if dest_path.exists() {
+        return;
     }
+
+    match fs::read_to_string(&template_path) {
+        Ok(contents) => {
+            if let Err(err) = fs::write(&dest_path, contents) {
+                eprintln!("Failed to write config template: {}", err);
+            }
+        }
+        Err(err) => {
+            eprintln!("Failed to read config template: {}", err);
+        }
+    }
+}
+
+fn find_profile_dir(out_dir: &Path, profile: &str) -> Option<PathBuf> {
+    let profile_os = OsStr::new(profile);
+    for ancestor in out_dir.ancestors() {
+        if ancestor.file_name() == Some(profile_os) {
+            return Some(ancestor.to_path_buf());
+        }
+    }
+    None
 }

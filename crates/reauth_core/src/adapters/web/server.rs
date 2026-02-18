@@ -1,17 +1,16 @@
 use crate::adapters::web::router::create_router;
 
 use crate::AppState;
-use axum::{
-    extract::State,
-    http::{Request, StatusCode, Uri},
-    response::IntoResponse,
-};
+use axum::http::Uri;
+use axum::response::IntoResponse;
 use std::net::SocketAddr;
 
 #[cfg(not(feature = "embed-ui"))]
 pub(crate) mod ui_handler {
     use super::*;
     use crate::AppState;
+    use axum::extract::State;
+    use axum::http::{Request, StatusCode};
     use axum::body::Body;
 
     /// Proxies all UI requests to the React dev server (e.g., http://localhost:5173)
@@ -20,9 +19,13 @@ pub(crate) mod ui_handler {
         uri: Uri,
         _req: Request<Body>,
     ) -> impl IntoResponse {
+        let dev_url = {
+            let settings = state.settings.read().await;
+            settings.ui.dev_url.clone()
+        };
         let url = format!(
             "{}{}",
-            state.settings.ui.dev_url,
+            dev_url,
             uri.path_and_query().map(|u| u.as_str()).unwrap_or("/")
         );
         match reqwest::get(&url).await {
@@ -77,7 +80,7 @@ pub(crate) mod ui_handler {
 /// This now accepts all the application's dependencies from `main.rs`.
 pub async fn start_server(app_state: AppState) -> anyhow::Result<()> {
     // Extract settings for binding
-    let settings = app_state.settings.clone();
+    let settings = app_state.settings.read().await.clone();
 
     // Extract plugins path (Assuming it was added to AppState in bootstrap,
     // otherwise pass it as a 2nd argument)

@@ -271,6 +271,18 @@ impl OidcService {
         self.oidc_repo.create_client(client).await
     }
 
+    pub async fn find_client_by_client_id(
+        &self,
+        realm_id: &Uuid,
+        client_id: &str,
+    ) -> Result<Option<OidcClient>> {
+        self.oidc_repo.find_client_by_id(realm_id, client_id).await
+    }
+
+    pub async fn update_client_record(&self, client: &OidcClient) -> Result<()> {
+        self.oidc_repo.update_client(client).await
+    }
+
     pub async fn list_clients(
         &self,
         realm_id: Uuid,

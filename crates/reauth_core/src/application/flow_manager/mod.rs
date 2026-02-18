@@ -9,10 +9,12 @@ use crate::{
     domain::pagination::{PageRequest, PageResponse},
     error::{Error, Result},
     ports::{flow_store::FlowStore, realm_repository::RealmRepository},
+    ports::transaction_manager::Transaction,
 };
 use chrono::Utc;
 use serde::Deserialize;
 use std::sync::Arc;
+use tracing::debug;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -156,6 +158,15 @@ impl FlowManager {
     }
 
     pub async fn publish_flow(&self, realm_id: Uuid, flow_id: Uuid) -> Result<FlowVersion> {
+        self.publish_flow_with_tx(realm_id, flow_id, None).await
+    }
+
+    pub async fn publish_flow_with_tx(
+        &self,
+        realm_id: Uuid,
+        flow_id: Uuid,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<FlowVersion> {
         // 1. Get the Draft
         let draft = self.get_draft(flow_id).await?;
 
@@ -189,7 +200,8 @@ impl FlowManager {
                 built_in: false, // Custom flows are not built-in
             };
             // You need to expose create_flow in FlowStore if not already
-            self.flow_repo.create_flow(&new_flow, None).await?;
+            let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+            self.flow_repo.create_flow(&new_flow, tx_ref).await?;
         }
 
         // 7. Create Version Record
@@ -202,7 +214,10 @@ impl FlowManager {
             checksum: "TODO_HASH".to_string(),
             created_at: Utc::now(),
         };
-        self.flow_store.create_version(&version).await?;
+        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        self.flow_store
+            .create_version_with_tx(&version, tx_ref)
+            .await?;
 
         // 8. Update Deployment (Point LIVE to this version)
         let deployment = FlowDeployment {
@@ -212,7 +227,10 @@ impl FlowManager {
             active_version_id: version.id.clone(),
             updated_at: Utc::now(),
         };
-        self.flow_store.set_deployment(&deployment).await?;
+        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        self.flow_store
+            .set_deployment_with_tx(&deployment, tx_ref)
+            .await?;
 
         let column_to_update = match draft.flow_type.as_str() {
             "browser" => Some("browser_flow_id"),
@@ -225,7 +243,7 @@ impl FlowManager {
         };
 
         if let Some(col_name) = column_to_update {
-            println!("Auto-binding flow {} to realm slot {}", flow_id, col_name);
+            debug!("Auto-binding flow {} to realm slot {}", flow_id, col_name);
 
             // Pass references (&) for IDs and None for the transaction
             self.realm_repo
@@ -235,7 +253,10 @@ impl FlowManager {
 
         // 9. Cleanup: Delete the draft
         // Now safe because flow_versions references auth_flows, not flow_drafts
-        self.flow_store.delete_draft(&flow_id).await?;
+        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        self.flow_store
+            .delete_draft_with_tx(&flow_id, tx_ref)
+            .await?;
 
         Ok(version)
     }

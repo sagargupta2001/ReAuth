@@ -8,6 +8,7 @@ Example paths:
 - `reauth/docs/memory/roadmaps/testing.md`
 - `reauth/docs/memory/roadmaps/configuration.md`
 - `reauth/docs/memory/roadmaps/observability.md`
+- `reauth/docs/memory/roadmaps/seeding.md`
 
 ## Suggested template
 - Goal

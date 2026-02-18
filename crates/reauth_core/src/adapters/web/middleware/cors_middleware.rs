@@ -7,12 +7,14 @@ use axum::{
     response::Response,
 };
 use tracing::warn;
+use url::Url;
 
 pub async fn dynamic_cors_guard(
     State(state): State<AppState>,
     req: Request<Body>,
     next: Next,
 ) -> Response {
+    let settings = state.settings.read().await.clone();
     let origin_header = match req.headers().get("origin") {
         Some(h) => h,
         None => return next.run(req).await, // Non-browser request (e.g. Curl), let it pass
@@ -28,9 +30,8 @@ pub async fn dynamic_cors_guard(
         }
     };
 
-    // 1. Allow own origin (Dashboard)
-    // You might want to make this configurable via env var
-    if origin_str == "http://localhost:3000" {
+    // 1. Allow configured UI + server origins from settings
+    if is_allowed_origin(&settings, &origin_str) {
         return allow_response(next.run(req).await, &origin_str);
     }
 
@@ -71,4 +72,66 @@ fn allow_response(mut response: Response, origin: &str) -> Response {
         HeaderValue::from_static("Authorization, Content-Type, Cookie, Accept"),
     );
     response
+}
+
+fn is_allowed_origin(settings: &crate::config::Settings, origin: &str) -> bool {
+    let mut allowed = Vec::new();
+
+    for bind_origin in bind_origins(settings) {
+        allowed.push(bind_origin);
+    }
+
+    if let Some(server_origin) = normalize_origin(&settings.server.public_url) {
+        allowed.push(server_origin);
+    }
+
+    if let Some(ui_origin) = normalize_origin(&settings.ui.dev_url) {
+        allowed.push(ui_origin);
+    }
+
+    for configured_origin in &settings.cors.allowed_origins {
+        if let Some(origin) = normalize_origin(configured_origin) {
+            allowed.push(origin);
+        }
+    }
+
+    for configured_origin in &settings.default_oidc_client.web_origins {
+        if let Some(origin) = normalize_origin(configured_origin) {
+            allowed.push(origin);
+        }
+    }
+
+    allowed.iter().any(|allowed_origin| allowed_origin == origin)
+}
+
+fn normalize_origin(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Ok(parsed) = Url::parse(trimmed) {
+        return Some(parsed.origin().unicode_serialization());
+    }
+
+    None
+}
+
+fn bind_origins(settings: &crate::config::Settings) -> Vec<String> {
+    let mut origins = Vec::new();
+    let scheme = settings.server.scheme.trim();
+    let host = settings.server.host.trim();
+
+    if scheme.is_empty() || host.is_empty() {
+        return origins;
+    }
+
+    let port = settings.server.port;
+    origins.push(format!("{}://{}:{}", scheme, host, port));
+
+    if host == "127.0.0.1" {
+        origins.push(format!("{}://localhost:{}", scheme, port));
+    }
+
+    origins
 }

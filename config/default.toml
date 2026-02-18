@@ -2,15 +2,23 @@
 scheme = "http"
 host = "127.0.0.1"
 port = 3000
+public_url = "" # Leave empty to derive from scheme/host/port
 
 [ui]
 dev_url = "http://localhost:5173"
+
+[logging]
+level = "info"
+filter = "" # Optional: overrides level when set (supports module filters)
+
+[cors]
+allowed_origins = []
 
 [plugins]
 handshake_timeout_secs = 5
 
 [database]
-url = "sqlite:data/reauth.db"
+url = "" # Leave empty to derive from database.data_dir
 max_connections = 5
 
 [auth]
@@ -19,7 +27,7 @@ access_token_ttl_secs = 900  # 15 minutes
 refresh_token_ttl_secs = 604800 # 7 days
 # A unique signing ID for the JWKS endpoint
 jwt_key_id = "reauth-rs-v1"
-issuer = "http://localhost:3000"
+issuer = "" # Leave empty to derive from server.public_url
 
 [default_admin]
 username = "admin"
@@ -27,5 +35,5 @@ password = "admin"
 
 [default_oidc_client]
 client_id = "reauth-admin"
-redirect_uris = ["http://localhost:5173", "http://localhost:3000"]
-web_origins = ["http://localhost:5173", "http://localhost:3000"]
+redirect_uris = [] # Leave empty to derive from server.public_url + ui.dev_url
+web_origins = [] # Leave empty to derive from server.public_url + ui.dev_url

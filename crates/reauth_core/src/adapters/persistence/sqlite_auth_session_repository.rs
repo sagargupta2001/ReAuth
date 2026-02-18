@@ -5,6 +5,7 @@ use crate::ports::auth_session_repository::AuthSessionRepository;
 use async_trait::async_trait;
 use chrono::Utc;
 use uuid::Uuid;
+use tracing::error;
 
 pub struct SqliteAuthSessionRepository {
     pool: Database,
@@ -68,7 +69,7 @@ impl AuthSessionRepository for SqliteAuthSessionRepository {
                 "failed" => SessionStatus::Failed,
                 _ => {
                     // Log the actual failing string so we can debug
-                    println!(
+                    error!(
                         "CRITICAL ERROR: DB Status '{}' could not be mapped. Defaulting to Failed.",
                         r.status
                     );
