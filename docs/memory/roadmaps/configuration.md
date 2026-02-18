@@ -21,16 +21,18 @@
 - [x] Env list parsing for comma‑separated values (documented).
 - [x] `--check-config` supported to validate config and exit.
 - [x] Minimal `--help` output lists supported flags.
+- [x] Warn when `server.public_url` origin doesn’t match the bind origin.
+- [x] README includes `--print-config` / `--init-config` examples.
+- [x] Hot reload for config file changes (with non‑reloadable fields warning).
 
 ## Now
 1. **Config guardrails**
-   - Warn when `server.public_url` origin doesn’t match the bind origin.
+   - Include the public URL/bind origin mismatch warning in `--check-config`.
 2. **Config UX**
-   - Add examples for `--print-config` and `--init-config` to README.
+   - Expand CLI examples as flags grow.
 
 ## Later
 - Support additional config formats (e.g., YAML) if needed.
-- Hot reload for dev config (watch the config file and reload on change without restarting the server).
 
 ## Open questions
 - Env var naming convention: **`REAUTH__` with `__` separators** (accepted).

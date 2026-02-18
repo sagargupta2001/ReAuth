@@ -2,6 +2,7 @@
 # Uncomment and edit values to override defaults.
 # This file is read if placed next to the executable as reauth.toml
 # or passed via --config /path/to/reauth.toml.
+# Changes are hot‑reloaded at runtime (bind/DB/JWT changes require restart).
 
 # [server]
 # scheme = "http"

@@ -10,13 +10,18 @@ use crate::bootstrap::services::initialize_services;
 use crate::config::Settings;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::AppState;
+use notify::{RecursiveMode, Watcher};
 use std::sync::Arc;
+use tokio::sync::RwLock;
+use tracing::{info, warn};
+use url::Url;
 
 pub async fn initialize() -> anyhow::Result<AppState> {
     let log_bus = init_logging();
     let settings = Settings::new()?;
     print_banner();
     log_config_summary(&settings);
+    warn_public_url_mismatch(&settings);
 
     let plugins_path = determine_plugins_path()?;
     let db_pool = initialize_database(&settings).await?;
@@ -59,8 +64,11 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     )
     .await?;
 
+    let settings_shared = Arc::new(RwLock::new(settings.clone()));
+    spawn_config_watcher(settings_shared.clone());
+
     Ok(AppState {
-        settings,
+        settings: settings_shared,
         plugin_manager,
         plugins_path,
         user_service: services.user_service,
@@ -89,4 +97,128 @@ fn log_config_summary(settings: &Settings) {
         settings.ui.dev_url,
         settings.cors.allowed_origins.len()
     );
+}
+
+fn warn_public_url_mismatch(settings: &Settings) {
+    let public_origin = match Url::parse(&settings.server.public_url) {
+        Ok(url) => url.origin().unicode_serialization(),
+        Err(_) => return,
+    };
+
+    let scheme = settings.server.scheme.trim();
+    let host = settings.server.host.trim();
+    if scheme.is_empty() || host.is_empty() {
+        return;
+    }
+
+    let mut bind_origins = vec![format!("{}://{}:{}", scheme, host, settings.server.port)];
+    if host == "127.0.0.1" {
+        bind_origins.push(format!("{}://localhost:{}", scheme, settings.server.port));
+    }
+
+    if !bind_origins.iter().any(|origin| origin == &public_origin) {
+        warn!(
+            "server.public_url origin ({}) does not match bind origin(s) {:?}. This may break cookies or redirect URIs.",
+            public_origin, bind_origins
+        );
+    }
+}
+
+fn spawn_config_watcher(settings: Arc<RwLock<Settings>>) {
+    let Some(config_path) = Settings::resolve_config_watch_path() else {
+        info!("Config hot reload disabled (no config file found).");
+        return;
+    };
+
+    info!("Config hot reload enabled for {}", config_path.display());
+
+    tokio::spawn(async move {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+        let mut watcher = match notify::recommended_watcher(move |res| {
+            let _ = tx.blocking_send(res);
+        }) {
+            Ok(watcher) => watcher,
+            Err(err) => {
+                warn!("Failed to start config watcher: {}", err);
+                return;
+            }
+        };
+
+        if let Err(err) = watcher.watch(&config_path, RecursiveMode::NonRecursive) {
+            warn!("Failed to watch config file {}: {}", config_path.display(), err);
+            return;
+        }
+
+        loop {
+            let event = match rx.recv().await {
+                Some(event) => event,
+                None => break,
+            };
+
+            if let Err(err) = event {
+                warn!("Config watcher error: {}", err);
+                continue;
+            }
+
+            // Debounce rapid successive events.
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            while rx.try_recv().is_ok() {}
+
+            match Settings::new() {
+                Ok(new_settings) => {
+                    apply_settings_update(&settings, new_settings).await;
+                }
+                Err(err) => {
+                    warn!("Config reload failed: {}", err);
+                }
+            }
+        }
+    });
+}
+
+async fn apply_settings_update(settings: &Arc<RwLock<Settings>>, new_settings: Settings) {
+    let mut guard = settings.write().await;
+    let old_settings = guard.clone();
+    *guard = new_settings.clone();
+
+    info!("Config reloaded from disk.");
+    log_config_summary(&new_settings);
+    warn_public_url_mismatch(&new_settings);
+    warn_non_reloadable_changes(&old_settings, &new_settings);
+}
+
+fn warn_non_reloadable_changes(old: &Settings, new: &Settings) {
+    let mut changes = Vec::new();
+
+    if old.server.scheme != new.server.scheme {
+        changes.push("server.scheme");
+    }
+    if old.server.host != new.server.host {
+        changes.push("server.host");
+    }
+    if old.server.port != new.server.port {
+        changes.push("server.port");
+    }
+    if old.database.url != new.database.url {
+        changes.push("database.url");
+    }
+    if old.database.data_dir != new.database.data_dir {
+        changes.push("database.data_dir");
+    }
+    if old.auth.jwt_secret != new.auth.jwt_secret {
+        changes.push("auth.jwt_secret");
+    }
+    if old.auth.jwt_key_id != new.auth.jwt_key_id {
+        changes.push("auth.jwt_key_id");
+    }
+    if old.auth.issuer != new.auth.issuer {
+        changes.push("auth.issuer");
+    }
+
+    if !changes.is_empty() {
+        warn!(
+            "Config hot reload applied, but changes to {} require a restart to fully take effect.",
+            changes.join(", ")
+        );
+    }
 }

@@ -194,6 +194,31 @@ impl Settings {
         redacted
     }
 
+    pub fn resolve_config_watch_path() -> Option<PathBuf> {
+        if let Ok(value) = env::var("REAUTH_CONFIG") {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                let path = PathBuf::from(trimmed);
+                if path.exists() {
+                    return Some(path);
+                }
+            }
+        }
+
+        if let Some(path) = resolve_exe_config_path() {
+            if path.exists() {
+                return Some(path);
+            }
+        }
+
+        let dev_default = PathBuf::from("config/default.toml");
+        if dev_default.exists() {
+            return Some(dev_default);
+        }
+
+        None
+    }
+
     fn normalize_lists(&mut self) {
         normalize_list(&mut self.cors.allowed_origins);
         normalize_list(&mut self.default_oidc_client.redirect_uris);

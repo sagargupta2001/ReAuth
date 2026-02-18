@@ -90,6 +90,7 @@ You can also place a `reauth.toml` beside the executable or pass `--config /path
 `server.public_url` (if set) drives defaults for `auth.issuer` and the default OIDC client URLs.
 The default OIDC client (`reauth-admin`) is auto‑synced from config on startup.
 Builds generate a commented `reauth.toml` template next to the binary if one does not already exist.
+If a config file is present, changes are hot‑reloaded at runtime (note: bind address/port, DB path, and JWT settings still require a restart).
 
 ---
 

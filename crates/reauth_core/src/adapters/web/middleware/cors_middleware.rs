@@ -14,6 +14,7 @@ pub async fn dynamic_cors_guard(
     req: Request<Body>,
     next: Next,
 ) -> Response {
+    let settings = state.settings.read().await.clone();
     let origin_header = match req.headers().get("origin") {
         Some(h) => h,
         None => return next.run(req).await, // Non-browser request (e.g. Curl), let it pass
@@ -30,7 +31,7 @@ pub async fn dynamic_cors_guard(
     };
 
     // 1. Allow configured UI + server origins from settings
-    if is_allowed_origin(&state, &origin_str) {
+    if is_allowed_origin(&settings, &origin_str) {
         return allow_response(next.run(req).await, &origin_str);
     }
 
@@ -73,28 +74,28 @@ fn allow_response(mut response: Response, origin: &str) -> Response {
     response
 }
 
-fn is_allowed_origin(state: &AppState, origin: &str) -> bool {
+fn is_allowed_origin(settings: &crate::config::Settings, origin: &str) -> bool {
     let mut allowed = Vec::new();
 
-    for bind_origin in bind_origins(state) {
+    for bind_origin in bind_origins(settings) {
         allowed.push(bind_origin);
     }
 
-    if let Some(server_origin) = normalize_origin(&state.settings.server.public_url) {
+    if let Some(server_origin) = normalize_origin(&settings.server.public_url) {
         allowed.push(server_origin);
     }
 
-    if let Some(ui_origin) = normalize_origin(&state.settings.ui.dev_url) {
+    if let Some(ui_origin) = normalize_origin(&settings.ui.dev_url) {
         allowed.push(ui_origin);
     }
 
-    for configured_origin in &state.settings.cors.allowed_origins {
+    for configured_origin in &settings.cors.allowed_origins {
         if let Some(origin) = normalize_origin(configured_origin) {
             allowed.push(origin);
         }
     }
 
-    for configured_origin in &state.settings.default_oidc_client.web_origins {
+    for configured_origin in &settings.default_oidc_client.web_origins {
         if let Some(origin) = normalize_origin(configured_origin) {
             allowed.push(origin);
         }
@@ -116,16 +117,16 @@ fn normalize_origin(value: &str) -> Option<String> {
     None
 }
 
-fn bind_origins(state: &AppState) -> Vec<String> {
+fn bind_origins(settings: &crate::config::Settings) -> Vec<String> {
     let mut origins = Vec::new();
-    let scheme = state.settings.server.scheme.trim();
-    let host = state.settings.server.host.trim();
+    let scheme = settings.server.scheme.trim();
+    let host = settings.server.host.trim();
 
     if scheme.is_empty() || host.is_empty() {
         return origins;
     }
 
-    let port = state.settings.server.port;
+    let port = settings.server.port;
     origins.push(format!("{}://{}:{}", scheme, host, port));
 
     if host == "127.0.0.1" {

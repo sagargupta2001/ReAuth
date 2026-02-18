@@ -49,3 +49,4 @@ base64 = { workspace = true }
 url = { workspace = true }
 rsa = { workspace = true }
 rand = { workspace = true }
+notify = { workspace = true }
