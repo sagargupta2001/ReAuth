@@ -1280,6 +1280,26 @@ async fn user_has_permission_returns_false_when_missing() {
 }
 
 #[tokio::test]
+async fn user_has_permission_without_namespace_returns_false() {
+    let harness = harness();
+    let user_id = Uuid::new_v4();
+
+    let permissions_set = HashSet::new();
+    harness
+        .cache
+        .set_user_permissions(&user_id, &permissions_set)
+        .await;
+
+    let has_permission = harness
+        .service
+        .user_has_permission(&user_id, "read")
+        .await
+        .expect("permission check");
+
+    assert!(!has_permission);
+}
+
+#[tokio::test]
 async fn get_effective_permissions_caches_repo_result() {
     let harness = harness();
     let user_id = Uuid::new_v4();
