@@ -86,6 +86,14 @@ List env vars (like `cors.allowed_origins`) use comma‑separated values:
 REAUTH__CORS__ALLOWED_ORIGINS=http://localhost:5173,http://localhost:4010
 ```
 
+Logging can be tuned via config (or `RUST_LOG` for advanced filtering):
+
+```toml
+[logging]
+level = "info"
+filter = "reauth_core=info,sqlx=warn"
+```
+
 You can also place a `reauth.toml` beside the executable or pass `--config /path/to/reauth.toml`.
 `server.public_url` (if set) drives defaults for `auth.issuer` and the default OIDC client URLs.
 The default OIDC client (`reauth-admin`) is auto‑synced from config on startup.
@@ -103,6 +111,7 @@ If a config file is present, changes are hot‑reloaded at runtime (note: bind a
 - `--print-config`: print the resolved config (with secrets redacted) and exit.
 - `--init-config`: write a commented `reauth.toml` template next to the binary and exit.
 - `--check-config`: validate resolved config and exit.
+- `--seed-only`: run migrations + seeding, then exit.
 
 Note for automation/LLMs: prefer `--help` and this section as the source of truth for supported flags.
 
@@ -113,6 +122,7 @@ Examples:
 ./reauth_core --init-config
 ./reauth_core --check-config
 ./reauth_core --config /path/to/reauth.toml --print-config
+./reauth_core --seed-only
 ./reauth_core --benchmark
 ```
 

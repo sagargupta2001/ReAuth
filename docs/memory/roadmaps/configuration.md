@@ -27,6 +27,7 @@
 - [x] `--check-config` includes public URL/bind origin mismatch warning.
 - [x] Hot reload warns when the watched config file disappears.
 - [x] README CLI examples expanded as flags grew.
+- [x] Logging config (`logging.level` + `logging.filter`) supported.
 
 ## Now
 1. **Config guardrails**

@@ -1,3 +1,5 @@
+use crate::adapters::persistence::transaction::SqliteTransaction;
+use crate::ports::transaction_manager::Transaction;
 use sqlx::{Row, SqlitePool};
 
 #[derive(Debug)]
@@ -27,7 +29,26 @@ impl<'a> SeedHistory<'a> {
         }))
     }
 
-    pub async fn upsert(&self, name: &str, version: i32, checksum: &str) -> anyhow::Result<()> {
+    pub async fn upsert(
+        &self,
+        name: &str,
+        version: i32,
+        checksum: &str,
+        tx: Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()> {
+        if let Some(tx) = tx.and_then(SqliteTransaction::from_trait) {
+            let executor = tx.as_mut();
+            sqlx::query(
+                "INSERT INTO seed_history (name, version, checksum) VALUES (?, ?, ?)\n                 ON CONFLICT(name) DO UPDATE SET version = excluded.version, checksum = excluded.checksum, applied_at = CURRENT_TIMESTAMP",
+            )
+            .bind(name)
+            .bind(version)
+            .bind(checksum)
+            .execute(executor)
+            .await?;
+            return Ok(());
+        }
+
         sqlx::query(
             "INSERT INTO seed_history (name, version, checksum) VALUES (?, ?, ?)\n             ON CONFLICT(name) DO UPDATE SET version = excluded.version, checksum = excluded.checksum, applied_at = CURRENT_TIMESTAMP",
         )

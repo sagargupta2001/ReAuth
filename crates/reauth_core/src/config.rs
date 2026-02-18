@@ -22,6 +22,14 @@ pub struct Ui {
     pub dev_url: String,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct LoggingConfig {
+    #[serde(default = "default_log_level")]
+    pub level: String,
+    #[serde(default)]
+    pub filter: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct CorsConfig {
     #[serde(default)]
@@ -70,6 +78,7 @@ pub struct DefaultOidcClientConfig {
 pub struct Settings {
     pub server: Server,
     pub ui: Ui,
+    pub logging: LoggingConfig,
     #[serde(default)]
     pub cors: CorsConfig,
     pub plugins: PluginsConfig,
@@ -256,6 +265,10 @@ fn default_data_dir() -> String {
         .and_then(|exe| exe.parent().map(|dir| dir.join("data")))
         .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_else(|| "./data".to_string())
+}
+
+fn default_log_level() -> String {
+    "info".to_string()
 }
 
 fn resolve_config_path() -> Option<PathBuf> {

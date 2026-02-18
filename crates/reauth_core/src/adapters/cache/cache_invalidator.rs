@@ -8,7 +8,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{debug, error};
 
 /// A listener that invalidates the cache based on domain events.
 pub struct CacheInvalidator {
@@ -28,16 +28,16 @@ impl EventHandler for CacheInvalidator {
     async fn handle(&self, event: &DomainEvent) {
         match event {
             DomainEvent::UserAssignedToGroup(e) => {
-                info!("Invalidating cache for user: {}", e.user_id);
+                debug!("Invalidating cache for user: {}", e.user_id);
                 // Simple case: Invalidate one user's permissions
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
             DomainEvent::UserRemovedFromGroup(e) => {
-                info!("Invalidating cache for user: {} (Removed from Group)", e.user_id);
+                debug!("Invalidating cache for user: {} (Removed from Group)", e.user_id);
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
             DomainEvent::RoleAssignedToGroup(e) => {
-                info!("Invalidating cache for group: {}", e.group_id);
+                debug!("Invalidating cache for group: {}", e.group_id);
                 // Complex case: A role was added to a group.
                 // We must invalidate *all users* in that group.
                 match self.rbac_repo.find_user_ids_in_group(&e.group_id).await {
@@ -53,7 +53,7 @@ impl EventHandler for CacheInvalidator {
                 }
             }
             DomainEvent::RoleRemovedFromGroup(e) => {
-                info!("Invalidating cache for group: {} (Role Removed)", e.group_id);
+                debug!("Invalidating cache for group: {} (Role Removed)", e.group_id);
                 match self.rbac_repo.find_user_ids_in_group(&e.group_id).await {
                     Ok(user_ids) => {
                         for user_id in user_ids {
@@ -71,14 +71,14 @@ impl EventHandler for CacheInvalidator {
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
             DomainEvent::RolePermissionChanged(e) => {
-                info!(
+                debug!(
                     "Event: RolePermissionChanged. Invalidating cache for users with role: {}",
                     e.role_id
                 );
                 match self.rbac_repo.find_user_ids_for_role(&e.role_id).await {
                     Ok(user_ids) => {
                         for user_id in user_ids {
-                            info!("Invalidating cache for user: {}", user_id);
+                            debug!("Invalidating cache for user: {}", user_id);
                             self.cache.clear_user_permissions(&user_id).await;
                         }
                     }
@@ -89,7 +89,7 @@ impl EventHandler for CacheInvalidator {
                 }
             }
             DomainEvent::RoleCompositeChanged(e) => {
-                info!(
+                debug!(
                     "Event: RoleCompositeChanged. Invalidating cache for users with role: {}",
                     e.parent_role_id
                 );
@@ -111,16 +111,16 @@ impl EventHandler for CacheInvalidator {
             }
 
             DomainEvent::UserRoleAssigned(e) => {
-                info!("Invalidating cache for user: {} (Role Assigned)", e.user_id);
+                debug!("Invalidating cache for user: {} (Role Assigned)", e.user_id);
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
             DomainEvent::UserRoleRemoved(e) => {
-                info!("Invalidating cache for user: {} (Role Removed)", e.user_id);
+                debug!("Invalidating cache for user: {} (Role Removed)", e.user_id);
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
 
             DomainEvent::RoleDeleted(e) => {
-                info!(
+                debug!(
                     "Role {} deleted. Invalidating cache for {} users.",
                     e.role_id,
                     e.affected_user_ids.len()
@@ -133,7 +133,7 @@ impl EventHandler for CacheInvalidator {
                 }
             }
             DomainEvent::GroupDeleted(e) => {
-                info!(
+                debug!(
                     "Groups deleted. Invalidating cache for {} users.",
                     e.affected_user_ids.len()
                 );

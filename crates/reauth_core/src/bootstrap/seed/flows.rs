@@ -4,6 +4,7 @@ use crate::bootstrap::seed::context::SeedContext;
 use crate::domain::auth_flow::AuthFlow;
 use crate::domain::flow::models::FlowDraft;
 use crate::domain::realm::Realm;
+use crate::ports::transaction_manager::Transaction;
 use chrono::Utc;
 use tracing::info;
 use uuid::Uuid;
@@ -11,6 +12,7 @@ use uuid::Uuid;
 pub async fn ensure_default_flows(
     ctx: &SeedContext<'_>,
     realm: &mut Realm,
+    tx: &mut Option<&mut dyn Transaction>,
 ) -> anyhow::Result<()> {
     let browser_flow_id = ensure_flow(
         ctx,
@@ -18,6 +20,7 @@ pub async fn ensure_default_flows(
         "browser-login",
         "Browser Login",
         "browser",
+        tx,
     )
     .await?;
 
@@ -27,6 +30,7 @@ pub async fn ensure_default_flows(
         "direct-grant",
         "Direct Grant",
         "direct",
+        tx,
     )
     .await?;
 
@@ -36,6 +40,7 @@ pub async fn ensure_default_flows(
         "registration",
         "Registration",
         "registration",
+        tx,
     )
     .await?;
 
@@ -45,6 +50,7 @@ pub async fn ensure_default_flows(
         "reset-credentials",
         "Reset Credentials",
         "reset",
+        tx,
     )
     .await?;
 
@@ -93,6 +99,7 @@ async fn ensure_flow(
     name: &str,
     alias: &str,
     type_: &str,
+    tx: &mut Option<&mut dyn Transaction>,
 ) -> anyhow::Result<Uuid> {
     let flow_id = if let Some(flow) = ctx.flow_repo.find_flow_by_name(realm_id, name).await? {
         flow.id
@@ -107,7 +114,8 @@ async fn ensure_flow(
             r#type: type_.to_string(),
             built_in: true,
         };
-        ctx.flow_repo.create_flow(&flow, None).await?;
+        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        ctx.flow_repo.create_flow(&flow, tx_ref).await?;
         new_id
     };
 

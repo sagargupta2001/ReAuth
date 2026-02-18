@@ -14,6 +14,7 @@ Flags:
   --print-config    Print resolved config (secrets redacted) and exit
   --check-config    Validate resolved config and exit
   --init-config     Write a commented reauth.toml template next to the binary
+  --seed-only       Run migrations + seeding, then exit
   --benchmark       Run initialization and migrations, then exit
 "#;
 
@@ -48,6 +49,12 @@ async fn main() -> anyhow::Result<()> {
             );
         }
         println!("Config OK");
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--seed-only") {
+        let _ = initialize().await?;
+        println!("Seeding complete — exiting (seed-only mode)");
         return Ok(());
     }
 

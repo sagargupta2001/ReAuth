@@ -16,8 +16,8 @@ use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 pub async fn initialize() -> anyhow::Result<AppState> {
-    let log_bus = init_logging();
     let settings = Settings::new()?;
+    let log_bus = init_logging(&settings);
     print_banner();
     log_config_summary(&settings);
     warn_public_url_mismatch(&settings);

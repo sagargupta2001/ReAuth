@@ -11,6 +11,9 @@
 - [x] Seed logic split into feature‑scoped modules with shared context.
 - [x] Seed history table tracks `name` + `version` + `checksum`.
 - [x] Seeder registry executes versioned seeders in order.
+- [x] Per‑seeder transactions supported for atomic steps where possible.
+- [x] Admin seeding now reuses existing roles/users instead of skipping.
+- [x] `--seed-only` flag added for CI/dev workflows.
 
 ## Now
 1. **Modularize seeders**
@@ -19,10 +22,10 @@
    - Ensure each seeder is safe to run multiple times without duplicating data.
 
 ## Next
-1. **Seeder transactions**
-   - Allow per‑seeder transactions for atomic seeding steps.
-2. **Admin seeding refinement**
-   - Improve role lookup if `super_admin` already exists (avoid silent skip).
+1. **Seeder transaction coverage**
+   - Expand transactional support across repositories that currently ignore TX context.
+2. **Seed history introspection**
+   - Add a `--seed-status` flag to print applied seeders.
 
 ## Later
 - Externalize default data into `config/seed/*.toml` (or embedded JSON).

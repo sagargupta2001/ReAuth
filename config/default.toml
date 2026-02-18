@@ -7,6 +7,10 @@ public_url = "" # Leave empty to derive from scheme/host/port
 [ui]
 dev_url = "http://localhost:5173"
 
+[logging]
+level = "info"
+filter = "" # Optional: overrides level when set (supports module filters)
+
 [cors]
 allowed_origins = []
 

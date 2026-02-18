@@ -90,6 +90,10 @@ impl RbacService {
         Ok(role)
     }
 
+    pub async fn find_role_by_name(&self, realm_id: Uuid, name: &str) -> Result<Option<Role>> {
+        self.rbac_repo.find_role_by_name(&realm_id, name).await
+    }
+
     pub async fn list_roles(&self, realm_id: Uuid, req: PageRequest) -> Result<PageResponse<Role>> {
         self.rbac_repo.list_roles(&realm_id, &req).await
     }

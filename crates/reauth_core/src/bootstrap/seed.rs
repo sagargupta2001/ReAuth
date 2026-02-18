@@ -10,10 +10,12 @@ use crate::application::oidc_service::OidcService;
 use crate::application::rbac_service::RbacService;
 use crate::application::realm_service::RealmService;
 use crate::application::user_service::UserService;
+use crate::adapters::persistence::transaction::SqliteTransactionManager;
 use crate::config::Settings;
 use crate::domain::realm::Realm;
 use crate::ports::flow_repository::FlowRepository;
 use crate::ports::flow_store::FlowStore;
+use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use async_trait::async_trait;
 use context::SeedContext;
 use history::SeedHistory;
@@ -50,6 +52,7 @@ pub async fn seed_database(
         Box::new(OidcSeeder),
     ];
 
+    let tx_manager = SqliteTransactionManager::new(Arc::new(db_pool.clone()));
     let history = SeedHistory::new(db_pool);
 
     for seeder in seeders {
@@ -72,8 +75,25 @@ pub async fn seed_database(
         }
 
         info!("Running seeder '{}'...", name);
-        seeder.run(&ctx, &mut state).await?;
-        history.upsert(name, version, &checksum).await?;
+
+        if seeder.transactional() {
+            let mut tx = tx_manager.begin().await?;
+            {
+                let mut tx_opt: Option<&mut dyn Transaction> = Some(&mut *tx);
+                if let Err(err) = seeder.run(&ctx, &mut state, &mut tx_opt).await {
+                    tx_manager.rollback(tx).await?;
+                    return Err(err);
+                }
+                let tx_ref = tx_opt.as_mut().map(|inner| &mut **inner);
+                history.upsert(name, version, &checksum, tx_ref).await?;
+            }
+            tx_manager.commit(tx).await?;
+        } else {
+            let mut tx_opt: Option<&mut dyn Transaction> = None;
+            seeder.run(&ctx, &mut state, &mut tx_opt).await?;
+            history.upsert(name, version, &checksum, None).await?;
+        }
+
         info!("Seeder '{}' completed.", name);
     }
 
@@ -101,13 +121,21 @@ impl SeedState {
 trait Seeder: Send + Sync {
     fn name(&self) -> &'static str;
     fn version(&self) -> i32;
+    fn transactional(&self) -> bool {
+        false
+    }
     fn always_run(&self) -> bool {
         false
     }
     fn checksum(&self, _ctx: &SeedContext<'_>) -> String {
         String::new()
     }
-    async fn run(&self, ctx: &SeedContext<'_>, state: &mut SeedState) -> anyhow::Result<()>;
+    async fn run(
+        &self,
+        ctx: &SeedContext<'_>,
+        state: &mut SeedState,
+        tx: &mut Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()>;
 }
 
 struct RealmSeeder;
@@ -133,7 +161,12 @@ impl Seeder for RealmSeeder {
         crate::constants::DEFAULT_REALM_NAME.to_string()
     }
 
-    async fn run(&self, ctx: &SeedContext<'_>, state: &mut SeedState) -> anyhow::Result<()> {
+    async fn run(
+        &self,
+        ctx: &SeedContext<'_>,
+        state: &mut SeedState,
+        _tx: &mut Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()> {
         let realm = realm::ensure_default_realm(ctx).await?;
         state.set_realm(realm);
         Ok(())
@@ -154,13 +187,22 @@ impl Seeder for FlowsSeeder {
         true
     }
 
+    fn transactional(&self) -> bool {
+        true
+    }
+
     fn checksum(&self, _ctx: &SeedContext<'_>) -> String {
         "default_flows_v1".to_string()
     }
 
-    async fn run(&self, ctx: &SeedContext<'_>, state: &mut SeedState) -> anyhow::Result<()> {
+    async fn run(
+        &self,
+        ctx: &SeedContext<'_>,
+        state: &mut SeedState,
+        tx: &mut Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()> {
         let mut realm = state.require_realm()?;
-        flows::ensure_default_flows(ctx, &mut realm).await?;
+        flows::ensure_default_flows(ctx, &mut realm, tx).await?;
         state.set_realm(realm);
         Ok(())
     }
@@ -184,7 +226,12 @@ impl Seeder for AdminSeeder {
         format!("username={}", ctx.settings.default_admin.username)
     }
 
-    async fn run(&self, ctx: &SeedContext<'_>, state: &mut SeedState) -> anyhow::Result<()> {
+    async fn run(
+        &self,
+        ctx: &SeedContext<'_>,
+        state: &mut SeedState,
+        _tx: &mut Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()> {
         let realm = state.require_realm()?;
         admin::seed_admin_user(ctx, realm.id).await?;
         Ok(())
@@ -214,7 +261,12 @@ impl Seeder for OidcSeeder {
         )
     }
 
-    async fn run(&self, ctx: &SeedContext<'_>, state: &mut SeedState) -> anyhow::Result<()> {
+    async fn run(
+        &self,
+        ctx: &SeedContext<'_>,
+        state: &mut SeedState,
+        _tx: &mut Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()> {
         let realm = state.require_realm()?;
         oidc::seed_default_oidc_client(ctx, realm.id).await?;
         Ok(())

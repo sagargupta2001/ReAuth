@@ -19,6 +19,7 @@
 - Build generates a `reauth.toml` template next to the binary if missing.
 - List env vars use comma‑separated values (e.g. `REAUTH__CORS__ALLOWED_ORIGINS=http://a,http://b`).
 - When a config file is present, runtime settings are hot‑reloaded (bind/DB/JWT still require restart).
+- Logging supports `logging.level` and optional `logging.filter` (or use `RUST_LOG`).
 - Examples:
   - `REAUTH__SERVER__PORT=4000`
   - `REAUTH__DATABASE__URL=sqlite:data/reauth.db`
