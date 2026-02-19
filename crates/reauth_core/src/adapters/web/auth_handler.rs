@@ -215,51 +215,54 @@ pub async fn start_login_flow_handler(
 
     // --- 1. RESUME LOGIC ---
     let mut valid_session_id = None;
-    let cookies: Vec<_> = jar
-        .iter()
-        .filter(|c| c.name() == LOGIN_SESSION_COOKIE)
-        .collect();
+    if !force_login {
+        let cookies: Vec<_> = jar
+            .iter()
+            .filter(|c| c.name() == LOGIN_SESSION_COOKIE)
+            .collect();
 
-    for cookie in cookies {
-        if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
-            if let Ok(Some(mut session)) = state.auth_session_repo.find_by_id(&parse_id).await {
-                // Verify the existing session belongs to the requested Realm.
-                // If I am logged into "Tenant A" but request "Tenant B", ignore the cookie.
-                if session.realm_id != realm.id {
-                    warn!(
-                        "[StartFlow] Ignoring session {} (Realm mismatch).",
-                        parse_id
-                    );
-                    continue;
-                }
-
-                if session.status == SessionStatus::Active {
-                    // [CRITICAL] Inject Context into Resumed Session
-                    let mut updated = false;
-                    if let Some(token) = &sso_token_id {
-                        session.context["sso_token_id"] = serde_json::Value::String(token.clone());
-                        updated = true;
-                    }
-                    if let Some(client_id) = params.get("client_id") {
-                        session.context["oidc"] = serde_json::json!({
-                            "client_id": client_id,
-                            "redirect_uri": params.get("redirect_uri"),
-                            "response_type": params.get("response_type"),
-                            "scope": params.get("scope"),
-                            "state": params.get("state"),
-                            "nonce": params.get("nonce"),
-                            "code_challenge": params.get("code_challenge"),
-                            "code_challenge_method": params.get("code_challenge_method"),
-                        });
-                        updated = true;
+        for cookie in cookies {
+            if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
+                if let Ok(Some(mut session)) = state.auth_session_repo.find_by_id(&parse_id).await {
+                    // Verify the existing session belongs to the requested Realm.
+                    // If I am logged into "Tenant A" but request "Tenant B", ignore the cookie.
+                    if session.realm_id != realm.id {
+                        warn!(
+                            "[StartFlow] Ignoring session {} (Realm mismatch).",
+                            parse_id
+                        );
+                        continue;
                     }
 
-                    if updated {
-                        state.auth_session_repo.update(&session).await?;
-                    }
+                    if session.status == SessionStatus::Active {
+                        // [CRITICAL] Inject Context into Resumed Session
+                        let mut updated = false;
+                        if let Some(token) = &sso_token_id {
+                            session.context["sso_token_id"] =
+                                serde_json::Value::String(token.clone());
+                            updated = true;
+                        }
+                        if let Some(client_id) = params.get("client_id") {
+                            session.context["oidc"] = serde_json::json!({
+                                "client_id": client_id,
+                                "redirect_uri": params.get("redirect_uri"),
+                                "response_type": params.get("response_type"),
+                                "scope": params.get("scope"),
+                                "state": params.get("state"),
+                                "nonce": params.get("nonce"),
+                                "code_challenge": params.get("code_challenge"),
+                                "code_challenge_method": params.get("code_challenge_method"),
+                            });
+                            updated = true;
+                        }
 
-                    valid_session_id = Some(parse_id);
-                    break;
+                        if updated {
+                            state.auth_session_repo.update(&session).await?;
+                        }
+
+                        valid_session_id = Some(parse_id);
+                        break;
+                    }
                 }
             }
         }

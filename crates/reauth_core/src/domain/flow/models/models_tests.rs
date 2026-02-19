@@ -1,6 +1,7 @@
 use super::{FlowDeployment, FlowDraft, FlowVersion, NodeMetadata};
 use chrono::{TimeZone, Utc};
 use serde_json::json;
+use sqlx::SqlitePool;
 use uuid::Uuid;
 
 #[test]
@@ -100,4 +101,67 @@ fn node_metadata_round_trip() {
     assert_eq!(decoded.config_schema, metadata.config_schema);
     assert_eq!(decoded.inputs, metadata.inputs);
     assert_eq!(decoded.outputs, metadata.outputs);
+}
+
+#[tokio::test]
+async fn flow_models_from_row_parse_uuid_fields() {
+    let pool = SqlitePool::connect("sqlite::memory:")
+        .await
+        .expect("connect");
+
+    let now = Utc::now();
+    let draft_id = Uuid::new_v4();
+    let realm_id = Uuid::new_v4();
+
+    let draft: FlowDraft = sqlx::query_as(
+        "SELECT ? as id, ? as realm_id, ? as name, ? as description, ? as graph_json, ? as flow_type, ? as created_at, ? as updated_at",
+    )
+    .bind(draft_id.to_string())
+    .bind(realm_id.to_string())
+    .bind("Draft")
+    .bind("desc")
+    .bind("[]")
+    .bind("browser")
+    .bind(now)
+    .bind(now)
+    .fetch_one(&pool)
+    .await
+    .expect("draft row");
+
+    assert_eq!(draft.id, draft_id);
+    assert_eq!(draft.realm_id, realm_id);
+
+    let version: FlowVersion = sqlx::query_as(
+        "SELECT ? as id, ? as flow_id, ? as version_number, ? as execution_artifact, ? as graph_json, ? as checksum, ? as created_at",
+    )
+    .bind("version-1")
+    .bind("flow-1")
+    .bind(1_i32)
+    .bind("artifact")
+    .bind("{}")
+    .bind("checksum")
+    .bind(now)
+    .fetch_one(&pool)
+    .await
+    .expect("version row");
+
+    assert_eq!(version.id, "version-1");
+    assert_eq!(version.flow_id, "flow-1");
+
+    let deployment_id = Uuid::new_v4();
+    let active_version_id = Uuid::new_v4();
+    let deployment: FlowDeployment = sqlx::query_as(
+        "SELECT ? as id, ? as realm_id, ? as flow_type, ? as active_version_id, ? as updated_at",
+    )
+    .bind(deployment_id.to_string())
+    .bind(realm_id.to_string())
+    .bind("browser")
+    .bind(active_version_id.to_string())
+    .bind(now)
+    .fetch_one(&pool)
+    .await
+    .expect("deployment row");
+
+    assert_eq!(deployment.realm_id, realm_id);
+    assert_eq!(deployment.active_version_id, active_version_id.to_string());
 }

@@ -179,6 +179,7 @@ impl OidcService {
     pub async fn exchange_code_for_token(
         &self,
         code: &str,
+        redirect_uri: &str,
         code_verifier: &str,
         ip_address: Option<String>,
         user_agent: Option<String>,
@@ -189,6 +190,10 @@ impl OidcService {
             .find_auth_code_by_code(code)
             .await?
             .ok_or(Error::OidcInvalidCode)?;
+
+        if auth_code.redirect_uri != redirect_uri {
+            return Err(Error::OidcInvalidRedirect(redirect_uri.to_string()));
+        }
 
         // 2. Verify PKCE
         if !crate::domain::oidc::verify_pkce_challenge(

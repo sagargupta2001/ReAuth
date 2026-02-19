@@ -40,3 +40,6 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for Group {
         })
     }
 }
+
+#[cfg(test)]
+mod group_tests;

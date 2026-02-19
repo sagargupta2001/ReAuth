@@ -1260,7 +1260,7 @@ async fn exchange_code_for_token_rejects_missing_code() {
     );
 
     match service
-        .exchange_code_for_token("missing", "verifier", None, None)
+        .exchange_code_for_token("missing", "http://localhost", "verifier", None, None)
         .await
     {
         Err(Error::OidcInvalidCode) => {}
@@ -1294,10 +1294,47 @@ async fn exchange_code_for_token_rejects_invalid_pkce() {
     );
 
     match service
-        .exchange_code_for_token("code", "bad", None, None)
+        .exchange_code_for_token("code", "http://localhost", "bad", None, None)
         .await
     {
         Err(Error::OidcInvalidCode) => {}
+        Err(other) => panic!("unexpected error: {:?}", other),
+        Ok(_) => panic!("expected error"),
+    }
+}
+
+#[tokio::test]
+async fn exchange_code_for_token_rejects_redirect_mismatch() {
+    let verifier = "verifier";
+    let oidc_repo = Arc::new(TestOidcRepo::default());
+    oidc_repo.insert_auth_code(AuthCode {
+        code: "code".to_string(),
+        user_id: Uuid::new_v4(),
+        client_id: "client".to_string(),
+        redirect_uri: "http://localhost".to_string(),
+        nonce: None,
+        code_challenge: Some(pkce_challenge(verifier)),
+        code_challenge_method: "S256".to_string(),
+        expires_at: Utc::now() + Duration::seconds(60),
+    });
+
+    let service = build_service(
+        oidc_repo,
+        Arc::new(TestAuthSessionRepo::default()),
+        Arc::new(TestFlowStore::default()),
+        Arc::new(TestRealmRepo::default()),
+        Arc::new(TestUserRepo::default()),
+        Arc::new(TestSessionRepo::default()),
+        Arc::new(TestTokenService::default()),
+    );
+
+    match service
+        .exchange_code_for_token("code", "http://evil.invalid", verifier, None, None)
+        .await
+    {
+        Err(Error::OidcInvalidRedirect(uri)) => {
+            assert_eq!(uri, "http://evil.invalid");
+        }
         Err(other) => panic!("unexpected error: {:?}", other),
         Ok(_) => panic!("expected error"),
     }
@@ -1329,7 +1366,7 @@ async fn exchange_code_for_token_requires_user() {
     );
 
     match service
-        .exchange_code_for_token("code", verifier, None, None)
+        .exchange_code_for_token("code", "http://localhost", verifier, None, None)
         .await
     {
         Err(Error::UserNotFound) => {}
@@ -1381,7 +1418,7 @@ async fn exchange_code_for_token_returns_tokens_and_deletes_code() {
     );
 
     let (token_response, refresh_token) = service
-        .exchange_code_for_token("code", verifier, None, None)
+        .exchange_code_for_token("code", "http://localhost", verifier, None, None)
         .await
         .expect("expected success");
 

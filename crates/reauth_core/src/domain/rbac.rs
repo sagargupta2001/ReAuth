@@ -177,3 +177,6 @@ pub enum RoleCompositeFilter {
     Effective,
     Unassigned,
 }
+
+#[cfg(test)]
+mod rbac_tests;

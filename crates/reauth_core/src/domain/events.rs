@@ -69,3 +69,6 @@ pub struct GroupDeleted {
     pub group_ids: Vec<Uuid>,
     pub affected_user_ids: Vec<Uuid>,
 }
+
+#[cfg(test)]
+mod events_tests;

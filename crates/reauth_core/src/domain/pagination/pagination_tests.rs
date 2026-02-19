@@ -27,6 +27,14 @@ fn page_request_deserializes_numeric_numbers() {
 }
 
 #[test]
+fn page_request_deserializes_i64_numbers() {
+    let req: PageRequest =
+        serde_json::from_str(r#"{"page":-1,"per_page":-5}"#).expect("i64 numbers");
+    assert_eq!(req.page, -1);
+    assert_eq!(req.per_page, -5);
+}
+
+#[test]
 fn page_request_rejects_invalid_integer_strings() {
     let err = serde_json::from_str::<PageRequest>(r#"{"page":"abc"}"#)
         .expect_err("invalid integer string should fail");
@@ -47,6 +55,36 @@ fn page_request_parses_sort_dir_case_insensitive() {
 
     let none: PageRequest = serde_json::from_str(r#"{"sort_dir":"invalid"}"#).expect("invalid");
     assert_eq!(none.sort_dir, None);
+}
+
+#[test]
+fn sort_direction_default_is_asc() {
+    assert_eq!(SortDirection::default(), SortDirection::Asc);
+}
+
+#[test]
+fn page_request_rejects_non_numeric_types() {
+    let err = serde_json::from_str::<PageRequest>(r#"{"page":true}"#)
+        .expect_err("non-numeric should fail");
+    let message = err.to_string();
+    assert!(
+        message.contains("an integer or a string containing an integer"),
+        "unexpected error: {message}"
+    );
+}
+
+#[test]
+fn deserialize_i64_from_string_handles_owned_string() {
+    use serde::de::value::{Error as DeError, I64Deserializer, StringDeserializer};
+
+    let value =
+        super::deserialize_i64_from_string(I64Deserializer::<DeError>::new(-42)).expect("i64");
+    assert_eq!(value, -42);
+
+    let value =
+        super::deserialize_i64_from_string(StringDeserializer::<DeError>::new("42".to_string()))
+            .expect("string");
+    assert_eq!(value, 42);
 }
 
 #[test]

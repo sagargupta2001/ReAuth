@@ -5,3 +5,6 @@ mod health;
 
 #[path = "api/jwks.rs"]
 mod jwks;
+
+#[path = "api/auth_oidc_flow.rs"]
+mod auth_oidc_flow;

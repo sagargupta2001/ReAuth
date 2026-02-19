@@ -196,9 +196,21 @@ async fn group_hierarchy_and_ordering() -> Result<()> {
     repo.create_group(&root_b).await?;
     repo.create_group(&child_a).await?;
 
+    let found_by_name = repo.find_group_by_name(&realm_id, "root-a").await?;
+    assert_eq!(found_by_name.unwrap().id, root_a.id);
+    let found_by_id = repo.find_group_by_id(&root_b.id).await?;
+    assert_eq!(found_by_id.unwrap().name, "root-b");
+
+    let search_req = page_request(1, 10, Some("name"), Some(SortDirection::Asc), Some("root"));
+    let filtered_groups = repo.list_groups(&realm_id, &search_req).await?;
+    assert_eq!(filtered_groups.meta.total, 2);
+
     let req = page_request(1, 10, Some("name"), Some(SortDirection::Asc), None);
     let groups = repo.list_groups(&realm_id, &req).await?;
     assert_eq!(groups.meta.total, 3);
+
+    let roots_filtered = repo.list_group_roots(&realm_id, &search_req).await?;
+    assert_eq!(roots_filtered.meta.total, 2);
 
     let roots = repo.list_group_roots(&realm_id, &req).await?;
     let root_ids: HashSet<Uuid> = roots.data.iter().map(|row| row.id).collect();
@@ -210,6 +222,13 @@ async fn group_hierarchy_and_ordering() -> Result<()> {
         .find(|row| row.id == root_a.id)
         .expect("root-a row");
     assert!(root_a_row.has_children);
+
+    let child_search_req =
+        page_request(1, 10, Some("name"), Some(SortDirection::Asc), Some("child"));
+    let children_filtered = repo
+        .list_group_children(&realm_id, &root_a.id, &child_search_req)
+        .await?;
+    assert_eq!(children_filtered.meta.total, 1);
 
     let children = repo
         .list_group_children(&realm_id, &root_a.id, &req)
@@ -239,6 +258,19 @@ async fn group_hierarchy_and_ordering() -> Result<()> {
         .await?;
     let reordered = repo.list_group_ids_by_parent(&realm_id, None).await?;
     assert_eq!(reordered, vec![root_b.id, root_a.id]);
+
+    let mut updated_root = root_a.clone();
+    updated_root.name = "root-a-updated".to_string();
+    updated_root.description = None;
+    repo.update_group(&updated_root).await?;
+    let updated = repo.find_group_by_id(&root_a.id).await?.unwrap();
+    assert_eq!(updated.name, "root-a-updated");
+    assert!(updated.description.is_none());
+
+    repo.delete_groups(&[]).await?;
+    repo.delete_groups(&[root_b.id]).await?;
+    let deleted = repo.find_group_by_id(&root_b.id).await?;
+    assert!(deleted.is_none());
     Ok(())
 }
 
@@ -566,6 +598,30 @@ async fn membership_and_composites_queries() -> Result<()> {
 
     let direct_user_ids = repo.find_direct_user_ids_for_role(&r1.id).await?;
     assert_eq!(direct_user_ids, vec![u1]);
+
+    let descendant = repo.is_role_descendant(&r1.id, &r4.id).await?;
+    assert!(descendant);
+    repo.remove_composite_role(&r2.id, &r3.id).await?;
+    let descendant_after = repo.is_role_descendant(&r1.id, &r4.id).await?;
+    assert!(!descendant_after);
+
+    repo.remove_role_from_group(&r2.id, &g1.id).await?;
+    let group_roles_after = repo
+        .list_group_roles(&realm_id, &g1.id, GroupRoleFilter::Direct, &req)
+        .await?;
+    assert_eq!(group_roles_after.meta.total, 0);
+
+    repo.remove_user_from_group(&u2, &g1.id).await?;
+    let group_members_after = repo
+        .list_group_members(&realm_id, &g1.id, GroupMemberFilter::Members, &req)
+        .await?;
+    assert_eq!(group_members_after.meta.total, 0);
+
+    repo.remove_role_from_user(&u1, &r1.id).await?;
+    let direct_members_after = repo
+        .list_role_members(&realm_id, &r1.id, RoleMemberFilter::Direct, &req)
+        .await?;
+    assert_eq!(direct_members_after.meta.total, 0);
 
     Ok(())
 }

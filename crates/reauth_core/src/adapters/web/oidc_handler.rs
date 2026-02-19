@@ -6,17 +6,17 @@ use crate::{
     error::{Error, Result},
     AppState,
 };
-use axum::extract::{ConnectInfo, OriginalUri, Path};
+use axum::extract::{ConnectInfo, FromRequest, OriginalUri, Path, Request};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Redirect}, // Redirect is needed for authorize
-    Form,
     Json,
 };
 use axum_extra::extract::cookie::{Cookie, SameSite}; // Use axum_extra cookie types
 use cookie::CookieBuilder;
 use http::{header, HeaderMap, HeaderValue};
+use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::net::SocketAddr;
 use uuid::Uuid;
@@ -30,6 +30,26 @@ pub struct TokenParams {
     pub redirect_uri: String,
     pub client_id: String,
     pub code_verifier: Option<String>,
+}
+
+pub struct JsonForm<T>(pub T);
+
+impl<S, T> FromRequest<S> for JsonForm<T>
+where
+    T: DeserializeOwned,
+    S: Send + Sync,
+{
+    type Rejection = (StatusCode, Json<serde_json::Value>);
+
+    async fn from_request(req: Request, state: &S) -> std::result::Result<Self, Self::Rejection> {
+        match axum::extract::Form::<T>::from_request(req, state).await {
+            Ok(axum::extract::Form(value)) => Ok(JsonForm(value)),
+            Err(rejection) => Err((
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(serde_json::json!({ "error": rejection.to_string() })),
+            )),
+        }
+    }
 }
 
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
@@ -113,7 +133,7 @@ pub async fn token_handler(
     Path(_realm_name): Path<String>,
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Form(params): Form<TokenParams>,
+    JsonForm(params): JsonForm<TokenParams>,
 ) -> Result<impl IntoResponse> {
     if params.grant_type != "authorization_code" {
         return Err(Error::OidcInvalidRequest(
@@ -138,6 +158,7 @@ pub async fn token_handler(
         .oidc_service
         .exchange_code_for_token(
             &params.code,
+            &params.redirect_uri,
             params.code_verifier.as_deref().unwrap_or(""),
             Some(ip_address),
             user_agent,

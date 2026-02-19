@@ -44,3 +44,6 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for Role {
 }
 
 pub type Permission = String;
+
+#[cfg(test)]
+mod role_tests;
