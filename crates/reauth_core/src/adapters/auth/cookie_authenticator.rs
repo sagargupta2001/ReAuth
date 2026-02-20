@@ -95,3 +95,128 @@ impl LifecycleNode for CookieAuthenticator {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::session::RefreshToken;
+    use crate::ports::session_repository::SessionRepository;
+    use async_trait::async_trait;
+    use chrono::{Duration, Utc};
+    use mockall::mock;
+    use uuid::Uuid;
+
+    mock! {
+        pub SessionRepo {}
+        #[async_trait]
+        impl SessionRepository for SessionRepo {
+            async fn save(&self, token: &RefreshToken) -> Result<()>;
+            async fn find_by_id(&self, id: &Uuid) -> Result<Option<RefreshToken>>;
+            async fn delete_by_id(&self, id: &Uuid) -> Result<()>;
+            async fn list(&self, realm_id: &Uuid, req: &crate::domain::pagination::PageRequest) -> Result<crate::domain::pagination::PageResponse<RefreshToken>>;
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_continues_when_no_token_in_context() {
+        let mut repo = MockSessionRepo::new();
+        repo.expect_find_by_id().never();
+
+        let auth = CookieAuthenticator::new(Arc::new(repo));
+        let mut session =
+            AuthenticationSession::new(Uuid::new_v4(), Uuid::new_v4(), "start".into());
+
+        let result = auth.execute(&mut session).await.unwrap();
+        assert!(matches!(result, NodeOutcome::Continue { .. }));
+    }
+
+    #[tokio::test]
+    async fn execute_continues_when_token_not_found() {
+        let token_id = Uuid::new_v4();
+        let mut repo = MockSessionRepo::new();
+        repo.expect_find_by_id()
+            .with(mockall::predicate::eq(token_id))
+            .returning(|_| Ok(None));
+
+        let auth = CookieAuthenticator::new(Arc::new(repo));
+        let mut session =
+            AuthenticationSession::new(Uuid::new_v4(), Uuid::new_v4(), "start".into());
+        session.update_context("sso_token_id", token_id.to_string().into());
+
+        let result = auth.execute(&mut session).await.unwrap();
+        assert!(matches!(result, NodeOutcome::Continue { .. }));
+    }
+
+    #[tokio::test]
+    async fn execute_blocks_cross_realm_attack() {
+        let token_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let realm_a = Uuid::new_v4();
+        let realm_b = Uuid::new_v4();
+
+        let token = RefreshToken {
+            id: token_id,
+            user_id,
+            realm_id: realm_a, // Token belongs to Realm A
+            client_id: None,
+            expires_at: Utc::now() + Duration::hours(1),
+            ip_address: None,
+            user_agent: None,
+            created_at: Utc::now(),
+            last_used_at: Utc::now(),
+        };
+
+        let mut repo = MockSessionRepo::new();
+        repo.expect_find_by_id()
+            .returning(move |_| Ok(Some(token.clone())));
+
+        let auth = CookieAuthenticator::new(Arc::new(repo));
+        // Session belongs to Realm B
+        let mut session = AuthenticationSession::new(realm_b, Uuid::new_v4(), "start".into());
+        session.update_context("sso_token_id", token_id.to_string().into());
+
+        let result = auth.execute(&mut session).await.unwrap();
+        // Should NOT log in, but continue to next node (likely Password)
+        assert!(matches!(result, NodeOutcome::Continue { .. }));
+        assert!(session.user_id.is_none());
+    }
+
+    #[tokio::test]
+    async fn execute_succeeds_with_valid_token() {
+        let token_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let realm_id = Uuid::new_v4();
+
+        let token = RefreshToken {
+            id: token_id,
+            user_id,
+            realm_id,
+            client_id: None,
+            expires_at: Utc::now() + Duration::hours(1),
+            ip_address: None,
+            user_agent: None,
+            created_at: Utc::now(),
+            last_used_at: Utc::now(),
+        };
+
+        let mut repo = MockSessionRepo::new();
+        repo.expect_find_by_id()
+            .returning(move |_| Ok(Some(token.clone())));
+
+        let auth = CookieAuthenticator::new(Arc::new(repo));
+        let mut session = AuthenticationSession::new(realm_id, Uuid::new_v4(), "start".into());
+        session.update_context("sso_token_id", token_id.to_string().into());
+
+        let result = auth.execute(&mut session).await.unwrap();
+
+        if let NodeOutcome::FlowSuccess {
+            user_id: authenticated_user,
+        } = result
+        {
+            assert_eq!(authenticated_user, user_id);
+        } else {
+            panic!("Expected FlowSuccess, got {:?}", result);
+        }
+        assert_eq!(session.user_id, Some(user_id));
+    }
+}

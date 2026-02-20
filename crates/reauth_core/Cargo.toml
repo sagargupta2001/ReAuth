@@ -52,6 +52,7 @@ rand = { workspace = true }
 notify = { workspace = true }
 
 [dev-dependencies]
+mockall = "0.13.0"
 axum = { workspace = true }
 http = { workspace = true }
 http-body-util = "0.1.2"

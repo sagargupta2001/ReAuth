@@ -63,7 +63,7 @@ async function refreshAccessToken(): Promise<string> {
  */
 async function request<T>(endpoint: string, config: RequestConfig = {}): Promise<T> {
   // 1. Get Token from Store
-  let token = useSessionStore.getState().accessToken
+  const token = useSessionStore.getState().accessToken
   const headers = new Headers(config.headers)
 
   if (token) {
