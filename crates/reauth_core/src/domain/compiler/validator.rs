@@ -72,6 +72,7 @@ mod tests {
     use super::*;
     use crate::application::runtime_registry::RuntimeRegistry;
     use crate::domain::execution::StepType;
+    use crate::error::Error;
 
     #[test]
     fn valid_graph_passes_validation() {

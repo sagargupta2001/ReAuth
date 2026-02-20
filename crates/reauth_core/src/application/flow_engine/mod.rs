@@ -217,4 +217,4 @@ impl FlowEngine {
 }
 
 #[cfg(test)]
-mod flow_engine_tests;
+mod tests;

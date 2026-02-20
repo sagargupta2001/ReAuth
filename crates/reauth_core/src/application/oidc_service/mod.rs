@@ -341,4 +341,4 @@ impl OidcService {
 }
 
 #[cfg(test)]
-mod oidc_service_tests;
+mod tests;

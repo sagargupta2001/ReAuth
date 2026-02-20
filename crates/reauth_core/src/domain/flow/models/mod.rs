@@ -62,4 +62,4 @@ pub struct NodeMetadata {
 }
 
 #[cfg(test)]
-mod models_tests;
+mod tests;

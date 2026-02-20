@@ -165,4 +165,4 @@ impl RealmService {
 }
 
 #[cfg(test)]
-mod realm_service_tests;
+mod tests;

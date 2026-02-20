@@ -51,4 +51,4 @@ pub enum ExecutionResult {
 }
 
 #[cfg(test)]
-mod execution_tests;
+mod tests;

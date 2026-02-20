@@ -72,4 +72,4 @@ pub trait LifecycleNode: Send + Sync {
 }
 
 #[cfg(test)]
-mod lifecycle_tests;
+mod tests;

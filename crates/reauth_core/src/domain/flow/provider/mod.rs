@@ -36,4 +36,4 @@ pub trait NodeProvider: Send + Sync {
 }
 
 #[cfg(test)]
-mod provider_tests;
+mod tests;

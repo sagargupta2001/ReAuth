@@ -230,4 +230,4 @@ impl FlowExecutor {
 }
 
 #[cfg(test)]
-mod flow_executor_tests;
+mod tests;

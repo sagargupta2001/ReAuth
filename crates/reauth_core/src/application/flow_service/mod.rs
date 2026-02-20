@@ -118,4 +118,4 @@ impl FlowService {
 }
 
 #[cfg(test)]
-mod flow_service_tests;
+mod tests;

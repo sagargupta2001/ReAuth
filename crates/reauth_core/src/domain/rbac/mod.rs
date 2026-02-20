@@ -179,4 +179,4 @@ pub enum RoleCompositeFilter {
 }
 
 #[cfg(test)]
-mod rbac_tests;
+mod tests;

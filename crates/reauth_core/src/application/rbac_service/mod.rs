@@ -1144,5 +1144,4 @@ impl RbacService {
 }
 
 #[cfg(test)]
-#[path = "rbac_service_tests.rs"]
-mod rbac_service_tests;
+mod tests;

@@ -102,4 +102,4 @@ impl FlowCompiler {
 }
 
 #[cfg(test)]
-mod flow_compiler_tests;
+mod tests;

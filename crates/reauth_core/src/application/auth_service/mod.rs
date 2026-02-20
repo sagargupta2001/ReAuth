@@ -243,4 +243,4 @@ impl AuthService {
 }
 
 #[cfg(test)]
-mod auth_service_tests;
+mod tests;
