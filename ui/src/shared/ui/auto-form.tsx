@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { Input } from '@/components/input'
 import { Label } from '@/components/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
@@ -57,6 +58,7 @@ function FieldRenderer({
   onChange: (val: unknown) => void
   error?: string | null
 }) {
+  const id = React.useId()
   const label = (schema.title as string) || name
   const description = schema.description as string | undefined
 
@@ -64,9 +66,9 @@ function FieldRenderer({
   if (schema.enum && Array.isArray(schema.enum)) {
     return (
       <div className="space-y-2">
-        <Label className="text-foreground/80 text-xs font-semibold">{label}</Label>
+        <Label htmlFor={id} className="text-foreground/80 text-xs font-semibold">{label}</Label>
         <Select value={value as string} onValueChange={onChange}>
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger id={id} className="h-8 text-xs">
             <SelectValue placeholder="Select..." />
           </SelectTrigger>
           <SelectContent>
@@ -87,10 +89,10 @@ function FieldRenderer({
     return (
       <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
         <div className="space-y-0.5">
-          <Label className="text-foreground/80 text-xs font-semibold">{label}</Label>
+          <Label htmlFor={id} className="text-foreground/80 text-xs font-semibold">{label}</Label>
           {description && <p className="text-muted-foreground text-[10px]">{description}</p>}
         </div>
-        <Switch checked={value as boolean} onCheckedChange={onChange} className="scale-75" />
+        <Switch id={id} checked={value as boolean} onCheckedChange={onChange} className="scale-75" />
       </div>
     )
   }
@@ -99,8 +101,9 @@ function FieldRenderer({
   if (schema.type === 'integer' || schema.type === 'number') {
     return (
       <div className="space-y-2">
-        <Label className="text-foreground/80 text-xs font-semibold">{label}</Label>
+        <Label htmlFor={id} className="text-foreground/80 text-xs font-semibold">{label}</Label>
         <Input
+          id={id}
           type="number"
           className="h-8 text-xs"
           value={(value as number) ?? ''}
@@ -119,8 +122,9 @@ function FieldRenderer({
   // 4. STRING (Default)
   return (
     <div className="space-y-2">
-      <Label className="text-foreground/80 text-xs font-semibold">{label}</Label>
+      <Label htmlFor={id} className="text-foreground/80 text-xs font-semibold">{label}</Label>
       <Input
+        id={id}
         className="h-8 text-xs"
         value={(value as string) || ''}
         onChange={(e) => onChange(e.target.value)}

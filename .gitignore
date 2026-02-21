@@ -21,3 +21,4 @@ plugins/hello-world/frontend/node_modules
 /plugins/hello-world/frontend/dist/module.js
 
 data
+.tmp_stats
