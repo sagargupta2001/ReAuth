@@ -361,6 +361,7 @@ impl RealmRepository for TestRealmRepo {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Default)]
 struct DummyTx;
 
