@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.tsx'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useFlowDraft } from '@/features/flow-builder/api/useFlowDraft'
 import { FlowDetailsOverviewTab } from '@/features/flow/components/FlowDetailsOverviewTab.tsx'
 // Helper component for Overview to keep it clean (you can put this in a separate file too)

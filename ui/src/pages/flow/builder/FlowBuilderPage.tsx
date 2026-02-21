@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { ReactFlowProvider } from '@xyflow/react'
+import { type Edge, type Node, ReactFlowProvider } from '@xyflow/react'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
@@ -24,7 +24,7 @@ export function FlowBuilderPage() {
     if (draft?.graph_json) {
       // React Flow expects { nodes: [], edges: [] }
       // If empty JSON {}, default to arrays
-      const { nodes = [], edges = [] } = draft.graph_json
+      const { nodes = [], edges = [] } = draft.graph_json as { nodes?: Node[]; edges?: Edge[] }
       setGraph(nodes, edges)
     }
   }, [draft, setGraph])

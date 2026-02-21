@@ -50,3 +50,14 @@ url = { workspace = true }
 rsa = { workspace = true }
 rand = { workspace = true }
 notify = { workspace = true }
+
+[dev-dependencies]
+mockall = "0.13.0"
+axum = { workspace = true }
+http = { workspace = true }
+http-body-util = "0.1.2"
+serde_json = { workspace = true }
+serial_test = "3.1.1"
+tempfile = "3.10.1"
+tokio = { workspace = true, features = ["full"] }
+tower = "0.5.2"

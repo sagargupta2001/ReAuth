@@ -39,7 +39,7 @@ export function NavGroup({ title, items }: NavGroupProps) {
   const realm = useActiveRealm()
 
   // Helper to prefix URLs
-  const resolveUrl = (url: any) => {
+  const resolveUrl = (url: string | undefined) => {
     if (typeof url !== 'string') return ''
     if (url.startsWith('http')) return url
     const cleanUrl = url === '/' ? '' : url
@@ -52,7 +52,7 @@ export function NavGroup({ title, items }: NavGroupProps) {
       <SidebarMenu>
         {items.map((item) => {
           const key = `${item.title}-${item.url}`
-          const resolvedUrl = resolveUrl(item.url)
+          const resolvedUrl = resolveUrl(item.url as string)
 
           // --- BRANCH 1: Item has children (Collapsible) ---
           if (item.items && item.items.length > 0) {
@@ -62,7 +62,7 @@ export function NavGroup({ title, items }: NavGroupProps) {
               url: undefined,
               items: item.items.map((sub) => ({
                 ...sub,
-                url: resolveUrl(sub.url),
+                url: resolveUrl(sub.url as string),
               })),
             }
 

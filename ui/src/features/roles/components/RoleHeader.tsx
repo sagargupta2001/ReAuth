@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import type { Role } from '@/features/roles/api/useRoles.ts'
 
 interface RoleHeaderProps {

@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 
-import { getRealmPath } from '@/entities/realm/lib/navigation'
+import { getRealmPath } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { cn } from '@/lib/utils'
 import type { PrimaryNavItem } from '@/widgets/Sidebar/model/types'

@@ -11,7 +11,13 @@ impl HashedPassword {
         let salt = SaltString::generate(&mut OsRng);
 
         // Explicit parameters (no default() anymore)
-        let params = Params::new(15_000, 2, 1, None)
+        // Use lower parameters during tests to speed up the suite
+        #[cfg(not(test))]
+        let (m_cost, t_cost, p_cost) = (15_000, 2, 1);
+        #[cfg(test)]
+        let (m_cost, t_cost, p_cost) = (500, 1, 1);
+
+        let params = Params::new(m_cost, t_cost, p_cost, None)
             .map_err(|e| Error::Unexpected(anyhow::Error::msg(e.to_string())))?;
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
@@ -34,7 +40,12 @@ impl HashedPassword {
         let parsed_hash = PasswordHash::new(self.0.as_str())
             .map_err(|e| Error::Unexpected(anyhow::Error::msg(e.to_string())))?;
 
-        let params = Params::new(15_000, 2, 1, None)
+        #[cfg(not(test))]
+        let (m_cost, t_cost, p_cost) = (15_000, 2, 1);
+        #[cfg(test)]
+        let (m_cost, t_cost, p_cost) = (500, 1, 1);
+
+        let params = Params::new(m_cost, t_cost, p_cost, None)
             .map_err(|e| Error::Unexpected(anyhow::Error::msg(e.to_string())))?;
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
@@ -45,5 +56,34 @@ impl HashedPassword {
 
     pub fn as_str(&self) -> &String {
         &self.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // use super::*;
+    use crate::error::Error;
+
+    #[test]
+    fn hashed_password_round_trip_verifies() {
+        let hash =
+            HashedPassword::new("correct-horse-battery-staple").expect("hash should be created");
+
+        let parsed = HashedPassword::from_hash(hash.as_str()).expect("hash should parse");
+
+        assert!(parsed
+            .verify("correct-horse-battery-staple")
+            .expect("verify should succeed"));
+        assert!(!parsed
+            .verify("wrong-password")
+            .expect("verify should succeed"));
+    }
+
+    #[test]
+    fn hashed_password_rejects_invalid_hash() {
+        let err =
+            HashedPassword::from_hash("not-a-valid-hash").expect_err("invalid hash should fail");
+        assert!(matches!(err, Error::Unexpected(_)));
     }
 }

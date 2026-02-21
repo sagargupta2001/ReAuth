@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 
 import { Main } from '@/widgets/Layout/Main'
-import { LogViewer } from '@/features/logs/components/LogViewer.tsx'
+import { LogViewer } from '@/features/logs/components/LogViewer'
 
 export function LogsPage() {
   const { t } = useTranslation('logs')

@@ -21,7 +21,7 @@ export interface NodeMetadata {
   icon: string
   inputs: string[]
   outputs: string[]
-  config_schema: Record<string, any>
+  config_schema: Record<string, unknown>
 }
 
 interface FlowBuilderState {
@@ -36,7 +36,7 @@ interface FlowBuilderState {
   selectNode: (id: string | null) => void
   setGraph: (nodes: Node[], edges: Edge[]) => void
   setNodeTypes: (types: NodeMetadata[]) => void
-  updateNodeData: (id: string, newData: Record<string, any>) => void
+  updateNodeData: (id: string, newData: Record<string, unknown>) => void
 
   reset: () => void
 }
@@ -81,7 +81,7 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
     set({ nodeTypes: types })
   },
 
-  updateNodeData: (id: string, newData: Record<string, any>) => {
+  updateNodeData: (id: string, newData: Record<string, unknown>) => {
     set({
       nodes: get().nodes.map((node) => {
         if (node.id === id) {

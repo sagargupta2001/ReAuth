@@ -19,7 +19,12 @@ pub fn print_banner(settings: &Settings) {
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "unknown".to_string());
 
-    println!("{}", "=======================================================================".white().bold());
+    println!(
+        "{}",
+        "======================================================================="
+            .white()
+            .bold()
+    );
     let logo = [
         "ooooooooo.                   .o.                       .   oooo       ",
         "`888   `Y88.                .888.                    .o8   `888       ",
@@ -37,45 +42,22 @@ pub fn print_banner(settings: &Settings) {
         let color = Color::TrueColor { r: 255, g, b: g };
         println!("{}", line.color(color).bold());
     }
-    println!("{}", "=======================================================================".white().bold());
     println!(
-        "{} {}",
-        "Name:".yellow().bold(),
-        name.white()
+        "{}",
+        "======================================================================="
+            .white()
+            .bold()
     );
-    println!(
-        "{} {}",
-        "Version:".yellow().bold(),
-        version.white()
-    );
-    println!(
-        "{} {}",
-        "Target:".yellow().bold(),
-        target.white()
-    );
-    println!(
-        "{} {}",
-        "PID:".yellow().bold(),
-        pid.to_string().white()
-    );
+    println!("{} {}", "Name:".yellow().bold(), name.white());
+    println!("{} {}", "Version:".yellow().bold(), version.white());
+    println!("{} {}", "Target:".yellow().bold(), target.white());
+    println!("{} {}", "PID:".yellow().bold(), pid.to_string().white());
     println!(
         "{} {}",
         "Public URL:".yellow().bold(),
         settings.server.public_url.white()
     );
-    println!(
-        "{} {}",
-        "UI Mode:".yellow().bold(),
-        ui_mode.white()
-    );
-    println!(
-        "{} {}",
-        "Config File:".yellow().bold(),
-        config_path.white()
-    );
-    println!(
-        "{} {}",
-        "Binary:".yellow().bold(),
-        exe_path.white()
-    );
+    println!("{} {}", "UI Mode:".yellow().bold(), ui_mode.white());
+    println!("{} {}", "Config File:".yellow().bold(), config_path.white());
+    println!("{} {}", "Binary:".yellow().bold(), exe_path.white());
 }

@@ -1,11 +1,11 @@
+use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::role::Permission;
 use crate::domain::{
     group::Group,
     rbac::{
         CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-        GroupTreeRow,
-        RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow, UserRoleFilter,
-        UserRoleRow,
+        GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
+        UserRoleFilter, UserRoleRow,
     },
     role::Role,
 };
@@ -13,7 +13,6 @@ use crate::error::Result;
 use async_trait::async_trait;
 use std::collections::HashSet;
 use uuid::Uuid;
-use crate::domain::pagination::{PageRequest, PageResponse};
 
 #[async_trait]
 pub trait RbacRepository: Send + Sync {
@@ -39,11 +38,7 @@ pub trait RbacRepository: Send + Sync {
     async fn find_group_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Group>>;
     async fn find_group_by_id(&self, group_id: &Uuid) -> Result<Option<Group>>;
 
-    async fn list_roles(
-        &self,
-        realm_id: &Uuid,
-        req: &PageRequest,
-    ) -> Result<PageResponse<Role>>;
+    async fn list_roles(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Role>>;
     async fn list_client_roles(
         &self,
         realm_id: &Uuid,
@@ -53,11 +48,7 @@ pub trait RbacRepository: Send + Sync {
     // Find a specific role by ID (for validation)
     async fn find_role_by_id(&self, role_id: &Uuid) -> Result<Option<Role>>;
     // List groups in a realm (for listing)
-    async fn list_groups(
-        &self,
-        realm_id: &Uuid,
-        req: &PageRequest,
-    ) -> Result<PageResponse<Group>>;
+    async fn list_groups(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Group>>;
     async fn list_group_roots(
         &self,
         realm_id: &Uuid,
@@ -110,11 +101,7 @@ pub trait RbacRepository: Send + Sync {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
     ) -> Result<Vec<Uuid>>;
-    async fn list_group_subtree_ids(
-        &self,
-        realm_id: &Uuid,
-        root_id: &Uuid,
-    ) -> Result<Vec<Uuid>>;
+    async fn list_group_subtree_ids(&self, realm_id: &Uuid, root_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn set_group_orders(
         &self,
         realm_id: &Uuid,
@@ -156,15 +143,24 @@ pub trait RbacRepository: Send + Sync {
     async fn update_group(&self, group: &Group) -> Result<()>;
     async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>>;
     async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()>;
-    async fn bulk_update_permissions(&self, role_id: &Uuid, permissions: Vec<String>, action: &str) -> Result<()>;
-
-    async fn assign_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()>;
-    async fn remove_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()>;
-    async fn is_role_descendant(
+    async fn bulk_update_permissions(
         &self,
-        ancestor_id: &Uuid,
-        candidate_id: &Uuid,
-    ) -> Result<bool>;
+        role_id: &Uuid,
+        permissions: Vec<String>,
+        action: &str,
+    ) -> Result<()>;
+
+    async fn assign_composite_role(
+        &self,
+        parent_role_id: &Uuid,
+        child_role_id: &Uuid,
+    ) -> Result<()>;
+    async fn remove_composite_role(
+        &self,
+        parent_role_id: &Uuid,
+        child_role_id: &Uuid,
+    ) -> Result<()>;
+    async fn is_role_descendant(&self, ancestor_id: &Uuid, candidate_id: &Uuid) -> Result<bool>;
 
     async fn create_custom_permission(&self, permission: &CustomPermission) -> Result<()>;
     async fn update_custom_permission(&self, permission: &CustomPermission) -> Result<()>;

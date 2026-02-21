@@ -15,6 +15,12 @@ impl LogBroadcastBus {
     }
 }
 
+impl Default for LogBroadcastBus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl LogPublisher for LogBroadcastBus {
     async fn publish(&self, log: LogEntry) {

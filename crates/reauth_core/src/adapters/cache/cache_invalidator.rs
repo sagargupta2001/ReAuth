@@ -33,7 +33,10 @@ impl EventHandler for CacheInvalidator {
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
             DomainEvent::UserRemovedFromGroup(e) => {
-                debug!("Invalidating cache for user: {} (Removed from Group)", e.user_id);
+                debug!(
+                    "Invalidating cache for user: {} (Removed from Group)",
+                    e.user_id
+                );
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
             DomainEvent::RoleAssignedToGroup(e) => {
@@ -53,7 +56,10 @@ impl EventHandler for CacheInvalidator {
                 }
             }
             DomainEvent::RoleRemovedFromGroup(e) => {
-                debug!("Invalidating cache for group: {} (Role Removed)", e.group_id);
+                debug!(
+                    "Invalidating cache for group: {} (Role Removed)",
+                    e.group_id
+                );
                 match self.rbac_repo.find_user_ids_in_group(&e.group_id).await {
                     Ok(user_ids) => {
                         for user_id in user_ids {

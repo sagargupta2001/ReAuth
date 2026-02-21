@@ -1,7 +1,7 @@
 import { Package } from 'lucide-react'
 
 import type { PluginStatusInfo } from '@/entities/plugin/model/types.ts'
-import { RealmLink } from '@/entities/realm/lib/navigation.tsx'
+import { RealmLink } from '@/entities/realm/lib/navigation'
 import { PluginConnectButton } from '@/features/plugin/components/PluginConnectButton.tsx'
 
 interface Props {

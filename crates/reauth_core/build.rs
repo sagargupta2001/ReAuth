@@ -10,8 +10,8 @@ fn main() {
     let dest_dir = find_profile_dir(&out_dir, &profile).unwrap_or_else(|| out_dir.clone());
     let dest_path = dest_dir.join("reauth.toml");
 
-    let template_path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../config/reauth.toml.template");
+    let template_path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../config/reauth.toml.template");
 
     println!("cargo:rerun-if-changed={}", template_path.display());
 

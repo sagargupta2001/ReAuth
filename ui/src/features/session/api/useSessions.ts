@@ -45,12 +45,12 @@ export function useRevokeSession() {
       // Invalidate list to refresh UI
       void queryClient.invalidateQueries({ queryKey: ['sessions'] })
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       // If the backend says "Not Found" or "Invalid Token", it means the session
       // was already rotated or deleted. We should treat this as a UI sync update, not an error.
       // Note: Check what status code your backend returns for missing session (404 or 401)
 
-      const errorMessage = err.message?.toLowerCase() || ''
+      const errorMessage = (err instanceof Error ? err.message : '').toLowerCase()
 
       if (errorMessage.includes('invalid') || errorMessage.includes('not found')) {
         toast.info('Session was already inactive or rotated.')
@@ -60,7 +60,7 @@ export function useRevokeSession() {
       }
 
       // Genuine errors (e.g. 500 server error)
-      toast.error(`Failed to revoke session: ${err.message}`)
+      toast.error(`Failed to revoke session: ${errorMessage || 'Unknown error'}`)
     },
   })
 }

@@ -35,7 +35,11 @@ pub async fn seed_admin_user(ctx: &SeedContext<'_>, realm_id: Uuid) -> anyhow::R
 
     let role_name = "super_admin";
 
-    let role = match ctx.rbac_service.find_role_by_name(realm_id, role_name).await? {
+    let role = match ctx
+        .rbac_service
+        .find_role_by_name(realm_id, role_name)
+        .await?
+    {
         Some(role) => role,
         None => {
             ctx.rbac_service

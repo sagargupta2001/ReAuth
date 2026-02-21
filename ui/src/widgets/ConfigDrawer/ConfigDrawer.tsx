@@ -4,7 +4,7 @@ import { Item, Root as Radio } from '@radix-ui/react-radio-group'
 import { CircleCheck, RotateCcw, Settings } from 'lucide-react'
 
 import { type Collapsible, useLayout } from '@/app/providers/layoutProvider.tsx'
-import { useTheme } from '@/app/providers/themeProvider.tsx'
+import { useTheme } from '@/app/providers/ThemeContext'
 import { IconLayoutCompact } from '@/assets/custom/icon-layout-compact'
 import { IconLayoutDefault } from '@/assets/custom/icon-layout-default'
 import { IconLayoutFull } from '@/assets/custom/icon-layout-full'

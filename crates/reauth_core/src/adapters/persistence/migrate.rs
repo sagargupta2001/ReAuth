@@ -1,5 +1,5 @@
-use sqlx::{Pool, Sqlite};
 use anyhow::Result;
+use sqlx::{Pool, Sqlite};
 
 /// Run all pending migrations (from workspace root `../migrations`)
 pub async fn run_migrations(pool: &Pool<Sqlite>) -> Result<()> {

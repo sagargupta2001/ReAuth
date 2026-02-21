@@ -1,20 +1,20 @@
 use crate::adapters::persistence::connection::Database;
-use crate::domain::role::Permission;
+use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::domain::rbac::{
     CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
     GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
     UserRoleFilter, UserRoleRow,
 };
+use crate::domain::role::Permission;
 use crate::{
     domain::{group::Group, role::Role},
     error::{Error, Result},
     ports::rbac_repository::RbacRepository,
 };
 use async_trait::async_trait;
-use std::collections::HashSet;
 use sqlx::{QueryBuilder, Sqlite};
+use std::collections::HashSet;
 use uuid::Uuid;
-use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 
 pub struct SqliteRbacRepository {
     pool: Database,
@@ -110,15 +110,17 @@ impl SqliteRbacRepository {
 impl RbacRepository for SqliteRbacRepository {
     async fn create_role(&self, role: &Role) -> Result<()> {
         // [UPDATED] Added client_id to INSERT
-        sqlx::query("INSERT INTO roles (id, realm_id, client_id, name, description) VALUES (?, ?, ?, ?, ?)")
-            .bind(role.id.to_string())
-            .bind(role.realm_id.to_string())
-            .bind(role.client_id.map(|id| id.to_string()))
-            .bind(&role.name)
-            .bind(&role.description)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        sqlx::query(
+            "INSERT INTO roles (id, realm_id, client_id, name, description) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(role.id.to_string())
+        .bind(role.realm_id.to_string())
+        .bind(role.client_id.map(|id| id.to_string()))
+        .bind(&role.name)
+        .bind(&role.description)
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
@@ -258,7 +260,8 @@ impl RbacRepository for SqliteRbacRepository {
         client_id: Option<&Uuid>,
         permission: &str,
     ) -> Result<Option<CustomPermission>> {
-        let mut query_builder = QueryBuilder::new("SELECT * FROM custom_permissions WHERE realm_id = ");
+        let mut query_builder =
+            QueryBuilder::new("SELECT * FROM custom_permissions WHERE realm_id = ");
         query_builder.push_bind(realm_id.to_string());
         query_builder.push(" AND permission = ");
         query_builder.push_bind(permission);
@@ -287,14 +290,13 @@ impl RbacRepository for SqliteRbacRepository {
         realm_id: &Uuid,
         permission_id: &Uuid,
     ) -> Result<Option<CustomPermission>> {
-        let permission = sqlx::query_as(
-            "SELECT * FROM custom_permissions WHERE realm_id = ? AND id = ?",
-        )
-        .bind(realm_id.to_string())
-        .bind(permission_id.to_string())
-        .fetch_optional(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        let permission =
+            sqlx::query_as("SELECT * FROM custom_permissions WHERE realm_id = ? AND id = ?")
+                .bind(realm_id.to_string())
+                .bind(permission_id.to_string())
+                .fetch_optional(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(permission)
     }
@@ -304,7 +306,8 @@ impl RbacRepository for SqliteRbacRepository {
         realm_id: &Uuid,
         client_id: Option<&Uuid>,
     ) -> Result<Vec<CustomPermission>> {
-        let mut query_builder = QueryBuilder::new("SELECT * FROM custom_permissions WHERE realm_id = ");
+        let mut query_builder =
+            QueryBuilder::new("SELECT * FROM custom_permissions WHERE realm_id = ");
         query_builder.push_bind(realm_id.to_string());
 
         match client_id {
@@ -339,12 +342,14 @@ impl RbacRepository for SqliteRbacRepository {
 
     // [Helper] Check if a role exists in a specific realm
     async fn find_role_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Role>> {
-        let role = sqlx::query_as("SELECT * FROM roles WHERE realm_id = ? AND name = ? AND client_id IS NULL")
-            .bind(realm_id.to_string())
-            .bind(name)
-            .fetch_optional(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        let role = sqlx::query_as(
+            "SELECT * FROM roles WHERE realm_id = ? AND name = ? AND client_id IS NULL",
+        )
+        .bind(realm_id.to_string())
+        .bind(name)
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(role)
     }
 
@@ -367,11 +372,7 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(group)
     }
 
-    async fn list_roles(
-        &self,
-        realm_id: &Uuid,
-        req: &PageRequest,
-    ) -> Result<PageResponse<Role>> {
+    async fn list_roles(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Role>> {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;
 
@@ -478,11 +479,7 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(role)
     }
 
-    async fn list_groups(
-        &self,
-        realm_id: &Uuid,
-        req: &PageRequest,
-    ) -> Result<PageResponse<Group>> {
+    async fn list_groups(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Group>> {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;
 
@@ -640,9 +637,7 @@ impl RbacRepository for SqliteRbacRepository {
 
         // Count
         let mut count_builder = QueryBuilder::new("");
-        count_builder.push(
-            "WITH RECURSIVE role_hierarchy(id) AS ( SELECT ",
-        );
+        count_builder.push("WITH RECURSIVE role_hierarchy(id) AS ( SELECT ");
         count_builder.push_bind(role_id.to_string());
         count_builder.push(
             " AS id UNION SELECT rcr.child_role_id FROM role_composite_roles rcr JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id ),",
@@ -650,7 +645,9 @@ impl RbacRepository for SqliteRbacRepository {
         count_builder.push(" direct_users AS (SELECT user_id FROM user_roles WHERE role_id = ");
         count_builder.push_bind(role_id.to_string());
         count_builder.push("), effective_users AS (");
-        count_builder.push("SELECT user_id FROM user_roles WHERE role_id IN (SELECT id FROM role_hierarchy) ");
+        count_builder.push(
+            "SELECT user_id FROM user_roles WHERE role_id IN (SELECT id FROM role_hierarchy) ",
+        );
         count_builder.push("UNION SELECT ug.user_id FROM user_groups ug JOIN group_roles gr ON ug.group_id = gr.group_id ");
         count_builder.push("WHERE gr.role_id IN (SELECT id FROM role_hierarchy)) ");
         count_builder.push("SELECT COUNT(*) FROM users u ");
@@ -687,9 +684,7 @@ impl RbacRepository for SqliteRbacRepository {
 
         // Select
         let mut query_builder = QueryBuilder::new("");
-        query_builder.push(
-            "WITH RECURSIVE role_hierarchy(id) AS ( SELECT ",
-        );
+        query_builder.push("WITH RECURSIVE role_hierarchy(id) AS ( SELECT ");
         query_builder.push_bind(role_id.to_string());
         query_builder.push(
             " AS id UNION SELECT rcr.child_role_id FROM role_composite_roles rcr JOIN role_hierarchy rh ON rcr.parent_role_id = rh.id ),",
@@ -697,7 +692,9 @@ impl RbacRepository for SqliteRbacRepository {
         query_builder.push(" direct_users AS (SELECT user_id FROM user_roles WHERE role_id = ");
         query_builder.push_bind(role_id.to_string());
         query_builder.push("), effective_users AS (");
-        query_builder.push("SELECT user_id FROM user_roles WHERE role_id IN (SELECT id FROM role_hierarchy) ");
+        query_builder.push(
+            "SELECT user_id FROM user_roles WHERE role_id IN (SELECT id FROM role_hierarchy) ",
+        );
         query_builder.push("UNION SELECT ug.user_id FROM user_groups ug JOIN group_roles gr ON ug.group_id = gr.group_id ");
         query_builder.push("WHERE gr.role_id IN (SELECT id FROM role_hierarchy)) ");
         query_builder.push("SELECT u.id, u.username, ");
@@ -860,7 +857,8 @@ impl RbacRepository for SqliteRbacRepository {
         let offset = (req.page - 1) * limit;
 
         let mut count_builder = QueryBuilder::new("");
-        count_builder.push("WITH direct_roles AS (SELECT role_id FROM group_roles WHERE group_id = ");
+        count_builder
+            .push("WITH direct_roles AS (SELECT role_id FROM group_roles WHERE group_id = ");
         count_builder.push_bind(group_id.to_string());
         count_builder.push("), role_hierarchy(id) AS (");
         count_builder.push("SELECT role_id FROM direct_roles ");
@@ -904,7 +902,8 @@ impl RbacRepository for SqliteRbacRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         let mut query_builder = QueryBuilder::new("");
-        query_builder.push("WITH direct_roles AS (SELECT role_id FROM group_roles WHERE group_id = ");
+        query_builder
+            .push("WITH direct_roles AS (SELECT role_id FROM group_roles WHERE group_id = ");
         query_builder.push_bind(group_id.to_string());
         query_builder.push("), role_hierarchy(id) AS (");
         query_builder.push("SELECT role_id FROM direct_roles ");
@@ -987,7 +986,8 @@ impl RbacRepository for SqliteRbacRepository {
         );
         count_builder.push_bind(user_id.to_string());
         count_builder.push("), base_roles AS (");
-        count_builder.push("SELECT role_id FROM direct_roles UNION SELECT role_id FROM group_roles_cte");
+        count_builder
+            .push("SELECT role_id FROM direct_roles UNION SELECT role_id FROM group_roles_cte");
         count_builder.push("), role_hierarchy(id) AS (");
         count_builder.push("SELECT role_id FROM base_roles ");
         count_builder.push("UNION SELECT rcr.child_role_id FROM role_composite_roles rcr ");
@@ -1038,7 +1038,8 @@ impl RbacRepository for SqliteRbacRepository {
         );
         query_builder.push_bind(user_id.to_string());
         query_builder.push("), base_roles AS (");
-        query_builder.push("SELECT role_id FROM direct_roles UNION SELECT role_id FROM group_roles_cte");
+        query_builder
+            .push("SELECT role_id FROM direct_roles UNION SELECT role_id FROM group_roles_cte");
         query_builder.push("), role_hierarchy(id) AS (");
         query_builder.push("SELECT role_id FROM base_roles ");
         query_builder.push("UNION SELECT rcr.child_role_id FROM role_composite_roles rcr ");
@@ -1114,7 +1115,9 @@ impl RbacRepository for SqliteRbacRepository {
 
         let mut count_builder = QueryBuilder::new("");
         count_builder.push("WITH direct_roles AS (");
-        count_builder.push("SELECT child_role_id AS role_id FROM role_composite_roles WHERE parent_role_id = ");
+        count_builder.push(
+            "SELECT child_role_id AS role_id FROM role_composite_roles WHERE parent_role_id = ",
+        );
         count_builder.push_bind(role_id.to_string());
         count_builder.push("), role_hierarchy(id) AS (");
         count_builder.push("SELECT role_id FROM direct_roles ");
@@ -1170,7 +1173,9 @@ impl RbacRepository for SqliteRbacRepository {
 
         let mut query_builder = QueryBuilder::new("");
         query_builder.push("WITH direct_roles AS (");
-        query_builder.push("SELECT child_role_id AS role_id FROM role_composite_roles WHERE parent_role_id = ");
+        query_builder.push(
+            "SELECT child_role_id AS role_id FROM role_composite_roles WHERE parent_role_id = ",
+        );
         query_builder.push_bind(role_id.to_string());
         query_builder.push("), role_hierarchy(id) AS (");
         query_builder.push("SELECT role_id FROM direct_roles ");
@@ -1266,11 +1271,7 @@ impl RbacRepository for SqliteRbacRepository {
             .collect())
     }
 
-    async fn list_group_subtree_ids(
-        &self,
-        realm_id: &Uuid,
-        root_id: &Uuid,
-    ) -> Result<Vec<Uuid>> {
+    async fn list_group_subtree_ids(&self, realm_id: &Uuid, root_id: &Uuid) -> Result<Vec<Uuid>> {
         let rows: Vec<String> = sqlx::query_scalar(
             r#"
             WITH RECURSIVE subtree(id) AS (
@@ -1302,7 +1303,11 @@ impl RbacRepository for SqliteRbacRepository {
         parent_id: Option<&Uuid>,
         ordered_ids: &[Uuid],
     ) -> Result<()> {
-        let mut tx = self.pool.begin().await.map_err(|e| Error::Unexpected(e.into()))?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
         let parent = parent_id.map(|id| id.to_string());
         let realm = realm_id.to_string();
 
@@ -1628,13 +1633,12 @@ impl RbacRepository for SqliteRbacRepository {
     }
 
     async fn find_direct_user_ids_for_role(&self, role_id: &Uuid) -> Result<Vec<Uuid>> {
-        let rows: Vec<(String,)> = sqlx::query_as(
-            "SELECT user_id FROM user_roles WHERE role_id = ?"
-        )
-        .bind(role_id.to_string())
-        .fetch_all(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        let rows: Vec<(String,)> =
+            sqlx::query_as("SELECT user_id FROM user_roles WHERE role_id = ?")
+                .bind(role_id.to_string())
+                .fetch_all(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
 
         let uuids = rows
             .into_iter()
@@ -1811,9 +1815,7 @@ impl RbacRepository for SqliteRbacRepository {
     }
 
     async fn update_role(&self, role: &Role) -> Result<()> {
-        sqlx::query(
-            "UPDATE roles SET name = ?, description = ? WHERE id = ?"
-        )
+        sqlx::query("UPDATE roles SET name = ?, description = ? WHERE id = ?")
             .bind(&role.name)
             .bind(&role.description)
             .bind(role.id.to_string())
@@ -1838,7 +1840,7 @@ impl RbacRepository for SqliteRbacRepository {
 
     async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>> {
         let perms = sqlx::query_scalar::<_, String>(
-            "SELECT permission_name FROM role_permissions WHERE role_id = ?"
+            "SELECT permission_name FROM role_permissions WHERE role_id = ?",
         )
         .bind(role_id.to_string())
         .fetch_all(&*self.pool)
@@ -1859,8 +1861,17 @@ impl RbacRepository for SqliteRbacRepository {
     }
 
     // Efficient Bulk Operation
-    async fn bulk_update_permissions(&self, role_id: &Uuid, permissions: Vec<String>, action: &str) -> Result<()> {
-        let mut tx = self.pool.begin().await.map_err(|e| Error::Unexpected(e.into()))?;
+    async fn bulk_update_permissions(
+        &self,
+        role_id: &Uuid,
+        permissions: Vec<String>,
+        action: &str,
+    ) -> Result<()> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
         let rid = role_id.to_string();
 
         for perm in permissions {
@@ -1873,12 +1884,14 @@ impl RbacRepository for SqliteRbacRepository {
                     .await
                     .map_err(|e| Error::Unexpected(e.into()))?;
             } else if action == "remove" {
-                sqlx::query("DELETE FROM role_permissions WHERE role_id = ? AND permission_name = ?")
-                    .bind(&rid)
-                    .bind(perm)
-                    .execute(&mut *tx)
-                    .await
-                    .map_err(|e| Error::Unexpected(e.into()))?;
+                sqlx::query(
+                    "DELETE FROM role_permissions WHERE role_id = ? AND permission_name = ?",
+                )
+                .bind(&rid)
+                .bind(perm)
+                .execute(&mut *tx)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
             }
         }
 
@@ -1886,8 +1899,11 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(())
     }
 
-
-    async fn assign_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()> {
+    async fn assign_composite_role(
+        &self,
+        parent_role_id: &Uuid,
+        child_role_id: &Uuid,
+    ) -> Result<()> {
         sqlx::query(
             "INSERT OR IGNORE INTO role_composite_roles (parent_role_id, child_role_id) VALUES (?, ?)",
         )
@@ -1899,7 +1915,11 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(())
     }
 
-    async fn remove_composite_role(&self, parent_role_id: &Uuid, child_role_id: &Uuid) -> Result<()> {
+    async fn remove_composite_role(
+        &self,
+        parent_role_id: &Uuid,
+        child_role_id: &Uuid,
+    ) -> Result<()> {
         sqlx::query(
             "DELETE FROM role_composite_roles WHERE parent_role_id = ? AND child_role_id = ?",
         )
@@ -1911,11 +1931,7 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(())
     }
 
-    async fn is_role_descendant(
-        &self,
-        ancestor_id: &Uuid,
-        candidate_id: &Uuid,
-    ) -> Result<bool> {
+    async fn is_role_descendant(&self, ancestor_id: &Uuid, candidate_id: &Uuid) -> Result<bool> {
         let row: (i64,) = sqlx::query_as(
             r#"
             WITH RECURSIVE descendants(id) AS (

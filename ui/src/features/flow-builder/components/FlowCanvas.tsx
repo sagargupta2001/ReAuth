@@ -3,7 +3,7 @@ import { type DragEvent, useCallback, useRef } from 'react'
 import { Background, Controls, ReactFlow, useReactFlow } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { useTheme } from '@/app/providers/themeProvider.tsx'
+import { useTheme } from '@/app/providers/ThemeContext'
 import { flowNodeTypes } from '@/entities/flow/config/nodeTypes.ts'
 import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderStore.ts'
 

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { type ReactNode, createContext, useCallback, useContext, useState } from 'react'
 
 interface UnsavedChangesContextType {

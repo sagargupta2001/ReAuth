@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install LLVM Cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install UI Dependencies
+        run: cd ui && npm ci
+
+      - name: Run All Checks
+        # Using "TERM=xterm" to ensure the Makefile's "tput" works in CI
+        run: TERM=xterm make run-before-raising-pr

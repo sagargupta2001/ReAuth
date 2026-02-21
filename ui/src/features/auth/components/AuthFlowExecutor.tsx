@@ -13,7 +13,7 @@ import { getScreenComponent } from '@/features/auth/components/ScreenRegistry.ts
 import type { AuthExecutionResponse } from '@/entities/auth/model/types.ts'
 
 // Global Singleton to prevent double-fetch in Strict Mode
-let initializationPromise: Promise<any> | null = null
+let initializationPromise: Promise<AuthExecutionResponse> | null = null
 
 export function AuthFlowExecutor() {
   const params = useParams()
@@ -79,10 +79,10 @@ export function AuthFlowExecutor() {
     return () => {
       active = false
     }
-  }, [realm, location.search])
+  }, [realm, location.search, currentStep])
 
   // 2. SUBMIT HANDLER
-  const handleSubmit = async (data: any) => {
+  const handleSubmit = async (data: Record<string, unknown>) => {
     setIsLoading(true)
     setGlobalError(null)
 
@@ -91,8 +91,9 @@ export function AuthFlowExecutor() {
       // e.g. /api/realms/{realm}/auth/login/execute
       const res = await authApi.submitStep(realm, data)
       setCurrentStep(res)
-    } catch (error: any) {
-      setGlobalError(error.message || 'An unexpected error occurred')
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'An unexpected error occurred'
+      setGlobalError(message)
     } finally {
       setIsLoading(false)
     }
@@ -131,8 +132,7 @@ export function AuthFlowExecutor() {
     }
 
     void handleRedirect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep])
+  }, [currentStep, refreshTokenMutation, setSession])
 
   // --- RENDER ---
   if (isLoading && !currentStep) {

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router-dom'
 
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useGroups } from '@/features/group/api/useGroups'
 import { groupColumns } from '@/features/group/components/GroupColumns'
 import { DataTable } from '@/shared/ui/data-table/data-table'

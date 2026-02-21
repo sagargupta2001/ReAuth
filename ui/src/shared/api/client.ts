@@ -27,7 +27,7 @@ function getRealmFromUrl(): string {
     // 2. Check Standard Search (e.g., http://localhost:3000/?realm=customer)
     const searchParams = new URLSearchParams(window.location.search)
     if (searchParams.get('realm')) return searchParams.get('realm')!
-  } catch (e) {
+  } catch {
     // ignore parsing errors
   }
 
@@ -63,7 +63,7 @@ async function refreshAccessToken(): Promise<string> {
  */
 async function request<T>(endpoint: string, config: RequestConfig = {}): Promise<T> {
   // 1. Get Token from Store
-  let token = useSessionStore.getState().accessToken
+  const token = useSessionStore.getState().accessToken
   const headers = new Headers(config.headers)
 
   if (token) {
@@ -103,7 +103,7 @@ async function request<T>(endpoint: string, config: RequestConfig = {}): Promise
       // C. Retry Original Request
       // We pass _isRetry: true to prevent an infinite loop if the server still says 401
       return request<T>(endpoint, { ...config, _isRetry: true })
-    } catch (err) {
+    } catch {
       // D. Refresh Failed - User is truly logged out
       console.error('Refresh failed, forcing logout.')
       useSessionStore.getState().clearSession()

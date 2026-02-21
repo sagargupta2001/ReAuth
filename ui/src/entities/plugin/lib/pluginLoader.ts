@@ -17,7 +17,9 @@ export function loadPluginScript(plugin: PluginStatusInfo): Promise<ComponentTyp
     const globalName = getUMDGlobalName(plugin.manifest.id)
 
     if (existingScript) {
-      const Component = (window as any)[globalName]
+      const Component = (window as unknown as Record<string, unknown>)[
+        globalName
+      ] as ComponentType | undefined
       console.log(`[Plugin Loader] Script already loaded for ${plugin.manifest.id}`, Component)
       return resolve(Component ?? null)
     }
@@ -27,7 +29,9 @@ export function loadPluginScript(plugin: PluginStatusInfo): Promise<ComponentTyp
     script.async = true
 
     script.onload = () => {
-      const Component = (window as any)[globalName]
+      const Component = (window as unknown as Record<string, unknown>)[
+        globalName
+      ] as ComponentType | undefined
       if (!Component)
         console.warn(
           `[Plugin Loader] Plugin ${plugin.manifest.id} did not attach to window.${globalName}`,

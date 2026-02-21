@@ -6,7 +6,7 @@ import { useParams } from 'react-router-dom'
 import { buttonVariants } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { RealmLink } from '@/entities/realm/lib/navigation'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { UserRolesTab } from '@/features/user/components/UserRolesTab'
 import { EditUserForm } from '@/features/user/forms/EditUserForm.tsx'
 import { cn } from '@/lib/utils'
@@ -15,18 +15,18 @@ export function EditUserPage() {
   const { userId, tab } = useParams<{ userId: string; tab?: string }>()
   const navigate = useRealmNavigate()
 
-  if (!userId) return null
-
   const validTabs = ['settings', 'roles']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
 
   useEffect(() => {
-    if (!tab) {
+    if (!tab && userId) {
       navigate(`/users/${userId}/settings`, { replace: true })
     }
   }, [tab, userId, navigate])
 
-  const handleTabChange = (newTab: string) => navigate(`/users/${userId}/${newTab}`)
+  const handleTabChange = (newTab: string) => userId && navigate(`/users/${userId}/${newTab}`)
+
+  if (!userId) return null
 
   return (
     <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">

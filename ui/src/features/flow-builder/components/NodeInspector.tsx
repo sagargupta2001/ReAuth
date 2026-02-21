@@ -31,7 +31,7 @@ export function NodeInspector() {
     })
   }
 
-  const handleConfigChange = (newConfig: any) => {
+  const handleConfigChange = (newConfig: Record<string, unknown>) => {
     updateNodeData(selectedNode.id, {
       ...selectedNode.data,
       config: newConfig,
@@ -98,7 +98,7 @@ export function NodeInspector() {
             {configSchema && Object.keys(configSchema.properties || {}).length > 0 ? (
               <AutoForm
                 schema={configSchema}
-                values={(selectedNode.data.config as Record<string, any>) || {}}
+                values={(selectedNode.data.config as Record<string, unknown>) || {}}
                 onChange={handleConfigChange}
               />
             ) : (

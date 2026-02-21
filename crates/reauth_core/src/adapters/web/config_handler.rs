@@ -14,9 +14,7 @@ struct ReloadConfigResponse {
     message: String,
 }
 
-pub async fn reload_config_handler(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse> {
+pub async fn reload_config_handler(State(state): State<AppState>) -> Result<impl IntoResponse> {
     let Some(config_path) = Settings::resolve_config_watch_path() else {
         return Ok((
             StatusCode::BAD_REQUEST,
@@ -32,10 +30,7 @@ pub async fn reload_config_handler(
             StatusCode::BAD_REQUEST,
             Json(ReloadConfigResponse {
                 status: "error",
-                message: format!(
-                    "Config file does not exist: {}",
-                    config_path.display()
-                ),
+                message: format!("Config file does not exist: {}", config_path.display()),
             }),
         ));
     }

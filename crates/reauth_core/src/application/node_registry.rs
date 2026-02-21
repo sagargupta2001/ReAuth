@@ -44,3 +44,9 @@ impl NodeRegistryService {
             .collect()
     }
 }
+
+impl Default for NodeRegistryService {
+    fn default() -> Self {
+        Self::new()
+    }
+}

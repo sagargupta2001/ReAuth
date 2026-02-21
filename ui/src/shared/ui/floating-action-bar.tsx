@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import { Loader2, RotateCcw, Save } from 'lucide-react'
 
@@ -22,7 +22,7 @@ export function FloatingActionBar({
   className,
 }: FloatingActionBarProps) {
   const barRef = useRef<HTMLDivElement | null>(null)
-  const animation = getAnimationEngine()
+  const animation = useMemo(() => getAnimationEngine(), [])
 
   useEffect(() => {
     const el = barRef.current
@@ -33,7 +33,7 @@ export function FloatingActionBar({
     } else {
       void animation.fadeSlideOut(el)
     }
-  }, [isOpen])
+  }, [isOpen, animation])
 
   return (
     <div

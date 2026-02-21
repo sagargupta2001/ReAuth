@@ -15,12 +15,51 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
+#[derive(Clone, Copy)]
+struct InitializeOptions {
+    print_banner: bool,
+    log_summary: bool,
+    watch_config: bool,
+}
+
 pub async fn initialize() -> anyhow::Result<AppState> {
     let settings = Settings::new()?;
+    initialize_with_settings(
+        settings,
+        InitializeOptions {
+            print_banner: true,
+            log_summary: true,
+            watch_config: true,
+        },
+    )
+    .await
+}
+
+pub async fn initialize_for_tests() -> anyhow::Result<AppState> {
+    let settings = Settings::new()?;
+    initialize_with_settings(
+        settings,
+        InitializeOptions {
+            print_banner: false,
+            log_summary: false,
+            watch_config: false,
+        },
+    )
+    .await
+}
+
+async fn initialize_with_settings(
+    settings: Settings,
+    options: InitializeOptions,
+) -> anyhow::Result<AppState> {
     let log_bus = init_logging(&settings);
-    print_banner(&settings);
-    log_config_summary(&settings);
-    warn_public_url_mismatch(&settings);
+    if options.print_banner {
+        print_banner(&settings);
+    }
+    if options.log_summary {
+        log_config_summary(&settings);
+        warn_public_url_mismatch(&settings);
+    }
 
     let plugins_path = determine_plugins_path()?;
     let db_pool = initialize_database(&settings).await?;
@@ -64,7 +103,9 @@ pub async fn initialize() -> anyhow::Result<AppState> {
     .await?;
 
     let settings_shared = Arc::new(RwLock::new(settings.clone()));
-    spawn_config_watcher(settings_shared.clone());
+    if options.watch_config {
+        spawn_config_watcher(settings_shared.clone());
+    }
 
     Ok(AppState {
         settings: settings_shared,
@@ -128,7 +169,11 @@ fn spawn_config_watcher(settings: Arc<RwLock<Settings>>) {
         };
 
         if let Err(err) = watcher.watch(&config_path, RecursiveMode::NonRecursive) {
-            warn!("Failed to watch config file {}: {}", config_path.display(), err);
+            warn!(
+                "Failed to watch config file {}: {}",
+                config_path.display(),
+                err
+            );
             return;
         }
 

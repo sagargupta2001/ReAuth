@@ -1,13 +1,17 @@
 import { useMemo } from 'react'
 
+import { type Edge, type Node } from '@xyflow/react'
+
+import type { FlowDraft } from '@/entities/flow/model/types.ts'
 import { FlowViewer } from '@/features/flow-builder/components/FlowViewer.tsx'
 
-export function FlowDetailsOverviewTab({ draft }: { draft: any }) {
+export function FlowDetailsOverviewTab({ draft }: { draft: FlowDraft }) {
   const { nodes, edges } = useMemo(() => {
-    if (!draft?.graph_json) return { nodes: [], edges: [] }
+    const graph = draft?.graph_json as { nodes?: Node[]; edges?: Edge[] } | undefined
+    if (!graph) return { nodes: [], edges: [] }
     return {
-      nodes: draft.graph_json.nodes || [],
-      edges: draft.graph_json.edges || [],
+      nodes: graph.nodes || [],
+      edges: graph.edges || [],
     }
   }, [draft])
 

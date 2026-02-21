@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import type { OidcClient } from '@/entities/oidc/model/types.ts'
 
 interface ClientHeaderProps {

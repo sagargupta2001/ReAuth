@@ -5,15 +5,11 @@ use rand::Rng;
 use tracing::info;
 use uuid::Uuid;
 
-pub async fn seed_default_oidc_client(
-    ctx: &SeedContext<'_>,
-    realm_id: Uuid,
-) -> anyhow::Result<()> {
+pub async fn seed_default_oidc_client(ctx: &SeedContext<'_>, realm_id: Uuid) -> anyhow::Result<()> {
     let client_id = ctx.settings.default_oidc_client.client_id.clone();
     let desired_redirect_uris =
         serde_json::to_string(&ctx.settings.default_oidc_client.redirect_uris)?;
-    let desired_web_origins =
-        serde_json::to_string(&ctx.settings.default_oidc_client.web_origins)?;
+    let desired_web_origins = serde_json::to_string(&ctx.settings.default_oidc_client.web_origins)?;
 
     match ctx
         .oidc_service

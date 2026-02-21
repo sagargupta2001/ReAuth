@@ -1,3 +1,3 @@
 pub mod banner;
-pub mod logging;
+pub mod logger;
 pub mod tracing_adapter;

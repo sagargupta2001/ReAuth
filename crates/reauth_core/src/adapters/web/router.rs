@@ -4,8 +4,8 @@ use super::{
     server::ui_handler, session_handler, user_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard};
-use crate::AppState;
 use crate::domain::permissions;
+use crate::AppState;
 use axum::routing::{delete, get_service, put};
 use axum::{
     middleware,
@@ -75,7 +75,10 @@ fn auth_routes() -> Router<AppState> {
 
 fn config_routes(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/config/reload", post(config_handler::reload_config_handler))
+        .route(
+            "/config/reload",
+            post(config_handler::reload_config_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state,
             move |state, req, next| {
@@ -109,8 +112,7 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
         .route("/{id}", get(user_handler::get_user_handler))
         .route(
             "/{id}/roles",
-            get(rbac_handler::list_user_roles_handler)
-                .post(rbac_handler::assign_user_role_handler),
+            get(rbac_handler::list_user_roles_handler).post(rbac_handler::assign_user_role_handler),
         )
         .route(
             "/{id}/roles/list",
@@ -180,13 +182,13 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         .route("/roles", get(rbac_handler::list_roles_handler))
         .route(
             "/clients/{client_id}/roles",
-            get(rbac_handler::list_client_roles_handler)
+            get(rbac_handler::list_client_roles_handler),
         )
         .route(
             "/roles/{id}/permissions",
             post(rbac_handler::assign_permission_handler)
                 .get(rbac_handler::list_role_permissions_handler)
-                .delete(rbac_handler::revoke_permission_handler)
+                .delete(rbac_handler::revoke_permission_handler),
         )
         .route(
             "/roles/{id}/composites",
@@ -203,24 +205,21 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         )
         .route(
             "/roles/{id}/members",
-            get(rbac_handler::list_role_members_handler)
+            get(rbac_handler::list_role_members_handler),
         )
         .route(
             "/roles/{id}/members/list",
-            get(rbac_handler::list_role_members_page_handler)
+            get(rbac_handler::list_role_members_page_handler),
         )
         .route(
             "/roles/{id}/permissions/bulk",
-            post(rbac_handler::bulk_permissions_handler) // [NEW] Bulk
+            post(rbac_handler::bulk_permissions_handler), // [NEW] Bulk
         )
         .route(
             "/groups",
             post(rbac_handler::create_group_handler).get(rbac_handler::list_groups_handler),
         )
-        .route(
-            "/groups/tree",
-            get(rbac_handler::list_group_roots_handler),
-        )
+        .route("/groups/tree", get(rbac_handler::list_group_roots_handler))
         .route(
             "/groups/{id}",
             get(rbac_handler::get_group_handler)
@@ -235,10 +234,7 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             "/groups/{id}/children",
             get(rbac_handler::list_group_children_handler),
         )
-        .route(
-            "/groups/{id}/move",
-            post(rbac_handler::move_group_handler),
-        )
+        .route("/groups/{id}/move", post(rbac_handler::move_group_handler))
         .route(
             "/groups/{id}/members",
             get(rbac_handler::list_group_members_handler)

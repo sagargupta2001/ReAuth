@@ -91,7 +91,7 @@ impl PluginManager {
             .ok_or_else(|| Error::PluginNotFound(plugin_id.to_string()))?;
 
         // 3. Determine if we are in dev or prod
-        let is_dev_run = std::env::current_exe().map_or(false, |p| {
+        let is_dev_run = std::env::current_exe().is_ok_and(|p| {
             p.ancestors()
                 .any(|p| p.ends_with(constants::DEV_ENVIRONMENT_DIR))
         });

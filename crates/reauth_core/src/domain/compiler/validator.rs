@@ -66,3 +66,56 @@ impl GraphValidator {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::application::runtime_registry::RuntimeRegistry;
+    use crate::domain::execution::StepType;
+    use crate::error::Error;
+
+    #[test]
+    fn valid_graph_passes_validation() {
+        let nodes = vec![
+            GraphNode {
+                id: "start".to_string(),
+                type_: "core.start".to_string(),
+            },
+            GraphNode {
+                id: "end".to_string(),
+                type_: "core.end".to_string(),
+            },
+        ];
+        let edges = vec![GraphEdge {
+            source: "start".to_string(),
+            target: "end".to_string(),
+            source_handle: None,
+        }];
+
+        let mut registry = RuntimeRegistry::new();
+        registry.register_definition("core.start", StepType::Logic);
+        registry.register_definition("core.end", StepType::Terminal);
+
+        GraphValidator::validate(&nodes, &edges, &registry).unwrap();
+    }
+
+    #[test]
+    fn dead_end_nodes_are_rejected() {
+        let nodes = vec![GraphNode {
+            id: "orphan".to_string(),
+            type_: "core.logic".to_string(),
+        }];
+        let edges = Vec::new();
+
+        let mut registry = RuntimeRegistry::new();
+        registry.register_definition("core.logic", StepType::Logic);
+
+        let err = GraphValidator::validate(&nodes, &edges, &registry).unwrap_err();
+        match err {
+            Error::Validation(message) => {
+                assert!(message.contains("Dead end"));
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
+    }
+}

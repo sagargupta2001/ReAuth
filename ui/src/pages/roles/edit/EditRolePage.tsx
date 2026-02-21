@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useRole } from '@/features/roles/api/useRole'
 import { RoleHeader } from '@/features/roles/components/RoleHeader'
 import { RoleCompositesTab } from '@/features/roles/components/RoleCompositesTab'
@@ -23,7 +23,9 @@ export function EditRolePage() {
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
 
   useEffect(() => {
-    !tab && navigate(`/roles/${roleId}/settings`, { replace: true })
+    if (!tab) {
+      navigate(`/roles/${roleId}/settings`, { replace: true })
+    }
   }, [tab, roleId, navigate])
 
   const handleTabChange = (newTab: string) =>

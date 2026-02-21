@@ -21,5 +21,26 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    test: {
+      globals: true,
+      environment: 'jsdom',
+      setupFiles: './src/shared/lib/test/setup.ts',
+      include: ['src/**/*.{test,spec}.{ts,tsx}'],
+      coverage: {
+        all: true,
+        provider: 'v8',
+        reporter: ['text', 'json', 'html'],
+        include: ['src/**/*'],
+        exclude: [
+          'node_modules/',
+          'src/shared/lib/test/**',
+          'src/**/*.test.{ts,tsx}',
+          'src/**/*.d.ts',
+          'src/vite-env.d.ts',
+          'src/app/main.tsx',
+          '.types.ts'
+        ],
+      },
+    },
   }
 })

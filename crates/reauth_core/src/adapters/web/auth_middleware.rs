@@ -26,13 +26,7 @@ pub async fn auth_guard(
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| {
-            if value.starts_with("Bearer ") {
-                Some(value[7..].to_string())
-            } else {
-                None
-            }
-        });
+        .and_then(|value| value.strip_prefix("Bearer ").map(|token| token.to_string()));
 
     // 2. Fallback: Try to extract from the "access_token" Cookie
     let token = match token_from_header {

@@ -99,13 +99,7 @@ async fn handle_flow_success(
             // We only create a NEW persistent Root (SSO) Session if the user
             // did NOT come from an existing SSO session (i.e., they typed a password).
             // If they resumed via SSO, we trust the existing cookie and do not issue a new one.
-            let sso_cookie_update_needed = if let Some(_sso_id_val) =
-                final_session.context.get("sso_token_id")
-            {
-                false
-            } else {
-                true
-            };
+            let sso_cookie_update_needed = final_session.context.get("sso_token_id").is_none();
 
             if sso_cookie_update_needed {
                 let user = state.user_service.get_user(user_id).await?;
@@ -221,15 +215,15 @@ pub async fn start_login_flow_handler(
 
     // --- 1. RESUME LOGIC ---
     let mut valid_session_id = None;
-    let cookies: Vec<_> = jar
-        .iter()
-        .filter(|c| c.name() == LOGIN_SESSION_COOKIE)
-        .collect();
+    if !force_login {
+        let cookies: Vec<_> = jar
+            .iter()
+            .filter(|c| c.name() == LOGIN_SESSION_COOKIE)
+            .collect();
 
-    for cookie in cookies {
-        if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
-            match state.auth_session_repo.find_by_id(&parse_id).await {
-                Ok(Some(mut session)) => {
+        for cookie in cookies {
+            if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
+                if let Ok(Some(mut session)) = state.auth_session_repo.find_by_id(&parse_id).await {
                     // Verify the existing session belongs to the requested Realm.
                     // If I am logged into "Tenant A" but request "Tenant B", ignore the cookie.
                     if session.realm_id != realm.id {
@@ -270,7 +264,6 @@ pub async fn start_login_flow_handler(
                         break;
                     }
                 }
-                _ => {}
             }
         }
     }

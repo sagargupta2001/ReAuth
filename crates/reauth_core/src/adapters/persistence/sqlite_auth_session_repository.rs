@@ -4,8 +4,8 @@ use crate::error::{Error, Result};
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use async_trait::async_trait;
 use chrono::Utc;
-use uuid::Uuid;
 use tracing::error;
+use uuid::Uuid;
 
 pub struct SqliteAuthSessionRepository {
     pool: Database,
@@ -56,10 +56,9 @@ impl AuthSessionRepository for SqliteAuthSessionRepository {
             let flow_version_id = Uuid::parse_str(&r.flow_version_id).unwrap_or_default();
 
             // Parse user_id if it exists
-            let user_id = match r.user_id {
-                Some(uid_str) => Some(Uuid::parse_str(&uid_str).unwrap_or_default()),
-                None => None,
-            };
+            let user_id = r
+                .user_id
+                .map(|uid_str| Uuid::parse_str(&uid_str).unwrap_or_default());
 
             let status_str = r.status.trim().to_lowercase();
 

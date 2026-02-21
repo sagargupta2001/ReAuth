@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { Group } from '@/entities/group/model/types'
 import { useDeleteGroup } from '@/features/group/api/useDeleteGroup'

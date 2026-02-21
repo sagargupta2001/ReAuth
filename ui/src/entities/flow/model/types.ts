@@ -5,7 +5,7 @@ export interface FlowDraft {
   realm_id: string
   name: string
   description?: string
-  graph_json: any
+  graph_json: unknown
   flow_type: FlowType
   created_at: string
   updated_at: string

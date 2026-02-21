@@ -101,7 +101,9 @@ fn is_allowed_origin(settings: &crate::config::Settings, origin: &str) -> bool {
         }
     }
 
-    allowed.iter().any(|allowed_origin| allowed_origin == origin)
+    allowed
+        .iter()
+        .any(|allowed_origin| allowed_origin == origin)
 }
 
 fn normalize_origin(value: &str) -> Option<String> {

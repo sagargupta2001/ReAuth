@@ -1,15 +1,17 @@
+#![allow(clippy::needless_option_as_deref)]
+
 pub mod templates;
 
 use crate::application::flow_manager::templates::FlowTemplates;
 use crate::application::runtime_registry::RuntimeRegistry;
-use crate::domain::compiler::compiler::FlowCompiler;
+use crate::domain::compiler::flow_compiler::FlowCompiler;
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::ports::flow_repository::FlowRepository;
 use crate::{
     domain::pagination::{PageRequest, PageResponse},
     error::{Error, Result},
-    ports::{flow_store::FlowStore, realm_repository::RealmRepository},
     ports::transaction_manager::Transaction,
+    ports::{flow_store::FlowStore, realm_repository::RealmRepository},
 };
 use chrono::Utc;
 use serde::Deserialize;
@@ -200,7 +202,7 @@ impl FlowManager {
                 built_in: false, // Custom flows are not built-in
             };
             // You need to expose create_flow in FlowStore if not already
-            let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+            let tx_ref = tx.as_deref_mut();
             self.flow_repo.create_flow(&new_flow, tx_ref).await?;
         }
 
@@ -214,7 +216,7 @@ impl FlowManager {
             checksum: "TODO_HASH".to_string(),
             created_at: Utc::now(),
         };
-        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        let tx_ref = tx.as_deref_mut();
         self.flow_store
             .create_version_with_tx(&version, tx_ref)
             .await?;
@@ -227,7 +229,7 @@ impl FlowManager {
             active_version_id: version.id.clone(),
             updated_at: Utc::now(),
         };
-        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        let tx_ref = tx.as_deref_mut();
         self.flow_store
             .set_deployment_with_tx(&deployment, tx_ref)
             .await?;
@@ -253,7 +255,7 @@ impl FlowManager {
 
         // 9. Cleanup: Delete the draft
         // Now safe because flow_versions references auth_flows, not flow_drafts
-        let tx_ref = tx.as_mut().map(|inner| &mut **inner);
+        let tx_ref = tx.as_deref_mut();
         self.flow_store
             .delete_draft_with_tx(&flow_id, tx_ref)
             .await?;
@@ -372,3 +374,6 @@ impl FlowManager {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod flow_manager_tests;

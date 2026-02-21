@@ -51,3 +51,9 @@ impl RuntimeRegistry {
         self.definitions.get(key).cloned()
     }
 }
+
+impl Default for RuntimeRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}

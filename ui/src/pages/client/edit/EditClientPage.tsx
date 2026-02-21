@@ -5,7 +5,7 @@ import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useClient } from '@/features/client/api/useClient'
 import { ClientHeader } from '@/features/client/components/ClientHeader.tsx'
 import { ClientRolesTab } from '@/features/client/components/ClientRolesTab.tsx'
@@ -24,7 +24,9 @@ export function EditClientPage() {
 
 
   useEffect(() => {
-    !tab && navigate(`/clients/${clientId}/settings`, { replace: true })
+    if (!tab) {
+      navigate(`/clients/${clientId}/settings`, { replace: true })
+    }
   }, [tab, clientId, navigate])
 
   if (isLoading)

@@ -2,7 +2,7 @@ import React from 'react'
 
 import { Laptop, Moon, Sun } from 'lucide-react'
 
-import { useTheme } from '@/app/providers/themeProvider'
+import { useTheme } from '@/app/providers/ThemeContext'
 import {
   CommandDialog,
   CommandEmpty,
