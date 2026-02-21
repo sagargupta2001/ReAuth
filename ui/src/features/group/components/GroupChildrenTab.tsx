@@ -9,7 +9,7 @@ import {
 import { Folder } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useGroupChildrenList } from '@/features/group/api/useGroupChildren'
 import type { GroupTreeNode } from '@/features/group-tree/model/types'
 import { DataTableColumnHeader } from '@/shared/ui/data-table'

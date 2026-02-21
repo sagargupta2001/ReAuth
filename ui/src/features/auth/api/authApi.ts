@@ -36,7 +36,7 @@ export const authApi = {
    * 2. NEXT: Submit data for the current step.
    * The Session ID is now handled automatically via the 'login_session' cookie.
    */
-  submitStep: async (realm: string, data: Record<string, any>) => {
+  submitStep: async (realm: string, data: Record<string, unknown>) => {
     // The backend accepts a generic JSON payload (e.g. { "username": "...", "password": "..." })
     return apiClient.post<AuthExecutionResponse>(`/api/realms/${realm}/auth/login/execute`, data)
   },

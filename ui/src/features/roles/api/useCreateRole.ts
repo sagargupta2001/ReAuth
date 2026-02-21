@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { RoleFormValues } from '@/features/roles/schema/create.schema.ts'
 import { apiClient } from '@/shared/api/client'
@@ -16,9 +16,9 @@ export function useCreateRole() {
   return useMutation({
     mutationFn: async (data: CreateRolePayload) => {
       // The backend uses the same endpoint for creation
-      return apiClient.post(`/api/realms/${realm}/rbac/roles`, data)
+      return apiClient.post<{ id: string }>(`/api/realms/${realm}/rbac/roles`, data)
     },
-    onSuccess: (data: any, variables) => {
+    onSuccess: (data, variables) => {
       toast.success('Role created successfully')
 
 

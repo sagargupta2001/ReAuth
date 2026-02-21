@@ -23,8 +23,9 @@ export function useDeleteGroup(groupId: string) {
       void queryClient.invalidateQueries({ queryKey: ['group', realm, groupId] })
       void queryClient.invalidateQueries({ queryKey: ['group-children', realm] })
     },
-    onError: (err: any) => {
-      toast.error(err?.message || 'Failed to delete group')
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Failed to delete group'
+      toast.error(message)
     },
   })
 }

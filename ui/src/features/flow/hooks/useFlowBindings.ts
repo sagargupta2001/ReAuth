@@ -37,8 +37,7 @@ export function useFlowBindings() {
     const activeSet = new Set<string>()
 
     BINDING_KEYS.forEach((key) => {
-      // @ts-ignore - Dynamic roles
-      const value = realmData[key]
+      const value = (realmData as unknown as Record<string, unknown>)[key]
 
       // We accept both IDs (UUIDs) and Aliases (strings)
       if (value && typeof value === 'string') {

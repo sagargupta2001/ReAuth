@@ -11,8 +11,8 @@ export function useFlowDraft(draftId: string) {
     queryKey: ['flow-draft', realm, draftId],
     queryFn: async () => {
       const draft = await apiClient.get<{
-        graph_json: string | any
-        [key: string]: any
+        graph_json: string | unknown
+        [key: string]: unknown
       }>(`/api/realms/${realm}/flows/drafts/${draftId}`)
 
       return {
@@ -20,7 +20,7 @@ export function useFlowDraft(draftId: string) {
         // Ensure graph_json is parsed if it's a string, but keep the FlowDraft type happy
         graph_json:
           typeof draft.graph_json === 'string' ? JSON.parse(draft.graph_json) : draft.graph_json,
-      } as FlowDraft & { graph_json: any } // Intersection type to allow graph_json to be object
+      } as FlowDraft & { graph_json: unknown } // Intersection type to allow graph_json to be object
     },
     enabled: !!draftId && !!realm,
   })
@@ -37,7 +37,7 @@ export function useSaveDraft() {
       name,
     }: {
       draftId: string
-      graph: any
+      graph: unknown
       name?: string
     }) => {
       // Serialize back to string or let Axios handle JSON object (Backend expects string or JSON value)

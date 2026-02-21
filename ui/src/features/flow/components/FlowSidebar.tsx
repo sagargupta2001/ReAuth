@@ -5,6 +5,7 @@ import {
   Globe,
   LayoutTemplate,
   ListFilter,
+  type LucideIcon,
   Plus,
   Search,
   ShieldCheck,
@@ -39,7 +40,7 @@ const getFlowIcon = (type: string) => {
   }
 }
 
-const flowTypeOptions: { value: FlowType | 'all'; label: string; icon?: any }[] = [
+const flowTypeOptions: { value: FlowType | 'all'; label: string; icon?: LucideIcon }[] = [
   { value: 'all', label: 'All Types' },
   { value: 'browser', label: 'Browser', icon: Globe },
   { value: 'registration', label: 'Registration', icon: User },

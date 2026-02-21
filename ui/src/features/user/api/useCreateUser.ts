@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.tsx'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import { apiClient } from '@/shared/api/client.ts'
 

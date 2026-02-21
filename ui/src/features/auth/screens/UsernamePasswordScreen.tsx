@@ -13,20 +13,20 @@ import { PasswordInput } from '@/shared/ui/password-input.tsx'
 import { type LoginSchema, loginSchema } from '@/features/auth/schema/login.schema.ts'
 import { FormInput } from '@/shared/ui/form-input.tsx'
 
-import type { AuthScreenProps } from '../../../entities/auth/model/screenTypes.ts'
+import type { AuthScreenProps } from '@/entities/auth/model/screenTypes.ts'
 
 // 1. Destructure 'context' from props
 export function UsernamePasswordScreen({ onSubmit, isLoading, error, context }: AuthScreenProps) {
   const { t } = useTranslation('common')
 
   // 2. Resolve the error message (Prop Error OR Context Error)
-  const displayError = error || context?.error
+  const displayError = error || (context?.error as string)
 
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       // 3. Pre-fill username if the backend sent it back (UX improvement)
-      username: context?.username || '',
+      username: (context?.username as string) || '',
       password: '',
     },
   })
@@ -34,17 +34,17 @@ export function UsernamePasswordScreen({ onSubmit, isLoading, error, context }: 
   // 4. If the backend returns the username again, ensure the form updates
   useEffect(() => {
     if (context?.username) {
-      form.setValue('username', context.username)
+      form.setValue('username', context.username as string)
     }
   }, [context?.username, form])
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-3">
+      <form onSubmit={form.handleSubmit((data) => onSubmit(data as Record<string, unknown>))} className="grid gap-3">
         {/* 5. Render the resolved error */}
         {displayError && (
           <div className="text-destructive mb-2 rounded-md bg-red-50 p-3 text-sm font-medium">
-            {displayError}
+            {String(displayError)}
           </div>
         )}
 

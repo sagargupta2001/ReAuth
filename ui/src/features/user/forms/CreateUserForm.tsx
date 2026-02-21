@@ -19,7 +19,8 @@ export function CreateUserForm() {
     defaultValues: { username: '', password: '' },
   })
 
-  const onSubmit = (values: any) => mutation.mutate(values, { onSuccess: () => form.reset() })
+  const onSubmit = (values: z.infer<typeof formSchema>) =>
+    mutation.mutate(values, { onSuccess: () => form.reset() })
 
   // Floating Bar
   useFormPersistence(form, onSubmit, mutation.isPending)

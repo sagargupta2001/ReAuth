@@ -3,10 +3,9 @@ import { ArrowLeft, CloudUpload, Loader2, Play, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/badge'
-// Import Badge
 import { Button } from '@/components/button'
 import { Separator } from '@/components/separator'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useSaveDraft } from '@/features/flow-builder/api/useFlowDraft.ts'
 import { usePublishFlow } from '@/features/flow-builder/api/usePublishFlow.ts'
 

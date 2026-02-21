@@ -28,8 +28,12 @@ export function useUpdateFlow(flowId: string) {
       // Refresh the sidebar list (since name changed)
       void queryClient.invalidateQueries({ queryKey: ['flows', realm] })
     },
-    onError: (error: any) => {
-      const msg = error.response?.data?.error || 'Failed to update flow'
+    onError: (error: unknown) => {
+      let msg = 'Failed to update flow'
+      if (error && typeof error === 'object' && 'response' in error) {
+        const errObj = error as { response?: { data?: { error?: string } } }
+        msg = errObj.response?.data?.error || msg
+      }
       toast.error(msg)
     },
   })

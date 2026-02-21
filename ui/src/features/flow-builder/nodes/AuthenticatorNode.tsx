@@ -46,7 +46,11 @@ export function AuthenticatorNode({ data, selected }: NodeProps) {
           <div className="flex flex-col">
             <span className="text-muted-foreground text-[10px] font-bold tracking-wider uppercase">
               {/* Show the specific type if available (e.g. Cookie vs Password) */}
-              {(data.config as any)?.auth_type?.split('.').pop() || 'Authenticator'}
+              {(data.config as Record<string, unknown>)?.auth_type
+                ? String((data.config as Record<string, unknown>).auth_type)
+                    .split('.')
+                    .pop()
+                : 'Authenticator'}
             </span>
             <CardTitle
               className="w-40 truncate text-sm leading-none font-medium"

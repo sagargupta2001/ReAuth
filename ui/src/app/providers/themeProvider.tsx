@@ -1,34 +1,15 @@
-import { type ReactNode, createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
 import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
 import { DEFAULT_THEME, THEME_COOKIE_MAX_AGE, THEME_COOKIE_NAME } from '@/shared/config/theme.ts'
 
-type Theme = 'dark' | 'light' | 'system'
-type ResolvedTheme = Exclude<Theme, 'system'>
+import { ThemeContext, type Theme, type ResolvedTheme } from './ThemeContext'
 
 type ThemeProviderProps = {
   children: ReactNode
   defaultTheme?: Theme
   storageKey?: string
 }
-
-type ThemeProviderState = {
-  defaultTheme: Theme
-  resolvedTheme: ResolvedTheme
-  theme: Theme
-  setTheme: (theme: Theme) => void
-  resetTheme: () => void
-}
-
-const initialState: ThemeProviderState = {
-  defaultTheme: DEFAULT_THEME,
-  resolvedTheme: 'light',
-  theme: DEFAULT_THEME,
-  setTheme: () => null,
-  resetTheme: () => null,
-}
-
-const ThemeContext = createContext<ThemeProviderState>(initialState)
 
 export function ThemeProvider({
   children,
@@ -92,12 +73,4 @@ export function ThemeProvider({
       {children}
     </ThemeContext>
   )
-}
-
-export const useTheme = () => {
-  const context = useContext(ThemeContext)
-
-  if (!context) throw new Error('useTheme must be used within a ThemeProvider')
-
-  return context
 }

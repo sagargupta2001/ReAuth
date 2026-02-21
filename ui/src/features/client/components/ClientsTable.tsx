@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router-dom'
 
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.tsx'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useClients } from '@/features/client/api/useClients.ts'
 import { clientColumns } from '@/features/client/components/ClientColumns.tsx'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'

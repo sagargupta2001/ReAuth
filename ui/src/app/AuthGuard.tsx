@@ -25,16 +25,16 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const { authorize, exchangeToken } = useOidcAuth()
   const refreshTokenMutation = useRefreshToken()
 
-  // --- 0. HASH ROUTER FIX (PRE-RENDER) ---
-  // If backend sent us to /login (root path), jump to /#/login
-  // IMPORTANT: Preserve the query string (search) so OIDC params aren't lost!
-  if (window.location.pathname === '/login') {
-    const search = window.location.search
-    window.location.replace(`${window.location.origin}/#/login${search}`)
-    return null
-  }
-
   useEffect(() => {
+    // --- 0. HASH ROUTER FIX (PRE-RENDER) ---
+    // If backend sent us to /login (root path), jump to /#/login
+    // IMPORTANT: Preserve the query string (search) so OIDC params aren't lost!
+    if (window.location.pathname === '/login') {
+      const search = window.location.search
+      window.location.replace(`${window.location.origin}/#/login${search}`)
+      return
+    }
+
     const handleAuth = async () => {
       // 1. If we have a token, we are done.
       if (accessToken) {

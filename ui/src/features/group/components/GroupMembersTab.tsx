@@ -11,7 +11,7 @@ import { UserCog } from 'lucide-react'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Switch } from '@/components/switch'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import {
   useGroupMemberIds,
   useGroupMembersList,

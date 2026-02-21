@@ -6,7 +6,7 @@ export type AuthExecutionResponse =
   | {
       status: 'challenge'
       challengeName: string // e.g. "login-password", "mfa-otp"
-      context: Record<string, any> // e.g. { error: "Invalid credentials", username: "admin" }
+      context: Record<string, unknown> // e.g. { error: "Invalid credentials", username: "admin" }
     }
   | {
       status: 'redirect'
@@ -29,6 +29,6 @@ export type ExecutionResult = AuthExecutionResponse
 export interface AuthScreenProps {
   isLoading: boolean
   error: string | null
-  context: Record<string, any>
-  onSubmit: (data: any) => void
+  context: Record<string, unknown>
+  onSubmit: (data: Record<string, unknown>) => void
 }

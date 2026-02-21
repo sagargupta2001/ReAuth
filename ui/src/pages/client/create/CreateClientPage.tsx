@@ -1,7 +1,7 @@
 import { ArrowLeft } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { RealmLink } from '@/entities/realm/lib/navigation.tsx'
+import { RealmLink } from '@/entities/realm/lib/navigation'
 import { CreateClientForm } from '@/features/client/forms/CreateClientForm.tsx'
 import { cn } from '@/lib/utils.ts'
 import { buttonVariants } from '@/shared/ui/button.tsx'

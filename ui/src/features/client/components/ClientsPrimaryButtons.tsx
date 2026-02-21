@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react'
 
 import { Button } from '@/shared/ui/button.tsx'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.tsx'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 
 export function ClientsPrimaryButtons() {
   const navigate = useRealmNavigate()

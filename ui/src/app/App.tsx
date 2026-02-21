@@ -1,6 +1,6 @@
 import { Toaster } from 'sonner'
 
-import { useTheme } from '@/app/providers/themeProvider.tsx'
+import { useTheme } from '@/app/providers/ThemeContext'
 
 import { AppRouter } from './AppRouter'
 

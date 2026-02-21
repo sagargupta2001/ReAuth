@@ -9,7 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/dropdown-menu'
 import type { FlowDraft } from '@/entities/flow/model/types'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 
 interface FlowHeaderProps {
   draft: FlowDraft

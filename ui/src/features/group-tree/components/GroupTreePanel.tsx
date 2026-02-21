@@ -105,8 +105,8 @@ export function GroupTreePanel({
       } else {
         setTreeCache(realm, nextTree)
       }
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to load groups')
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message || 'Failed to load groups')
     } finally {
       setLoading(false)
     }
@@ -163,8 +163,8 @@ export function GroupTreePanel({
           )
         }
         addExpanded(groupId)
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to load group children')
+      } catch (err: unknown) {
+        toast.error((err as Error)?.message || 'Failed to load group children')
       } finally {
         loadingIdsRef.current.delete(groupId)
       }
@@ -360,8 +360,8 @@ export function GroupTreePanel({
         }
         invalidateChildren(oldParentId)
         invalidateChildren(targetParentId)
-      } catch (err: any) {
-        toast.error(err.message || 'Failed to move group')
+      } catch (err: unknown) {
+        toast.error((err as Error)?.message || 'Failed to move group')
         void loadRoots()
       }
 
@@ -382,8 +382,8 @@ export function GroupTreePanel({
       await moveGroup(realm, groupId, { parent_id: null })
       invalidateChildren(oldParentId)
       void loadRoots()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to move group')
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message || 'Failed to move group')
     }
   }
 

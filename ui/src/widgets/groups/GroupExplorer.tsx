@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { Group } from '@/entities/group/model/types'
 import { useGroup } from '@/features/group/api/useGroup'

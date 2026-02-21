@@ -32,13 +32,22 @@ export function usePublishFlow() {
       void queryClient.invalidateQueries({ queryKey: ['flow-draft'] })
       void queryClient.invalidateQueries({ queryKey: ['flow-versions', flowId] })
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       // Show the validation error from the backend (e.g. "Dead end detected")
-      const serverMessage =
-        error.response?.data?.error || // Standard Axios
-        error.body?.error || // Some fetch wrappers
-        error.message || // Fallback to generic JS error
-        'Unknown validation error'
+      let serverMessage = 'Unknown validation error'
+
+      if (error && typeof error === 'object') {
+        const errObj = error as Record<string, unknown>
+        const response = errObj.response as Record<string, unknown> | undefined
+        const responseData = response?.data as Record<string, unknown> | undefined
+        const body = errObj.body as Record<string, unknown> | undefined
+
+        serverMessage =
+          (responseData?.error as string) ||
+          (body?.error as string) ||
+          (errObj.message as string) ||
+          serverMessage
+      }
 
       toast.error(`Publish Failed: ${serverMessage}`)
     },

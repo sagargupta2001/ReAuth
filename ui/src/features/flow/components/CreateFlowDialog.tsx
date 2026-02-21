@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/input'
 import { Label } from '@/components/label'
 import { Textarea } from '@/components/textarea'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useCreateDraft } from '@/features/flow-builder/api/useCreateDraft'
 import {
   Select,

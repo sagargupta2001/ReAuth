@@ -11,7 +11,7 @@ export interface NodeMetadata {
   icon: string
   inputs: string[]
   outputs: string[]
-  config_schema: any
+  config_schema: Record<string, unknown>
 }
 
 export function useNodes() {
