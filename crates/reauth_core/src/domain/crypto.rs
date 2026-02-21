@@ -11,7 +11,13 @@ impl HashedPassword {
         let salt = SaltString::generate(&mut OsRng);
 
         // Explicit parameters (no default() anymore)
-        let params = Params::new(15_000, 2, 1, None)
+        // Use lower parameters during tests to speed up the suite
+        #[cfg(not(test))]
+        let (m_cost, t_cost, p_cost) = (15_000, 2, 1);
+        #[cfg(test)]
+        let (m_cost, t_cost, p_cost) = (500, 1, 1);
+
+        let params = Params::new(m_cost, t_cost, p_cost, None)
             .map_err(|e| Error::Unexpected(anyhow::Error::msg(e.to_string())))?;
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
@@ -34,7 +40,12 @@ impl HashedPassword {
         let parsed_hash = PasswordHash::new(self.0.as_str())
             .map_err(|e| Error::Unexpected(anyhow::Error::msg(e.to_string())))?;
 
-        let params = Params::new(15_000, 2, 1, None)
+        #[cfg(not(test))]
+        let (m_cost, t_cost, p_cost) = (15_000, 2, 1);
+        #[cfg(test)]
+        let (m_cost, t_cost, p_cost) = (500, 1, 1);
+
+        let params = Params::new(m_cost, t_cost, p_cost, None)
             .map_err(|e| Error::Unexpected(anyhow::Error::msg(e.to_string())))?;
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 

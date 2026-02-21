@@ -1,4 +1,4 @@
-.PHONY: run-before-raising-pr fmt clippy test test-docs coverage ui-lint ui-test
+.PHONY: run-before-raising-pr fmt clippy test test-docs coverage ui-build ui-lint ui-test
 
 # Colors
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -8,6 +8,7 @@ RESET  := $(shell tput -Txterm sgr0)
 
 run-before-raising-pr:
 	@echo "$(YELLOW)Starting pre-PR validation...$(RESET)"
+	@$(MAKE) ui-build || (echo "$(RED)UI Build failed!$(RESET)" && exit 1)
 	@$(MAKE) fmt || (echo "$(RED)Formatting check failed!$(RESET)" && exit 1)
 	@$(MAKE) clippy || (echo "$(RED)Clippy lints failed!$(RESET)" && exit 1)
 	@$(MAKE) test || (echo "$(RED)Backend tests failed!$(RESET)" && exit 1)
@@ -34,8 +35,8 @@ test-docs:
 coverage:
 	cargo llvm-cov -p reauth_core --html
 
+ui-build:
+	cd ui && npm run build
+
 ui-lint:
 	cd ui && npm run lint
-
-ui-test:
-	cd ui && npm run test
