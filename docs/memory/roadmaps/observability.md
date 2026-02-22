@@ -21,8 +21,9 @@
 2. **Audit persistence (RBAC)** (next)
    - Persist RBAC change events with actor, target, action, and timestamp.
    - Provide query API for recent audits.
-3. **Structured logging** (next)
-   - Standardize log format (JSON) with key fields (request_id, user_id, realm_id).
+3. **Structured logging** (in progress)
+   - JSON log output toggle is available.
+   - Standardize key fields (request_id, user_id, realm_id) across logs.
 
 ## Later
 - Metrics pipeline (Prometheus/OpenTelemetry).
