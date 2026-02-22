@@ -11,6 +11,7 @@ dev_url = "http://localhost:5173"
 level = "info"
 filter = "" # Optional: overrides level when set (supports module filters)
 show_target = false # Show module path in logs
+json = false # Emit JSON logs (recommended for prod)
 
 [cors]
 allowed_origins = []

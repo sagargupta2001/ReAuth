@@ -7,6 +7,9 @@
 - [x] API latency logging is standardized.
 - [x] Correlation/request IDs are generated and propagated.
 - [x] API logs include route, status, duration, and request_id.
+- [x] W3C `traceparent` parsing and propagation.
+- [x] JSON log output toggle (compact vs JSON).
+- [x] Error responses include request_id for JSON errors.
 - [ ] Audit events exist in-memory but not persisted for reporting.
 - [ ] No structured tracing/metrics surfaced.
 
@@ -20,11 +23,6 @@
    - Provide query API for recent audits.
 3. **Structured logging** (next)
    - Standardize log format (JSON) with key fields (request_id, user_id, realm_id).
-
-## Next (best practices)
-- W3C `traceparent` support for compatibility with tracing tools.
-- JSON logs in production, compact logs for dev.
-- Include request IDs in error responses for user support.
 
 ## Later
 - Metrics pipeline (Prometheus/OpenTelemetry).

@@ -6,8 +6,10 @@ use axum::{
     http::{header, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
+    Json,
 };
 use axum_extra::extract::cookie::CookieJar;
+use serde_json::json;
 
 /// A struct to hold the authenticated user, which we will attach to the request.
 #[derive(Clone)]
@@ -35,10 +37,11 @@ pub async fn auth_guard(
             Some(c) => c.value().to_string(),
             None => {
                 // If neither exists, return 401 immediately
-                return Response::builder()
-                    .status(StatusCode::UNAUTHORIZED)
-                    .body(Body::from("Missing Authentication Token"))
-                    .unwrap();
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({ "error": "Missing Authentication Token" })),
+                )
+                    .into_response();
             }
         },
     };

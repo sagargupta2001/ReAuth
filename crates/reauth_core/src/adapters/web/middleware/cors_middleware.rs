@@ -4,8 +4,10 @@ use axum::{
     extract::State,
     http::{HeaderValue, Request, StatusCode},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
+    Json,
 };
+use serde_json::json;
 use tracing::warn;
 use url::Url;
 
@@ -47,10 +49,11 @@ pub async fn dynamic_cors_guard(
     }
 
     warn!("Blocked CORS request from: {}", origin_str);
-    Response::builder()
-        .status(StatusCode::FORBIDDEN)
-        .body(Body::from("CORS Origin Not Allowed"))
-        .unwrap()
+    (
+        StatusCode::FORBIDDEN,
+        Json(json!({ "error": "CORS Origin Not Allowed" })),
+    )
+        .into_response()
 }
 
 fn allow_response(mut response: Response, origin: &str) -> Response {

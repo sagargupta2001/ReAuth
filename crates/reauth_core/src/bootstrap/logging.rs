@@ -25,18 +25,31 @@ pub fn init_logging(settings: &Settings) -> Arc<LogBroadcastBus> {
     let time_format = parse("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:3]Z")
         .expect("invalid time format");
 
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .compact()
-        .with_target(settings.logging.show_target)
-        .with_timer(UtcTime::new(time_format));
+    if settings.logging.json {
+        let fmt_layer = tracing_subscriber::fmt::layer()
+            .json()
+            .with_target(settings.logging.show_target)
+            .with_timer(UtcTime::new(time_format));
 
-    let subscriber = tracing_subscriber::registry()
-        .with(env_filter)
-        .with(fmt_layer)
-        .with(adapter);
+        let subscriber = tracing_subscriber::registry()
+            .with(env_filter)
+            .with(fmt_layer)
+            .with(adapter);
 
-    // Avoid panicking if a global subscriber is already set (common in tests).
-    let _ = subscriber.try_init();
+        let _ = subscriber.try_init();
+    } else {
+        let fmt_layer = tracing_subscriber::fmt::layer()
+            .compact()
+            .with_target(settings.logging.show_target)
+            .with_timer(UtcTime::new(time_format));
+
+        let subscriber = tracing_subscriber::registry()
+            .with(env_filter)
+            .with(fmt_layer)
+            .with(adapter);
+
+        let _ = subscriber.try_init();
+    }
 
     log_bus
 }
