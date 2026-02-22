@@ -3,7 +3,7 @@ use super::{
     log_stream_handler, oidc_handler, plugin_handler, rbac_handler, realm_handler,
     server::ui_handler, session_handler, user_handler,
 };
-use crate::adapters::web::middleware::{cors_middleware, permission_guard};
+use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
 use crate::AppState;
 use axum::routing::{delete, get_service, put};
@@ -13,7 +13,7 @@ use axum::{
     Router,
 };
 use std::path::PathBuf;
-use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_http::services::ServeDir;
 
 pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     // 1. Public Routes
@@ -46,7 +46,10 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
             auth_middleware::auth_guard,
         ));
 
-    let api_router = Router::new().merge(public_api).merge(protected_api);
+    let api_router = Router::new()
+        .merge(public_api)
+        .merge(protected_api)
+        .route_layer(middleware::from_fn(request_logging::log_api_request));
 
     Router::new()
         .nest("/api", api_router)
@@ -56,7 +59,6 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
             app_state.clone(),
             cors_middleware::dynamic_cors_guard,
         ))
-        .layer(TraceLayer::new_for_http())
         .with_state(app_state)
 }
 
