@@ -16,6 +16,7 @@
 # [logging]
 # level = "info"
 # filter = "" # Optional: overrides level when set (supports module filters)
+# show_target = false # Show module path in logs
 
 # [cors]
 # allowed_origins = []

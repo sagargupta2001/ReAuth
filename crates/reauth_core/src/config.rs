@@ -28,6 +28,8 @@ pub struct LoggingConfig {
     pub level: String,
     #[serde(default)]
     pub filter: String,
+    #[serde(default)]
+    pub show_target: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]

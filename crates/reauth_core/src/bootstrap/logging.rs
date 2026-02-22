@@ -2,6 +2,8 @@ use crate::adapters::eventing::log_broadcast_bus::LogBroadcastBus;
 use crate::adapters::logging::tracing_adapter::TracingLogAdapter;
 use crate::config::Settings;
 use std::sync::Arc;
+use time::format_description::parse;
+use tracing_subscriber::fmt::time::UtcTime;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
@@ -20,9 +22,17 @@ pub fn init_logging(settings: &Settings) -> Arc<LogBroadcastBus> {
         }
     });
 
+    let time_format = parse("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:3]Z")
+        .expect("invalid time format");
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .compact()
+        .with_target(settings.logging.show_target)
+        .with_timer(UtcTime::new(time_format));
+
     let subscriber = tracing_subscriber::registry()
         .with(env_filter)
-        .with(tracing_subscriber::fmt::layer())
+        .with(fmt_layer)
         .with(adapter);
 
     // Avoid panicking if a global subscriber is already set (common in tests).

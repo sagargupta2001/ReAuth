@@ -4,19 +4,27 @@
 - Provide actionable logs, audit trails, and performance telemetry for debugging and compliance.
 
 ## Current state (code-aligned)
-- [ ] API latency logging is not standardized.
+- [x] API latency logging is standardized.
+- [x] Correlation/request IDs are generated and propagated.
+- [x] API logs include route, status, duration, and request_id.
 - [ ] Audit events exist in-memory but not persisted for reporting.
 - [ ] No structured tracing/metrics surfaced.
 
 ## MVP scope (prioritized)
-1. **API latency logging**
+1. **API latency logging** (done)
    - Log every API call with route, status, and response time.
    - Add correlation IDs for request tracing.
-2. **Audit persistence (RBAC)**
+   - Echo request IDs in responses for client correlation.
+2. **Audit persistence (RBAC)** (next)
    - Persist RBAC change events with actor, target, action, and timestamp.
    - Provide query API for recent audits.
-3. **Structured logging**
+3. **Structured logging** (next)
    - Standardize log format (JSON) with key fields (request_id, user_id, realm_id).
+
+## Next (best practices)
+- W3C `traceparent` support for compatibility with tracing tools.
+- JSON logs in production, compact logs for dev.
+- Include request IDs in error responses for user support.
 
 ## Later
 - Metrics pipeline (Prometheus/OpenTelemetry).
