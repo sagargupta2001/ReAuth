@@ -31,6 +31,10 @@ void i18n
       loadPath: '/locales/{{lng}}/{{ns}}.json',
     },
 
+    interpolation: {
+      escapeValue: false,
+    },
+
     // React-specific configuration
     react: {
       // We use Suspense for lazy loading

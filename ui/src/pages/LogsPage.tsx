@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { useTranslation } from 'react-i18next'
 
@@ -42,9 +42,16 @@ export function LogsPage() {
   const activeTab = urlState.tab
   const selectedTraceId = urlState.trace ? urlState.trace : null
 
+  const [now, setNow] = useState(() => new Date())
+
+  const refreshTimeRange = useCallback(() => {
+    if (timeRangeKey === 'custom') return
+    setNow(new Date())
+  }, [timeRangeKey])
+
   const resolvedTimeRange = useMemo(
-    () => resolveTimeRange(timeRangeKey, customRange, new Date()),
-    [timeRangeKey, urlState.start, urlState.end],
+    () => resolveTimeRange(timeRangeKey, customRange, now),
+    [customRange, now, timeRangeKey],
   )
 
   const handleTraceSelect = useCallback((traceId: string) => {
@@ -56,7 +63,11 @@ export function LogsPage() {
       value: 'logs',
       label: t('OBSERVABILITY.TABS.LOGS'),
       content: (
-        <LogsExplorer timeRange={resolvedTimeRange} onSelectTrace={handleTraceSelect} />
+        <LogsExplorer
+          timeRange={resolvedTimeRange}
+          onSelectTrace={handleTraceSelect}
+          onRefreshTimeRange={refreshTimeRange}
+        />
       ),
     },
     {

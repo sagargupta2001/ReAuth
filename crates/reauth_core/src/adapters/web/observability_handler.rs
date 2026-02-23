@@ -16,6 +16,7 @@ pub struct LogQuery {
     pub search: Option<String>,
     pub start: Option<String>,
     pub end: Option<String>,
+    pub include_spans: Option<bool>,
     pub limit: Option<i64>,
 }
 
@@ -71,6 +72,7 @@ pub async fn list_logs_handler(
         search,
         start_time: start,
         end_time: end,
+        include_spans: query.include_spans.unwrap_or(true),
     };
 
     let logs = state.telemetry_service.list_logs(filter).await?;

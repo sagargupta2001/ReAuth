@@ -50,6 +50,7 @@ pub struct TelemetryLogQuery {
     pub search: Option<String>,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
+    pub include_spans: bool,
 }
 
 #[derive(Debug, Clone)]

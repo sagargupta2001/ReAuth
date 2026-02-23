@@ -1,12 +1,13 @@
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 
-import { ChevronLeft, ChevronRight, Pause, Play, Sparkles } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pause, Play, RotateCw, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Command, CommandInput } from '@/components/command'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
+import { Switch } from '@/components/switch'
 import {
   Table,
   TableBody,
@@ -18,7 +19,13 @@ import {
 import type { LogEntry } from '@/entities/log/model/types'
 import { useLogStream } from '@/features/logs/hooks/useLogStream'
 import { cn } from '@/lib/utils'
-import { enumParam, numberParam, stringParam, useUrlState } from '@/shared/lib/hooks/useUrlState'
+import {
+  booleanParam,
+  enumParam,
+  numberParam,
+  stringParam,
+  useUrlState,
+} from '@/shared/lib/hooks/useUrlState'
 
 import { useTelemetryLogs } from '../api/useTelemetryLogs'
 import { isWithinRange } from '../lib/timeRange'
@@ -28,6 +35,7 @@ import type { TelemetryLog } from '../model/types'
 interface LogsExplorerProps {
   timeRange: ResolvedTimeRange
   onSelectTrace: (traceId: string) => void
+  onRefreshTimeRange?: () => void
 }
 
 const LOG_LEVELS = ['all', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE'] as const
@@ -46,6 +54,10 @@ type LogSortOption = {
   label: string
   sort_by: SortField
   sort_dir: SortDir
+}
+
+function isTraceSpan(log: TelemetryLog) {
+  return log.target === 'trace.span' || log.message === 'trace.span'
 }
 
 function parseNumber(value?: string) {
@@ -98,6 +110,39 @@ function getDisplayMessage(log: TelemetryLog): string {
   return 'No message, view metadata for details.'
 }
 
+function getRequestLabel(log: TelemetryLog): string {
+  if (log.method && log.path) {
+    return `${log.method} ${log.path}`
+  }
+  if (log.method && log.route) {
+    return `${log.method} ${log.route}`
+  }
+  if (log.route) return log.route
+  if (log.path) return log.path
+  return getDisplayMessage(log)
+}
+
+function formatDuration(duration?: number | null) {
+  if (duration === null || duration === undefined) return '—'
+  if (!Number.isFinite(duration)) return '—'
+  if (duration >= 1000) return `${(duration / 1000).toFixed(2)}s`
+  return `${duration}ms`
+}
+
+function formatIdentifier(value?: string | null) {
+  if (!value) return '—'
+  if (value.length <= 12) return value
+  return `${value.slice(0, 8)}…`
+}
+
+function statusBadgeVariant(status?: number | null) {
+  if (status === null || status === undefined) return 'muted'
+  if (status >= 500) return 'destructive'
+  if (status >= 400) return 'warning'
+  if (status >= 300) return 'secondary'
+  return 'success'
+}
+
 function formatTimestamp(timestamp: string) {
   const date = new Date(timestamp)
   if (Number.isNaN(date.getTime())) return timestamp
@@ -144,7 +189,11 @@ function buildMetadata(log: TelemetryLog) {
   return metadata
 }
 
-export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
+export function LogsExplorer({
+  timeRange,
+  onSelectTrace,
+  onRefreshTimeRange,
+}: LogsExplorerProps) {
   const { t } = useTranslation('logs')
   const sortOptions: LogSortOption[] = useMemo(
     () => [
@@ -182,6 +231,7 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
     log_level: LogLevelFilter
     log_source: string
     log_q: string
+    log_spans: boolean
     log_sort_by: SortField
     log_sort_dir: SortDir
   }>({
@@ -190,6 +240,7 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
     log_level: enumParam(LOG_LEVELS, 'all'),
     log_source: stringParam('all'),
     log_q: stringParam(''),
+    log_spans: booleanParam(false),
     log_sort_by: enumParam(SORT_FIELDS, 'timestamp'),
     log_sort_dir: enumParam(SORT_DIRS, 'desc'),
   })
@@ -199,6 +250,7 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
 
   const levelFilter = urlState.log_level
   const moduleFilter = urlState.log_source
+  const includeSpans = urlState.log_spans
   const sortValue = `${urlState.log_sort_by}:${urlState.log_sort_dir}`
 
   useEffect(() => {
@@ -215,31 +267,36 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
     return () => window.clearTimeout(handle)
   }, [searchInput, setUrlState, urlState.log_q])
 
+  const liveAllowed =
+    urlState.log_page === 1 &&
+    urlState.log_sort_by === 'timestamp' &&
+    urlState.log_sort_dir === 'desc'
+
   const start = timeRange.start ? timeRange.start.toISOString() : undefined
   const end = timeRange.end ? timeRange.end.toISOString() : undefined
 
-  const { data, isLoading } = useTelemetryLogs({
-    level: levelFilter === 'all' ? undefined : levelFilter,
-    target: moduleFilter === 'all' ? undefined : moduleFilter,
-    search: urlState.log_q || undefined,
-    start,
-    end,
-    page: urlState.log_page,
-    per_page: urlState.log_per_page,
-    sort_by: urlState.log_sort_by,
-    sort_dir: urlState.log_sort_dir,
-  })
+  const { logs: liveLogs, isConnected, connect, disconnect } = useLogStream()
+  const shouldPollStored = !(isConnected && liveAllowed)
+  const { data, isLoading, isFetching, refetch } = useTelemetryLogs(
+    {
+      level: levelFilter === 'all' ? undefined : levelFilter,
+      target: moduleFilter === 'all' ? undefined : moduleFilter,
+      search: urlState.log_q || undefined,
+      start,
+      end,
+      include_spans: includeSpans,
+      page: urlState.log_page,
+      per_page: urlState.log_per_page,
+      sort_by: urlState.log_sort_by,
+      sort_dir: urlState.log_sort_dir,
+    },
+    { enabled: shouldPollStored },
+  )
 
   const storedLogs = data?.data ?? []
   const meta = data?.meta
 
   const normalizedStored = useMemo(() => storedLogs.map(normalizeStoredLog), [storedLogs])
-
-  const { logs: liveLogs, isConnected, connect, disconnect } = useLogStream()
-  const liveAllowed =
-    urlState.log_page === 1 &&
-    urlState.log_sort_by === 'timestamp' &&
-    urlState.log_sort_dir === 'desc'
 
   useEffect(() => {
     if (!liveAllowed && isConnected) {
@@ -253,11 +310,13 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
   )
 
   const searchTerm = urlState.log_q.toLowerCase()
+  const applyRangeToLive = !(liveAllowed && isConnected)
   const filteredLiveLogs = useMemo(() => {
     return normalizedLive.filter((log) => {
+      if (!includeSpans && isTraceSpan(log)) return false
       if (levelFilter !== 'all' && log.level !== levelFilter) return false
       if (moduleFilter !== 'all' && log.target !== moduleFilter) return false
-      if (!isWithinRange(log.timestamp, timeRange)) return false
+      if (applyRangeToLive && !isWithinRange(log.timestamp, timeRange)) return false
       if (!searchTerm) return true
       const haystack = [
         log.message,
@@ -271,7 +330,23 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
         .toLowerCase()
       return haystack.includes(searchTerm)
     })
-  }, [levelFilter, moduleFilter, normalizedLive, searchTerm, timeRange])
+  }, [
+    applyRangeToLive,
+    includeSpans,
+    levelFilter,
+    moduleFilter,
+    normalizedLive,
+    searchTerm,
+    timeRange,
+  ])
+
+  const handleRefresh = useCallback(() => {
+    if (timeRange.key === 'custom') {
+      void refetch()
+      return
+    }
+    onRefreshTimeRange?.()
+  }, [onRefreshTimeRange, refetch, timeRange.key])
 
   const combinedLogs = useMemo(() => {
     if (!liveAllowed) {
@@ -344,6 +419,22 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
               </span>
             )}
           </div>
+          <label className="flex items-center gap-2 rounded-md border border-border/40 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
+            <Switch
+              checked={includeSpans}
+              onCheckedChange={(value) => setUrlState({ log_spans: value, log_page: 1 })}
+            />
+            {t('LOGS_EXPLORER.INCLUDE_SPANS')}
+          </label>
+          <Button
+            variant="outline"
+            className="h-11 gap-2"
+            onClick={handleRefresh}
+            disabled={isLoading || isFetching}
+          >
+            <RotateCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+            {t('LOGS_EXPLORER.REFRESH')}
+          </Button>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Select
@@ -409,32 +500,57 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-background/40">
-        <div className="h-full overflow-auto">
-          <Table>
-            <TableHeader className="bg-muted/30 sticky top-0 z-10">
+        <div className="relative h-full overflow-auto">
+          <Table noWrapper>
+            <TableHeader className="bg-muted/80">
               <TableRow>
-                <TableHead className="w-[180px]">{t('LOGS_TABLE.TIMESTAMP')}</TableHead>
-                <TableHead className="w-[110px]">{t('LOGS_TABLE.LEVEL')}</TableHead>
-                <TableHead className="w-[220px]">{t('LOGS_TABLE.TRACE_ID')}</TableHead>
-                <TableHead>{t('LOGS_TABLE.MESSAGE')}</TableHead>
+                <TableHead className="sticky top-0 z-20 w-[180px] bg-muted/80 backdrop-blur">
+                  {t('LOGS_TABLE.TIMESTAMP')}
+                </TableHead>
+                <TableHead className="sticky top-0 z-20 w-[110px] bg-muted/80 backdrop-blur">
+                  {t('LOGS_TABLE.LEVEL')}
+                </TableHead>
+                <TableHead className="sticky top-0 z-20 bg-muted/80 backdrop-blur">
+                  {t('LOGS_TABLE.REQUEST')}
+                </TableHead>
+                <TableHead className="sticky top-0 z-20 w-[110px] bg-muted/80 backdrop-blur">
+                  {t('LOGS_TABLE.STATUS')}
+                </TableHead>
+                <TableHead className="sticky top-0 z-20 w-[120px] bg-muted/80 backdrop-blur">
+                  {t('LOGS_TABLE.DURATION')}
+                </TableHead>
+                <TableHead className="sticky top-0 z-20 w-[220px] bg-muted/80 backdrop-blur">
+                  {t('LOGS_TABLE.TRACE_ID')}
+                </TableHead>
+                <TableHead className="sticky top-0 z-20 w-[140px] bg-muted/80 backdrop-blur">
+                  {t('LOGS_TABLE.USER')}
+                </TableHead>
+                <TableHead className="sticky top-0 z-20 w-[120px] bg-muted/80 backdrop-blur">
+                  {t('LOGS_TABLE.REALM')}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && combinedLogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                     {t('LOGS_TABLE.LOADING')}
                   </TableCell>
                 </TableRow>
               ) : combinedLogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                     {t('LOGS_TABLE.EMPTY')}
                   </TableCell>
                 </TableRow>
               ) : (
                 combinedLogs.map((log) => {
                   const isExpanded = expandedLogId === log.id
+                  const requestLabel = getRequestLabel(log)
+                  const statusLabel = log.status ?? null
+                  const durationLabel = formatDuration(log.duration_ms ?? null)
+                  const userLabel = formatIdentifier(log.user_id)
+                  const realmLabel = log.realm && log.realm.trim() ? log.realm : '—'
                   return (
                     <Fragment key={log.id}>
                       <TableRow
@@ -453,6 +569,26 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
                             {log.level}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-foreground">{requestLabel}</span>
+                            <span className="text-xs text-muted-foreground truncate">
+                              {log.route && log.route !== log.path ? log.route : log.target}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {statusLabel ? (
+                            <Badge variant={statusBadgeVariant(statusLabel)} className="text-xs">
+                              {statusLabel}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {durationLabel}
+                        </TableCell>
                         <TableCell>
                           {log.trace_id ? (
                             <button
@@ -468,20 +604,19 @@ export function LogsExplorer({ timeRange, onSelectTrace }: LogsExplorerProps) {
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm">
-                          <div className="flex flex-col gap-1">
-                            <span className="font-medium text-foreground">
-                              {getDisplayMessage(log)}
-                            </span>
-                            <span className="text-xs text-muted-foreground truncate">
-                              {log.target}
-                            </span>
-                          </div>
+                        <TableCell
+                          className="font-mono text-xs text-muted-foreground"
+                          title={log.user_id ?? undefined}
+                        >
+                          {userLabel}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {realmLabel}
                         </TableCell>
                       </TableRow>
                       {isExpanded && (
                         <TableRow className="bg-muted/30">
-                          <TableCell colSpan={4} className="p-4">
+                          <TableCell colSpan={8} className="p-4">
                             <div className="flex flex-col gap-2">
                               <div className="text-xs font-medium text-muted-foreground">
                                 {t('LOGS_TABLE.METADATA')}

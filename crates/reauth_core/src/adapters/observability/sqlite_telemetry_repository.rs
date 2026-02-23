@@ -56,6 +56,13 @@ impl SqliteTelemetryRepository {
             builder.push_bind(end_time.clone());
         }
 
+        if !query.include_spans {
+            push_where(builder, &mut has_filter);
+            builder.push("(target IS NULL OR target != ");
+            builder.push_bind("trace.span".to_string());
+            builder.push(")");
+        }
+
         if let Some(search) = &query.search {
             let pattern = format!("%{}%", search);
             push_where(builder, &mut has_filter);

@@ -11,13 +11,17 @@ export interface TelemetryLogQuery {
   search?: string
   start?: string
   end?: string
+  include_spans?: boolean
   page?: number
   per_page?: number
   sort_by?: string
   sort_dir?: 'asc' | 'desc'
 }
 
-export function useTelemetryLogs(params: TelemetryLogQuery) {
+export function useTelemetryLogs(
+  params: TelemetryLogQuery,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['observability-logs', params],
     queryFn: async () => {
@@ -27,6 +31,9 @@ export function useTelemetryLogs(params: TelemetryLogQuery) {
       if (params.search) query.set('search', params.search)
       if (params.start) query.set('start', params.start)
       if (params.end) query.set('end', params.end)
+      if (params.include_spans !== undefined) {
+        query.set('include_spans', String(params.include_spans))
+      }
       if (params.page) query.set('page', String(params.page))
       if (params.per_page) query.set('per_page', String(params.per_page))
       if (params.sort_by) query.set('sort_by', params.sort_by)
@@ -40,5 +47,8 @@ export function useTelemetryLogs(params: TelemetryLogQuery) {
     },
     placeholderData: keepPreviousData,
     staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    enabled: options?.enabled ?? true,
   })
 }
