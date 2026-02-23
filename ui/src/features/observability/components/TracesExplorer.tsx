@@ -265,7 +265,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
         <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-background/40">
           <div className="border-b px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">

@@ -92,6 +92,9 @@ impl SqliteTelemetryRepository {
         push_where(builder, &mut has_filter);
         builder.push("method IS NOT NULL");
 
+        push_where(builder, &mut has_filter);
+        builder.push("(parent_id IS NULL OR parent_id = '')");
+
         if let Some(start_time) = &query.start_time {
             push_where(builder, &mut has_filter);
             builder.push("start_time >= ");
