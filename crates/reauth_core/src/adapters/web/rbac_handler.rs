@@ -1,7 +1,9 @@
+use crate::adapters::web::auth_middleware::AuthUser;
 use crate::application::rbac_service::{
     CreateCustomPermissionPayload, CreateGroupPayload, CreateRolePayload,
     UpdateCustomPermissionPayload,
 };
+use crate::domain::audit::NewAuditEvent;
 use crate::domain::pagination::PageRequest;
 use crate::domain::permissions::{self, PermissionDef, ResourceGroup};
 use crate::domain::rbac::{
@@ -14,15 +16,40 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use serde::Deserialize;
 use serde_json::json;
+use tracing::error;
 use uuid::Uuid;
+
+async fn record_audit(
+    state: &AppState,
+    realm_id: Uuid,
+    actor_id: Uuid,
+    action: &str,
+    target_type: &str,
+    target_id: Option<String>,
+    metadata: serde_json::Value,
+) {
+    let event = NewAuditEvent {
+        realm_id,
+        actor_user_id: Some(actor_id),
+        action: action.to_string(),
+        target_type: target_type.to_string(),
+        target_id,
+        metadata,
+    };
+
+    if let Err(err) = state.audit_service.record(event).await {
+        error!("Failed to write audit event: {:?}", err);
+    }
+}
 
 // POST /api/realms/{realm}/rbac/roles
 pub async fn create_role_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path(realm_name): Path<String>,
     Json(payload): Json<CreateRolePayload>,
 ) -> Result<impl IntoResponse> {
@@ -36,12 +63,29 @@ pub async fn create_role_handler(
     // 2. Pass realm ID to service
     let role = state.rbac_service.create_role(realm.id, payload).await?;
 
+    let role_name = role.name.clone();
+    let client_id = role.client_id.map(|id| id.to_string());
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.created",
+        "role",
+        Some(role.id.to_string()),
+        json!({
+            "name": role_name,
+            "client_id": client_id,
+        }),
+    )
+    .await;
+
     Ok((StatusCode::CREATED, Json(role)))
 }
 
 // POST /api/realms/{realm}/rbac/groups
 pub async fn create_group_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path(realm_name): Path<String>,
     Json(payload): Json<CreateGroupPayload>,
 ) -> Result<impl IntoResponse> {
@@ -54,6 +98,18 @@ pub async fn create_group_handler(
 
     // 2. Pass realm ID to service
     let group = state.rbac_service.create_group(realm.id, payload).await?;
+
+    let group_name = group.name.clone();
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.group.created",
+        "group",
+        Some(group.id.to_string()),
+        json!({ "name": group_name }),
+    )
+    .await;
 
     Ok((StatusCode::CREATED, Json(group)))
 }
@@ -182,6 +238,7 @@ pub async fn get_group_delete_summary_handler(
 // PUT /api/realms/{realm}/rbac/groups/{id}
 pub async fn update_group_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, group_id)): Path<(String, Uuid)>,
     Json(payload): Json<CreateGroupPayload>,
 ) -> Result<impl IntoResponse> {
@@ -196,12 +253,25 @@ pub async fn update_group_handler(
         .update_group(realm.id, group_id, payload)
         .await?;
 
+    let group_name = updated_group.name.clone();
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.group.updated",
+        "group",
+        Some(group_id.to_string()),
+        json!({ "name": group_name }),
+    )
+    .await;
+
     Ok((StatusCode::OK, Json(updated_group)))
 }
 
 // DELETE /api/realms/{realm}/rbac/groups/{id}
 pub async fn delete_group_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, group_id)): Path<(String, Uuid)>,
     Query(query): Query<GroupDeleteQuery>,
 ) -> Result<impl IntoResponse> {
@@ -217,12 +287,24 @@ pub async fn delete_group_handler(
         .delete_group(realm.id, group_id, cascade)
         .await?;
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.group.deleted",
+        "group",
+        Some(group_id.to_string()),
+        json!({ "cascade": cascade }),
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
 // POST /api/realms/{realm}/rbac/groups/{id}/move
 pub async fn move_group_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, group_id)): Path<(String, Uuid)>,
     Json(payload): Json<MoveGroupPayload>,
 ) -> Result<impl IntoResponse> {
@@ -242,6 +324,21 @@ pub async fn move_group_handler(
             payload.after_id,
         )
         .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.group.moved",
+        "group",
+        Some(group_id.to_string()),
+        json!({
+            "parent_id": payload.parent_id.map(|id| id.to_string()),
+            "before_id": payload.before_id.map(|id| id.to_string()),
+            "after_id": payload.after_id.map(|id| id.to_string()),
+        }),
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -274,6 +371,7 @@ pub struct AssignPermissionPayload {
 // POST /api/realms/{realm}/rbac/roles/{role_id}/permissions
 pub async fn assign_permission_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
     Json(payload): Json<AssignPermissionPayload>,
 ) -> Result<impl IntoResponse> {
@@ -283,10 +381,22 @@ pub async fn assign_permission_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
+    let permission = payload.permission.clone();
     state
         .rbac_service
         .assign_permission_to_role(realm.id, role_id, payload.permission)
         .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.permission.assigned",
+        "role",
+        Some(role_id.to_string()),
+        json!({ "permission": permission }),
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({}))))
 }
@@ -316,6 +426,7 @@ pub struct MoveGroupPayload {
 // POST /api/realms/{realm}/users/{user_id}/roles
 pub async fn assign_user_role_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, user_id)): Path<(String, Uuid)>,
     Json(payload): Json<AssignRolePayload>,
 ) -> Result<impl IntoResponse> {
@@ -330,12 +441,24 @@ pub async fn assign_user_role_handler(
         .assign_role_to_user(realm.id, user_id, payload.role_id)
         .await?;
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.user.role.assigned",
+        "user",
+        Some(user_id.to_string()),
+        json!({ "role_id": payload.role_id.to_string() }),
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
 // POST /api/realms/{realm}/rbac/groups/{group_id}/members
 pub async fn assign_user_to_group_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, group_id)): Path<(String, Uuid)>,
     Json(payload): Json<AssignGroupMemberPayload>,
 ) -> Result<impl IntoResponse> {
@@ -350,12 +473,24 @@ pub async fn assign_user_to_group_handler(
         .assign_user_to_group(realm.id, payload.user_id, group_id)
         .await?;
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.user.group.assigned",
+        "user",
+        Some(payload.user_id.to_string()),
+        json!({ "group_id": group_id.to_string() }),
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
 // DELETE /api/realms/{realm}/rbac/groups/{group_id}/members/{user_id}
 pub async fn remove_user_from_group_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, group_id, user_id)): Path<(String, Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
     let realm = state
@@ -368,6 +503,17 @@ pub async fn remove_user_from_group_handler(
         .rbac_service
         .remove_user_from_group(realm.id, user_id, group_id)
         .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.user.group.removed",
+        "user",
+        Some(user_id.to_string()),
+        json!({ "group_id": group_id.to_string() }),
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -428,6 +574,7 @@ pub async fn list_group_members_page_handler(
 // POST /api/realms/{realm}/rbac/groups/{group_id}/roles
 pub async fn assign_role_to_group_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, group_id)): Path<(String, Uuid)>,
     Json(payload): Json<AssignGroupRolePayload>,
 ) -> Result<impl IntoResponse> {
@@ -442,12 +589,24 @@ pub async fn assign_role_to_group_handler(
         .assign_role_to_group(realm.id, payload.role_id, group_id)
         .await?;
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.group.role.assigned",
+        "group",
+        Some(group_id.to_string()),
+        json!({ "role_id": payload.role_id.to_string() }),
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
 // DELETE /api/realms/{realm}/rbac/groups/{group_id}/roles/{role_id}
 pub async fn remove_role_from_group_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, group_id, role_id)): Path<(String, Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
     let realm = state
@@ -460,6 +619,17 @@ pub async fn remove_role_from_group_handler(
         .rbac_service
         .remove_role_from_group(realm.id, role_id, group_id)
         .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.group.role.removed",
+        "group",
+        Some(group_id.to_string()),
+        json!({ "role_id": role_id.to_string() }),
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -699,6 +869,7 @@ pub async fn list_role_composites_page_handler(
 // POST /api/realms/{realm}/rbac/roles/{role_id}/composites
 pub async fn assign_composite_role_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
     Json(payload): Json<AssignRolePayload>,
 ) -> Result<impl IntoResponse> {
@@ -713,12 +884,24 @@ pub async fn assign_composite_role_handler(
         .assign_composite_role(realm.id, role_id, payload.role_id)
         .await?;
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.composite.added",
+        "role",
+        Some(role_id.to_string()),
+        json!({ "child_role_id": payload.role_id.to_string() }),
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
 // DELETE /api/realms/{realm}/rbac/roles/{role_id}/composites/{child_role_id}
 pub async fn remove_composite_role_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, role_id, child_role_id)): Path<(String, Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
     let realm = state
@@ -732,12 +915,24 @@ pub async fn remove_composite_role_handler(
         .remove_composite_role(realm.id, role_id, child_role_id)
         .await?;
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.composite.removed",
+        "role",
+        Some(role_id.to_string()),
+        json!({ "child_role_id": child_role_id.to_string() }),
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
 // DELETE /api/realms/{realm}/users/{user_id}/roles/{role_id}
 pub async fn remove_user_role_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, user_id, role_id)): Path<(String, Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
     let realm = state
@@ -751,12 +946,24 @@ pub async fn remove_user_role_handler(
         .remove_role_from_user(realm.id, user_id, role_id)
         .await?;
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.user.role.removed",
+        "user",
+        Some(user_id.to_string()),
+        json!({ "role_id": role_id.to_string() }),
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
 // DELETE /api/realms/{realm}/rbac/roles/{id}
 pub async fn delete_role_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
 ) -> Result<impl IntoResponse> {
     let realm = state
@@ -765,6 +972,18 @@ pub async fn delete_role_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
     state.rbac_service.delete_role(realm.id, role_id).await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.deleted",
+        "role",
+        Some(role_id.to_string()),
+        json!({}),
+    )
+    .await;
+
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -786,6 +1005,7 @@ pub async fn get_role_handler(
 // PUT /api/realms/{realm}/rbac/roles/{id}
 pub async fn update_role_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
     Json(payload): Json<CreateRolePayload>,
 ) -> Result<impl IntoResponse> {
@@ -799,6 +1019,22 @@ pub async fn update_role_handler(
         .rbac_service
         .update_role(realm.id, role_id, payload)
         .await?;
+
+    let role_name = updated_role.name.clone();
+    let client_id = updated_role.client_id.map(|id| id.to_string());
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.updated",
+        "role",
+        Some(role_id.to_string()),
+        json!({
+            "name": role_name,
+            "client_id": client_id,
+        }),
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(updated_role)))
 }
@@ -858,6 +1094,7 @@ pub async fn list_permissions_handler(
 // POST /api/realms/{realm}/rbac/permissions/custom
 pub async fn create_custom_permission_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path(realm_name): Path<String>,
     Json(payload): Json<CreateCustomPermissionPayload>,
 ) -> Result<impl IntoResponse> {
@@ -872,6 +1109,8 @@ pub async fn create_custom_permission_handler(
         .create_custom_permission(realm.id, payload)
         .await?;
 
+    let permission_id = created.permission.clone();
+    let permission_name = created.name.clone();
     let response = PermissionDef {
         id: created.permission,
         name: created.name,
@@ -879,12 +1118,27 @@ pub async fn create_custom_permission_handler(
         custom_id: Some(created.id.to_string()),
     };
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.permission.custom.created",
+        "permission",
+        Some(created.id.to_string()),
+        json!({
+            "permission": permission_id,
+            "name": permission_name,
+        }),
+    )
+    .await;
+
     Ok((StatusCode::CREATED, Json(response)))
 }
 
 // PUT /api/realms/{realm}/rbac/permissions/custom/{id}
 pub async fn update_custom_permission_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, permission_id)): Path<(String, Uuid)>,
     Json(payload): Json<UpdateCustomPermissionPayload>,
 ) -> Result<impl IntoResponse> {
@@ -899,6 +1153,8 @@ pub async fn update_custom_permission_handler(
         .update_custom_permission(realm.id, permission_id, payload)
         .await?;
 
+    let permission_value = updated.permission.clone();
+    let permission_name = updated.name.clone();
     let response = PermissionDef {
         id: updated.permission,
         name: updated.name,
@@ -906,12 +1162,27 @@ pub async fn update_custom_permission_handler(
         custom_id: Some(updated.id.to_string()),
     };
 
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.permission.custom.updated",
+        "permission",
+        Some(permission_id.to_string()),
+        json!({
+            "permission": permission_value,
+            "name": permission_name,
+        }),
+    )
+    .await;
+
     Ok((StatusCode::OK, Json(response)))
 }
 
 // DELETE /api/realms/{realm}/rbac/permissions/custom/{id}
 pub async fn delete_custom_permission_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, permission_id)): Path<(String, Uuid)>,
 ) -> Result<impl IntoResponse> {
     let realm = state
@@ -924,6 +1195,17 @@ pub async fn delete_custom_permission_handler(
         .rbac_service
         .delete_custom_permission(realm.id, permission_id)
         .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.permission.custom.deleted",
+        "permission",
+        Some(permission_id.to_string()),
+        json!({}),
+    )
+    .await;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -1041,6 +1323,7 @@ pub async fn list_role_members_page_handler(
 // For simplicity, let's use the payload approach or a Bulk action with "remove".
 pub async fn revoke_permission_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
     Json(payload): Json<PermissionPayload>,
 ) -> Result<impl IntoResponse> {
@@ -1050,16 +1333,29 @@ pub async fn revoke_permission_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
+    let permission = payload.permission.clone();
     state
         .rbac_service
         .revoke_permission(realm.id, role_id, payload.permission)
         .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.permission.revoked",
+        "role",
+        Some(role_id.to_string()),
+        json!({ "permission": permission }),
+    )
+    .await;
     Ok(StatusCode::NO_CONTENT)
 }
 
 // POST /roles/:id/permissions/bulk
 pub async fn bulk_permissions_handler(
     State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
     Json(payload): Json<BulkPermissionPayload>,
 ) -> Result<impl IntoResponse> {
@@ -1069,10 +1365,26 @@ pub async fn bulk_permissions_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
+    let action = payload.action.clone();
+    let count = payload.permissions.len();
     state
         .rbac_service
         .bulk_update_permissions(realm.id, role_id, payload.permissions, payload.action)
         .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.permission.bulk",
+        "role",
+        Some(role_id.to_string()),
+        json!({
+            "action": action,
+            "count": count,
+        }),
+    )
+    .await;
 
     Ok((StatusCode::OK, Json(json!({}))))
 }

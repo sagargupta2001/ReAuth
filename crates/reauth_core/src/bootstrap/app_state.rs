@@ -4,14 +4,16 @@ use std::sync::Arc;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
+use crate::application::metrics_service::MetricsService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
 use crate::application::{
-    auth_service::AuthService, rbac_service::RbacService, realm_service::RealmService,
-    user_service::UserService,
+    audit_service::AuditService, auth_service::AuthService, rbac_service::RbacService,
+    realm_service::RealmService, telemetry_service::TelemetryService, user_service::UserService,
 };
 use crate::config::Settings;
 use crate::ports::auth_session_repository::AuthSessionRepository;
+use crate::ports::cache_service::CacheService;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::session_repository::SessionRepository;
 use manager::{log_bus::LogSubscriber, PluginManager};
@@ -27,6 +29,9 @@ pub struct AppState {
     pub user_service: Arc<UserService>,
     pub rbac_service: Arc<RbacService>,
     pub auth_service: Arc<AuthService>,
+    pub audit_service: Arc<AuditService>,
+    pub telemetry_service: Arc<TelemetryService>,
+    pub metrics_service: Arc<MetricsService>,
     pub realm_service: Arc<RealmService>,
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
@@ -35,6 +40,7 @@ pub struct AppState {
 
     // Infrastructure / Repositories
     pub log_subscriber: Arc<dyn LogSubscriber>,
+    pub cache_service: Arc<dyn CacheService>,
     pub auth_session_repo: Arc<dyn AuthSessionRepository>,
     pub session_repo: Arc<dyn SessionRepository>,
 

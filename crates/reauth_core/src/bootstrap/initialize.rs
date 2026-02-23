@@ -1,5 +1,10 @@
 use crate::adapters::logging::banner::print_banner;
+use crate::adapters::observability::sqlite_telemetry_repository::SqliteTelemetryRepository;
+use crate::adapters::observability::telemetry_store::init_telemetry_db;
+use crate::adapters::observability::telemetry_writer::TelemetryWriter;
 use crate::adapters::persistence::transaction::SqliteTransactionManager;
+use crate::application::metrics_service::MetricsService;
+use crate::application::telemetry_service::TelemetryService;
 use crate::bootstrap::database::{initialize_database, run_migrations_and_seed};
 use crate::bootstrap::events::subscribe_event_listeners;
 use crate::bootstrap::infrastructure::initialize_core_infra;
@@ -62,6 +67,11 @@ async fn initialize_with_settings(
     }
 
     let plugins_path = determine_plugins_path()?;
+    let telemetry_db = init_telemetry_db(&settings.observability.telemetry_db_path).await?;
+    let telemetry_repo = Arc::new(SqliteTelemetryRepository::new(telemetry_db));
+    let telemetry_service = Arc::new(TelemetryService::new(telemetry_repo.clone()));
+    TelemetryWriter::new(telemetry_repo).spawn(log_bus.clone());
+    let metrics_service = Arc::new(MetricsService::new());
     let db_pool = initialize_database(&settings).await?;
     let repos = initialize_repositories(&db_pool);
 
@@ -114,8 +124,12 @@ async fn initialize_with_settings(
         user_service: services.user_service,
         rbac_service: services.rbac_service,
         auth_service: services.auth_service,
+        audit_service: services.audit_service,
+        telemetry_service,
+        metrics_service,
         realm_service: services.realm_service,
         log_subscriber: log_bus,
+        cache_service: cache_service.clone(),
         auth_session_repo: repos.auth_session_repo,
         flow_store: repos.flow_store,
         // flow_engine has been removed

@@ -35,6 +35,12 @@ pub struct LoggingConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ObservabilityConfig {
+    #[serde(default)]
+    pub telemetry_db_path: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
 pub struct CorsConfig {
     #[serde(default)]
     pub allowed_origins: Vec<String>,
@@ -83,6 +89,8 @@ pub struct Settings {
     pub server: Server,
     pub ui: Ui,
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub observability: ObservabilityConfig,
     #[serde(default)]
     pub cors: CorsConfig,
     pub plugins: PluginsConfig,
@@ -154,6 +162,7 @@ impl Settings {
         }
 
         self.apply_database_defaults();
+        self.apply_observability_defaults();
     }
 
     fn apply_database_defaults(&mut self) {
@@ -165,6 +174,22 @@ impl Settings {
                 self.database.url = format!("sqlite:{}", db_path.to_string_lossy());
             }
         }
+    }
+
+    fn apply_observability_defaults(&mut self) {
+        if !self.observability.telemetry_db_path.trim().is_empty() {
+            return;
+        }
+
+        let data_dir = self.database.data_dir.trim();
+        let base_dir = if data_dir.is_empty() {
+            "./data"
+        } else {
+            data_dir
+        };
+
+        let path = Path::new(base_dir).join("reauth_telemetry.db");
+        self.observability.telemetry_db_path = path.to_string_lossy().to_string();
     }
 
     fn validate(&self) -> Result<(), config::ConfigError> {

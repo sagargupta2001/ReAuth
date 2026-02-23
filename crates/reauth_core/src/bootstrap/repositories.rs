@@ -1,7 +1,9 @@
 use crate::adapters::persistence::connection::Database;
+use crate::adapters::persistence::sqlite_audit_repository::SqliteAuditRepository;
 use crate::adapters::persistence::sqlite_auth_session_repository::SqliteAuthSessionRepository;
 use crate::adapters::persistence::sqlite_flow_store::SqliteFlowStore;
 use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
+use crate::ports::audit_repository::AuditRepository;
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::oidc_repository::OidcRepository;
@@ -33,6 +35,7 @@ pub struct Repositories {
     pub oidc_repo: Arc<dyn OidcRepository>,
     pub flow_store: Arc<dyn FlowStore>,
     pub auth_session_repo: Arc<dyn AuthSessionRepository>,
+    pub audit_repo: Arc<dyn AuditRepository>,
 }
 
 pub fn initialize_repositories(db_pool: &Database) -> Repositories {
@@ -46,6 +49,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let oidc_repo = Arc::new(SqliteOidcRepository::new(db_pool.clone()));
     let flow_store = Arc::new(SqliteFlowStore::new(db_pool.clone()));
     let auth_session_repo = Arc::new(SqliteAuthSessionRepository::new(db_pool.clone()));
+    let audit_repo = Arc::new(SqliteAuditRepository::new(db_pool.clone()));
 
     Repositories {
         user_repo,
@@ -56,5 +60,6 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         oidc_repo,
         flow_store,
         auth_session_repo,
+        audit_repo,
     }
 }

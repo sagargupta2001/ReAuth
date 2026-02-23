@@ -158,6 +158,11 @@ async fn error_response_includes_request_id() {
         .get("request_id")
         .and_then(|value| value.as_str())
         .expect("request_id field");
+    let error_code = value
+        .get("code")
+        .and_then(|value| value.as_str())
+        .expect("code field");
+    assert_eq!(error_code, "auth.missing_token");
     assert_eq!(request_id_body, request_id_value);
 }
 

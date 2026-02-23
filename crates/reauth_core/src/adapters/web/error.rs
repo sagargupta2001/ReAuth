@@ -65,6 +65,39 @@ impl IntoResponse for Error {
             ),
         };
 
-        (status, Json(json!({ "error": message }))).into_response()
+        let code = error_code(&self);
+        (status, Json(json!({ "error": message, "code": code }))).into_response()
+    }
+}
+
+fn error_code(error: &Error) -> &'static str {
+    match error {
+        Error::InvalidCredentials => "auth.invalid_credentials",
+        Error::SessionRevoked => "auth.session_revoked",
+        Error::InvalidRefreshToken => "auth.invalid_refresh_token",
+        Error::OidcInvalidCode => "oidc.invalid_code",
+        Error::SecurityViolation(_) => "security.violation",
+        Error::UserAlreadyExists => "user.already_exists",
+        Error::RoleAlreadyExists => "rbac.role.already_exists",
+        Error::GroupAlreadyExists => "rbac.group.already_exists",
+        Error::RealmAlreadyExists => "realm.already_exists",
+        Error::UserNotFound => "user.not_found",
+        Error::RealmNotFound(_) => "realm.not_found",
+        Error::FlowNotFound(_) => "flow.not_found",
+        Error::AuthenticatorNotFound(_) => "authenticator.not_found",
+        Error::InvalidLoginStep => "auth.invalid_login_step",
+        Error::InvalidLoginSession => "auth.invalid_login_session",
+        Error::Validation(_) => "validation.failed",
+        Error::NotFound(_) => "resource.not_found",
+        Error::OidcClientNotFound(_) => "oidc.client_not_found",
+        Error::OidcInvalidRedirect(_) => "oidc.invalid_redirect",
+        Error::OidcInvalidRequest(_) => "oidc.invalid_request",
+        Error::Jwt(_) => "auth.invalid_token",
+        Error::InvalidHeader(_) => "request.invalid_header",
+        Error::Config(_) => "config.error",
+        Error::DatabaseInit(_) => "database.init_failed",
+        Error::System(_) => "system.error",
+        Error::Uuid(_) => "system.uuid_error",
+        Error::Unexpected(_) => "internal_error",
     }
 }

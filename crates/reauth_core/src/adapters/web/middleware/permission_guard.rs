@@ -8,8 +8,10 @@ use axum::{
     Json,
 };
 use serde_json::json;
+use tracing::instrument;
 use uuid::Uuid;
 
+#[instrument(skip_all, fields(telemetry = "span"))]
 pub async fn require_permission(
     State(state): State<AppState>,
     req: Request<Body>,
@@ -23,7 +25,10 @@ pub async fn require_permission(
         None => {
             return (
                 StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "Missing Authentication Token" })),
+                Json(json!({
+                    "error": "Missing Authentication Token",
+                    "code": "auth.missing_token"
+                })),
             )
                 .into_response()
         }
@@ -38,7 +43,10 @@ pub async fn require_permission(
         Ok(true) => next.run(req).await,
         _ => (
             StatusCode::FORBIDDEN,
-            Json(json!({ "error": "Insufficient Permissions" })),
+            Json(json!({
+                "error": "Insufficient Permissions",
+                "code": "rbac.insufficient_permissions"
+            })),
         )
             .into_response(),
     }

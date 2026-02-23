@@ -1,13 +1,16 @@
+use crate::AppState;
 use axum::body::Body;
 use axum::extract::MatchedPath;
+use axum::extract::State;
 use axum::http::{header, HeaderValue, Request};
 use axum::middleware::Next;
 use axum::response::Response;
 use http_body_util::BodyExt;
 use rand::RngCore;
 use serde_json::Value;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use tracing::info;
+use tracing::{field, info, Instrument};
 use uuid::Uuid;
 
 const REQUEST_ID_HEADER: &str = "x-request-id";
@@ -19,6 +22,23 @@ const MAX_ERROR_BODY_BYTES: usize = 64 * 1024;
 pub struct RequestId(pub String);
 
 #[derive(Clone, Debug)]
+pub struct RequestContext {
+    inner: Arc<Mutex<RequestContextData>>,
+}
+
+#[derive(Debug)]
+struct RequestContextData {
+    realm: Option<String>,
+    user_id: Option<Uuid>,
+}
+
+#[derive(Debug)]
+struct RequestContextSnapshot {
+    realm: Option<String>,
+    user_id: Option<Uuid>,
+}
+
+#[derive(Clone, Debug)]
 pub struct TraceParent {
     pub version: String,
     pub trace_id: String,
@@ -26,7 +46,11 @@ pub struct TraceParent {
     pub flags: String,
 }
 
-pub async fn log_api_request(mut req: Request<Body>, next: Next) -> Response {
+pub async fn log_api_request(
+    State(state): State<AppState>,
+    mut req: Request<Body>,
+    next: Next,
+) -> Response {
     let start = Instant::now();
     let method = req.method().clone();
     let path = req.uri().path().to_string();
@@ -40,8 +64,11 @@ pub async fn log_api_request(mut req: Request<Body>, next: Next) -> Response {
     let request_id_header = HeaderValue::from_str(&request_id).ok();
     let traceparent = extract_or_generate_traceparent(&req);
     let traceparent_value = HeaderValue::from_str(&traceparent.as_header_value()).ok();
+    let realm = extract_realm_from_path(&path);
+    let context = RequestContext::new(realm);
 
     req.extensions_mut().insert(RequestId(request_id.clone()));
+    req.extensions_mut().insert(context.clone());
     req.extensions_mut().insert(traceparent.clone());
     if let Some(header_value) = request_id_header.clone() {
         req.headers_mut().insert(REQUEST_ID_HEADER, header_value);
@@ -50,7 +77,23 @@ pub async fn log_api_request(mut req: Request<Body>, next: Next) -> Response {
         req.headers_mut().insert(TRACEPARENT_HEADER, header_value);
     }
 
-    let response = next.run(req).await;
+    let route_for_span = matched_path.as_deref().unwrap_or(&path).to_string();
+    let method_for_span = method.to_string();
+    let span = tracing::info_span!(
+        "http.request",
+        telemetry = "context",
+        trace_id = %traceparent.trace_id,
+        span_id = %traceparent.parent_id,
+        request_id = %request_id,
+        method = %method_for_span,
+        route = %route_for_span,
+        path = %path,
+        realm = %context.snapshot().realm.clone().unwrap_or_default(),
+        status = field::Empty,
+        user_id = field::Empty
+    );
+
+    let response = next.run(req).instrument(span.clone()).await;
     let mut response = response;
     let status = response.status();
     let duration_ms = start.elapsed().as_millis() as u64;
@@ -78,10 +121,19 @@ pub async fn log_api_request(mut req: Request<Body>, next: Next) -> Response {
             .insert(TRACEPARENT_HEADER, header_value);
     }
 
+    let snapshot = context.snapshot();
+    let realm = snapshot.realm.unwrap_or_default();
+    let user_id = snapshot
+        .user_id
+        .map(|id| id.to_string())
+        .unwrap_or_default();
+
     info!(
         request_id = %request_id,
         trace_id = %traceparent.trace_id,
         span_id = %traceparent.parent_id,
+        user_id = %user_id,
+        realm = %realm,
         method = %method,
         route = %route,
         path = %path,
@@ -89,6 +141,15 @@ pub async fn log_api_request(mut req: Request<Body>, next: Next) -> Response {
         duration_ms = duration_ms,
         "api.request"
     );
+
+    span.record("status", field::display(status.as_u16()));
+    if !user_id.is_empty() {
+        span.record("user_id", field::display(&user_id));
+    }
+
+    state
+        .metrics_service
+        .record_request(duration_ms, status.as_u16());
 
     response
 }
@@ -182,6 +243,37 @@ fn is_body_too_large(response: &Response<Body>) -> bool {
         .is_some_and(|len| len > MAX_ERROR_BODY_BYTES)
 }
 
+impl RequestContext {
+    pub fn new(realm: Option<String>) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(RequestContextData {
+                realm,
+                user_id: None,
+            })),
+        }
+    }
+
+    pub fn set_user_id(&self, user_id: Uuid) {
+        if let Ok(mut guard) = self.inner.lock() {
+            guard.user_id = Some(user_id);
+        }
+    }
+
+    fn snapshot(&self) -> RequestContextSnapshot {
+        if let Ok(guard) = self.inner.lock() {
+            return RequestContextSnapshot {
+                realm: guard.realm.clone(),
+                user_id: guard.user_id,
+            };
+        }
+
+        RequestContextSnapshot {
+            realm: None,
+            user_id: None,
+        }
+    }
+}
+
 impl TraceParent {
     pub fn new() -> Self {
         let trace_id = generate_nonzero_hex(16);
@@ -238,6 +330,20 @@ impl Default for TraceParent {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn extract_realm_from_path(path: &str) -> Option<String> {
+    let trimmed = path.strip_prefix("/api").unwrap_or(path);
+    let mut segments = trimmed.split('/').filter(|segment| !segment.is_empty());
+    let first = segments.next()?;
+    if first != "realms" {
+        return None;
+    }
+    let realm = segments.next()?;
+    if realm.is_empty() {
+        return None;
+    }
+    Some(realm.to_string())
 }
 
 fn generate_nonzero_hex(byte_len: usize) -> String {

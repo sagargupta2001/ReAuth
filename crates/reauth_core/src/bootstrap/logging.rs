@@ -1,4 +1,5 @@
 use crate::adapters::eventing::log_broadcast_bus::LogBroadcastBus;
+use crate::adapters::logging::span_adapter::TracingSpanAdapter;
 use crate::adapters::logging::tracing_adapter::TracingLogAdapter;
 use crate::config::Settings;
 use std::sync::Arc;
@@ -11,6 +12,7 @@ use tracing_subscriber::EnvFilter;
 pub fn init_logging(settings: &Settings) -> Arc<LogBroadcastBus> {
     let log_bus = Arc::new(LogBroadcastBus::new());
     let adapter = TracingLogAdapter::new(log_bus.clone());
+    let span_adapter = TracingSpanAdapter::new(log_bus.clone());
 
     let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
         if !settings.logging.filter.trim().is_empty() {
@@ -34,7 +36,8 @@ pub fn init_logging(settings: &Settings) -> Arc<LogBroadcastBus> {
         let subscriber = tracing_subscriber::registry()
             .with(env_filter)
             .with(fmt_layer)
-            .with(adapter);
+            .with(adapter)
+            .with(span_adapter);
 
         let _ = subscriber.try_init();
     } else {
@@ -46,7 +49,8 @@ pub fn init_logging(settings: &Settings) -> Arc<LogBroadcastBus> {
         let subscriber = tracing_subscriber::registry()
             .with(env_filter)
             .with(fmt_layer)
-            .with(adapter);
+            .with(adapter)
+            .with(span_adapter);
 
         let _ = subscriber.try_init();
     }

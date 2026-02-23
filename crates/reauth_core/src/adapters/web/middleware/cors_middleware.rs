@@ -51,7 +51,10 @@ pub async fn dynamic_cors_guard(
     warn!("Blocked CORS request from: {}", origin_str);
     (
         StatusCode::FORBIDDEN,
-        Json(json!({ "error": "CORS Origin Not Allowed" })),
+        Json(json!({
+            "error": "CORS Origin Not Allowed",
+            "code": "cors.origin_not_allowed"
+        })),
     )
         .into_response()
 }

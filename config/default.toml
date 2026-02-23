@@ -13,6 +13,9 @@ filter = "" # Optional: overrides level when set (supports module filters)
 show_target = false # Show module path in logs
 json = false # Emit JSON logs (recommended for prod)
 
+[observability]
+telemetry_db_path = "" # Defaults to database.data_dir/reauth_telemetry.db
+
 [cors]
 allowed_origins = []
 

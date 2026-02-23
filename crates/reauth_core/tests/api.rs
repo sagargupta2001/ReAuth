@@ -11,3 +11,6 @@ mod auth_oidc_flow;
 
 #[path = "api/request_id.rs"]
 mod request_id;
+
+#[path = "api/observability.rs"]
+mod observability;
