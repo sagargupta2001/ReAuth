@@ -7,6 +7,7 @@ use crate::{
     ports::flow_repository::FlowRepository,
 };
 use async_trait::async_trait;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct SqliteFlowRepository {
@@ -21,6 +22,10 @@ impl SqliteFlowRepository {
 
 #[async_trait]
 impl FlowRepository for SqliteFlowRepository {
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_flows", db_op = "select")
+    )]
     async fn find_flow_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<AuthFlow>> {
         let flow = sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? AND name = ?")
             .bind(realm_id.to_string())
@@ -31,6 +36,10 @@ impl FlowRepository for SqliteFlowRepository {
         Ok(flow)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_flows", db_op = "select")
+    )]
     async fn find_flow_by_id(&self, flow_id: &Uuid) -> Result<Option<AuthFlow>> {
         let flow = sqlx::query_as("SELECT * FROM auth_flows WHERE id = ?")
             .bind(flow_id.to_string())
@@ -41,6 +50,10 @@ impl FlowRepository for SqliteFlowRepository {
         Ok(flow)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_flows", db_op = "insert")
+    )]
     async fn create_flow<'a>(
         &self,
         flow: &AuthFlow,
@@ -69,9 +82,13 @@ impl FlowRepository for SqliteFlowRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_flows", db_op = "select")
+    )]
     async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>> {
         let flows =
-            sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ASC")
+            sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ")
                 .bind(realm_id.to_string())
                 .fetch_all(&*self.pool)
                 .await

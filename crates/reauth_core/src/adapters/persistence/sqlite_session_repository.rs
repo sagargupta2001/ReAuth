@@ -7,6 +7,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use chrono::Utc;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct SqliteSessionRepository {
@@ -20,6 +21,10 @@ impl SqliteSessionRepository {
 
 #[async_trait]
 impl SessionRepository for SqliteSessionRepository {
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "insert")
+    )]
     async fn save(&self, token: &RefreshToken) -> Result<()> {
         sqlx::query(
             "INSERT INTO refresh_tokens
@@ -40,6 +45,11 @@ impl SessionRepository for SqliteSessionRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "select")
+    )]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<RefreshToken>> {
         Ok(
             sqlx::query_as("SELECT * FROM refresh_tokens WHERE id = ? AND expires_at > ?")
@@ -50,6 +60,11 @@ impl SessionRepository for SqliteSessionRepository {
                 .map_err(|e| Error::Unexpected(e.into()))?,
         )
     }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "delete")
+    )]
     async fn delete_by_id(&self, id: &Uuid) -> Result<()> {
         let result = sqlx::query("DELETE FROM refresh_tokens WHERE id = ?")
             .bind(id.to_string())
@@ -64,6 +79,10 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "select")
+    )]
     async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<RefreshToken>> {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;

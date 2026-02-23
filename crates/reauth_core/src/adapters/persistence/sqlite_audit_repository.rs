@@ -5,6 +5,7 @@ use crate::ports::audit_repository::AuditRepository;
 use async_trait::async_trait;
 use serde_json::Value;
 use sqlx::FromRow;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct SqliteAuditRepository {
@@ -31,6 +32,10 @@ struct AuditEventRow {
 
 #[async_trait]
 impl AuditRepository for SqliteAuditRepository {
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "audit_events", db_op = "insert")
+    )]
     async fn insert(&self, event: &AuditEvent) -> Result<()> {
         let metadata = serde_json::to_string(&event.metadata).unwrap_or_else(|_| "{}".to_string());
 
@@ -53,6 +58,10 @@ impl AuditRepository for SqliteAuditRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "audit_events", db_op = "select")
+    )]
     async fn list_recent(&self, realm_id: &Uuid, limit: usize) -> Result<Vec<AuditEvent>> {
         let rows: Vec<AuditEventRow> = sqlx::query_as(
             "SELECT id, realm_id, actor_user_id, action, target_type, target_id, metadata, created_at

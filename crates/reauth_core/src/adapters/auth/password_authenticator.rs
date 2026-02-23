@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{instrument, warn};
 
 use crate::domain::auth_session::AuthenticationSession;
 use crate::domain::{
@@ -27,6 +27,14 @@ impl PasswordAuthenticator {
 impl LifecycleNode for PasswordAuthenticator {
     /// Phase 1: Preparation
     /// Runs when the user *arrives* at this node.
+    #[instrument(
+        skip_all,
+        fields(
+            telemetry = "span",
+            node = "password_authenticator",
+            phase = "on_enter"
+        )
+    )]
     async fn on_enter(&self, _session: &mut AuthenticationSession) -> Result<()> {
         // Future: Check Rate Limiter here (e.g. IP block).
         Ok(())
@@ -34,6 +42,10 @@ impl LifecycleNode for PasswordAuthenticator {
 
     /// Phase 2: Execution (The Decision)
     /// Decides if we pause for UI or proceed.
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", node = "password_authenticator", phase = "execute")
+    )]
     async fn execute(&self, session: &mut AuthenticationSession) -> Result<NodeOutcome> {
         // Retrieve any error from a previous failed attempt (stored in handle_input)
         let previous_error = session.context.get("error").cloned();
@@ -55,6 +67,14 @@ impl LifecycleNode for PasswordAuthenticator {
 
     /// Phase 3: Handling Input
     /// Runs when the user POSTs data to this node.
+    #[instrument(
+        skip_all,
+        fields(
+            telemetry = "span",
+            node = "password_authenticator",
+            phase = "handle_input"
+        )
+    )]
     async fn handle_input(
         &self,
         _session: &mut AuthenticationSession,
@@ -116,6 +136,10 @@ impl LifecycleNode for PasswordAuthenticator {
     }
 
     /// Phase 4: Exit Cleanup
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", node = "password_authenticator", phase = "on_exit")
+    )]
     async fn on_exit(&self, _session: &mut AuthenticationSession) -> Result<()> {
         // Paranoid cleanup: Ensure password never lingers
         if let Some(ctx) = _session.context.as_object_mut() {
@@ -127,6 +151,10 @@ impl LifecycleNode for PasswordAuthenticator {
 
 impl PasswordAuthenticator {
     /// Helper to handle rejection state updates
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", node = "password_authenticator", phase = "reject")
+    )]
     async fn reject_auth(
         &self,
         session: &mut AuthenticationSession,

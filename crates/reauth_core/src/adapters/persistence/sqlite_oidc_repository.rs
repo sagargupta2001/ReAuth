@@ -8,6 +8,7 @@ use crate::{
 use async_trait::async_trait;
 use chrono::Utc;
 use sqlx::{QueryBuilder, Sqlite};
+use tracing::instrument;
 use uuid::Uuid;
 
 ///This repository handles the stateful, temporary data required by the OIDC protocol (Clients and Auth Codes).
@@ -45,6 +46,10 @@ impl SqliteOidcRepository {
 impl OidcRepository for SqliteOidcRepository {
     // --- Client Management ---
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "select")
+    )]
     async fn find_client_by_id(
         &self,
         realm_id: &Uuid,
@@ -60,6 +65,10 @@ impl OidcRepository for SqliteOidcRepository {
         Ok(client)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "insert")
+    )]
     async fn create_client(&self, client: &OidcClient) -> Result<()> {
         sqlx::query(
             "INSERT INTO oidc_clients (id, realm_id, client_id, client_secret, redirect_uris, scopes, web_origins, managed_by_config)
@@ -79,6 +88,10 @@ impl OidcRepository for SqliteOidcRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "select")
+    )]
     async fn find_clients_by_realm(
         &self,
         realm_id: &Uuid,
@@ -136,6 +149,10 @@ impl OidcRepository for SqliteOidcRepository {
         Ok(PageResponse::new(clients, total, req.page, limit))
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "select")
+    )]
     async fn find_client_by_uuid(&self, id: &Uuid) -> Result<Option<OidcClient>> {
         let client = sqlx::query_as("SELECT * FROM oidc_clients WHERE id = ?")
             .bind(id.to_string())
@@ -145,6 +162,10 @@ impl OidcRepository for SqliteOidcRepository {
         Ok(client)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "update")
+    )]
     async fn update_client(&self, client: &OidcClient) -> Result<()> {
         sqlx::query(
             "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ?, web_origins = ?, managed_by_config = ? WHERE id = ?",
@@ -163,6 +184,10 @@ impl OidcRepository for SqliteOidcRepository {
 
     // --- Auth Code Management ---
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "authorization_codes", db_op = "insert")
+    )]
     async fn save_auth_code(&self, code: &AuthCode) -> Result<()> {
         sqlx::query(
             "INSERT INTO authorization_codes (code, user_id, client_id, redirect_uri, nonce, code_challenge, code_challenge_method, expires_at)
@@ -182,6 +207,10 @@ impl OidcRepository for SqliteOidcRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "authorization_codes", db_op = "select")
+    )]
     async fn find_auth_code_by_code(&self, code: &str) -> Result<Option<AuthCode>> {
         let code =
             sqlx::query_as("SELECT * FROM authorization_codes WHERE code = ? AND expires_at > ?")
@@ -193,6 +222,10 @@ impl OidcRepository for SqliteOidcRepository {
         Ok(code)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "authorization_codes", db_op = "delete")
+    )]
     async fn delete_auth_code(&self, code: &str) -> Result<()> {
         let result = sqlx::query("DELETE FROM authorization_codes WHERE code = ?")
             .bind(code)
@@ -209,6 +242,10 @@ impl OidcRepository for SqliteOidcRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "select")
+    )]
     async fn is_origin_allowed(&self, origin: &str) -> Result<bool> {
         // We use a naive LIKE query to find the origin inside the JSON array string
         // For 'http://localhost:3000', we search for '%"http://localhost:3000"%'

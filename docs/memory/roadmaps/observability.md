@@ -22,6 +22,7 @@
 - [x] Telemetry persistence (logs + traces) is implemented (SQLite).
 - [x] Observability admin API endpoints for logs/traces/cache (EVENT_READ gated).
 - [x] Trace spans emitted for key middleware/service operations (request context + nested spans).
+- [x] Trace spans emitted for node execution and database repositories (flows, realms, OIDC, audit, telemetry).
 - [x] Baseline metrics exposed (request count + latency histogram).
 - [x] Cache stats/flush support namespaces (per-namespace stats + flush).
 - [x] RBAC audit events are persisted and queryable.
@@ -50,11 +51,12 @@
 
 ## Enhancements (later)
 - Outbound propagation of traceparent and request_id.
-- Metrics baseline (request count, latency histograms, auth failures, DB latency).
+- Advanced metrics (auth failures, DB latency, per-endpoint histograms).
 - Tracing spans across handlers/services + sampling.
 - Log redaction/PII policy enforcement.
 - OTLP export (OpenTelemetry) + external backends.
 - Alerting and anomaly detection.
+- Plugin RPC spans (defer until plugin system revamp).
 
 ## Open questions
 - What retention period is required for audit and telemetry records?

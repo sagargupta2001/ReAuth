@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use serde_json::Value;
 use std::sync::Arc;
+use tracing::instrument;
 
 use crate::domain::auth_session::AuthenticationSession;
 use crate::domain::execution::lifecycle::{LifecycleNode, NodeOutcome};
@@ -20,11 +21,19 @@ impl CookieAuthenticator {
 
 #[async_trait]
 impl LifecycleNode for CookieAuthenticator {
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", node = "cookie_authenticator", phase = "on_enter")
+    )]
     async fn on_enter(&self, _session: &mut AuthenticationSession) -> Result<()> {
         // No setup needed
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", node = "cookie_authenticator", phase = "execute")
+    )]
     async fn execute(&self, session: &mut AuthenticationSession) -> Result<NodeOutcome> {
         // 1. Extract Token ID from Context
         let token_id_str = match session.context.get("sso_token_id").and_then(|v| v.as_str()) {
@@ -78,6 +87,14 @@ impl LifecycleNode for CookieAuthenticator {
         }
     }
 
+    #[instrument(
+        skip_all,
+        fields(
+            telemetry = "span",
+            node = "cookie_authenticator",
+            phase = "handle_input"
+        )
+    )]
     async fn handle_input(
         &self,
         _session: &mut AuthenticationSession,
@@ -90,6 +107,10 @@ impl LifecycleNode for CookieAuthenticator {
         ))
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", node = "cookie_authenticator", phase = "on_exit")
+    )]
     async fn on_exit(&self, _session: &mut AuthenticationSession) -> Result<()> {
         // Cleanup if needed
         Ok(())

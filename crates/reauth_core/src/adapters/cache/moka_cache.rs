@@ -11,6 +11,7 @@ use std::{
     },
     time::Duration,
 };
+use tracing::instrument;
 use uuid::Uuid;
 
 /// An adapter that implements the `CacheService` port using `moka`.
@@ -55,6 +56,7 @@ impl Default for MokaCacheService {
 
 #[async_trait]
 impl CacheService for MokaCacheService {
+    #[instrument(skip_all, fields(telemetry = "span", cache_namespace = USER_PERMISSIONS_NAMESPACE))]
     async fn get_user_permissions(&self, user_id: &Uuid) -> Option<HashSet<String>> {
         let value = self.user_permissions.get(user_id).await;
         if value.is_some() {
@@ -65,6 +67,7 @@ impl CacheService for MokaCacheService {
         value
     }
 
+    #[instrument(skip_all, fields(telemetry = "span", cache_namespace = USER_PERMISSIONS_NAMESPACE))]
     async fn set_user_permissions(&self, user_id: &Uuid, permissions: &HashSet<String>) {
         // We clone the permissions here because the cache needs to own its data.
         self.user_permissions
@@ -72,20 +75,24 @@ impl CacheService for MokaCacheService {
             .await;
     }
 
+    #[instrument(skip_all, fields(telemetry = "span", cache_namespace = USER_PERMISSIONS_NAMESPACE))]
     async fn clear_user_permissions(&self, user_id: &Uuid) {
         self.user_permissions.invalidate(user_id).await;
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     async fn clear_all(&self) {
         self.user_permissions.invalidate_all();
     }
 
+    #[instrument(skip_all, fields(telemetry = "span", cache_namespace = %namespace))]
     async fn clear_namespace(&self, namespace: &str) {
         if namespace == USER_PERMISSIONS_NAMESPACE {
             self.user_permissions.invalidate_all();
         }
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     async fn stats(&self) -> crate::ports::cache_service::CacheStats {
         let hits = self.metrics.hits.load(Ordering::Relaxed);
         let misses = self.metrics.misses.load(Ordering::Relaxed);
@@ -103,6 +110,7 @@ impl CacheService for MokaCacheService {
         }
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     async fn stats_by_namespace(&self) -> Vec<crate::ports::cache_service::CacheStats> {
         let hits = self.metrics.hits.load(Ordering::Relaxed);
         let misses = self.metrics.misses.load(Ordering::Relaxed);

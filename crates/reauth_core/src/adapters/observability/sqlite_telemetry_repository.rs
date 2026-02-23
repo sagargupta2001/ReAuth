@@ -5,6 +5,7 @@ use crate::ports::telemetry_repository::TelemetryRepository;
 use async_trait::async_trait;
 use serde_json::Value;
 use sqlx::{FromRow, QueryBuilder, Sqlite};
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct SqliteTelemetryRepository {
@@ -57,6 +58,10 @@ struct TelemetryTraceRow {
 
 #[async_trait]
 impl TelemetryRepository for SqliteTelemetryRepository {
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "telemetry_logs", db_op = "insert")
+    )]
     async fn insert_log(&self, log: &TelemetryLog) -> Result<()> {
         let fields = serde_json::to_string(&log.fields).unwrap_or_else(|_| "{}".to_string());
 
@@ -91,6 +96,10 @@ impl TelemetryRepository for SqliteTelemetryRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "telemetry_traces", db_op = "insert")
+    )]
     async fn insert_trace(&self, trace: &TelemetryTrace) -> Result<()> {
         sqlx::query(
             "INSERT OR IGNORE INTO telemetry_traces (
@@ -119,6 +128,10 @@ impl TelemetryRepository for SqliteTelemetryRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "telemetry_logs", db_op = "select")
+    )]
     async fn list_logs(&self, filter: TelemetryLogFilter) -> Result<Vec<TelemetryLog>> {
         let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             "SELECT id, timestamp, level, target, message, fields, request_id, trace_id, span_id, parent_id, user_id, realm, method, route, path, status, duration_ms FROM telemetry_logs",
@@ -174,6 +187,10 @@ impl TelemetryRepository for SqliteTelemetryRepository {
             .collect())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "telemetry_traces", db_op = "select")
+    )]
     async fn list_traces(&self, limit: usize) -> Result<Vec<TelemetryTrace>> {
         let rows: Vec<TelemetryTraceRow> = sqlx::query_as(
             "SELECT trace_id, span_id, parent_id, name, start_time, duration_ms, status, method, route, path, request_id, user_id, realm
@@ -206,6 +223,10 @@ impl TelemetryRepository for SqliteTelemetryRepository {
             .collect())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "telemetry_traces", db_op = "select")
+    )]
     async fn list_trace_spans(&self, trace_id: &str) -> Result<Vec<TelemetryTrace>> {
         let rows: Vec<TelemetryTraceRow> = sqlx::query_as(
             "SELECT trace_id, span_id, parent_id, name, start_time, duration_ms, status, method, route, path, request_id, user_id, realm
