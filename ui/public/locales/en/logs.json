@@ -1,9 +1,48 @@
 {
   "TITLE": "Logs and Analytics",
   "DESCRIPTION": "Real-time system events and plugin logs.",
+  "OBSERVABILITY": {
+    "TITLE": "Observability",
+    "DESCRIPTION": "Monitor logs, traces, and cache health across your realm.",
+    "TIME_RANGE_LABEL": "Time Range",
+    "TIME_RANGE_PLACEHOLDER": "Select range",
+    "TABS": {
+      "LOGS": "Logs",
+      "TRACES": "Traces",
+      "CACHE": "Cache Manager"
+    }
+  },
   "LOG_VIEWER_WIDGET": {
     "START_STREAM_BTN_TEXT": "Start Stream",
     "STOP_STREAM_BTN_TEXT": "Stop Stream"
+  },
+  "LOGS_EXPLORER": {
+    "SEARCH_PLACEHOLDER": "Search logs: level:error message:\"token failed\"",
+    "LIVE_TRAIL": "Live Trail",
+    "LIVE_TRAIL_HINT": "Live Trail needs page 1 + newest sorting",
+    "LEVEL_FILTER": "Log level",
+    "ALL_LEVELS": "All levels",
+    "SOURCE_FILTER": "Source module",
+    "ALL_SOURCES": "All modules",
+    "RESULT_COUNT": "{{count}} results",
+    "SORT_LABEL": "Sort",
+    "SORT_NEWEST": "Newest first",
+    "SORT_OLDEST": "Oldest first",
+    "SORT_SLOWEST": "Slowest first",
+    "SORT_FASTEST": "Fastest first"
+  },
+  "LOGS_TABLE": {
+    "TIMESTAMP": "Timestamp",
+    "LEVEL": "Level",
+    "TRACE_ID": "Trace ID",
+    "MESSAGE": "Message",
+    "LOADING": "Loading logs...",
+    "EMPTY": "No logs found for this range.",
+    "METADATA": "Structured metadata",
+    "ROWS_PER_PAGE": "Rows per page",
+    "PAGE_STATUS": "Page {{page}} of {{total}}",
+    "PREV": "Prev",
+    "NEXT": "Next"
   },
   "LOG_TABLE": {
     "COLUMNS": {
@@ -22,5 +61,61 @@
     "TARGET_LABEL": "Target",
     "MESSAGE_LABEL": "Message",
     "FIELDS_LABEL": "Fields"
+  },
+  "TRACES_LIST": {
+    "TITLE": "Recent Requests",
+    "SUBTITLE": "Top-level API traces sorted by start time.",
+    "LOADING": "Loading traces...",
+    "EMPTY": "No traces captured yet.",
+    "SEARCH_PLACEHOLDER": "Search traces: route:/api/login status:500",
+    "SORT_LABEL": "Sort",
+    "SORT_NEWEST": "Newest first",
+    "SORT_OLDEST": "Oldest first",
+    "SORT_SLOWEST": "Slowest first",
+    "SORT_FASTEST": "Fastest first",
+    "RESULT_COUNT": "{{count}} traces",
+    "ROWS_PER_PAGE": "Rows per page",
+    "PAGE_STATUS": "Page {{page}} of {{total}}",
+    "PREV": "Prev",
+    "NEXT": "Next"
+  },
+  "TRACES_WATERFALL": {
+    "HEADER": "Trace Waterfall",
+    "EMPTY": "Select a trace to inspect the waterfall.",
+    "NO_SPANS": "No spans recorded yet."
+  },
+  "CACHE_MANAGER": {
+    "OVERALL_HIT_RATE": "Overall Hit Rate",
+    "TOTAL_ITEMS": "Total Cached Items",
+    "MEMORY_USAGE": "Capacity Usage",
+    "NAMESPACE_TABLE": "Cache Namespaces",
+    "NAMESPACE_SUBTITLE": "Manage cached data by namespace.",
+    "TABLE": {
+      "NAMESPACE": "Namespace",
+      "ITEMS": "Items",
+      "HIT_RATE": "Hit Rate",
+      "CAPACITY": "Capacity",
+      "ACTIONS": "Actions"
+    },
+    "LOADING": "Loading cache stats...",
+    "EMPTY": "No cache namespaces available.",
+    "PURGE_ACTION": "Purge",
+    "DANGER_TITLE": "Danger Zone",
+    "DANGER_DESC": "Flushing the entire cache will temporarily increase latency while caches warm up.",
+    "FLUSH_ALL": "Flush Entire Cache",
+    "CONFIRM_TITLE": "Confirm Full Cache Flush",
+    "CONFIRM_DESC": "Type CONFIRM to flush every cache namespace. This action cannot be undone.",
+    "CONFIRM_PLACEHOLDER": "Type CONFIRM",
+    "CONFIRM_HELPER": "This will invalidate all cached entries across the system.",
+    "CANCEL": "Cancel",
+    "CONFIRM_ACTION": "Flush Now"
+  },
+  "METRICS": {
+    "REQUESTS": "Requests",
+    "AVG_LATENCY": "Avg latency",
+    "ERROR_RATE": "5xx rate",
+    "HISTOGRAM": "Rolling latency histogram",
+    "SERVER_ERRORS": "{{count}} server errors",
+    "SINCE": "Since {{since}}"
   }
 }

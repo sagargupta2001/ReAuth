@@ -85,7 +85,11 @@ async fn observability_endpoints_return_ok() {
         .expect("logs body")
         .to_bytes();
     let logs_json: Value = serde_json::from_slice(&logs_body).expect("logs json");
-    assert!(logs_json.is_array());
+    assert!(logs_json
+        .get("data")
+        .and_then(|value| value.as_array())
+        .is_some());
+    assert!(logs_json.get("meta").is_some());
 
     let traces_request = Request::builder()
         .uri("/api/system/observability/traces")
@@ -102,7 +106,11 @@ async fn observability_endpoints_return_ok() {
         .expect("traces body")
         .to_bytes();
     let traces_json: Value = serde_json::from_slice(&traces_body).expect("traces json");
-    assert!(traces_json.is_array());
+    assert!(traces_json
+        .get("data")
+        .and_then(|value| value.as_array())
+        .is_some());
+    assert!(traces_json.get("meta").is_some());
 
     let trace_spans_request = Request::builder()
         .uri("/api/system/observability/traces/test-trace-id")

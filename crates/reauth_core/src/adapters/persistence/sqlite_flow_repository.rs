@@ -87,12 +87,11 @@ impl FlowRepository for SqliteFlowRepository {
         fields(telemetry = "span", db_table = "auth_flows", db_op = "select")
     )]
     async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>> {
-        let flows =
-            sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ")
-                .bind(realm_id.to_string())
-                .fetch_all(&*self.pool)
-                .await
-                .map_err(|e| Error::Unexpected(e.into()))?;
+        let flows = sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ")
+            .bind(realm_id.to_string())
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(flows)
     }
 }

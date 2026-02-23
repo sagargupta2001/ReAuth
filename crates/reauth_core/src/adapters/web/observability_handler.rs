@@ -1,20 +1,32 @@
-use crate::domain::telemetry::TelemetryLogFilter;
+use crate::domain::pagination::{PageRequest, SortDirection};
+use crate::domain::telemetry::{TelemetryLogQuery, TelemetryTraceQuery};
 use crate::error::{Error, Result};
 use crate::AppState;
 use axum::extract::Query;
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use chrono::{DateTime, FixedOffset};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct LogQuery {
+    #[serde(flatten)]
+    pub page: PageRequest,
     pub level: Option<String>,
+    pub target: Option<String>,
     pub search: Option<String>,
-    pub limit: Option<usize>,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub limit: Option<i64>,
 }
 
 #[derive(Deserialize)]
 pub struct TraceQuery {
-    pub limit: Option<usize>,
+    #[serde(flatten)]
+    pub page: PageRequest,
+    pub search: Option<String>,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub limit: Option<i64>,
 }
 
 #[derive(Deserialize)]
@@ -27,21 +39,38 @@ pub struct CacheStatsQuery {
     pub namespace: Option<String>,
 }
 
-const DEFAULT_LOG_LIMIT: usize = 200;
-const MAX_LOG_LIMIT: usize = 1000;
-const DEFAULT_TRACE_LIMIT: usize = 200;
-const MAX_TRACE_LIMIT: usize = 1000;
+const DEFAULT_LOG_LIMIT: i64 = 200;
+const MAX_LOG_LIMIT: i64 = 1000;
+const DEFAULT_TRACE_LIMIT: i64 = 200;
+const MAX_TRACE_LIMIT: i64 = 1000;
 
 // GET /api/system/observability/logs
 pub async fn list_logs_handler(
     State(state): State<AppState>,
     Query(query): Query<LogQuery>,
 ) -> Result<impl IntoResponse> {
-    let limit = query.limit.unwrap_or(DEFAULT_LOG_LIMIT).min(MAX_LOG_LIMIT);
-    let filter = TelemetryLogFilter {
-        level: query.level,
-        search: query.search,
-        limit,
+    let mut page = query.page;
+    if let Some(limit) = query.limit {
+        page.per_page = limit.clamp(1, MAX_LOG_LIMIT);
+        page.page = 1;
+    }
+    if page.per_page <= 0 {
+        page.per_page = DEFAULT_LOG_LIMIT;
+    }
+    page.per_page = page.per_page.min(MAX_LOG_LIMIT);
+    if page.sort_dir.is_none() {
+        page.sort_dir = Some(SortDirection::Desc);
+    }
+
+    let search = query.search.or_else(|| page.q.clone());
+    let (start, end) = normalize_time_range(query.start, query.end)?;
+    let filter = TelemetryLogQuery {
+        page,
+        level: query.level.map(|value| value.to_uppercase()),
+        target: query.target,
+        search,
+        start_time: start,
+        end_time: end,
     };
 
     let logs = state.telemetry_service.list_logs(filter).await?;
@@ -53,11 +82,29 @@ pub async fn list_traces_handler(
     State(state): State<AppState>,
     Query(query): Query<TraceQuery>,
 ) -> Result<impl IntoResponse> {
-    let limit = query
-        .limit
-        .unwrap_or(DEFAULT_TRACE_LIMIT)
-        .min(MAX_TRACE_LIMIT);
-    let traces = state.telemetry_service.list_traces(limit).await?;
+    let mut page = query.page;
+    if let Some(limit) = query.limit {
+        page.per_page = limit.clamp(1, MAX_TRACE_LIMIT);
+        page.page = 1;
+    }
+    if page.per_page <= 0 {
+        page.per_page = DEFAULT_TRACE_LIMIT;
+    }
+    page.per_page = page.per_page.min(MAX_TRACE_LIMIT);
+    if page.sort_dir.is_none() {
+        page.sort_dir = Some(SortDirection::Desc);
+    }
+
+    let search = query.search.or_else(|| page.q.clone());
+    let (start, end) = normalize_time_range(query.start, query.end)?;
+    let filter = TelemetryTraceQuery {
+        page,
+        search,
+        start_time: start,
+        end_time: end,
+    };
+
+    let traces = state.telemetry_service.list_traces(filter).await?;
     Ok((StatusCode::OK, Json(traces)))
 }
 
@@ -116,4 +163,35 @@ pub async fn cache_flush_handler(
         StatusCode::OK,
         Json(serde_json::json!({ "flushed": namespace })),
     ))
+}
+
+fn normalize_time_range(
+    start: Option<String>,
+    end: Option<String>,
+) -> Result<(Option<String>, Option<String>)> {
+    let start_parsed = start
+        .as_deref()
+        .map(parse_rfc3339)
+        .transpose()?
+        .map(|value| value.to_rfc3339());
+    let end_parsed = end
+        .as_deref()
+        .map(parse_rfc3339)
+        .transpose()?
+        .map(|value| value.to_rfc3339());
+
+    if let (Some(start), Some(end)) = (&start_parsed, &end_parsed) {
+        if start > end {
+            return Err(Error::Validation(
+                "start time must be before end time".to_string(),
+            ));
+        }
+    }
+
+    Ok((start_parsed, end_parsed))
+}
+
+fn parse_rfc3339(value: &str) -> Result<DateTime<FixedOffset>> {
+    DateTime::parse_from_rfc3339(value)
+        .map_err(|_| Error::Validation(format!("Invalid RFC3339 timestamp provided: {}", value)))
 }

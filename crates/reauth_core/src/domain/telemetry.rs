@@ -2,6 +2,8 @@ use serde::Serialize;
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::domain::pagination::PageRequest;
+
 #[derive(Debug, Serialize, Clone)]
 pub struct TelemetryLog {
     pub id: Uuid,
@@ -41,8 +43,19 @@ pub struct TelemetryTrace {
 }
 
 #[derive(Debug, Clone)]
-pub struct TelemetryLogFilter {
+pub struct TelemetryLogQuery {
+    pub page: PageRequest,
     pub level: Option<String>,
+    pub target: Option<String>,
     pub search: Option<String>,
-    pub limit: usize,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TelemetryTraceQuery {
+    pub page: PageRequest,
+    pub search: Option<String>,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
 }

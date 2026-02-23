@@ -1,5 +1,8 @@
 use crate::adapters::observability::telemetry_store::TelemetryDatabase;
-use crate::domain::telemetry::{TelemetryLog, TelemetryLogFilter, TelemetryTrace};
+use crate::domain::pagination::{PageResponse, SortDirection};
+use crate::domain::telemetry::{
+    TelemetryLog, TelemetryLogQuery, TelemetryTrace, TelemetryTraceQuery,
+};
 use crate::error::{Error, Result};
 use crate::ports::telemetry_repository::TelemetryRepository;
 use async_trait::async_trait;
@@ -15,6 +18,110 @@ pub struct SqliteTelemetryRepository {
 impl SqliteTelemetryRepository {
     pub fn new(pool: TelemetryDatabase) -> Self {
         Self { pool }
+    }
+
+    fn apply_log_filters(builder: &mut QueryBuilder<Sqlite>, query: &TelemetryLogQuery) {
+        let mut has_filter = false;
+
+        let push_where = |builder: &mut QueryBuilder<Sqlite>, has_filter: &mut bool| {
+            if *has_filter {
+                builder.push(" AND ");
+            } else {
+                builder.push(" WHERE ");
+                *has_filter = true;
+            }
+        };
+
+        if let Some(level) = &query.level {
+            push_where(builder, &mut has_filter);
+            builder.push("level = ");
+            builder.push_bind(level.clone());
+        }
+
+        if let Some(target) = &query.target {
+            push_where(builder, &mut has_filter);
+            builder.push("target = ");
+            builder.push_bind(target.clone());
+        }
+
+        if let Some(start_time) = &query.start_time {
+            push_where(builder, &mut has_filter);
+            builder.push("timestamp >= ");
+            builder.push_bind(start_time.clone());
+        }
+
+        if let Some(end_time) = &query.end_time {
+            push_where(builder, &mut has_filter);
+            builder.push("timestamp <= ");
+            builder.push_bind(end_time.clone());
+        }
+
+        if let Some(search) = &query.search {
+            let pattern = format!("%{}%", search);
+            push_where(builder, &mut has_filter);
+            builder.push("(");
+            builder.push("message LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR fields LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR target LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR trace_id LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR request_id LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR route LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR path LIKE ");
+            builder.push_bind(pattern);
+            builder.push(")");
+        }
+    }
+
+    fn apply_trace_filters(builder: &mut QueryBuilder<Sqlite>, query: &TelemetryTraceQuery) {
+        let mut has_filter = false;
+        let push_where = |builder: &mut QueryBuilder<Sqlite>, has_filter: &mut bool| {
+            if *has_filter {
+                builder.push(" AND ");
+            } else {
+                builder.push(" WHERE ");
+                *has_filter = true;
+            }
+        };
+
+        push_where(builder, &mut has_filter);
+        builder.push("method IS NOT NULL");
+
+        if let Some(start_time) = &query.start_time {
+            push_where(builder, &mut has_filter);
+            builder.push("start_time >= ");
+            builder.push_bind(start_time.clone());
+        }
+
+        if let Some(end_time) = &query.end_time {
+            push_where(builder, &mut has_filter);
+            builder.push("start_time <= ");
+            builder.push_bind(end_time.clone());
+        }
+
+        if let Some(search) = &query.search {
+            let pattern = format!("%{}%", search);
+            push_where(builder, &mut has_filter);
+            builder.push("(");
+            builder.push("name LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR route LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR path LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR trace_id LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR request_id LIKE ");
+            builder.push_bind(pattern.clone());
+            builder.push(" OR method LIKE ");
+            builder.push_bind(pattern);
+            builder.push(")");
+        }
     }
 }
 
@@ -132,30 +239,42 @@ impl TelemetryRepository for SqliteTelemetryRepository {
         skip_all,
         fields(telemetry = "span", db_table = "telemetry_logs", db_op = "select")
     )]
-    async fn list_logs(&self, filter: TelemetryLogFilter) -> Result<Vec<TelemetryLog>> {
+    async fn list_logs(&self, query: TelemetryLogQuery) -> Result<PageResponse<TelemetryLog>> {
+        let page = query.page.page.max(1);
+        let limit = query.page.per_page.clamp(1, 200);
+        let offset = (page - 1) * limit;
+
+        let mut count_builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("SELECT COUNT(*) FROM telemetry_logs");
+        Self::apply_log_filters(&mut count_builder, &query);
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(self.pool.as_ref())
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
         let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             "SELECT id, timestamp, level, target, message, fields, request_id, trace_id, span_id, parent_id, user_id, realm, method, route, path, status, duration_ms FROM telemetry_logs",
         );
+        Self::apply_log_filters(&mut builder, &query);
 
-        let mut has_filter = false;
-        if let Some(level) = filter.level {
-            builder.push(" WHERE level = ");
-            builder.push_bind(level);
-            has_filter = true;
-        }
+        let sort_col = match query.page.sort_by.as_deref() {
+            Some("timestamp") => "timestamp",
+            Some("duration_ms") => "duration_ms",
+            Some("status") => "status",
+            Some("level") => "level",
+            _ => "timestamp",
+        };
+        let sort_dir = match query.page.sort_dir.unwrap_or(SortDirection::Desc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
 
-        if let Some(search) = filter.search {
-            let clause = " (message LIKE ";
-            builder.push(if has_filter { " AND" } else { " WHERE" });
-            builder.push(clause);
-            builder.push_bind(format!("%{}%", search));
-            builder.push(" OR fields LIKE ");
-            builder.push_bind(format!("%{}%", search));
-            builder.push(")");
-        }
-
-        builder.push(" ORDER BY timestamp DESC LIMIT ");
-        builder.push_bind(filter.limit as i64);
+        builder.push(" LIMIT ");
+        builder.push_bind(limit);
+        builder.push(" OFFSET ");
+        builder.push_bind(offset);
 
         let rows: Vec<TelemetryLogRow> = builder
             .build_query_as()
@@ -163,7 +282,7 @@ impl TelemetryRepository for SqliteTelemetryRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
 
-        Ok(rows
+        let data = rows
             .into_iter()
             .map(|row| TelemetryLog {
                 id: Uuid::parse_str(&row.id).unwrap_or_else(|_| Uuid::nil()),
@@ -184,26 +303,61 @@ impl TelemetryRepository for SqliteTelemetryRepository {
                 status: row.status,
                 duration_ms: row.duration_ms,
             })
-            .collect())
+            .collect();
+
+        Ok(PageResponse::new(data, total, page, limit))
     }
 
     #[instrument(
         skip_all,
         fields(telemetry = "span", db_table = "telemetry_traces", db_op = "select")
     )]
-    async fn list_traces(&self, limit: usize) -> Result<Vec<TelemetryTrace>> {
-        let rows: Vec<TelemetryTraceRow> = sqlx::query_as(
-            "SELECT trace_id, span_id, parent_id, name, start_time, duration_ms, status, method, route, path, request_id, user_id, realm
-             FROM telemetry_traces
-             ORDER BY start_time DESC
-             LIMIT ?",
-        )
-        .bind(limit as i64)
-        .fetch_all(self.pool.as_ref())
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+    async fn list_traces(
+        &self,
+        query: TelemetryTraceQuery,
+    ) -> Result<PageResponse<TelemetryTrace>> {
+        let page = query.page.page.max(1);
+        let limit = query.page.per_page.clamp(1, 200);
+        let offset = (page - 1) * limit;
 
-        Ok(rows
+        let mut count_builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("SELECT COUNT(*) FROM telemetry_traces");
+        Self::apply_trace_filters(&mut count_builder, &query);
+        let total: i64 = count_builder
+            .build_query_scalar()
+            .fetch_one(self.pool.as_ref())
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "SELECT trace_id, span_id, parent_id, name, start_time, duration_ms, status, method, route, path, request_id, user_id, realm
+             FROM telemetry_traces",
+        );
+        Self::apply_trace_filters(&mut builder, &query);
+
+        let sort_col = match query.page.sort_by.as_deref() {
+            Some("start_time") => "start_time",
+            Some("duration_ms") => "duration_ms",
+            Some("status") => "status",
+            _ => "start_time",
+        };
+        let sort_dir = match query.page.sort_dir.unwrap_or(SortDirection::Desc) {
+            SortDirection::Asc => "ASC",
+            SortDirection::Desc => "DESC",
+        };
+        builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
+        builder.push(" LIMIT ");
+        builder.push_bind(limit);
+        builder.push(" OFFSET ");
+        builder.push_bind(offset);
+
+        let rows: Vec<TelemetryTraceRow> = builder
+            .build_query_as()
+            .fetch_all(self.pool.as_ref())
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let data = rows
             .into_iter()
             .map(|row| TelemetryTrace {
                 trace_id: row.trace_id,
@@ -220,7 +374,9 @@ impl TelemetryRepository for SqliteTelemetryRepository {
                 user_id: row.user_id,
                 realm: row.realm,
             })
-            .collect())
+            .collect();
+
+        Ok(PageResponse::new(data, total, page, limit))
     }
 
     #[instrument(

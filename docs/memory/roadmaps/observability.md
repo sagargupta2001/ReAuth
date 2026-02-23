@@ -41,13 +41,15 @@
    - `GET /api/system/observability/metrics` (request count + latency histogram).
    - `GET /api/system/observability/cache/stats`.
    - `POST /api/system/observability/cache/flush`.
+   - [x] Server-side pagination/sort/time-range filtering for logs + traces.
 4. **Structured logging (in progress)**
    - Standardize key fields across handler logs (request_id, user_id, realm, trace_id, span_id).
-5. **UI MVP**
-   - Observability layout with Logs/Traces/Cache tabs + time range selector.
-   - Logs Explorer: search/filters, live tail, dense table + JSON expansion.
-   - Traces view: request list + waterfall chart.
-   - Cache Manager: stats, namespaces, purge actions, guarded global flush.
+5. **UI MVP** (in progress)
+   - [x] Observability layout with Logs/Traces/Cache tabs + time range selector.
+   - [x] Logs tab includes existing real-time log stream (system + plugin logs) with a `Live Trail` toggle.
+   - [x] Logs Explorer: search/filters, live tail, dense table + JSON expansion.
+   - [x] Traces view: request list + waterfall chart.
+   - [x] Cache Manager: stats, namespaces, purge actions, guarded global flush.
 
 ## Enhancements (later)
 - Outbound propagation of traceparent and request_id.
