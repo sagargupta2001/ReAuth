@@ -226,7 +226,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
   const sortValue = `${urlState.trace_sort_by}:${urlState.trace_sort_dir}`
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
         <Command className="flex-1 border bg-background/60">
           <CommandInput
@@ -265,8 +265,8 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
         </div>
       </div>
 
-      <div className="grid h-full grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
-        <div className="flex h-full flex-col rounded-xl border bg-background/40">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[360px_1fr]">
+        <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-background/40">
           <div className="border-b px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Activity className="h-4 w-4 text-muted-foreground" />
@@ -274,7 +274,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
             </div>
             <p className="text-xs text-muted-foreground">{t('TRACES_LIST.SUBTITLE')}</p>
           </div>
-          <ScrollArea className="flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="flex flex-col divide-y">
               {isLoading && requestTraces.length === 0 ? (
                 <div className="p-4 text-sm text-muted-foreground">{t('TRACES_LIST.LOADING')}</div>
@@ -368,7 +368,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
           </div>
         </div>
 
-        <div className="flex h-full flex-col rounded-xl border bg-background/40">
+        <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-background/40">
           <div className="border-b px-4 py-3">
             {selectedTrace ? (
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -394,7 +394,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
               <div className="text-sm text-muted-foreground">{t('TRACES_WATERFALL.EMPTY')}</div>
             )}
           </div>
-          <ScrollArea className="flex-1">
+          <div className="min-h-0 flex-1 overflow-auto">
             <div className="min-w-[640px] px-4 py-3">
               {spanRows.length === 0 ? (
                 <div className="py-12 text-sm text-muted-foreground">
@@ -428,7 +428,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
     </div>
