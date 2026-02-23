@@ -26,6 +26,10 @@
 - [x] Baseline metrics exposed (request count + latency histogram).
 - [x] Cache stats/flush support namespaces (per-namespace stats + flush).
 - [x] RBAC audit events are persisted and queryable.
+- [x] Logs query supports `include_spans` to hide/show `trace.span` rows.
+- [x] Logs Explorer supports Live Trail (WS) + manual refresh (no polling).
+- [x] Logs Explorer table shows request, status, duration, trace_id, user, realm, and metadata.
+- [x] Observability filters/pagination/sorting state is URL-backed.
 
 ## MVP scope (prioritized)
 1. **Audit persistence (RBAC)** (done)
@@ -55,6 +59,8 @@
 - Outbound propagation of traceparent and request_id.
 - Advanced metrics (auth failures, DB latency, per-endpoint histograms).
 - Tracing spans across handlers/services + sampling.
+- Grouped log view (group by trace_id with expandable children).
+- Adjustable retention/TTL for telemetry records.
 - Log redaction/PII policy enforcement.
 - OTLP export (OpenTelemetry) + external backends.
 - Alerting and anomaly detection.
