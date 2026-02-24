@@ -34,8 +34,16 @@ import { apiClient } from '@/shared/api/client'
 import type { User } from '@/entities/user/model/types'
 import type { OidcClient } from '@/entities/oidc/model/types'
 import type { Role } from '@/features/roles/api/useRoles'
+import type { Group as RealmGroup } from '@/entities/group/model/types'
 
-const groupOrder = ['Suggested Actions', 'Settings', 'Navigation'] as const
+const groupOrder = [
+  'Suggested Actions',
+  'Settings',
+  'Observability',
+  'Danger Zone',
+  'Navigation',
+] as const
+const dynamicGroupOrder = ['Users', 'Clients', 'Roles', 'Groups', 'Flows'] as const
 
 type StaticEntry = {
   item: OmniStaticItem
@@ -64,6 +72,9 @@ export function OmniCommandPalette() {
   const { recordSelection, recencyMap } = useRecentOmniItems()
   const registrationFlowIdRef = React.useRef<string | null>(null)
   const queryClient = useQueryClient()
+  const inspectorDescriptionId = 'omni-inspector-description'
+  const resultsId = 'omni-results'
+  const inspectorId = 'omni-inspector'
 
   const debouncedQuery = useDebouncedValue(query, 300)
   const staticItems = useOmniStaticItems()
@@ -126,6 +137,30 @@ export function OmniCommandPalette() {
       if (actionId === 'theme.light') setTheme('light')
       if (actionId === 'theme.dark') setTheme('dark')
       if (actionId === 'theme.system') setTheme('system')
+      if (actionId === 'observability.clear-logs') {
+        void apiClient
+          .post<{ deleted: number }>('/api/system/observability/logs/clear', {})
+          .then((data) => {
+            toast.success(`Logs cleared: ${data.deleted}`)
+          })
+          .catch(() => toast.error('Failed to clear logs'))
+      }
+      if (actionId === 'observability.clear-traces') {
+        void apiClient
+          .post<{ deleted: number }>('/api/system/observability/traces/clear', {})
+          .then((data) => {
+            toast.success(`Traces cleared: ${data.deleted}`)
+          })
+          .catch(() => toast.error('Failed to clear traces'))
+      }
+      if (actionId === 'observability.flush-cache') {
+        void apiClient
+          .post<{ flushed: string }>('/api/system/observability/cache/flush', {})
+          .then((data) => {
+            toast.success(`Cache flushed: ${data.flushed}`)
+          })
+          .catch(() => toast.error('Failed to flush cache'))
+      }
     },
     [setTheme],
   )
@@ -208,11 +243,76 @@ export function OmniCommandPalette() {
     [dynamicResults?.roles, debouncedQuery, recencyMap],
   )
 
+  const rankedGroups = React.useMemo(
+    () =>
+      rankItems(
+        dynamicResults?.groups || [],
+        debouncedQuery,
+        (group) => buildHaystack([group.name, group.description]),
+        (group) => `group:${group.id}`,
+        recencyMap,
+      ),
+    [dynamicResults?.groups, debouncedQuery, recencyMap],
+  )
+
+  const rankedFlows = React.useMemo(
+    () =>
+      rankItems(
+        dynamicResults?.flows || [],
+        debouncedQuery,
+        (flow) => buildHaystack([flow.alias, flow.description, flow.flow_type]),
+        (flow) => `flow:${flow.id}`,
+        recencyMap,
+      ),
+    [dynamicResults?.flows, debouncedQuery, recencyMap],
+  )
+
   const hasDynamicResults =
-    rankedUsers.length + rankedClients.length + rankedRoles.length > 0
+    rankedUsers.length +
+      rankedClients.length +
+      rankedRoles.length +
+      rankedGroups.length +
+      rankedFlows.length >
+    0
 
   const hasStaticResults = filteredStatic.length > 0
   const showEmpty = !hasDynamicResults && !hasStaticResults && !isFetching
+
+  const visibleGroupNames = React.useMemo(() => {
+    const names: string[] = []
+    groupOrder.forEach((group) => {
+      if (staticGroups[group]?.length) names.push(group)
+    })
+    dynamicGroupOrder.forEach((group) => {
+      if (group === 'Users' && rankedUsers.length) names.push(group)
+      if (group === 'Clients' && rankedClients.length) names.push(group)
+      if (group === 'Roles' && rankedRoles.length) names.push(group)
+      if (group === 'Groups' && rankedGroups.length) names.push(group)
+      if (group === 'Flows' && rankedFlows.length) names.push(group)
+    })
+    return names
+  }, [
+    staticGroups,
+    rankedUsers.length,
+    rankedClients.length,
+    rankedRoles.length,
+    rankedGroups.length,
+    rankedFlows.length,
+  ])
+
+  const firstValueByGroup = React.useMemo(() => {
+    const map = new Map<string, string>()
+    groupOrder.forEach((group) => {
+      const entry = staticGroups[group]?.[0]
+      if (entry) map.set(group, entry.value)
+    })
+    if (rankedUsers[0]) map.set('Users', `user:${rankedUsers[0].id}`)
+    if (rankedClients[0]) map.set('Clients', `client:${rankedClients[0].id}`)
+    if (rankedRoles[0]) map.set('Roles', `role:${rankedRoles[0].id}`)
+    if (rankedGroups[0]) map.set('Groups', `group:${rankedGroups[0].id}`)
+    if (rankedFlows[0]) map.set('Flows', `flow:${rankedFlows[0].id}`)
+    return map
+  }, [staticGroups, rankedUsers, rankedClients, rankedRoles, rankedGroups, rankedFlows])
 
   const valueToInspector = React.useMemo(() => {
     const map = new Map<string, OmniInspectorItem>()
@@ -247,14 +347,58 @@ export function OmniCommandPalette() {
         href: `/${realm}/roles/${role.id}/settings`,
       })
     })
+    rankedGroups.forEach((group) => {
+      map.set(`group:${group.id}`, {
+        kind: 'group',
+        id: group.id,
+        label: group.name,
+        subtitle: group.description || 'Group',
+        href: `/${realm}/groups/${group.id}`,
+      })
+    })
+    rankedFlows.forEach((flow) => {
+      const flowSubtitle = `${flow.flow_type}${flow.is_draft ? ' · Draft' : ''}`
+      map.set(`flow:${flow.id}`, {
+        kind: 'flow',
+        id: flow.id,
+        label: flow.alias,
+        subtitle: flowSubtitle,
+        description: flow.description || undefined,
+        href: `/${realm}/flows/${flow.id}`,
+      })
+    })
     return map
-  }, [staticEntries, rankedUsers, rankedClients, rankedRoles, realm])
+  }, [staticEntries, rankedUsers, rankedClients, rankedRoles, rankedGroups, rankedFlows, realm])
 
   React.useEffect(() => {
-    if (!selectedValue) return
-    const inspector = valueToInspector.get(selectedValue)
-    if (inspector) setActiveItem(inspector)
+    if (!selectedValue) {
+      setActiveItem(null)
+      return
+    }
+    const inspector = valueToInspector.get(selectedValue) || null
+    setActiveItem(inspector)
   }, [selectedValue, valueToInspector])
+
+  React.useEffect(() => {
+    if (!open) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!event.altKey) return
+      const index = Number(event.key) - 1
+      if (Number.isNaN(index) || index < 0 || index > 2) return
+      const groupName = visibleGroupNames[index]
+      if (!groupName) return
+      const nextValue = firstValueByGroup.get(groupName)
+      if (!nextValue) return
+      event.preventDefault()
+      setSelectedValue(nextValue)
+      const groupEl = document.querySelector(`[data-omni-group="${groupName}"]`)
+      groupEl?.scrollIntoView({ block: 'nearest' })
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, visibleGroupNames, firstValueByGroup])
 
   React.useEffect(() => {
     if (!open) {
@@ -268,10 +412,12 @@ export function OmniCommandPalette() {
       staticEntries[0]?.value ||
       (rankedUsers[0] ? `user:${rankedUsers[0].id}` : '') ||
       (rankedClients[0] ? `client:${rankedClients[0].id}` : '') ||
-      (rankedRoles[0] ? `role:${rankedRoles[0].id}` : '')
+      (rankedRoles[0] ? `role:${rankedRoles[0].id}` : '') ||
+      (rankedGroups[0] ? `group:${rankedGroups[0].id}` : '') ||
+      (rankedFlows[0] ? `flow:${rankedFlows[0].id}` : '')
 
     if (firstValue) setSelectedValue(firstValue)
-  }, [open, selectedValue, staticEntries, rankedUsers, rankedClients, rankedRoles])
+  }, [open, selectedValue, staticEntries, rankedUsers, rankedClients, rankedRoles, rankedGroups, rankedFlows])
 
   React.useEffect(() => {
     if (!canShowDynamic) return
@@ -299,7 +445,16 @@ export function OmniCommandPalette() {
         staleTime: 30_000,
       })
     })
-  }, [canShowDynamic, rankedUsers, rankedClients, rankedRoles, queryClient, realm])
+
+    rankedGroups.slice(0, 3).forEach((group) => {
+      void queryClient.prefetchQuery({
+        queryKey: ['group', realm, group.id],
+        queryFn: () =>
+          apiClient.get<RealmGroup>(`/api/realms/${realm}/rbac/groups/${group.id}`),
+        staleTime: 30_000,
+      })
+    })
+  }, [canShowDynamic, rankedUsers, rankedClients, rankedRoles, rankedGroups, queryClient, realm])
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -317,11 +472,25 @@ export function OmniCommandPalette() {
             onValueChange={setSelectedValue}
             aria-label="Omni search command palette"
           >
+            <div>
+              <a
+                href={`#${resultsId}`}
+                className="focus-visible:ring-ring focus-visible:ring-offset-background sr-only inline-flex items-center rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only focus-visible:ring-2 focus-visible:ring-offset-2"
+              >
+                Skip to results
+              </a>
+              <a
+                href={`#${inspectorId}`}
+                className="focus-visible:ring-ring focus-visible:ring-offset-background sr-only ml-2 inline-flex items-center rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only focus-visible:ring-2 focus-visible:ring-offset-2"
+              >
+                Skip to inspector
+              </a>
+            </div>
             <div className="px-4 py-3">
               <CommandInput
                 value={query}
                 onValueChange={setQuery}
-                placeholder="Search commands, settings, users, clients..."
+                placeholder="Search commands, settings, users, clients, groups, flows..."
                 className="h-12 text-base"
                 wrapperClassName="bg-muted/30 border border-input rounded-lg px-3"
                 aria-label="Search"
@@ -329,7 +498,9 @@ export function OmniCommandPalette() {
             </div>
             <div className="flex h-full min-h-0">
               <div
-                className="flex w-full flex-col md:w-3/5"
+                id={resultsId}
+                tabIndex={-1}
+                className="focus-within:ring-ring/30 focus-within:ring-offset-background flex w-full flex-col rounded-lg focus-within:ring-2 focus-within:ring-offset-2 md:w-3/5"
                 role="region"
                 aria-label="Search results"
               >
@@ -342,7 +513,7 @@ export function OmniCommandPalette() {
                         return (
                           <React.Fragment key={groupName}>
                             {index > 0 && <CommandSeparator />}
-                            <CommandGroup heading={groupName}>
+                            <CommandGroup heading={groupName} data-omni-group={groupName}>
                               {groupItems.map((entry) => {
                                 const item = entry.item
 
@@ -409,7 +580,7 @@ export function OmniCommandPalette() {
 
                       {rankedUsers.length > 0 && <CommandSeparator />}
                       {rankedUsers.length > 0 && (
-                        <CommandGroup heading="Users">
+                        <CommandGroup heading="Users" data-omni-group="Users">
                           {rankedUsers.map((user) => (
                             <CommandEntityRow
                               key={user.id}
@@ -439,7 +610,7 @@ export function OmniCommandPalette() {
 
                       {rankedClients.length > 0 && <CommandSeparator />}
                       {rankedClients.length > 0 && (
-                        <CommandGroup heading="Clients">
+                        <CommandGroup heading="Clients" data-omni-group="Clients">
                           {rankedClients.map((client) => (
                             <CommandEntityRow
                               key={client.id}
@@ -469,7 +640,7 @@ export function OmniCommandPalette() {
 
                       {rankedRoles.length > 0 && <CommandSeparator />}
                       {rankedRoles.length > 0 && (
-                        <CommandGroup heading="Roles">
+                        <CommandGroup heading="Roles" data-omni-group="Roles">
                           {rankedRoles.map((role) => {
                             const roleSubtitle =
                               role.description ||
@@ -505,6 +676,70 @@ export function OmniCommandPalette() {
                         </CommandGroup>
                       )}
 
+                      {rankedGroups.length > 0 && <CommandSeparator />}
+                      {rankedGroups.length > 0 && (
+                        <CommandGroup heading="Groups" data-omni-group="Groups">
+                          {rankedGroups.map((group) => (
+                            <CommandEntityRow
+                              key={group.id}
+                              value={`group:${group.id}`}
+                              kind="group"
+                              primary={group.name}
+                              secondary={group.description || 'Group'}
+                              onSelect={() =>
+                                runCommand(() => {
+                                  recordSelection(`group:${group.id}`)
+                                  navigate(`/${realm}/groups/${group.id}`)
+                                })
+                              }
+                              onHighlight={() =>
+                                setActiveItem({
+                                  kind: 'group',
+                                  id: group.id,
+                                  label: group.name,
+                                  subtitle: group.description || 'Group',
+                                  href: `/${realm}/groups/${group.id}`,
+                                })
+                              }
+                            />
+                          ))}
+                        </CommandGroup>
+                      )}
+
+                      {rankedFlows.length > 0 && <CommandSeparator />}
+                      {rankedFlows.length > 0 && (
+                        <CommandGroup heading="Flows" data-omni-group="Flows">
+                          {rankedFlows.map((flow) => {
+                            const flowSubtitle = `${flow.flow_type}${flow.is_draft ? ' · Draft' : ''}`
+                            return (
+                              <CommandEntityRow
+                                key={flow.id}
+                                value={`flow:${flow.id}`}
+                                kind="flow"
+                                primary={flow.alias}
+                                secondary={flowSubtitle}
+                                onSelect={() =>
+                                  runCommand(() => {
+                                    recordSelection(`flow:${flow.id}`)
+                                    navigate(`/${realm}/flows/${flow.id}`)
+                                  })
+                                }
+                                onHighlight={() =>
+                                  setActiveItem({
+                                    kind: 'flow',
+                                    id: flow.id,
+                                    label: flow.alias,
+                                    subtitle: flowSubtitle,
+                                    description: flow.description || undefined,
+                                    href: `/${realm}/flows/${flow.id}`,
+                                  })
+                                }
+                              />
+                            )
+                          })}
+                        </CommandGroup>
+                      )}
+
                       {canShowDynamic && isFetching && (
                         <div className="px-4 py-3 text-sm text-muted-foreground">Searching...</div>
                       )}
@@ -518,12 +753,15 @@ export function OmniCommandPalette() {
                 </CommandList>
               </div>
               <div
-                className="hidden h-full w-2/5 border-l md:block"
+                id={inspectorId}
+                tabIndex={-1}
+                className="focus-within:ring-ring/30 focus-within:ring-offset-background hidden h-full w-2/5 border-l focus-within:ring-2 focus-within:ring-offset-2 md:block"
                 role="region"
                 aria-label="Inspector"
                 aria-live="polite"
+                aria-describedby={inspectorDescriptionId}
               >
-                <PaletteInspector item={activeItem} />
+                <PaletteInspector item={activeItem} descriptionId={inspectorDescriptionId} />
               </div>
             </div>
           </Command>

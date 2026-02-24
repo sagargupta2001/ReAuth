@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
 
-import { AppWindow, Shield, User } from 'lucide-react'
+import { AppWindow, Group, Shield, User, Workflow } from 'lucide-react'
 
 import { Avatar, AvatarFallback } from '@/components/avatar'
 import { CommandItem } from '@/components/command'
 
 interface CommandEntityRowProps {
   value: string
-  kind: 'user' | 'client' | 'role'
+  kind: 'user' | 'client' | 'role' | 'group' | 'flow'
   primary: string
   secondary?: string
   onSelect?: () => void
@@ -19,6 +19,8 @@ const kindIcons = {
   user: User,
   client: AppWindow,
   role: Shield,
+  group: Group,
+  flow: Workflow,
 }
 
 export function CommandEntityRow({

@@ -6,6 +6,7 @@ use crate::AppState;
 use axum::extract::{Path, Query, State};
 use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -35,10 +36,29 @@ pub struct SearchRoleResult {
 }
 
 #[derive(Debug, Serialize)]
+pub struct SearchGroupResult {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SearchFlowResult {
+    pub id: Uuid,
+    pub alias: String,
+    pub description: Option<String>,
+    pub flow_type: String,
+    pub built_in: bool,
+    pub is_draft: bool,
+}
+
+#[derive(Debug, Serialize)]
 pub struct SearchResponse {
     pub users: Vec<SearchUserResult>,
     pub clients: Vec<SearchClientResult>,
     pub roles: Vec<SearchRoleResult>,
+    pub groups: Vec<SearchGroupResult>,
+    pub flows: Vec<SearchFlowResult>,
 }
 
 impl SearchResponse {
@@ -47,6 +67,8 @@ impl SearchResponse {
             users: vec![],
             clients: vec![],
             roles: vec![],
+            groups: vec![],
+            flows: vec![],
         }
     }
 }
@@ -92,6 +114,12 @@ pub async fn omni_search_handler(
         .user_has_permission(&user.id, permissions::RBAC_READ)
         .await
         .unwrap_or(false);
+    let can_read_groups = can_read_roles;
+    let can_read_flows = state
+        .rbac_service
+        .user_has_permission(&user.id, permissions::REALM_READ)
+        .await
+        .unwrap_or(false);
 
     let users = if can_read_users {
         let response = state
@@ -128,7 +156,10 @@ pub async fn omni_search_handler(
     };
 
     let roles = if can_read_roles {
-        let response = state.rbac_service.list_roles(realm.id, page_req).await?;
+        let response = state
+            .rbac_service
+            .list_roles(realm.id, page_req.clone())
+            .await?;
         response
             .data
             .into_iter()
@@ -143,12 +174,97 @@ pub async fn omni_search_handler(
         vec![]
     };
 
+    let groups = if can_read_groups {
+        let response = state
+            .rbac_service
+            .list_groups(realm.id, page_req.clone())
+            .await?;
+        response
+            .data
+            .into_iter()
+            .map(|group| SearchGroupResult {
+                id: group.id,
+                name: group.name,
+                description: group.description,
+            })
+            .collect()
+    } else {
+        vec![]
+    };
+
+    let flows = if can_read_flows {
+        let q_lower = q.to_lowercase();
+        let runtime_flows = state.flow_service.list_flows(realm.id).await?;
+        let drafts = state.flow_manager.list_all_drafts(realm.id).await?;
+        let mut flows_map: HashMap<Uuid, SearchFlowResult> = HashMap::new();
+
+        for flow in runtime_flows {
+            flows_map.insert(
+                flow.id,
+                SearchFlowResult {
+                    id: flow.id,
+                    alias: flow.alias,
+                    description: flow.description,
+                    flow_type: flow.r#type,
+                    built_in: flow.built_in,
+                    is_draft: false,
+                },
+            );
+        }
+
+        for draft in drafts {
+            flows_map
+                .entry(draft.id)
+                .and_modify(|existing| {
+                    existing.alias = draft.name.clone();
+                    existing.description = draft.description.clone();
+                    existing.is_draft = true;
+                    existing.flow_type = draft.flow_type.clone();
+                })
+                .or_insert_with(|| SearchFlowResult {
+                    id: draft.id,
+                    alias: draft.name,
+                    description: draft.description,
+                    flow_type: draft.flow_type,
+                    built_in: false,
+                    is_draft: true,
+                });
+        }
+
+        let mut flows: Vec<SearchFlowResult> = flows_map
+            .into_values()
+            .filter(|flow| {
+                flow.alias.to_lowercase().contains(&q_lower)
+                    || flow
+                        .description
+                        .as_deref()
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .contains(&q_lower)
+                    || flow.flow_type.to_lowercase().contains(&q_lower)
+            })
+            .collect();
+
+        flows.sort_by(|a, b| match (a.built_in, b.built_in) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => a.alias.cmp(&b.alias),
+        });
+
+        flows.truncate(limit as usize);
+        flows
+    } else {
+        vec![]
+    };
+
     Ok((
         StatusCode::OK,
         Json(SearchResponse {
             users,
             clients,
             roles,
+            groups,
+            flows,
         }),
     ))
 }

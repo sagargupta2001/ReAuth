@@ -1,12 +1,16 @@
 import { useMemo } from 'react'
 
 import {
+  Activity,
   AppWindow,
+  Database,
   Laptop,
   Moon,
+  ScrollText,
   Settings,
   ShieldPlus,
   Sun,
+  Trash2,
   UserPlus,
   Zap,
 } from 'lucide-react'
@@ -138,6 +142,69 @@ export function useOmniStaticItems() {
         href: `/${realm}/settings/token`,
         hash: 'token-refresh-ttl',
         keywords: ['token', 'refresh', 'sso'],
+      },
+    )
+
+    items.push(
+      {
+        id: 'observability.logs',
+        label: 'Log Explorer',
+        description: 'Inspect audit logs and events',
+        group: 'Observability',
+        kind: 'link',
+        icon: ScrollText,
+        href: `/${realm}/logs?tab=logs`,
+        keywords: ['observability', 'logs', 'events', 'audit'],
+      },
+      {
+        id: 'observability.traces',
+        label: 'Traces Explorer',
+        description: 'Drill into request traces',
+        group: 'Observability',
+        kind: 'link',
+        icon: Activity,
+        href: `/${realm}/logs?tab=traces`,
+        keywords: ['observability', 'traces', 'latency'],
+      },
+      {
+        id: 'observability.cache',
+        label: 'Cache Manager',
+        description: 'View cache metrics and namespaces',
+        group: 'Observability',
+        kind: 'link',
+        icon: Database,
+        href: `/${realm}/logs?tab=cache`,
+        keywords: ['observability', 'cache', 'flush'],
+      },
+      {
+        id: 'danger.clear-logs',
+        label: 'Clear All Logs',
+        description: 'Remove stored log entries',
+        group: 'Danger Zone',
+        kind: 'action',
+        icon: Trash2,
+        actionId: 'observability.clear-logs',
+        keywords: ['danger', 'logs', 'clear'],
+      },
+      {
+        id: 'danger.clear-traces',
+        label: 'Clear All Traces',
+        description: 'Remove stored traces',
+        group: 'Danger Zone',
+        kind: 'action',
+        icon: Trash2,
+        actionId: 'observability.clear-traces',
+        keywords: ['danger', 'traces', 'clear'],
+      },
+      {
+        id: 'danger.flush-cache',
+        label: 'Flush Cache',
+        description: 'Purge all cache namespaces',
+        group: 'Danger Zone',
+        kind: 'action',
+        icon: Database,
+        actionId: 'observability.flush-cache',
+        keywords: ['danger', 'cache', 'flush'],
       },
     )
 

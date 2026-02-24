@@ -4,9 +4,13 @@ export type OmniGroup =
   | 'Suggested Actions'
   | 'Navigation'
   | 'Settings'
+  | 'Observability'
+  | 'Danger Zone'
   | 'Users'
   | 'Clients'
   | 'Roles'
+  | 'Groups'
+  | 'Flows'
 
 export type OmniStaticItemKind = 'link' | 'action' | 'setting' | 'toggle'
 
@@ -42,10 +46,27 @@ export interface OmniSearchRole {
   client_id?: string | null
 }
 
+export interface OmniSearchGroup {
+  id: string
+  name: string
+  description?: string | null
+}
+
+export interface OmniSearchFlow {
+  id: string
+  alias: string
+  description?: string | null
+  flow_type: string
+  built_in: boolean
+  is_draft: boolean
+}
+
 export interface OmniSearchResponse {
   users: OmniSearchUser[]
   clients: OmniSearchClient[]
   roles: OmniSearchRole[]
+  groups: OmniSearchGroup[]
+  flows: OmniSearchFlow[]
 }
 
 export type OmniInspectorItem =
@@ -68,6 +89,21 @@ export type OmniInspectorItem =
       id: string
       label: string
       subtitle?: string
+      href?: string
+    }
+  | {
+      kind: 'group'
+      id: string
+      label: string
+      subtitle?: string
+      href?: string
+    }
+  | {
+      kind: 'flow'
+      id: string
+      label: string
+      subtitle?: string
+      description?: string
       href?: string
     }
   | {

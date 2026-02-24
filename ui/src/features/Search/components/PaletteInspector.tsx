@@ -1,4 +1,4 @@
-import { AppWindow, Settings, Shield, Zap } from 'lucide-react'
+import { AppWindow, Group, Settings, Shield, Workflow, Zap } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { Badge } from '@/components/badge'
@@ -10,9 +10,10 @@ import { useSearch } from '@/features/Search/model/searchContext'
 
 interface PaletteInspectorProps {
   item: OmniInspectorItem | null
+  descriptionId?: string
 }
 
-export function PaletteInspector({ item }: PaletteInspectorProps) {
+export function PaletteInspector({ item, descriptionId }: PaletteInspectorProps) {
   const navigate = useNavigate()
   const { setOpen } = useSearch()
 
@@ -25,6 +26,11 @@ export function PaletteInspector({ item }: PaletteInspectorProps) {
   if (!item) {
     return (
       <div className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-muted-foreground">
+        {descriptionId && (
+          <div id={descriptionId} className="sr-only">
+            No selection
+          </div>
+        )}
         <Zap className="mb-3 h-5 w-5" />
         Select a result to preview details.
       </div>
@@ -34,6 +40,11 @@ export function PaletteInspector({ item }: PaletteInspectorProps) {
   if (item.kind === 'user') {
     return (
       <div className="flex h-full flex-col gap-6 p-6">
+        {descriptionId && (
+          <div id={descriptionId} className="sr-only">
+            Selected {item.label}
+          </div>
+        )}
         <div className="flex items-center gap-4">
           <Avatar className="h-12 w-12">
             <AvatarFallback className="text-sm font-semibold">
@@ -72,6 +83,11 @@ export function PaletteInspector({ item }: PaletteInspectorProps) {
   if (item.kind === 'setting') {
     return (
       <div className="flex h-full flex-col gap-4 p-6">
+        {descriptionId && (
+          <div id={descriptionId} className="sr-only">
+            Selected {item.label}
+          </div>
+        )}
         <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
           <Settings className="h-5 w-5" />
         </div>
@@ -98,6 +114,11 @@ export function PaletteInspector({ item }: PaletteInspectorProps) {
   if (item.kind === 'client') {
     return (
       <div className="flex h-full flex-col gap-4 p-6">
+        {descriptionId && (
+          <div id={descriptionId} className="sr-only">
+            Selected {item.label}
+          </div>
+        )}
         <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
           <AppWindow className="h-5 w-5" />
         </div>
@@ -118,6 +139,11 @@ export function PaletteInspector({ item }: PaletteInspectorProps) {
   if (item.kind === 'role') {
     return (
       <div className="flex h-full flex-col gap-4 p-6">
+        {descriptionId && (
+          <div id={descriptionId} className="sr-only">
+            Selected {item.label}
+          </div>
+        )}
         <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
           <Shield className="h-5 w-5" />
         </div>
@@ -138,6 +164,11 @@ export function PaletteInspector({ item }: PaletteInspectorProps) {
   if (item.kind === 'action') {
     return (
       <div className="flex h-full flex-col gap-4 p-6">
+        {descriptionId && (
+          <div id={descriptionId} className="sr-only">
+            Selected {item.label}
+          </div>
+        )}
         <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
           <Zap className="h-5 w-5" />
         </div>
@@ -147,6 +178,62 @@ export function PaletteInspector({ item }: PaletteInspectorProps) {
           <div>
             <Button variant="secondary" size="sm" onClick={handleOpen}>
               Open
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (item.kind === 'group') {
+    return (
+      <div className="flex h-full flex-col gap-4 p-6">
+        {descriptionId && (
+          <div id={descriptionId} className="sr-only">
+            Selected {item.label}
+          </div>
+        )}
+        <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
+          <Group className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-base font-semibold">{item.label}</div>
+          {item.subtitle && <p className="mt-2 text-sm text-muted-foreground">{item.subtitle}</p>}
+        </div>
+        <div className="text-xs text-muted-foreground">Group</div>
+        {item.href && (
+          <div className="mt-2">
+            <Button variant="secondary" size="sm" onClick={handleOpen}>
+              Open Group
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (item.kind === 'flow') {
+    return (
+      <div className="flex h-full flex-col gap-4 p-6">
+        {descriptionId && (
+          <div id={descriptionId} className="sr-only">
+            Selected {item.label}
+          </div>
+        )}
+        <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
+          <Workflow className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-base font-semibold">{item.label}</div>
+          {item.description && (
+            <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>
+          )}
+        </div>
+        {item.subtitle && <div className="text-xs text-muted-foreground">{item.subtitle}</div>}
+        {item.href && (
+          <div className="mt-2">
+            <Button variant="secondary" size="sm" onClick={handleOpen}>
+              Open Flow
             </Button>
           </div>
         )}
