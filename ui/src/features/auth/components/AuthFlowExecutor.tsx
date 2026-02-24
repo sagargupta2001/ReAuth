@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
 import { useLocation, useParams } from 'react-router-dom'
@@ -33,6 +33,7 @@ export function AuthFlowExecutor() {
   const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
+  const redirectHandledRef = useRef(false)
 
   // 1. INITIALIZE FLOW (GET /api/auth/login)
   useEffect(() => {
@@ -101,8 +102,13 @@ export function AuthFlowExecutor() {
 
   // 3. SUCCESS / REDIRECT HANDLER
   useEffect(() => {
+    if (currentStep?.status !== 'redirect') {
+      redirectHandledRef.current = false
+    }
     const handleRedirect = async () => {
       if (currentStep?.status !== 'redirect') return
+      if (redirectHandledRef.current) return
+      redirectHandledRef.current = true
 
       try {
         const targetUrl = currentStep.url

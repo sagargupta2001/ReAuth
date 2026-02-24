@@ -499,8 +499,8 @@ export function LogsExplorer({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-background/40">
-        <div className="relative h-full overflow-auto">
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border bg-background/40 flex flex-col">
+        <div className="relative flex-1 overflow-auto">
           <Table noWrapper>
             <TableHeader className="bg-muted/80">
               <TableRow>
@@ -635,7 +635,7 @@ export function LogsExplorer({
             </TableBody>
           </Table>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
+        <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-xs text-muted-foreground">
           <div>
             {t('LOGS_TABLE.PAGE_STATUS', {
               page: urlState.log_page,
