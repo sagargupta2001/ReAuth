@@ -31,6 +31,8 @@ pub fn init_logging(settings: &Settings) -> Arc<LogBroadcastBus> {
         let fmt_layer = tracing_subscriber::fmt::layer()
             .json()
             .with_target(settings.logging.show_target)
+            .with_current_span(settings.logging.show_span_context)
+            .with_span_list(settings.logging.show_span_list)
             .with_timer(UtcTime::new(time_format));
 
         let subscriber = tracing_subscriber::registry()

@@ -30,6 +30,8 @@
 - [x] Logs Explorer supports Live Trail (WS) + manual refresh (no polling).
 - [x] Logs Explorer table shows request, status, duration, trace_id, user, realm, and metadata.
 - [x] Observability filters/pagination/sorting state is URL-backed.
+- [x] Telemetry cleanup endpoints (logs/traces) with RFC3339 `before` support.
+- [x] Scheduled telemetry retention cleanup (configurable interval + days).
 
 ## MVP scope (prioritized)
 1. **Audit persistence (RBAC)** (done)

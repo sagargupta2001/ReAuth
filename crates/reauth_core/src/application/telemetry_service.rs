@@ -29,4 +29,12 @@ impl TelemetryService {
     pub async fn list_trace_spans(&self, trace_id: &str) -> Result<Vec<TelemetryTrace>> {
         self.repo.list_trace_spans(trace_id).await
     }
+
+    pub async fn clear_logs(&self, before: Option<&str>) -> Result<i64> {
+        self.repo.delete_logs_before(before).await
+    }
+
+    pub async fn clear_traces(&self, before: Option<&str>) -> Result<i64> {
+        self.repo.delete_traces_before(before).await
+    }
 }

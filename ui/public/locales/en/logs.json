@@ -51,6 +51,17 @@
     "PREV": "Prev",
     "NEXT": "Next"
   },
+  "LOGS_CLEANUP": {
+    "TITLE": "Telemetry cleanup",
+    "DESC": "Clear stored logs to reclaim disk space. Live stream is unaffected.",
+    "CLEAR_ALL": "Clear logs",
+    "CONFIRM_TITLE": "Clear all logs?",
+    "CONFIRM_DESC": "This deletes all stored logs from telemetry storage. This cannot be undone.",
+    "CONFIRM_PLACEHOLDER": "Type CLEAR to confirm",
+    "CONFIRM_HELPER": "Type CLEAR to enable deletion.",
+    "CONFIRM_ACTION": "Clear logs",
+    "CANCEL": "Cancel"
+  },
   "LOG_TABLE": {
     "COLUMNS": {
       "TIMESTAMP": "Timestamp",

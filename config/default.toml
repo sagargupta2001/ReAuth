@@ -11,10 +11,15 @@ dev_url = "http://localhost:5173"
 level = "info"
 filter = "" # Optional: overrides level when set (supports module filters)
 show_target = false # Show module path in logs
+show_span_context = false # Include current span fields in log output
+show_span_list = false # Include full span chain (root -> leaf) in log output
 json = false # Emit JSON logs (recommended for prod)
 
 [observability]
 telemetry_db_path = "" # Defaults to database.data_dir/reauth_telemetry.db
+log_retention_days = 7
+trace_retention_days = 7
+cleanup_interval_secs = 3600 # 0 disables scheduled cleanup
 
 [cors]
 allowed_origins = []

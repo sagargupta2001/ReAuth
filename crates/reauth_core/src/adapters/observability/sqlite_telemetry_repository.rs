@@ -424,4 +424,44 @@ impl TelemetryRepository for SqliteTelemetryRepository {
             })
             .collect())
     }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "telemetry_logs", db_op = "delete")
+    )]
+    async fn delete_logs_before(&self, before: Option<&str>) -> Result<i64> {
+        let result = if let Some(before) = before {
+            sqlx::query("DELETE FROM telemetry_logs WHERE timestamp < ?")
+                .bind(before)
+                .execute(self.pool.as_ref())
+                .await
+        } else {
+            sqlx::query("DELETE FROM telemetry_logs")
+                .execute(self.pool.as_ref())
+                .await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(result.rows_affected() as i64)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "telemetry_traces", db_op = "delete")
+    )]
+    async fn delete_traces_before(&self, before: Option<&str>) -> Result<i64> {
+        let result = if let Some(before) = before {
+            sqlx::query("DELETE FROM telemetry_traces WHERE start_time < ?")
+                .bind(before)
+                .execute(self.pool.as_ref())
+                .await
+        } else {
+            sqlx::query("DELETE FROM telemetry_traces")
+                .execute(self.pool.as_ref())
+                .await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(result.rows_affected() as i64)
+    }
 }

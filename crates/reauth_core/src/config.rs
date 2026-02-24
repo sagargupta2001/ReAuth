@@ -31,6 +31,10 @@ pub struct LoggingConfig {
     #[serde(default)]
     pub show_target: bool,
     #[serde(default)]
+    pub show_span_context: bool,
+    #[serde(default)]
+    pub show_span_list: bool,
+    #[serde(default)]
     pub json: bool,
 }
 
@@ -38,6 +42,12 @@ pub struct LoggingConfig {
 pub struct ObservabilityConfig {
     #[serde(default)]
     pub telemetry_db_path: String,
+    #[serde(default = "default_log_retention_days")]
+    pub log_retention_days: i64,
+    #[serde(default = "default_trace_retention_days")]
+    pub trace_retention_days: i64,
+    #[serde(default = "default_cleanup_interval_secs")]
+    pub cleanup_interval_secs: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -286,6 +296,18 @@ impl Settings {
         normalize_list(&mut self.default_oidc_client.redirect_uris);
         normalize_list(&mut self.default_oidc_client.web_origins);
     }
+}
+
+fn default_log_retention_days() -> i64 {
+    7
+}
+
+fn default_trace_retention_days() -> i64 {
+    7
+}
+
+fn default_cleanup_interval_secs() -> u64 {
+    3600
 }
 
 fn default_data_dir() -> String {

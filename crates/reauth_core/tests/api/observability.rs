@@ -201,6 +201,43 @@ async fn observability_endpoints_return_ok() {
         Some("all")
     );
 
+    let clear_logs_request = Request::builder()
+        .uri("/api/system/observability/logs/clear")
+        .method("POST")
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{}"))
+        .expect("clear logs request");
+    let clear_logs_response = ctx.request(clear_logs_request).await;
+    assert_eq!(clear_logs_response.status(), StatusCode::OK);
+    let clear_logs_body = clear_logs_response
+        .into_body()
+        .collect()
+        .await
+        .expect("clear logs body")
+        .to_bytes();
+    let clear_logs_json: Value = serde_json::from_slice(&clear_logs_body).expect("clear logs json");
+    assert!(clear_logs_json.get("deleted").is_some());
+
+    let clear_traces_request = Request::builder()
+        .uri("/api/system/observability/traces/clear")
+        .method("POST")
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{}"))
+        .expect("clear traces request");
+    let clear_traces_response = ctx.request(clear_traces_request).await;
+    assert_eq!(clear_traces_response.status(), StatusCode::OK);
+    let clear_traces_body = clear_traces_response
+        .into_body()
+        .collect()
+        .await
+        .expect("clear traces body")
+        .to_bytes();
+    let clear_traces_json: Value =
+        serde_json::from_slice(&clear_traces_body).expect("clear traces json");
+    assert!(clear_traces_json.get("deleted").is_some());
+
     let metrics_request = Request::builder()
         .uri("/api/system/observability/metrics")
         .method("GET")

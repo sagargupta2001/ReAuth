@@ -30,6 +30,7 @@ Functionality
 - Toggle to include or hide `trace.span` rows.
 - Table columns: timestamp, level, request, status, duration, trace_id, user, realm.
 - Expanded rows show full structured metadata.
+- Manual cleanup: clear stored logs from telemetry storage.
 
 ```mermaid
 sequenceDiagram
@@ -59,6 +60,7 @@ Functionality
 - Trace detail view displays spans ordered by start time with durations.
 - Time range filter, search, pagination, sorting (server-side).
 - Trace IDs link from logs to trace detail.
+- Manual cleanup: clear stored traces from telemetry storage.
 
 ```mermaid
 flowchart TD
@@ -110,11 +112,13 @@ All routes are under `/api/system/observability` and require `EVENT_READ`.
 Logs
 - `GET /logs`
 - Query params: `level`, `target`, `search`, `start`, `end`, `page`, `per_page`, `sort_by`, `sort_dir`, `include_spans`.
+- `POST /logs/clear` (optional body: `{ "before": "<RFC3339>" }`).
 
 Traces
 - `GET /traces`
 - Query params: `search`, `start`, `end`, `page`, `per_page`, `sort_by`, `sort_dir`.
 - `GET /traces/{trace_id}` returns spans for the waterfall.
+- `POST /traces/clear` (optional body: `{ "before": "<RFC3339>" }`).
 
 Metrics
 - `GET /metrics`
@@ -126,3 +130,7 @@ Cache
 **Notes**
 - `start` and `end` timestamps must be RFC3339.
 - Live Trail is powered by `/api/logs/ws` and does not read from SQLite.
+- Telemetry cleanup is scheduled internally (no OS cron). Configure via:
+  - `observability.log_retention_days`
+  - `observability.trace_retention_days`
+  - `observability.cleanup_interval_secs`

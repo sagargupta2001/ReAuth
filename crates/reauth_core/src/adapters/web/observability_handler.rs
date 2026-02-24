@@ -40,6 +40,11 @@ pub struct CacheStatsQuery {
     pub namespace: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct TelemetryClearPayload {
+    pub before: Option<String>,
+}
+
 const DEFAULT_LOG_LIMIT: i64 = 200;
 const MAX_LOG_LIMIT: i64 = 1000;
 const DEFAULT_TRACE_LIMIT: i64 = 200;
@@ -139,6 +144,50 @@ pub async fn cache_stats_handler(
 pub async fn metrics_handler(State(state): State<AppState>) -> Result<impl IntoResponse> {
     let snapshot = state.metrics_service.snapshot();
     Ok((StatusCode::OK, Json(snapshot)))
+}
+
+// POST /api/system/observability/logs/clear
+pub async fn clear_logs_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<TelemetryClearPayload>,
+) -> Result<impl IntoResponse> {
+    let before = payload
+        .before
+        .as_deref()
+        .map(parse_rfc3339)
+        .transpose()?
+        .map(|value| value.to_rfc3339());
+
+    let deleted = state
+        .telemetry_service
+        .clear_logs(before.as_deref())
+        .await?;
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "deleted": deleted })),
+    ))
+}
+
+// POST /api/system/observability/traces/clear
+pub async fn clear_traces_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<TelemetryClearPayload>,
+) -> Result<impl IntoResponse> {
+    let before = payload
+        .before
+        .as_deref()
+        .map(parse_rfc3339)
+        .transpose()?
+        .map(|value| value.to_rfc3339());
+
+    let deleted = state
+        .telemetry_service
+        .clear_traces(before.as_deref())
+        .await?;
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "deleted": deleted })),
+    ))
 }
 
 // POST /api/system/observability/cache/flush

@@ -317,7 +317,15 @@ fn audit_routes(state: AppState) -> Router<AppState> {
 fn observability_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/logs", get(observability_handler::list_logs_handler))
+        .route(
+            "/logs/clear",
+            post(observability_handler::clear_logs_handler),
+        )
         .route("/traces", get(observability_handler::list_traces_handler))
+        .route(
+            "/traces/clear",
+            post(observability_handler::clear_traces_handler),
+        )
         .route(
             "/traces/{trace_id}",
             get(observability_handler::list_trace_spans_handler),
