@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react'
 
-import { CommandMenu } from '@/features/Search/components/CommandMenu'
+import { OmniCommandPalette } from '@/features/Search/components/OmniCommandPalette'
 
 type SearchContextType = {
   open: boolean
@@ -38,7 +38,7 @@ export function SearchProvider({ children }: SearchProviderProps) {
   return (
     <SearchContext value={{ open, setOpen }}>
       {children}
-      <CommandMenu />
+      <OmniCommandPalette />
     </SearchContext>
   )
 }

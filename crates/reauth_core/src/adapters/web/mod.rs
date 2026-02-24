@@ -13,6 +13,7 @@ pub mod plugin_handler;
 pub mod rbac_handler;
 mod realm_handler;
 pub mod router;
+pub mod search_handler;
 pub mod server;
 mod session_handler;
 pub mod user_handler;

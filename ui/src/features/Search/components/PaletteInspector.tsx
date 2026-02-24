@@ -1,0 +1,158 @@
+import { AppWindow, Settings, Shield, Zap } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+
+import { Badge } from '@/components/badge'
+import { Button } from '@/components/button'
+import { Avatar, AvatarFallback } from '@/components/avatar'
+
+import type { OmniInspectorItem } from '@/features/Search/model/omniTypes'
+import { useSearch } from '@/features/Search/model/searchContext'
+
+interface PaletteInspectorProps {
+  item: OmniInspectorItem | null
+}
+
+export function PaletteInspector({ item }: PaletteInspectorProps) {
+  const navigate = useNavigate()
+  const { setOpen } = useSearch()
+
+  const handleOpen = () => {
+    if (!item?.href) return
+    setOpen(false)
+    navigate(item.href)
+  }
+
+  if (!item) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-muted-foreground">
+        <Zap className="mb-3 h-5 w-5" />
+        Select a result to preview details.
+      </div>
+    )
+  }
+
+  if (item.kind === 'user') {
+    return (
+      <div className="flex h-full flex-col gap-6 p-6">
+        <div className="flex items-center gap-4">
+          <Avatar className="h-12 w-12">
+            <AvatarFallback className="text-sm font-semibold">
+              {item.label.slice(0, 2).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="text-base font-semibold">{item.label}</div>
+            <div className="text-xs text-muted-foreground">User</div>
+          </div>
+        </div>
+        <div className="space-y-3 text-sm">
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">Status: Active</Badge>
+          </div>
+          {item.subtitle && (
+            <div className="text-xs text-muted-foreground">ID: {item.subtitle}</div>
+          )}
+          <div className="text-xs text-muted-foreground">Last login: Not available</div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Button variant="secondary" size="sm" onClick={handleOpen}>
+            Open Profile
+          </Button>
+          <Button variant="outline" size="sm" disabled>
+            Reset Password
+          </Button>
+          <Button variant="outline" size="sm" disabled>
+            View Audit Logs
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (item.kind === 'setting') {
+    return (
+      <div className="flex h-full flex-col gap-4 p-6">
+        <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
+          <Settings className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-base font-semibold">{item.label}</div>
+          {item.description && (
+            <p className="mt-2 text-sm text-muted-foreground">{item.description}</p>
+          )}
+        </div>
+        {item.breadcrumb && (
+          <div className="text-xs text-muted-foreground">{item.breadcrumb}</div>
+        )}
+        {item.href && (
+          <div className="mt-2">
+            <Button variant="secondary" size="sm" onClick={handleOpen}>
+              Open Setting
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (item.kind === 'client') {
+    return (
+      <div className="flex h-full flex-col gap-4 p-6">
+        <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
+          <AppWindow className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-base font-semibold">{item.label}</div>
+          {item.subtitle && <p className="mt-2 text-sm text-muted-foreground">{item.subtitle}</p>}
+        </div>
+        <div className="text-xs text-muted-foreground">Client</div>
+        <div className="mt-2">
+          <Button variant="secondary" size="sm" onClick={handleOpen}>
+            Open Client
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (item.kind === 'role') {
+    return (
+      <div className="flex h-full flex-col gap-4 p-6">
+        <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
+          <Shield className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-base font-semibold">{item.label}</div>
+          {item.subtitle && <p className="mt-2 text-sm text-muted-foreground">{item.subtitle}</p>}
+        </div>
+        <div className="text-xs text-muted-foreground">Role</div>
+        <div className="mt-2">
+          <Button variant="secondary" size="sm" onClick={handleOpen}>
+            Open Role
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (item.kind === 'action') {
+    return (
+      <div className="flex h-full flex-col gap-4 p-6">
+        <div className="bg-muted/60 text-muted-foreground flex h-12 w-12 items-center justify-center rounded-xl">
+          <Zap className="h-5 w-5" />
+        </div>
+        <div className="text-base font-semibold">{item.label}</div>
+        {item.description && <p className="text-sm text-muted-foreground">{item.description}</p>}
+        {item.href && (
+          <div>
+            <Button variant="secondary" size="sm" onClick={handleOpen}>
+              Open
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return null
+}

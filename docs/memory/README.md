@@ -28,6 +28,12 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 - `11-auth-flow-catalog.md`
 - `13-hot-reload.md`
 - `14-seed.md`
+- `15-observability.md`
 - `roadmaps/README.md`
 - `roadmaps/rbac.md`
+- `roadmaps/configuration.md`
+- `roadmaps/observability.md`
+- `roadmaps/seeding.md`
+- `roadmaps/testing.md`
+- `roadmaps/omni-search.md`
 - `adr/README.md`

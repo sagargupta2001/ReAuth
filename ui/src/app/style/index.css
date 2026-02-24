@@ -92,3 +92,23 @@
 .CollapsibleContent[data-state='closed'] {
     animation: slideUp 300ms ease-out;
 }
+
+@layer utilities {
+    .animate-target-highlight {
+        position: relative;
+        --highlight-alpha: 0;
+    }
+
+    .animate-target-highlight::before {
+        content: "";
+        position: absolute;
+        inset: -0.5rem;
+        border-radius: inherit;
+        background: color-mix(in oklab, var(--primary) 16%, transparent);
+        box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 35%, transparent),
+            0 0 24px color-mix(in oklab, var(--primary) 25%, transparent);
+        opacity: var(--highlight-alpha);
+        pointer-events: none;
+        transition: none;
+    }
+}
