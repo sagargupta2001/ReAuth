@@ -1,6 +1,6 @@
 import gsap from 'gsap'
 
-import type { AnimationEngine, AnimationOptions } from './animation.types'
+import type { AnimationEngine, AnimationOptions, HighlightOptions } from './animation.types'
 
 export const gsapAnimationEngine: AnimationEngine = {
   fadeSlideIn(el, options = {}) {
@@ -31,6 +31,25 @@ export const gsapAnimationEngine: AnimationEngine = {
         onComplete: resolve, // resolves void
         ...options,
       })
+    })
+  },
+
+  highlight: (el: HTMLElement, options: HighlightOptions = {}) => {
+    const { duration = 1.6, hold = 0.2, ease = 'power2.out', peak = 1 } = options
+    const half = Math.max(0.2, duration / 2)
+
+    gsap.killTweensOf(el)
+    gsap.set(el, { '--highlight-alpha': 0 })
+    gsap.to(el, {
+      '--highlight-alpha': peak,
+      duration: half,
+      ease,
+      yoyo: true,
+      repeat: 1,
+      repeatDelay: hold,
+      onComplete: () => {
+        gsap.set(el, { '--highlight-alpha': 0 })
+      },
     })
   },
 }

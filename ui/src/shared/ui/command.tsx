@@ -36,12 +36,25 @@ const CommandDialog = ({ children, ...props }: DialogProps) => {
   )
 }
 
+type CommandInputProps = React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
+  wrapperClassName?: string
+  iconClassName?: string
+}
+
 const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
-  React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
->(({ className, ...props }, ref) => (
-  <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
-    <MagnifyingGlassIcon className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+  CommandInputProps
+>(({ className, wrapperClassName, iconClassName, ...props }, ref) => (
+  <div
+    className={cn(
+      wrapperClassName ? 'flex items-center px-3' : 'flex items-center border-b px-3',
+      wrapperClassName,
+    )}
+    cmdk-input-wrapper=""
+  >
+    <MagnifyingGlassIcon
+      className={cn('mr-2 h-4 w-4 shrink-0 opacity-50', iconClassName)}
+    />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(

@@ -60,21 +60,25 @@ export function TokenSettingsForm() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <FormInput
-                control={form.control}
-                name="access_token_ttl_secs"
-                label="Access Token Lifespan (Seconds)"
-                description="Usually short-lived (e.g., 900s = 15m)."
-                type="number" // Critical: tells browser to show number controls
-              />
+              <div id="token-access-ttl" className="scroll-mt-24 rounded-md -m-2 p-2">
+                <FormInput
+                  control={form.control}
+                  name="access_token_ttl_secs"
+                  label="Access Token Lifespan (Seconds)"
+                  description="Usually short-lived (e.g., 900s = 15m)."
+                  type="number" // Critical: tells browser to show number controls
+                />
+              </div>
 
-              <FormInput
-                control={form.control}
-                name="refresh_token_ttl_secs"
-                label="SSO Session Idle (Seconds)"
-                description="How long a user stays logged in (e.g., 604800s = 7d)."
-                type="number" // Critical
-              />
+              <div id="token-refresh-ttl" className="scroll-mt-24 rounded-md -m-2 p-2">
+                <FormInput
+                  control={form.control}
+                  name="refresh_token_ttl_secs"
+                  label="SSO Session Idle (Seconds)"
+                  description="How long a user stays logged in (e.g., 604800s = 7d)."
+                  type="number" // Critical
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

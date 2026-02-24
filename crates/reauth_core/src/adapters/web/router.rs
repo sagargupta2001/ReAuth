@@ -1,7 +1,7 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
     log_stream_handler, observability_handler, oidc_handler, plugin_handler, rbac_handler,
-    realm_handler, server::ui_handler, session_handler, user_handler,
+    realm_handler, search_handler, server::ui_handler, session_handler, user_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
@@ -40,6 +40,10 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
             protected_user_routes(app_state.clone()),
         )
         .nest("/realms/{realm}/flows", flow_routes(app_state.clone()))
+        .route(
+            "/realms/{realm}/search",
+            get(search_handler::omni_search_handler),
+        )
         // Apply Auth Guard to the ENTIRE protected block
         // This runs FIRST (Outer Layer), ensuring user is logged in before checking permissions.
         .route_layer(middleware::from_fn_with_state(

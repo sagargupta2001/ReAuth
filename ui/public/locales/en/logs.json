@@ -102,6 +102,17 @@
     "EMPTY": "Select a trace to inspect the waterfall.",
     "NO_SPANS": "No spans recorded yet."
   },
+  "TRACES_CLEANUP": {
+    "TITLE": "Trace cleanup",
+    "DESC": "Remove stored traces to reclaim disk space. Live collection is unaffected.",
+    "CLEAR_ALL": "Clear traces",
+    "CONFIRM_TITLE": "Clear all traces?",
+    "CONFIRM_DESC": "This deletes all stored traces from telemetry storage. This cannot be undone.",
+    "CONFIRM_PLACEHOLDER": "Type CLEAR to confirm",
+    "CONFIRM_HELPER": "Type CLEAR to enable deletion.",
+    "CONFIRM_ACTION": "Clear traces",
+    "CANCEL": "Cancel"
+  },
   "CACHE_MANAGER": {
     "OVERALL_HIT_RATE": "Overall Hit Rate",
     "TOTAL_ITEMS": "Total Cached Items",
