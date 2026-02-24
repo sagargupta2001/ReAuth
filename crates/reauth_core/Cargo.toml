@@ -39,6 +39,7 @@ argon2 = { workspace = true }
 password-hash = { workspace = true }
 rand_core = { workspace = true }
 http = { workspace = true }
+http-body-util = { workspace = true }
 sqlx = { workspace = true }
 tower-http = { workspace = true }
 jsonwebtoken = { workspace = true }

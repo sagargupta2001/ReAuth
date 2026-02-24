@@ -8,6 +8,7 @@ use crate::{
     ports::realm_repository::RealmRepository,
 };
 use async_trait::async_trait;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct SqliteRealmRepository {
@@ -21,6 +22,10 @@ impl SqliteRealmRepository {
 
 #[async_trait]
 impl RealmRepository for SqliteRealmRepository {
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "realms", db_op = "insert")
+    )]
     async fn create<'a>(&self, realm: &Realm, tx: Option<&'a mut dyn Transaction>) -> Result<()> {
         // Build the query object, but DO NOT execute it yet.
         let query = sqlx::query(
@@ -52,6 +57,10 @@ impl RealmRepository for SqliteRealmRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "realms", db_op = "select")
+    )]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<Realm>> {
         Ok(sqlx::query_as("SELECT * FROM realms WHERE id = ?")
             .bind(id.to_string())
@@ -59,6 +68,11 @@ impl RealmRepository for SqliteRealmRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?)
     }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "realms", db_op = "select")
+    )]
     async fn find_by_name(&self, name: &str) -> Result<Option<Realm>> {
         Ok(sqlx::query_as("SELECT * FROM realms WHERE name = ?")
             .bind(name)
@@ -67,6 +81,10 @@ impl RealmRepository for SqliteRealmRepository {
             .map_err(|e| Error::Unexpected(e.into()))?)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "realms", db_op = "select")
+    )]
     async fn list_all(&self) -> Result<Vec<Realm>> {
         Ok(sqlx::query_as("SELECT * FROM realms")
             .fetch_all(&*self.pool)
@@ -74,6 +92,10 @@ impl RealmRepository for SqliteRealmRepository {
             .map_err(|e| Error::Unexpected(e.into()))?)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "realms", db_op = "update")
+    )]
     async fn update<'a>(&self, realm: &Realm, tx: Option<&'a mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
             "UPDATE realms SET
@@ -107,16 +129,23 @@ impl RealmRepository for SqliteRealmRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_flows", db_op = "select")
+    )]
     async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>> {
-        let flows =
-            sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ASC")
-                .bind(realm_id.to_string())
-                .fetch_all(&*self.pool)
-                .await
-                .map_err(|e| Error::Unexpected(e.into()))?;
+        let flows = sqlx::query_as("SELECT * FROM auth_flows WHERE realm_id = ? ORDER BY alias ")
+            .bind(realm_id.to_string())
+            .fetch_all(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(flows)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "realms", db_op = "update")
+    )]
     async fn update_flow_binding<'a>(
         &self,
         realm_id: &Uuid,

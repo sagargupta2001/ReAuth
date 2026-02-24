@@ -1,11 +1,14 @@
+pub mod audit_service;
 pub mod auth_service;
 pub mod flow_engine;
 pub mod flow_executor;
 pub mod flow_manager;
 pub mod flow_service;
+pub mod metrics_service;
 pub mod node_registry;
 pub mod oidc_service;
 pub mod rbac_service;
 pub mod realm_service;
 pub mod runtime_registry;
+pub mod telemetry_service;
 pub mod user_service;

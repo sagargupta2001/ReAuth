@@ -27,6 +27,34 @@ impl CacheService for TestCache {
     async fn clear_user_permissions(&self, user_id: &Uuid) {
         self.inner.lock().unwrap().remove(user_id);
     }
+
+    async fn clear_all(&self) {
+        self.inner.lock().unwrap().clear();
+    }
+
+    async fn clear_namespace(&self, _namespace: &str) {
+        self.inner.lock().unwrap().clear();
+    }
+
+    async fn stats(&self) -> crate::ports::cache_service::CacheStats {
+        let entry_count = self.inner.lock().unwrap().len() as u64;
+        crate::ports::cache_service::CacheStats {
+            namespace: "overall".to_string(),
+            hit_rate: 0.0,
+            entry_count,
+            max_capacity: entry_count,
+        }
+    }
+
+    async fn stats_by_namespace(&self) -> Vec<crate::ports::cache_service::CacheStats> {
+        let entry_count = self.inner.lock().unwrap().len() as u64;
+        vec![crate::ports::cache_service::CacheStats {
+            namespace: "user_permissions".to_string(),
+            hit_rate: 0.0,
+            entry_count,
+            max_capacity: entry_count,
+        }]
+    }
 }
 
 #[derive(Default)]

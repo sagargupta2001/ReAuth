@@ -18,6 +18,7 @@ use crate::{
     },
 };
 use std::{collections::HashSet, sync::Arc};
+use tracing::instrument;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize, Clone, Default)]
@@ -1055,6 +1056,7 @@ impl RbacService {
             .await
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     pub async fn user_has_permission(&self, user_id: &Uuid, permission: &str) -> Result<bool> {
         let perms = self.get_effective_permissions(user_id).await?;
 
@@ -1076,6 +1078,7 @@ impl RbacService {
         Ok(false)
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     pub async fn get_effective_permissions(&self, user_id: &Uuid) -> Result<HashSet<String>> {
         if let Some(permissions) = self.cache.get_user_permissions(user_id).await {
             return Ok(permissions);

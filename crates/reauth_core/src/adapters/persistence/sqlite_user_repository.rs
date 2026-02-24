@@ -7,6 +7,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use sqlx::{QueryBuilder, Sqlite};
+use tracing::instrument;
 use uuid::Uuid;
 
 /// The SQLx "Adapter" for the UserRepository port.
@@ -41,6 +42,10 @@ impl SqliteUserRepository {
 
 #[async_trait]
 impl UserRepository for SqliteUserRepository {
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "select")
+    )]
     async fn find_by_username(&self, realm_id: &Uuid, username: &str) -> Result<Option<User>> {
         let user = sqlx::query_as("SELECT * FROM users WHERE realm_id = ? AND username = ?")
             .bind(realm_id.to_string())
@@ -51,6 +56,10 @@ impl UserRepository for SqliteUserRepository {
         Ok(user)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "select")
+    )]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<User>> {
         let user = sqlx::query_as("SELECT * FROM users WHERE id = ?")
             .bind(id.to_string())
@@ -60,6 +69,10 @@ impl UserRepository for SqliteUserRepository {
         Ok(user)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "insert")
+    )]
     async fn save(&self, user: &User) -> Result<()> {
         sqlx::query(
             "INSERT INTO users (id, realm_id, username, hashed_password) VALUES (?, ?, ?, ?)",
@@ -74,6 +87,10 @@ impl UserRepository for SqliteUserRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "update")
+    )]
     async fn update(&self, user: &User) -> Result<()> {
         sqlx::query("UPDATE users SET username = ?, hashed_password = ? WHERE id = ?")
             .bind(&user.username)
@@ -85,6 +102,10 @@ impl UserRepository for SqliteUserRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "select")
+    )]
     async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<User>> {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;

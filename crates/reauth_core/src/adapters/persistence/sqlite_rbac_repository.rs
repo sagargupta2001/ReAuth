@@ -14,6 +14,7 @@ use crate::{
 use async_trait::async_trait;
 use sqlx::{QueryBuilder, Sqlite};
 use std::collections::HashSet;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct SqliteRbacRepository {
@@ -1686,6 +1687,10 @@ impl RbacRepository for SqliteRbacRepository {
             .collect())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "rbac", db_op = "select")
+    )]
     async fn get_effective_permissions_for_user(&self, user_id: &Uuid) -> Result<HashSet<String>> {
         let user_id_str = user_id.to_string();
 
@@ -1731,6 +1736,10 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(rows.into_iter().map(|(p,)| p).collect())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "rbac", db_op = "select")
+    )]
     async fn find_role_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>> {
         // We reuse the recursive logic or just join tables if composite roles aren't needed in token names
         // Usually, Access Tokens contain *Effective* Roles (flattened).
@@ -1760,6 +1769,10 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(rows.into_iter().map(|(n,)| n).collect())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "rbac", db_op = "select")
+    )]
     async fn find_group_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>> {
         let rows: Vec<(String,)> = sqlx::query_as(
             r#"

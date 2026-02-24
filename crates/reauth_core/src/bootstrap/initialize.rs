@@ -1,5 +1,10 @@
 use crate::adapters::logging::banner::print_banner;
+use crate::adapters::observability::sqlite_telemetry_repository::SqliteTelemetryRepository;
+use crate::adapters::observability::telemetry_store::init_telemetry_db;
+use crate::adapters::observability::telemetry_writer::TelemetryWriter;
 use crate::adapters::persistence::transaction::SqliteTransactionManager;
+use crate::application::metrics_service::MetricsService;
+use crate::application::telemetry_service::TelemetryService;
 use crate::bootstrap::database::{initialize_database, run_migrations_and_seed};
 use crate::bootstrap::events::subscribe_event_listeners;
 use crate::bootstrap::infrastructure::initialize_core_infra;
@@ -10,6 +15,7 @@ use crate::bootstrap::services::initialize_services;
 use crate::config::Settings;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::AppState;
+use chrono::{Duration, Utc};
 use notify::{RecursiveMode, Watcher};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -20,6 +26,7 @@ struct InitializeOptions {
     print_banner: bool,
     log_summary: bool,
     watch_config: bool,
+    enable_telemetry_cleanup: bool,
 }
 
 pub async fn initialize() -> anyhow::Result<AppState> {
@@ -30,6 +37,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
             print_banner: true,
             log_summary: true,
             watch_config: true,
+            enable_telemetry_cleanup: true,
         },
     )
     .await
@@ -43,6 +51,7 @@ pub async fn initialize_for_tests() -> anyhow::Result<AppState> {
             print_banner: false,
             log_summary: false,
             watch_config: false,
+            enable_telemetry_cleanup: false,
         },
     )
     .await
@@ -62,6 +71,11 @@ async fn initialize_with_settings(
     }
 
     let plugins_path = determine_plugins_path()?;
+    let telemetry_db = init_telemetry_db(&settings.observability.telemetry_db_path).await?;
+    let telemetry_repo = Arc::new(SqliteTelemetryRepository::new(telemetry_db));
+    let telemetry_service = Arc::new(TelemetryService::new(telemetry_repo.clone()));
+    TelemetryWriter::new(telemetry_repo).spawn(log_bus.clone());
+    let metrics_service = Arc::new(MetricsService::new());
     let db_pool = initialize_database(&settings).await?;
     let repos = initialize_repositories(&db_pool);
 
@@ -106,6 +120,9 @@ async fn initialize_with_settings(
     if options.watch_config {
         spawn_config_watcher(settings_shared.clone());
     }
+    if options.enable_telemetry_cleanup {
+        spawn_telemetry_cleanup(settings_shared.clone(), telemetry_service.clone());
+    }
 
     Ok(AppState {
         settings: settings_shared,
@@ -114,8 +131,12 @@ async fn initialize_with_settings(
         user_service: services.user_service,
         rbac_service: services.rbac_service,
         auth_service: services.auth_service,
+        audit_service: services.audit_service,
+        telemetry_service,
+        metrics_service,
         realm_service: services.realm_service,
         log_subscriber: log_bus,
+        cache_service: cache_service.clone(),
         auth_session_repo: repos.auth_session_repo,
         flow_store: repos.flow_store,
         // flow_engine has been removed
@@ -222,6 +243,64 @@ fn spawn_config_watcher(settings: Arc<RwLock<Settings>>) {
             }
         }
     });
+}
+
+fn spawn_telemetry_cleanup(
+    settings: Arc<RwLock<Settings>>,
+    telemetry_service: Arc<TelemetryService>,
+) {
+    tokio::spawn(async move {
+        let interval_secs = { settings.read().await.observability.cleanup_interval_secs };
+        if interval_secs == 0 {
+            info!("Telemetry cleanup disabled (cleanup_interval_secs=0).");
+            return;
+        }
+
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+        loop {
+            interval.tick().await;
+
+            let (log_days, trace_days) = {
+                let current = settings.read().await;
+                (
+                    current.observability.log_retention_days,
+                    current.observability.trace_retention_days,
+                )
+            };
+
+            if log_days <= 0 && trace_days <= 0 {
+                continue;
+            }
+
+            let log_before = retention_cutoff(log_days);
+            let trace_before = retention_cutoff(trace_days);
+
+            if let Some(before) = log_before.as_deref() {
+                if let Ok(deleted) = telemetry_service.clear_logs(Some(before)).await {
+                    info!(
+                        "Telemetry cleanup removed {} logs (before {}).",
+                        deleted, before
+                    );
+                }
+            }
+
+            if let Some(before) = trace_before.as_deref() {
+                if let Ok(deleted) = telemetry_service.clear_traces(Some(before)).await {
+                    info!(
+                        "Telemetry cleanup removed {} traces (before {}).",
+                        deleted, before
+                    );
+                }
+            }
+        }
+    });
+}
+
+fn retention_cutoff(days: i64) -> Option<String> {
+    if days <= 0 {
+        return None;
+    }
+    Some((Utc::now() - Duration::days(days)).to_rfc3339())
 }
 
 pub(crate) async fn apply_settings_update(

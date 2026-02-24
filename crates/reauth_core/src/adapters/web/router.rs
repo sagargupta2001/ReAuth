@@ -1,9 +1,9 @@
 use super::{
-    auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
-    log_stream_handler, oidc_handler, plugin_handler, rbac_handler, realm_handler,
-    server::ui_handler, session_handler, user_handler,
+    audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
+    log_stream_handler, observability_handler, oidc_handler, plugin_handler, rbac_handler,
+    realm_handler, server::ui_handler, session_handler, user_handler,
 };
-use crate::adapters::web::middleware::{cors_middleware, permission_guard};
+use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
 use crate::AppState;
 use axum::routing::{delete, get_service, put};
@@ -13,7 +13,7 @@ use axum::{
     Router,
 };
 use std::path::PathBuf;
-use tower_http::{services::ServeDir, trace::TraceLayer};
+use tower_http::services::ServeDir;
 
 pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     // 1. Public Routes
@@ -34,6 +34,7 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .nest("/realms", realm_routes(app_state.clone()))
         .nest("/realms/{realm}/clients", client_routes(app_state.clone()))
         .nest("/realms/{realm}/rbac", rbac_routes(app_state.clone()))
+        .nest("/realms/{realm}/audits", audit_routes(app_state.clone()))
         .nest(
             "/realms/{realm}/users",
             protected_user_routes(app_state.clone()),
@@ -46,17 +47,34 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
             auth_middleware::auth_guard,
         ));
 
-    let api_router = Router::new().merge(public_api).merge(protected_api);
+    let api_router = Router::new()
+        .merge(public_api)
+        .merge(protected_api)
+        .route_layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            request_logging::log_api_request,
+        ));
+
+    let system_api = Router::new()
+        .nest("/observability", observability_routes(app_state.clone()))
+        .route_layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            auth_middleware::auth_guard,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            request_logging::log_api_request,
+        ));
 
     Router::new()
         .nest("/api", api_router)
+        .nest("/api/system", system_api)
         .nest_service("/plugins", get_service(ServeDir::new(plugins_path)))
         .fallback(ui_handler::static_handler)
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
             cors_middleware::dynamic_cors_guard,
         ))
-        .layer(TraceLayer::new_for_http())
         .with_state(app_state)
 }
 
@@ -281,6 +299,50 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             state,
             move |state, req, next| {
                 permission_guard::require_permission(state, req, next, permissions::RBAC_WRITE)
+            },
+        ))
+}
+
+fn audit_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        .route("/", get(audit_handler::list_audit_events_handler))
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::EVENT_READ)
+            },
+        ))
+}
+
+fn observability_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        .route("/logs", get(observability_handler::list_logs_handler))
+        .route(
+            "/logs/clear",
+            post(observability_handler::clear_logs_handler),
+        )
+        .route("/traces", get(observability_handler::list_traces_handler))
+        .route(
+            "/traces/clear",
+            post(observability_handler::clear_traces_handler),
+        )
+        .route(
+            "/traces/{trace_id}",
+            get(observability_handler::list_trace_spans_handler),
+        )
+        .route("/metrics", get(observability_handler::metrics_handler))
+        .route(
+            "/cache/stats",
+            get(observability_handler::cache_stats_handler),
+        )
+        .route(
+            "/cache/flush",
+            post(observability_handler::cache_flush_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::EVENT_READ)
             },
         ))
 }

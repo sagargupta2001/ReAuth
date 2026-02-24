@@ -4,10 +4,14 @@ use axum::{
     extract::State,
     http::{Request, StatusCode},
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
+    Json,
 };
+use serde_json::json;
+use tracing::instrument;
 use uuid::Uuid;
 
+#[instrument(skip_all, fields(telemetry = "span"))]
 pub async fn require_permission(
     State(state): State<AppState>,
     req: Request<Body>,
@@ -19,10 +23,14 @@ pub async fn require_permission(
     let user_id = match req.extensions().get::<Uuid>() {
         Some(id) => *id,
         None => {
-            return Response::builder()
-                .status(StatusCode::UNAUTHORIZED)
-                .body(Body::empty())
-                .unwrap()
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({
+                    "error": "Missing Authentication Token",
+                    "code": "auth.missing_token"
+                })),
+            )
+                .into_response()
         }
     };
 
@@ -33,9 +41,13 @@ pub async fn require_permission(
         .await
     {
         Ok(true) => next.run(req).await,
-        _ => Response::builder()
-            .status(StatusCode::FORBIDDEN)
-            .body(Body::from("Insufficient Permissions"))
-            .unwrap(),
+        _ => (
+            StatusCode::FORBIDDEN,
+            Json(json!({
+                "error": "Insufficient Permissions",
+                "code": "rbac.insufficient_permissions"
+            })),
+        )
+            .into_response(),
     }
 }

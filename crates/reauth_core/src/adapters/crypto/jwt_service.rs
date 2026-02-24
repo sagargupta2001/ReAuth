@@ -17,6 +17,7 @@ use rsa::traits::PublicKeyParts;
 use rsa::RsaPublicKey;
 use serde_json::json;
 use std::collections::HashSet;
+use tracing::instrument;
 use uuid::Uuid;
 
 pub struct JwtService {
@@ -51,6 +52,7 @@ impl JwtService {
 
 #[async_trait]
 impl TokenService for JwtService {
+    #[instrument(skip_all, fields(telemetry = "span"))]
     async fn create_access_token(
         &self,
         user: &User,
@@ -83,6 +85,7 @@ impl TokenService for JwtService {
         )
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     async fn create_id_token(
         &self,
         user: &User,
@@ -111,6 +114,7 @@ impl TokenService for JwtService {
         )
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     async fn validate_access_token(&self, token: &str) -> Result<AccessTokenClaims> {
         let validation = Validation::new(Algorithm::RS256);
 

@@ -13,6 +13,7 @@ use crate::{
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::instrument;
 use uuid::Uuid;
 
 #[derive(Deserialize)]
@@ -56,6 +57,7 @@ impl AuthService {
         }
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     pub async fn create_session(
         &self,
         user: &User,
@@ -122,6 +124,7 @@ impl AuthService {
 
     /// Validates an roles token and returns the full User.
     /// This is the core "use case" for the auth middleware.
+    #[instrument(skip_all, fields(telemetry = "span"))]
     pub async fn validate_token_and_get_user(&self, token: &str) -> Result<User> {
         // 1. Validate the JWT
         let claims: AccessTokenClaims = self.token_service.validate_access_token(token).await?;
@@ -143,6 +146,7 @@ impl AuthService {
         Ok(user)
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     pub async fn refresh_session(
         &self,
         refresh_token_id: Uuid,

@@ -10,6 +10,7 @@ use crate::{
 use async_trait::async_trait;
 use chrono::Utc;
 use sqlx::{QueryBuilder, Sqlite};
+use tracing::instrument;
 use uuid::Uuid;
 
 #[derive(sqlx::FromRow)]
@@ -52,6 +53,10 @@ impl SqliteFlowStore {
 impl FlowStore for SqliteFlowStore {
     // --- DRAFTS ---
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "insert")
+    )]
     async fn create_draft(&self, draft: &FlowDraft) -> Result<()> {
         sqlx::query(
             "INSERT INTO flow_drafts (id, realm_id, name, description, graph_json, flow_type, created_at, updated_at)
@@ -71,6 +76,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "insert")
+    )]
     async fn create_draft_with_tx(
         &self,
         draft: &FlowDraft,
@@ -99,6 +108,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "update")
+    )]
     async fn update_draft(&self, draft: &FlowDraft) -> Result<()> {
         sqlx::query(
             "UPDATE flow_drafts SET name = ?, description = ?, graph_json = ?, updated_at = ? WHERE id = ?"
@@ -114,6 +127,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "update")
+    )]
     async fn update_draft_with_tx(
         &self,
         draft: &FlowDraft,
@@ -138,6 +155,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "select")
+    )]
     async fn get_draft_by_id(&self, id: &Uuid) -> Result<Option<FlowDraft>> {
         let draft = sqlx::query_as("SELECT * FROM flow_drafts WHERE id = ?")
             .bind(id.to_string())
@@ -147,6 +168,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(draft)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "select")
+    )]
     async fn list_drafts(
         &self,
         realm_id: &Uuid,
@@ -196,6 +221,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(PageResponse::new(drafts, total, req.page, limit))
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "select")
+    )]
     async fn list_all_drafts(&self, realm_id: &Uuid) -> Result<Vec<FlowDraft>> {
         let drafts =
             sqlx::query_as("SELECT * FROM flow_drafts WHERE realm_id = ? ORDER BY created_at DESC")
@@ -207,6 +236,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(drafts)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "delete")
+    )]
     async fn delete_draft(&self, id: &Uuid) -> Result<()> {
         sqlx::query("DELETE FROM flow_drafts WHERE id = ?")
             .bind(id.to_string())
@@ -216,6 +249,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "delete")
+    )]
     async fn delete_draft_with_tx(
         &self,
         id: &Uuid,
@@ -235,6 +272,10 @@ impl FlowStore for SqliteFlowStore {
 
     // --- VERSIONS ---
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_versions", db_op = "insert")
+    )]
     async fn create_version(&self, version: &FlowVersion) -> Result<()> {
         sqlx::query(
             "INSERT INTO flow_versions (id, flow_id, version_number, execution_artifact, graph_json, checksum, created_at)
@@ -253,6 +294,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_versions", db_op = "insert")
+    )]
     async fn create_version_with_tx(
         &self,
         version: &FlowVersion,
@@ -280,6 +325,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_versions", db_op = "select")
+    )]
     async fn get_version(&self, id: &Uuid) -> Result<Option<FlowVersion>> {
         let version = sqlx::query_as("SELECT * FROM flow_versions WHERE id = ?")
             .bind(id.to_string())
@@ -289,6 +338,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(version)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_versions", db_op = "select")
+    )]
     async fn list_versions(
         &self,
         flow_id: &Uuid,
@@ -343,6 +396,10 @@ impl FlowStore for SqliteFlowStore {
 
     // --- DEPLOYMENTS ---
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_deployments", db_op = "upsert")
+    )]
     async fn set_deployment(&self, deployment: &FlowDeployment) -> Result<()> {
         // Upsert logic: If a deployment for this realm+type exists, update it. If not, insert it.
         sqlx::query(
@@ -363,6 +420,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_deployments", db_op = "upsert")
+    )]
     async fn set_deployment_with_tx(
         &self,
         deployment: &FlowDeployment,
@@ -391,6 +452,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_deployments", db_op = "select")
+    )]
     async fn get_deployment(
         &self,
         realm_id: &Uuid,
@@ -406,6 +471,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(dep)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_versions", db_op = "select")
+    )]
     async fn get_latest_version_number(&self, flow_id: &Uuid) -> Result<Option<i32>> {
         // We use query_scalar to get a single value
         let result: Option<i32> =
@@ -418,6 +487,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(result)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_versions", db_op = "select")
+    )]
     async fn get_latest_version(&self, flow_id: &Uuid) -> Result<Option<FlowVersion>> {
         sqlx::query_as(
             "SELECT * FROM flow_versions WHERE flow_id = ? ORDER BY version_number DESC LIMIT 1",
@@ -428,6 +501,10 @@ impl FlowStore for SqliteFlowStore {
         .map_err(|e| Error::Unexpected(e.into()))
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_deployments", db_op = "select")
+    )]
     async fn get_deployed_version_number(
         &self,
         realm_id: &Uuid,
@@ -454,6 +531,10 @@ impl FlowStore for SqliteFlowStore {
         Ok(version_number)
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_versions", db_op = "select")
+    )]
     async fn get_version_by_number(
         &self,
         flow_id: &Uuid,
@@ -467,6 +548,10 @@ impl FlowStore for SqliteFlowStore {
             .map_err(|e| Error::Unexpected(e.into()))
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_versions", db_op = "select")
+    )]
     async fn get_active_version(&self, flow_id: &Uuid) -> Result<Option<FlowVersion>> {
         // We need to find if ANY deployment points to a version that belongs to this flow_id.
         // Schema: flow_versions (v) <--- flow_deployments (d)

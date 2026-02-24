@@ -28,6 +28,26 @@ pub struct LoggingConfig {
     pub level: String,
     #[serde(default)]
     pub filter: String,
+    #[serde(default)]
+    pub show_target: bool,
+    #[serde(default)]
+    pub show_span_context: bool,
+    #[serde(default)]
+    pub show_span_list: bool,
+    #[serde(default)]
+    pub json: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ObservabilityConfig {
+    #[serde(default)]
+    pub telemetry_db_path: String,
+    #[serde(default = "default_log_retention_days")]
+    pub log_retention_days: i64,
+    #[serde(default = "default_trace_retention_days")]
+    pub trace_retention_days: i64,
+    #[serde(default = "default_cleanup_interval_secs")]
+    pub cleanup_interval_secs: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -79,6 +99,8 @@ pub struct Settings {
     pub server: Server,
     pub ui: Ui,
     pub logging: LoggingConfig,
+    #[serde(default)]
+    pub observability: ObservabilityConfig,
     #[serde(default)]
     pub cors: CorsConfig,
     pub plugins: PluginsConfig,
@@ -150,6 +172,7 @@ impl Settings {
         }
 
         self.apply_database_defaults();
+        self.apply_observability_defaults();
     }
 
     fn apply_database_defaults(&mut self) {
@@ -161,6 +184,22 @@ impl Settings {
                 self.database.url = format!("sqlite:{}", db_path.to_string_lossy());
             }
         }
+    }
+
+    fn apply_observability_defaults(&mut self) {
+        if !self.observability.telemetry_db_path.trim().is_empty() {
+            return;
+        }
+
+        let data_dir = self.database.data_dir.trim();
+        let base_dir = if data_dir.is_empty() {
+            "./data"
+        } else {
+            data_dir
+        };
+
+        let path = Path::new(base_dir).join("reauth_telemetry.db");
+        self.observability.telemetry_db_path = path.to_string_lossy().to_string();
     }
 
     fn validate(&self) -> Result<(), config::ConfigError> {
@@ -257,6 +296,18 @@ impl Settings {
         normalize_list(&mut self.default_oidc_client.redirect_uris);
         normalize_list(&mut self.default_oidc_client.web_origins);
     }
+}
+
+fn default_log_retention_days() -> i64 {
+    7
+}
+
+fn default_trace_retention_days() -> i64 {
+    7
+}
+
+fn default_cleanup_interval_secs() -> u64 {
+    3600
 }
 
 fn default_data_dir() -> String {

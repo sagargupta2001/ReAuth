@@ -4,7 +4,7 @@ use crate::error::{Error, Result};
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use async_trait::async_trait;
 use chrono::Utc;
-use tracing::error;
+use tracing::{error, instrument};
 use uuid::Uuid;
 
 pub struct SqliteAuthSessionRepository {
@@ -19,6 +19,10 @@ impl SqliteAuthSessionRepository {
 
 #[async_trait]
 impl AuthSessionRepository for SqliteAuthSessionRepository {
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_sessions", db_op = "insert")
+    )]
     async fn create(&self, session: &AuthenticationSession) -> Result<()> {
         sqlx::query(
             "INSERT INTO auth_sessions (
@@ -40,6 +44,10 @@ impl AuthSessionRepository for SqliteAuthSessionRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_sessions", db_op = "select")
+    )]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<AuthenticationSession>> {
         // 1. Query into the intermediary Row struct
         let row = sqlx::query_as::<_, AuthSessionRow>("SELECT * FROM auth_sessions WHERE id = ?")
@@ -93,6 +101,10 @@ impl AuthSessionRepository for SqliteAuthSessionRepository {
         }
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_sessions", db_op = "update")
+    )]
     async fn update(&self, session: &AuthenticationSession) -> Result<()> {
         let query = "
             UPDATE auth_sessions
@@ -125,6 +137,10 @@ impl AuthSessionRepository for SqliteAuthSessionRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_sessions", db_op = "delete")
+    )]
     async fn delete(&self, id: &Uuid) -> Result<()> {
         sqlx::query("DELETE FROM auth_sessions WHERE id = ?")
             .bind(id.to_string())

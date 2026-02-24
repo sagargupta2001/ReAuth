@@ -9,6 +9,7 @@ use crate::domain::execution::{ExecutionPlan, ExecutionResult, StepType};
 use crate::error::{Error, Result};
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
+use tracing::{info_span, instrument, Instrument};
 
 pub struct FlowExecutor {
     session_repo: Arc<dyn AuthSessionRepository>,
@@ -29,6 +30,7 @@ impl FlowExecutor {
         }
     }
 
+    #[instrument(skip_all, fields(telemetry = "span"))]
     pub async fn execute(
         &self,
         session_id: Uuid,
@@ -72,7 +74,21 @@ impl FlowExecutor {
                     .get_node(worker_key)
                     .ok_or(Error::System(format!("Worker not found: {}", worker_key)))?;
 
-                match worker.handle_input(&mut session, input).await? {
+                let node_id = session.current_node_id.clone();
+                let step_type = format!("{:?}", current_node_def.step_type);
+                let handle_span = info_span!(
+                    "flow.node.handle_input",
+                    telemetry = "span",
+                    node_id = %node_id,
+                    step_type = %step_type,
+                    worker = %worker_key
+                );
+
+                match worker
+                    .handle_input(&mut session, input)
+                    .instrument(handle_span)
+                    .await?
+                {
                     NodeOutcome::Continue { output } => {
                         // If DB is missing the link, we force it for the password node
                         let forced_next =
@@ -94,13 +110,27 @@ impl FlowExecutor {
                             })?;
                         // ------------------------------------
 
-                        worker.on_exit(&mut session).await?;
+                        let exit_span = info_span!(
+                            "flow.node.on_exit",
+                            telemetry = "span",
+                            node_id = %node_id,
+                            step_type = %step_type,
+                            worker = %worker_key
+                        );
+                        worker.on_exit(&mut session).instrument(exit_span).await?;
                         session.current_node_id = next_id.clone();
                     }
                     NodeOutcome::Reject { .. } => {
                         self.session_repo.update(&session).await?;
 
-                        let ui_outcome = worker.execute(&mut session).await?;
+                        let exec_span = info_span!(
+                            "flow.node.execute",
+                            telemetry = "span",
+                            node_id = %node_id,
+                            step_type = %step_type,
+                            worker = %worker_key
+                        );
+                        let ui_outcome = worker.execute(&mut session).instrument(exec_span).await?;
                         if let NodeOutcome::SuspendForUI { screen, context } = ui_outcome {
                             return Ok(ExecutionResult::Challenge {
                                 screen_id: screen,
@@ -121,6 +151,9 @@ impl FlowExecutor {
                 .get(&session.current_node_id)
                 .ok_or(Error::System("Node missing from graph".into()))?;
 
+            let node_id = session.current_node_id.clone();
+            let step_type = format!("{:?}", node_def.step_type);
+
             let worker = if node_def.step_type == StepType::Authenticator {
                 let key = node_def
                     .config
@@ -133,8 +166,20 @@ impl FlowExecutor {
             };
 
             if let Some(worker) = worker {
-                worker.on_enter(&mut session).await?;
-                let outcome = worker.execute(&mut session).await?;
+                let enter_span = info_span!(
+                    "flow.node.on_enter",
+                    telemetry = "span",
+                    node_id = %node_id,
+                    step_type = %step_type
+                );
+                worker.on_enter(&mut session).instrument(enter_span).await?;
+                let exec_span = info_span!(
+                    "flow.node.execute",
+                    telemetry = "span",
+                    node_id = %node_id,
+                    step_type = %step_type
+                );
+                let outcome = worker.execute(&mut session).instrument(exec_span).await?;
 
                 match outcome {
                     NodeOutcome::Continue { output } => {
@@ -149,7 +194,13 @@ impl FlowExecutor {
                                 session.current_node_id, output, available_keys
                             )))?;
 
-                        worker.on_exit(&mut session).await?;
+                        let exit_span = info_span!(
+                            "flow.node.on_exit",
+                            telemetry = "span",
+                            node_id = %node_id,
+                            step_type = %step_type
+                        );
+                        worker.on_exit(&mut session).instrument(exit_span).await?;
                         session.current_node_id = next_id.clone();
                     }
                     NodeOutcome::SuspendForUI { screen, context } => {
@@ -176,6 +227,13 @@ impl FlowExecutor {
             } else {
                 match node_def.step_type {
                     StepType::Logic => {
+                        let logic_span = info_span!(
+                            "flow.node.logic",
+                            telemetry = "span",
+                            node_id = %node_id,
+                            step_type = %step_type
+                        );
+                        let _guard = logic_span.enter();
                         let next_id = node_def
                             .next
                             .values()
@@ -184,6 +242,13 @@ impl FlowExecutor {
                         session.current_node_id = next_id.clone();
                     }
                     StepType::Terminal => {
+                        let terminal_span = info_span!(
+                            "flow.node.terminal",
+                            telemetry = "span",
+                            node_id = %node_id,
+                            step_type = %step_type
+                        );
+                        let _guard = terminal_span.enter();
                         let is_failure = node_def
                             .config
                             .get("is_failure")

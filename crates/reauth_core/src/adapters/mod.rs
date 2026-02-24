@@ -3,6 +3,7 @@ pub mod cache;
 pub mod crypto;
 pub mod eventing;
 pub mod logging;
+pub mod observability;
 pub mod persistence;
 pub mod plugin_gateway;
 pub mod web;

@@ -1,3 +1,4 @@
+pub mod audit_repository;
 pub mod auth_session_repository;
 pub mod cache_service;
 pub mod event_bus;
@@ -7,6 +8,7 @@ pub mod oidc_repository;
 pub mod rbac_repository;
 pub mod realm_repository;
 pub mod session_repository;
+pub mod telemetry_repository;
 pub mod token_service;
 pub mod transaction_manager;
 pub mod user_repository;

@@ -1,4 +1,5 @@
 use crate::adapters::auth::register_builtins;
+use crate::application::audit_service::AuditService;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
@@ -26,6 +27,7 @@ pub struct Services {
     pub rbac_service: Arc<RbacService>,
     pub realm_service: Arc<RealmService>,
     pub auth_service: Arc<AuthService>,
+    pub audit_service: Arc<AuditService>,
     // Removed Legacy FlowEngine
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
@@ -44,6 +46,7 @@ pub fn initialize_services(
 ) -> Services {
     // 1. Foundation Services
     let user_service = Arc::new(UserService::new(repos.user_repo.clone(), event_bus.clone()));
+    let audit_service = Arc::new(AuditService::new(repos.audit_repo.clone()));
     let rbac_service = Arc::new(RbacService::new(
         repos.rbac_repo.clone(),
         cache.clone(),
@@ -112,6 +115,7 @@ pub fn initialize_services(
         rbac_service,
         realm_service,
         auth_service,
+        audit_service,
         oidc_service,
         flow_service,
         flow_manager,

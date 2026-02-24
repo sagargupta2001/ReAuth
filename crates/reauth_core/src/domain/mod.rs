@@ -1,3 +1,4 @@
+pub mod audit;
 pub mod auth_flow;
 pub mod auth_session;
 pub mod compiler;
@@ -13,4 +14,5 @@ pub mod rbac;
 pub mod realm;
 pub mod role;
 pub mod session;
+pub mod telemetry;
 pub mod user;

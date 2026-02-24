@@ -1,17 +1,16 @@
-import {
-  AppWindow,
-  Group,
-  KeyRound,
-  LayoutDashboard,
-  LucideClockFading,
-  Package,
-  ScrollText,
-  Settings,
-  Users,
-  Workflow,
-} from 'lucide-react'
+import { AppWindow, Group, KeyRound, LayoutDashboard, LucideClockFading, Package, ScrollText, Settings, Users, Workflow } from 'lucide-react';
 
-import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
+
+
+import type { SidebarData } from '@/widgets/Sidebar/model/types.ts';
+
+
+
+
+
+
+
+
 
 export const sidebarData: SidebarData = {
   user: {
@@ -52,7 +51,7 @@ export const sidebarData: SidebarData = {
       icon: Package,
     },
     {
-      title: 'Logs',
+      title: 'Observability',
       url: '/logs',
       icon: ScrollText,
     },
