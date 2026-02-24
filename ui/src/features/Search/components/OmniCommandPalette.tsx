@@ -22,6 +22,16 @@ import { useOmniSearch } from '@/features/Search/api/useOmniSearch'
 import { CommandEntityRow } from '@/features/Search/components/CommandEntityRow'
 import { CommandSettingRow } from '@/features/Search/components/CommandSettingRow'
 import { PaletteInspector } from '@/features/Search/components/PaletteInspector'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/alert-dialog'
 import { useOmniStaticItems } from '@/features/Search/model/useOmniStaticItems'
 import { useSearch } from '@/features/Search/model/searchContext'
 import type { OmniInspectorItem, OmniStaticItem } from '@/features/Search/model/omniTypes'
@@ -31,6 +41,8 @@ import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { apiClient } from '@/shared/api/client'
+import { Button } from '@/components/button'
+import { Input } from '@/components/input'
 import type { User } from '@/entities/user/model/types'
 import type { OidcClient } from '@/entities/oidc/model/types'
 import type { Role } from '@/features/roles/api/useRoles'
@@ -51,6 +63,30 @@ type StaticEntry = {
   inspector: OmniInspectorItem
 }
 
+type DangerActionConfig = {
+  actionId: string
+  confirmText: string
+  description: string
+}
+
+const dangerActionConfig: DangerActionConfig[] = [
+  {
+    actionId: 'observability.clear-logs',
+    confirmText: 'CLEAR',
+    description: 'This deletes all stored logs from telemetry storage.',
+  },
+  {
+    actionId: 'observability.clear-traces',
+    confirmText: 'CLEAR',
+    description: 'This deletes all stored traces from telemetry storage.',
+  },
+  {
+    actionId: 'observability.flush-cache',
+    confirmText: 'CONFIRM',
+    description: 'This flushes every cache namespace.',
+  },
+]
+
 function groupByGroup(items: StaticEntry[]) {
   return items.reduce((acc, item) => {
     acc[item.item.group] ||= []
@@ -69,12 +105,25 @@ export function OmniCommandPalette() {
   const [query, setQuery] = React.useState('')
   const [activeItem, setActiveItem] = React.useState<OmniInspectorItem | null>(null)
   const [selectedValue, setSelectedValue] = React.useState('')
+  const [dangerInput, setDangerInput] = React.useState('')
+  const [dangerAction, setDangerAction] = React.useState<{
+    actionId: string
+    label: string
+    confirmText: string
+    description: string
+    href?: string
+    hash?: string
+  } | null>(null)
   const { recordSelection, recencyMap } = useRecentOmniItems()
   const registrationFlowIdRef = React.useRef<string | null>(null)
   const queryClient = useQueryClient()
   const inspectorDescriptionId = 'omni-inspector-description'
   const resultsId = 'omni-results'
   const inspectorId = 'omni-inspector'
+  const dangerConfigMap = React.useMemo(
+    () => new Map(dangerActionConfig.map((config) => [config.actionId, config])),
+    [],
+  )
 
   const debouncedQuery = useDebouncedValue(query, 300)
   const staticItems = useOmniStaticItems()
@@ -131,7 +180,7 @@ export function OmniCommandPalette() {
 
   const registrationEnabled = Boolean(realmData?.registration_flow_id)
 
-  const handleAction = React.useCallback(
+  const executeAction = React.useCallback(
     (actionId?: string) => {
       if (!actionId) return
       if (actionId === 'theme.light') setTheme('light')
@@ -204,6 +253,8 @@ export function OmniCommandPalette() {
     if (!open) {
       setQuery('')
       setActiveItem(null)
+      setDangerAction(null)
+      setDangerInput('')
     }
   }, [open])
 
@@ -551,7 +602,24 @@ export function OmniCommandPalette() {
                                     onSelect={() => {
                                       recordSelection(item.id)
                                       if (item.kind === 'link') handleNavigate(item.href, item.hash)
-                                      if (item.kind === 'action') runCommand(() => handleAction(item.actionId))
+                                      if (item.kind === 'action') {
+                                        const config = item.actionId
+                                          ? dangerConfigMap.get(item.actionId)
+                                          : undefined
+                                        if (config && item.actionId) {
+                                          setDangerAction({
+                                            actionId: item.actionId,
+                                            label: item.label,
+                                            confirmText: config.confirmText,
+                                            description: config.description,
+                                            href: item.href,
+                                            hash: item.hash,
+                                          })
+                                          setDangerInput('')
+                                          return
+                                        }
+                                        runCommand(() => executeAction(item.actionId))
+                                      }
                                     }}
                                     onFocus={() => setActiveItem(entry.inspector)}
                                     onMouseEnter={() => setActiveItem(entry.inspector)}
@@ -765,6 +833,64 @@ export function OmniCommandPalette() {
               </div>
             </div>
           </Command>
+          <AlertDialog
+            open={Boolean(dangerAction)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setDangerAction(null)
+                setDangerInput('')
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {dangerAction ? `Confirm ${dangerAction.label}?` : 'Confirm action'}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {dangerAction?.description || 'This action cannot be undone.'}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2">
+                <Input
+                  placeholder={`Type ${dangerAction?.confirmText ?? ''} to confirm`}
+                  value={dangerInput}
+                  onChange={(event) => setDangerInput(event.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {dangerAction?.confirmText
+                    ? `Type ${dangerAction.confirmText} to enable this action.`
+                    : 'Type the confirmation text to enable this action.'}
+                </p>
+              </div>
+              <AlertDialogFooter className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                {dangerAction?.href && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleNavigate(dangerAction.href, dangerAction.hash)}
+                  >
+                    Open in Observability
+                  </Button>
+                )}
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => {
+                    executeAction(dangerAction?.actionId)
+                    setDangerAction(null)
+                    setDangerInput('')
+                    setOpen(false)
+                  }}
+                  disabled={
+                    !dangerAction ||
+                    dangerInput.trim() !== dangerAction.confirmText
+                  }
+                >
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>

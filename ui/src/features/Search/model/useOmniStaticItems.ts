@@ -184,6 +184,8 @@ export function useOmniStaticItems() {
         kind: 'action',
         icon: Trash2,
         actionId: 'observability.clear-logs',
+        href: `/${realm}/logs`,
+        hash: 'logs-danger-zone',
         keywords: ['danger', 'logs', 'clear'],
       },
       {
@@ -194,6 +196,8 @@ export function useOmniStaticItems() {
         kind: 'action',
         icon: Trash2,
         actionId: 'observability.clear-traces',
+        href: `/${realm}/logs?tab=traces`,
+        hash: 'traces-danger-zone',
         keywords: ['danger', 'traces', 'clear'],
       },
       {
@@ -204,6 +208,8 @@ export function useOmniStaticItems() {
         kind: 'action',
         icon: Database,
         actionId: 'observability.flush-cache',
+        href: `/${realm}/logs?tab=cache`,
+        hash: 'cache-danger-zone',
         keywords: ['danger', 'cache', 'flush'],
       },
     )

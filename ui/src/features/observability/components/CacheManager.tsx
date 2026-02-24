@@ -149,7 +149,10 @@ export function CacheManager() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-destructive/50 bg-destructive/10 p-4">
+      <div
+        id="cache-danger-zone"
+        className="rounded-xl border border-destructive/50 bg-destructive/10 p-4"
+      >
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-full bg-destructive/20 p-2 text-destructive">
