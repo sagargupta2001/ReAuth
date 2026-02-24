@@ -37,12 +37,18 @@ import type { Role } from '@/features/roles/api/useRoles'
 
 const groupOrder = ['Suggested Actions', 'Settings', 'Navigation'] as const
 
-function groupByGroup(items: OmniStaticItem[]) {
+type StaticEntry = {
+  item: OmniStaticItem
+  value: string
+  inspector: OmniInspectorItem
+}
+
+function groupByGroup(items: StaticEntry[]) {
   return items.reduce((acc, item) => {
-    acc[item.group] ||= []
-    acc[item.group].push(item)
+    acc[item.item.group] ||= []
+    acc[item.item.group].push(item)
     return acc
-  }, {} as Record<string, OmniStaticItem[]>)
+  }, {} as Record<string, StaticEntry[]>)
 }
 
 export function OmniCommandPalette() {
@@ -54,6 +60,7 @@ export function OmniCommandPalette() {
   const updateRealm = useUpdateRealmOptimistic(realmData?.id || '', realmData?.name || '')
   const [query, setQuery] = React.useState('')
   const [activeItem, setActiveItem] = React.useState<OmniInspectorItem | null>(null)
+  const [selectedValue, setSelectedValue] = React.useState('')
   const { recordSelection, recencyMap } = useRecentOmniItems()
   const registrationFlowIdRef = React.useRef<string | null>(null)
   const queryClient = useQueryClient()
@@ -74,7 +81,32 @@ export function OmniCommandPalette() {
     )
   }, [staticItems, query, recencyMap])
 
-  const staticGroups = React.useMemo(() => groupByGroup(filteredStatic), [filteredStatic])
+  const staticEntries = React.useMemo<StaticEntry[]>(() => {
+    return filteredStatic.map((item) => {
+      const value = `static:${item.id}`
+      const inspector: OmniInspectorItem =
+        item.kind === 'setting' || item.kind === 'toggle'
+          ? {
+              kind: 'setting',
+              id: item.id,
+              label: item.label,
+              description: item.description,
+              breadcrumb: 'Settings',
+              href: item.href ? `${item.href}${item.hash ? `#${item.hash}` : ''}` : undefined,
+            }
+          : {
+              kind: 'action',
+              id: item.id,
+              label: item.label,
+              description: item.description,
+              href: item.href ? `${item.href}${item.hash ? `#${item.hash}` : ''}` : undefined,
+            }
+
+      return { item, value, inspector }
+    })
+  }, [filteredStatic])
+
+  const staticGroups = React.useMemo(() => groupByGroup(staticEntries), [staticEntries])
 
   const canShowDynamic = debouncedQuery.trim().length > 1
   const { data, isFetching } = useOmniSearch(debouncedQuery)
@@ -182,6 +214,65 @@ export function OmniCommandPalette() {
   const hasStaticResults = filteredStatic.length > 0
   const showEmpty = !hasDynamicResults && !hasStaticResults && !isFetching
 
+  const valueToInspector = React.useMemo(() => {
+    const map = new Map<string, OmniInspectorItem>()
+    staticEntries.forEach((entry) => map.set(entry.value, entry.inspector))
+    rankedUsers.forEach((user) =>
+      map.set(`user:${user.id}`, {
+        kind: 'user',
+        id: user.id,
+        label: user.username,
+        subtitle: user.id,
+        href: `/${realm}/users/${user.id}/settings`,
+      }),
+    )
+    rankedClients.forEach((client) =>
+      map.set(`client:${client.id}`, {
+        kind: 'client',
+        id: client.id,
+        label: client.client_id,
+        subtitle: client.id,
+        href: `/${realm}/clients/${client.id}/settings`,
+      }),
+    )
+    rankedRoles.forEach((role) => {
+      const roleSubtitle =
+        role.description ||
+        (role.client_id ? `Client role · ${role.client_id}` : 'Realm role')
+      map.set(`role:${role.id}`, {
+        kind: 'role',
+        id: role.id,
+        label: role.name,
+        subtitle: roleSubtitle,
+        href: `/${realm}/roles/${role.id}/settings`,
+      })
+    })
+    return map
+  }, [staticEntries, rankedUsers, rankedClients, rankedRoles, realm])
+
+  React.useEffect(() => {
+    if (!selectedValue) return
+    const inspector = valueToInspector.get(selectedValue)
+    if (inspector) setActiveItem(inspector)
+  }, [selectedValue, valueToInspector])
+
+  React.useEffect(() => {
+    if (!open) {
+      setSelectedValue('')
+      return
+    }
+
+    if (selectedValue) return
+
+    const firstValue =
+      staticEntries[0]?.value ||
+      (rankedUsers[0] ? `user:${rankedUsers[0].id}` : '') ||
+      (rankedClients[0] ? `client:${rankedClients[0].id}` : '') ||
+      (rankedRoles[0] ? `role:${rankedRoles[0].id}` : '')
+
+    if (firstValue) setSelectedValue(firstValue)
+  }, [open, selectedValue, staticEntries, rankedUsers, rankedClients, rankedRoles])
+
   React.useEffect(() => {
     if (!canShowDynamic) return
 
@@ -222,6 +313,9 @@ export function OmniCommandPalette() {
           <Command
             shouldFilter={false}
             className="flex h-[32rem] w-full flex-col bg-transparent"
+            value={selectedValue}
+            onValueChange={setSelectedValue}
+            aria-label="Omni search command palette"
           >
             <div className="px-4 py-3">
               <CommandInput
@@ -230,10 +324,15 @@ export function OmniCommandPalette() {
                 placeholder="Search commands, settings, users, clients..."
                 className="h-12 text-base"
                 wrapperClassName="bg-muted/30 border border-input rounded-lg px-3"
+                aria-label="Search"
               />
             </div>
             <div className="flex h-full min-h-0">
-              <div className="flex w-full flex-col md:w-3/5">
+              <div
+                className="flex w-full flex-col md:w-3/5"
+                role="region"
+                aria-label="Search results"
+              >
                 <CommandList className="h-full max-h-none">
                   <ScrollArea className="h-full">
                     <div className="py-2">
@@ -244,30 +343,14 @@ export function OmniCommandPalette() {
                           <React.Fragment key={groupName}>
                             {index > 0 && <CommandSeparator />}
                             <CommandGroup heading={groupName}>
-                              {groupItems.map((item) => {
-                                const highlightItem: OmniInspectorItem =
-                                  item.kind === 'setting' || item.kind === 'toggle'
-                                    ? {
-                                        kind: 'setting',
-                                        id: item.id,
-                                        label: item.label,
-                                        description: item.description,
-                                        breadcrumb: 'Settings',
-                                        href: item.href ? `${item.href}${item.hash ? `#${item.hash}` : ''}` : undefined,
-                                      }
-                                    : {
-                                        kind: 'action',
-                                        id: item.id,
-                                        label: item.label,
-                                        description: item.description,
-                                        href: item.href ? `${item.href}${item.hash ? `#${item.hash}` : ''}` : undefined,
-                                      }
+                              {groupItems.map((entry) => {
+                                const item = entry.item
 
                                 if (item.kind === 'setting' || item.kind === 'toggle') {
                                   return (
                                     <CommandSettingRow
-                                      key={item.id}
-                                      value={item.label}
+                                      key={entry.value}
+                                      value={entry.value}
                                       icon={item.icon}
                                       label={item.label}
                                       description={item.description}
@@ -275,7 +358,7 @@ export function OmniCommandPalette() {
                                         recordSelection(item.id)
                                         handleNavigate(item.href, item.hash)
                                       }}
-                                      onHighlight={() => setActiveItem(highlightItem)}
+                                      onHighlight={() => setActiveItem(entry.inspector)}
                                       toggle={
                                         item.kind === 'toggle' && item.toggleId === 'registration'
                                           ? {
@@ -292,15 +375,15 @@ export function OmniCommandPalette() {
 
                                 return (
                                   <CommandItem
-                                    key={item.id}
-                                    value={item.label}
+                                    key={entry.value}
+                                    value={entry.value}
                                     onSelect={() => {
                                       recordSelection(item.id)
                                       if (item.kind === 'link') handleNavigate(item.href, item.hash)
                                       if (item.kind === 'action') runCommand(() => handleAction(item.actionId))
                                     }}
-                                    onFocus={() => setActiveItem(highlightItem)}
-                                    onMouseEnter={() => setActiveItem(highlightItem)}
+                                    onFocus={() => setActiveItem(entry.inspector)}
+                                    onMouseEnter={() => setActiveItem(entry.inspector)}
                                     className="py-2"
                                   >
                                     <div className="flex w-full items-center gap-3">
@@ -330,7 +413,7 @@ export function OmniCommandPalette() {
                           {rankedUsers.map((user) => (
                             <CommandEntityRow
                               key={user.id}
-                              value={`user-${user.username}`}
+                              value={`user:${user.id}`}
                               kind="user"
                               primary={user.username}
                               secondary={user.id}
@@ -360,7 +443,7 @@ export function OmniCommandPalette() {
                           {rankedClients.map((client) => (
                             <CommandEntityRow
                               key={client.id}
-                              value={`client-${client.client_id}`}
+                              value={`client:${client.id}`}
                               kind="client"
                               primary={client.client_id}
                               secondary={client.id}
@@ -397,7 +480,7 @@ export function OmniCommandPalette() {
                             return (
                               <CommandEntityRow
                                 key={role.id}
-                                value={`role-${role.name}`}
+                                value={`role:${role.id}`}
                                 kind="role"
                                 primary={role.name}
                                 secondary={roleSubtitle}
@@ -434,7 +517,12 @@ export function OmniCommandPalette() {
                   </ScrollArea>
                 </CommandList>
               </div>
-              <div className="hidden h-full w-2/5 border-l md:block">
+              <div
+                className="hidden h-full w-2/5 border-l md:block"
+                role="region"
+                aria-label="Inspector"
+                aria-live="polite"
+              >
                 <PaletteInspector item={activeItem} />
               </div>
             </div>
