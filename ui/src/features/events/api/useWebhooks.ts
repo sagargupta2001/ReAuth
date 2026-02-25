@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import type { WebhookEndpointDetails } from '@/entities/events/model/types'
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
@@ -32,6 +32,7 @@ export function useWebhooks(params: WebhookListParams) {
       return apiClient.get<PaginatedResponse<WebhookEndpointDetails>>(url)
     },
     enabled: !!realm,
+    placeholderData: keepPreviousData,
   })
 }
 

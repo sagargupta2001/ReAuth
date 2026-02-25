@@ -100,7 +100,7 @@ export function WebhooksTable() {
     setSearchParams(params)
   }
 
-  if (isLoading) {
+  if (isLoading && !webhookData) {
     return <DataTableSkeleton columnCount={5} rowCount={8} />
   }
 
@@ -124,7 +124,8 @@ export function WebhooksTable() {
       searchPlaceholder="Search endpoints..."
       searchValue={webhookSearch}
       onSearch={setWebhookSearch}
-      className="h-[520px]"
+      rootClassName="min-h-0 flex-1"
+      className="min-h-0 flex-1"
       onRowClick={(row) => navigate(`/events/webhooks/${row.id}`)}
     />
   )

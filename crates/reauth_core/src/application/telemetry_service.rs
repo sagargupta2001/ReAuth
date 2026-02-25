@@ -1,11 +1,12 @@
 use crate::domain::pagination::PageResponse;
 use crate::domain::telemetry::{
-    DeliveryLog, DeliveryLogQuery, TelemetryLog, TelemetryLogQuery, TelemetryTrace,
-    TelemetryTraceQuery,
+    DeliveryLog, DeliveryLogQuery, DeliveryMetricsAggregate, TelemetryLog, TelemetryLogQuery,
+    TelemetryTrace, TelemetryTraceQuery,
 };
 use crate::error::Result;
 use crate::ports::telemetry_repository::TelemetryRepository;
 use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct TelemetryService {
     repo: Arc<dyn TelemetryRepository>,
@@ -40,6 +41,14 @@ impl TelemetryService {
         query: DeliveryLogQuery,
     ) -> Result<PageResponse<DeliveryLog>> {
         self.repo.list_delivery_logs(query).await
+    }
+
+    pub async fn get_delivery_metrics(
+        &self,
+        realm_id: Option<Uuid>,
+        window_hours: i64,
+    ) -> Result<DeliveryMetricsAggregate> {
+        self.repo.get_delivery_metrics(realm_id, window_hours).await
     }
 
     pub async fn get_delivery_log(&self, delivery_id: &str) -> Result<Option<DeliveryLog>> {

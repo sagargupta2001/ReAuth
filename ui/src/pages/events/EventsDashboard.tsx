@@ -1,17 +1,12 @@
 import { useSearchParams } from 'react-router-dom'
 
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from '@/components/breadcrumb'
 import { Button } from '@/components/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
+import { Card, CardContent } from '@/components/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { WebhookEndpointForm } from '@/features/events/components/WebhookEndpointForm'
 import { WebhooksTable } from '@/features/events/components/WebhooksTable'
 import { PluginsTable } from '@/features/events/components/PluginsTable'
+import { EventRoutingMetrics } from '@/features/events/components/EventRoutingMetrics'
 import { usePluginMutations } from '@/features/plugin/api/usePluginMutations'
 import { useHashScrollHighlight } from '@/shared/hooks/useHashScrollHighlight'
 import { Main } from '@/widgets/Layout/Main'
@@ -26,14 +21,6 @@ export function EventsDashboard() {
 
   return (
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbPage>Event Routing</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
-
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Event Routing</h1>
@@ -43,6 +30,8 @@ export function EventsDashboard() {
         </div>
       </div>
 
+      <EventRoutingMetrics />
+
       <Tabs
         value={activeTab}
         onValueChange={(value) => {
@@ -50,7 +39,7 @@ export function EventsDashboard() {
           params.set('tab', value)
           setSearchParams(params)
         }}
-        className="flex flex-1 flex-col gap-6"
+        className="flex min-h-0 flex-1 flex-col gap-6"
       >
         <TabsList className="w-fit rounded-full border bg-muted/40 p-1">
           <TabsTrigger value="webhooks" className="tab-trigger-styles">
@@ -61,7 +50,7 @@ export function EventsDashboard() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="webhooks" className="mt-0 flex flex-1 flex-col gap-4">
+        <TabsContent value="webhooks" className="mt-0 flex min-h-0 flex-1 flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold">HTTP Webhooks</h2>
@@ -79,19 +68,14 @@ export function EventsDashboard() {
             />
           </div>
 
-          <Card>
-            <CardHeader className="border-b">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Configured Endpoints
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-4">
               <WebhooksTable />
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="plugins" className="mt-0 flex flex-1 flex-col gap-4">
+        <TabsContent value="plugins" className="mt-0 flex min-h-0 flex-1 flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-xl font-semibold">gRPC Plugins</h2>
@@ -105,13 +89,8 @@ export function EventsDashboard() {
             </Button>
           </div>
 
-          <Card>
-            <CardHeader className="border-b">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Plugin Registry
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
+          <Card className="flex min-h-0 flex-1 flex-col">
+            <CardContent className="flex min-h-0 flex-1 flex-col p-4">
               <PluginsTable />
             </CardContent>
           </Card>

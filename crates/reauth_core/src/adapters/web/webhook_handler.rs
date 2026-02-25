@@ -4,7 +4,7 @@ use crate::application::webhook_service::{
     UpdateWebhookSubscriptionsPayload,
 };
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
-use crate::domain::telemetry::DeliveryLogQuery;
+use crate::domain::telemetry::{DeliveryLogQuery, EventRoutingMetrics};
 use crate::error::{Error, Result};
 use crate::AppState;
 use axum::extract::{Path, Query};
@@ -32,6 +32,11 @@ pub struct DisableWebhookPayload {
 pub struct WebhookListQuery {
     #[serde(flatten)]
     pub page: PageRequest,
+}
+
+#[derive(Deserialize)]
+pub struct EventRoutingMetricsQuery {
+    pub window_hours: Option<i64>,
 }
 
 pub async fn list_webhooks_handler(
@@ -90,6 +95,41 @@ pub async fn list_webhooks_handler(
         StatusCode::OK,
         Json(PageResponse::new(data, total, page, per_page)),
     ))
+}
+
+pub async fn event_routing_metrics_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Query(query): Query<EventRoutingMetricsQuery>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let window_hours = query.window_hours.unwrap_or(24).clamp(1, 168);
+    let metrics = state
+        .telemetry_service
+        .get_delivery_metrics(Some(realm.id), window_hours)
+        .await?;
+    let total_routed = metrics.total_routed;
+    let success_rate = if total_routed > 0 {
+        metrics.success_count as f64 / total_routed as f64
+    } else {
+        0.0
+    };
+    let active_plugins = state.plugin_manager.get_all_active_plugins().await.len() as i64;
+
+    let response = EventRoutingMetrics {
+        window_hours,
+        total_routed,
+        success_rate,
+        avg_latency_ms: metrics.avg_latency_ms,
+        active_plugins,
+    };
+
+    Ok((StatusCode::OK, Json(response)))
 }
 
 pub async fn get_webhook_handler(

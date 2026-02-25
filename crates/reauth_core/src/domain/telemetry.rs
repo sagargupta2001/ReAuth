@@ -93,3 +93,19 @@ pub struct DeliveryLogQuery {
     pub start_time: Option<String>,
     pub end_time: Option<String>,
 }
+
+#[derive(Debug, Clone)]
+pub struct DeliveryMetricsAggregate {
+    pub total_routed: i64,
+    pub success_count: i64,
+    pub avg_latency_ms: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct EventRoutingMetrics {
+    pub window_hours: i64,
+    pub total_routed: i64,
+    pub success_rate: f64,
+    pub avg_latency_ms: Option<f64>,
+    pub active_plugins: i64,
+}

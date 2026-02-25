@@ -316,6 +316,10 @@ fn webhook_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(webhook_handler::list_webhooks_handler))
         .route("/", post(webhook_handler::create_webhook_handler))
+        .route(
+            "/metrics",
+            get(webhook_handler::event_routing_metrics_handler),
+        )
         .route("/{id}", get(webhook_handler::get_webhook_handler))
         .route("/{id}", put(webhook_handler::update_webhook_handler))
         .route("/{id}", delete(webhook_handler::delete_webhook_handler))

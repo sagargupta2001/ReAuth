@@ -1,7 +1,7 @@
 use crate::domain::pagination::PageResponse;
 use crate::domain::telemetry::{
-    DeliveryLog, DeliveryLogQuery, TelemetryLog, TelemetryLogQuery, TelemetryTrace,
-    TelemetryTraceQuery,
+    DeliveryLog, DeliveryLogQuery, DeliveryMetricsAggregate, TelemetryLog, TelemetryLogQuery,
+    TelemetryTrace, TelemetryTraceQuery,
 };
 use crate::error::Result;
 use async_trait::async_trait;
@@ -19,6 +19,11 @@ pub trait TelemetryRepository: Send + Sync {
         &self,
         query: DeliveryLogQuery,
     ) -> Result<PageResponse<DeliveryLog>>;
+    async fn get_delivery_metrics(
+        &self,
+        realm_id: Option<uuid::Uuid>,
+        window_hours: i64,
+    ) -> Result<DeliveryMetricsAggregate>;
     async fn get_delivery_log(&self, delivery_id: &str) -> Result<Option<DeliveryLog>>;
     async fn delete_logs_before(&self, before: Option<&str>) -> Result<i64>;
     async fn delete_traces_before(&self, before: Option<&str>) -> Result<i64>;

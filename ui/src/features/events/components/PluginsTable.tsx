@@ -102,7 +102,7 @@ export function PluginsTable() {
     [disablePlugin, enablePlugin],
   )
 
-  if (isLoading) {
+  if (isLoading && !pluginData) {
     return <DataTableSkeleton columnCount={4} rowCount={6} />
   }
 
@@ -126,7 +126,8 @@ export function PluginsTable() {
       searchPlaceholder="Search plugins..."
       searchValue={pluginSearch}
       onSearch={setPluginSearch}
-      className="h-[520px]"
+      rootClassName="min-h-0 flex-1"
+      className="min-h-0 flex-1"
       onRowClick={(row) => navigate(`/events/plugins/${row.id}`)}
     />
   )

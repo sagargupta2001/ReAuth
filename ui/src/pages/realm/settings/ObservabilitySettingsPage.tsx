@@ -21,6 +21,7 @@ import { Switch } from '@/components/switch'
 import { useTelemetryClearLogs, useTelemetryClearTraces } from '@/features/observability/api/useTelemetryCleanup'
 import { useIncludeSpansPreference } from '@/features/observability/lib/observabilityPreferences'
 import { useHashScrollHighlight } from '@/shared/hooks/useHashScrollHighlight'
+import { toast } from 'sonner'
 
 export function ObservabilitySettingsPage() {
   const { t } = useTranslation('logs')
@@ -64,7 +65,10 @@ export function ObservabilitySettingsPage() {
             </div>
             <Switch
               checked={includeSpans}
-              onCheckedChange={setIncludeSpans}
+              onCheckedChange={(checked) => {
+                setIncludeSpans(checked)
+                toast.success('Settings updated')
+              }}
               aria-label={t('LOGS_EXPLORER.INCLUDE_SPANS')}
             />
           </div>

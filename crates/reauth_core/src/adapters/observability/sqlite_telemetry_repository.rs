@@ -1,8 +1,8 @@
 use crate::adapters::observability::telemetry_store::TelemetryDatabase;
 use crate::domain::pagination::{PageResponse, SortDirection};
 use crate::domain::telemetry::{
-    DeliveryLog, DeliveryLogQuery, TelemetryLog, TelemetryLogQuery, TelemetryTrace,
-    TelemetryTraceQuery,
+    DeliveryLog, DeliveryLogQuery, DeliveryMetricsAggregate, TelemetryLog, TelemetryLogQuery,
+    TelemetryTrace, TelemetryTraceQuery,
 };
 use crate::error::{Error, Result};
 use crate::ports::telemetry_repository::TelemetryRepository;
@@ -255,6 +255,13 @@ struct DeliveryLogRow {
     error_chain: Option<String>,
     latency_ms: Option<i64>,
     delivered_at: String,
+}
+
+#[derive(Debug, FromRow)]
+struct DeliveryMetricsRow {
+    total_routed: i64,
+    success_count: i64,
+    avg_latency_ms: Option<f64>,
 }
 
 #[async_trait]
@@ -601,6 +608,44 @@ impl TelemetryRepository for SqliteTelemetryRepository {
             .collect();
 
         Ok(PageResponse::new(data, total, page, limit))
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "delivery_logs", db_op = "select")
+    )]
+    async fn get_delivery_metrics(
+        &self,
+        realm_id: Option<Uuid>,
+        window_hours: i64,
+    ) -> Result<DeliveryMetricsAggregate> {
+        let mut builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "SELECT
+                COUNT(*) as total_routed,
+                COALESCE(SUM(CASE WHEN error IS NULL THEN 1 ELSE 0 END), 0) as success_count,
+                AVG(latency_ms) as avg_latency_ms
+             FROM delivery_logs
+             WHERE strftime('%s', delivered_at) >= strftime('%s', 'now', ",
+        );
+        builder.push_bind(format!("-{} hours", window_hours));
+        builder.push(")");
+
+        if let Some(realm_id) = realm_id {
+            builder.push(" AND realm_id = ");
+            builder.push_bind(realm_id.to_string());
+        }
+
+        let row: DeliveryMetricsRow = builder
+            .build_query_as()
+            .fetch_one(self.pool.as_ref())
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(DeliveryMetricsAggregate {
+            total_routed: row.total_routed,
+            success_count: row.success_count,
+            avg_latency_ms: row.avg_latency_ms,
+        })
     }
 
     #[instrument(

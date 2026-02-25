@@ -1,14 +1,6 @@
 import { useMemo, useState } from 'react'
 
 import { Badge } from '@/components/badge'
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/breadcrumb'
 import { Button } from '@/components/button'
 import { Card, CardContent } from '@/components/card'
 import { Switch } from '@/components/switch'
@@ -25,11 +17,10 @@ import { useReplayDelivery } from '@/features/events/api/useReplayDelivery'
 import { usePlugins } from '@/features/plugin/api/usePlugins'
 import { usePluginMutations } from '@/features/plugin/api/usePluginMutations'
 import { useCurrentRealm } from '@/features/realm/api/useRealm'
-import { RealmLink } from '@/entities/realm/lib/navigation'
 import { formatClockTime } from '@/lib/utils'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { Main } from '@/widgets/Layout/Main'
-import { Copy, Eye, EyeOff, RefreshCcw, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Copy, Eye, EyeOff, RefreshCcw, RotateCcw, Trash2 } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 
@@ -218,19 +209,10 @@ export function TargetDetailsPage() {
 
   return (
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <RealmLink to="/events">Event Routing</RealmLink>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbPage>{profileName}</BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+      <Button variant="ghost" className="w-fit gap-2" onClick={() => navigate('/events')}>
+        <ArrowLeft className="h-4 w-4" />
+        Back to Event Routing
+      </Button>
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>

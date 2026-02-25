@@ -775,6 +775,7 @@ export function OmniCommandPalette() {
                                                 onChange: (checked) => {
                                                   recordSelection(item.id)
                                                   setIncludeSpans(checked)
+                                                  toast.success('Settings updated')
                                                 },
                                                 ariaLabel: item.label,
                                               }

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import type { PluginStatusInfo } from '@/entities/plugin/model/types'
@@ -29,5 +29,6 @@ export function usePluginStatuses(params: PluginStatusParams) {
       }
       return (await res.json()) as PaginatedResponse<PluginStatusInfo>
     },
+    placeholderData: keepPreviousData,
   })
 }
