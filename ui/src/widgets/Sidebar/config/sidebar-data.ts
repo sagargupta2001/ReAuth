@@ -1,4 +1,4 @@
-import { AppWindow, Group, KeyRound, LayoutDashboard, LucideClockFading, Package, ScrollText, Settings, Users, Workflow } from 'lucide-react';
+import { AppWindow, Group, KeyRound, LayoutDashboard, LucideClockFading, Package, ScrollText, Settings, Users, Webhook, Workflow } from 'lucide-react';
 
 
 
@@ -49,6 +49,11 @@ export const sidebarData: SidebarData = {
       title: 'Plugins',
       url: '/plugins',
       icon: Package,
+    },
+    {
+      title: 'Event Routing',
+      url: '/events',
+      icon: Webhook,
     },
     {
       title: 'Observability',

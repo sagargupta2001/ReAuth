@@ -9,6 +9,7 @@ Example paths:
 - `reauth/docs/memory/roadmaps/configuration.md`
 - `reauth/docs/memory/roadmaps/observability.md`
 - `reauth/docs/memory/roadmaps/seeding.md`
+- `reauth/docs/memory/roadmaps/webhooks.md`
 
 ## Suggested template
 - Goal

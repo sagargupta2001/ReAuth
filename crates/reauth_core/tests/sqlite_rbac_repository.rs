@@ -127,8 +127,8 @@ async fn role_crud_and_listing() -> Result<()> {
     let role_admin = role(Uuid::new_v4(), realm_id, None, "admin");
     let role_viewer = role(Uuid::new_v4(), realm_id, None, "viewer");
 
-    repo.create_role(&role_admin).await?;
-    repo.create_role(&role_viewer).await?;
+    repo.create_role(&role_admin, None).await?;
+    repo.create_role(&role_viewer, None).await?;
 
     let found = repo.find_role_by_id(&role_admin.id).await?;
     assert_eq!(found.unwrap().name, "admin");
@@ -144,16 +144,16 @@ async fn role_crud_and_listing() -> Result<()> {
     let mut updated = role_viewer.clone();
     updated.name = "viewer-updated".to_string();
     updated.description = Some("updated".to_string());
-    repo.update_role(&updated).await?;
+    repo.update_role(&updated, None).await?;
 
     let fetched = repo.find_role_by_id(&role_viewer.id).await?.unwrap();
     assert_eq!(fetched.name, "viewer-updated");
 
-    repo.delete_role(&role_viewer.id).await?;
+    repo.delete_role(&role_viewer.id, None).await?;
     let missing = repo.find_role_by_id(&role_viewer.id).await?;
     assert!(missing.is_none());
 
-    let err = repo.delete_role(&role_viewer.id).await.unwrap_err();
+    let err = repo.delete_role(&role_viewer.id, None).await.unwrap_err();
     assert!(matches!(err, Error::NotFound(_)));
     Ok(())
 }
@@ -169,7 +169,7 @@ async fn client_role_listing() -> Result<()> {
     insert_client(&db.pool, client_id, realm_id, "web-client").await?;
 
     let client_role = role(Uuid::new_v4(), realm_id, Some(client_id), "client-admin");
-    repo.create_role(&client_role).await?;
+    repo.create_role(&client_role, None).await?;
 
     let req = page_request(1, 10, Some("name"), Some(SortDirection::Asc), None);
     let page = repo.list_client_roles(&realm_id, &client_id, &req).await?;
@@ -192,9 +192,9 @@ async fn group_hierarchy_and_ordering() -> Result<()> {
     let root_b = group(Uuid::new_v4(), realm_id, None, "root-b", 1);
     let child_a = group(Uuid::new_v4(), realm_id, Some(root_a.id), "child-a", 0);
 
-    repo.create_group(&root_a).await?;
-    repo.create_group(&root_b).await?;
-    repo.create_group(&child_a).await?;
+    repo.create_group(&root_a, None).await?;
+    repo.create_group(&root_b, None).await?;
+    repo.create_group(&child_a, None).await?;
 
     let found_by_name = repo.find_group_by_name(&realm_id, "root-a").await?;
     assert_eq!(found_by_name.unwrap().id, root_a.id);
@@ -254,7 +254,7 @@ async fn group_hierarchy_and_ordering() -> Result<()> {
     assert!(subtree_set.contains(&root_a.id));
     assert!(subtree_set.contains(&child_a.id));
 
-    repo.set_group_orders(&realm_id, None, &[root_b.id, root_a.id])
+    repo.set_group_orders(&realm_id, None, &[root_b.id, root_a.id], None)
         .await?;
     let reordered = repo.list_group_ids_by_parent(&realm_id, None).await?;
     assert_eq!(reordered, vec![root_b.id, root_a.id]);
@@ -262,13 +262,13 @@ async fn group_hierarchy_and_ordering() -> Result<()> {
     let mut updated_root = root_a.clone();
     updated_root.name = "root-a-updated".to_string();
     updated_root.description = None;
-    repo.update_group(&updated_root).await?;
+    repo.update_group(&updated_root, None).await?;
     let updated = repo.find_group_by_id(&root_a.id).await?.unwrap();
     assert_eq!(updated.name, "root-a-updated");
     assert!(updated.description.is_none());
 
-    repo.delete_groups(&[]).await?;
-    repo.delete_groups(&[root_b.id]).await?;
+    repo.delete_groups(&[], None).await?;
+    repo.delete_groups(&[root_b.id], None).await?;
     let deleted = repo.find_group_by_id(&root_b.id).await?;
     assert!(deleted.is_none());
     Ok(())
@@ -286,15 +286,16 @@ async fn custom_permissions_and_role_permissions() -> Result<()> {
 
     let role_one = role(Uuid::new_v4(), realm_id, None, "alpha");
     let role_two = role(Uuid::new_v4(), realm_id, None, "beta");
-    repo.create_role(&role_one).await?;
-    repo.create_role(&role_two).await?;
+    repo.create_role(&role_one, None).await?;
+    repo.create_role(&role_two, None).await?;
 
-    repo.assign_permission_to_role(&"perm.read".to_string(), &role_one.id)
+    repo.assign_permission_to_role(&"perm.read".to_string(), &role_one.id, None)
         .await?;
     let perms = repo.get_permissions_for_role(&role_one.id).await?;
     assert_eq!(perms, vec!["perm.read".to_string()]);
 
-    repo.remove_permission(&role_one.id, "perm.read").await?;
+    repo.remove_permission(&role_one.id, "perm.read", None)
+        .await?;
     let perms = repo.get_permissions_for_role(&role_one.id).await?;
     assert!(perms.is_empty());
 
@@ -302,6 +303,7 @@ async fn custom_permissions_and_role_permissions() -> Result<()> {
         &role_one.id,
         vec!["perm.add".to_string(), "perm.remove".to_string()],
         "add",
+        None,
     )
     .await?;
     let perms = repo.get_permissions_for_role(&role_one.id).await?;
@@ -309,16 +311,22 @@ async fn custom_permissions_and_role_permissions() -> Result<()> {
     assert!(perm_set.contains("perm.add"));
     assert!(perm_set.contains("perm.remove"));
 
-    repo.bulk_update_permissions(&role_one.id, vec!["perm.remove".to_string()], "remove")
-        .await?;
+    repo.bulk_update_permissions(
+        &role_one.id,
+        vec!["perm.remove".to_string()],
+        "remove",
+        None,
+    )
+    .await?;
     let perms = repo.get_permissions_for_role(&role_one.id).await?;
     assert_eq!(perms, vec!["perm.add".to_string()]);
 
-    repo.assign_permission_to_role(&"perm.shared".to_string(), &role_one.id)
+    repo.assign_permission_to_role(&"perm.shared".to_string(), &role_one.id, None)
         .await?;
-    repo.assign_permission_to_role(&"perm.shared".to_string(), &role_two.id)
+    repo.assign_permission_to_role(&"perm.shared".to_string(), &role_two.id, None)
         .await?;
-    repo.remove_role_permissions_by_key("perm.shared").await?;
+    repo.remove_role_permissions_by_key("perm.shared", None)
+        .await?;
     let perms_one = repo.get_permissions_for_role(&role_one.id).await?;
     let perms_two = repo.get_permissions_for_role(&role_two.id).await?;
     assert!(!perms_one.contains(&"perm.shared".to_string()));
@@ -340,8 +348,8 @@ async fn custom_permissions_and_role_permissions() -> Result<()> {
         "Custom Write",
         Some(user_id),
     );
-    repo.create_custom_permission(&custom_one).await?;
-    repo.create_custom_permission(&custom_two).await?;
+    repo.create_custom_permission(&custom_one, None).await?;
+    repo.create_custom_permission(&custom_two, None).await?;
 
     let by_key = repo
         .find_custom_permission_by_key(&realm_id, None, "custom.read")
@@ -360,7 +368,7 @@ async fn custom_permissions_and_role_permissions() -> Result<()> {
     let mut updated = custom_two.clone();
     updated.name = "Custom Write Updated".to_string();
     updated.description = None;
-    repo.update_custom_permission(&updated).await?;
+    repo.update_custom_permission(&updated, None).await?;
 
     let refreshed = repo
         .find_custom_permission_by_id(&realm_id, &custom_two.id)
@@ -369,7 +377,7 @@ async fn custom_permissions_and_role_permissions() -> Result<()> {
     assert_eq!(refreshed.name, "Custom Write Updated");
     assert!(refreshed.description.is_none());
 
-    repo.delete_custom_permission(&custom_one.id).await?;
+    repo.delete_custom_permission(&custom_one.id, None).await?;
     let deleted = repo
         .find_custom_permission_by_id(&realm_id, &custom_one.id)
         .await?;
@@ -392,7 +400,7 @@ async fn membership_and_composites_queries() -> Result<()> {
     insert_user(&db.pool, u3, realm_id, "carol").await?;
 
     let g1 = group(Uuid::new_v4(), realm_id, None, "group-a", 0);
-    repo.create_group(&g1).await?;
+    repo.create_group(&g1, None).await?;
 
     let r1 = role(Uuid::new_v4(), realm_id, None, "role-1");
     let r2 = role(Uuid::new_v4(), realm_id, None, "role-2");
@@ -400,22 +408,22 @@ async fn membership_and_composites_queries() -> Result<()> {
     let r4 = role(Uuid::new_v4(), realm_id, None, "role-4");
     let r5 = role(Uuid::new_v4(), realm_id, None, "role-5");
     for role in [&r1, &r2, &r3, &r4, &r5] {
-        repo.create_role(role).await?;
+        repo.create_role(role, None).await?;
     }
 
-    repo.assign_composite_role(&r1.id, &r2.id).await?;
-    repo.assign_composite_role(&r2.id, &r3.id).await?;
-    repo.assign_composite_role(&r3.id, &r4.id).await?;
+    repo.assign_composite_role(&r1.id, &r2.id, None).await?;
+    repo.assign_composite_role(&r2.id, &r3.id, None).await?;
+    repo.assign_composite_role(&r3.id, &r4.id, None).await?;
 
-    repo.assign_role_to_user(&u1, &r1.id).await?;
-    repo.assign_user_to_group(&u2, &g1.id).await?;
-    repo.assign_role_to_group(&r2.id, &g1.id).await?;
+    repo.assign_role_to_user(&u1, &r1.id, None).await?;
+    repo.assign_user_to_group(&u2, &g1.id, None).await?;
+    repo.assign_role_to_group(&r2.id, &g1.id, None).await?;
 
-    repo.assign_permission_to_role(&"perm.r2".to_string(), &r2.id)
+    repo.assign_permission_to_role(&"perm.r2".to_string(), &r2.id, None)
         .await?;
-    repo.assign_permission_to_role(&"perm.r3".to_string(), &r3.id)
+    repo.assign_permission_to_role(&"perm.r3".to_string(), &r3.id, None)
         .await?;
-    repo.assign_permission_to_role(&"perm.r4".to_string(), &r4.id)
+    repo.assign_permission_to_role(&"perm.r4".to_string(), &r4.id, None)
         .await?;
 
     let req = page_request(1, 50, Some("name"), Some(SortDirection::Asc), None);
@@ -601,23 +609,23 @@ async fn membership_and_composites_queries() -> Result<()> {
 
     let descendant = repo.is_role_descendant(&r1.id, &r4.id).await?;
     assert!(descendant);
-    repo.remove_composite_role(&r2.id, &r3.id).await?;
+    repo.remove_composite_role(&r2.id, &r3.id, None).await?;
     let descendant_after = repo.is_role_descendant(&r1.id, &r4.id).await?;
     assert!(!descendant_after);
 
-    repo.remove_role_from_group(&r2.id, &g1.id).await?;
+    repo.remove_role_from_group(&r2.id, &g1.id, None).await?;
     let group_roles_after = repo
         .list_group_roles(&realm_id, &g1.id, GroupRoleFilter::Direct, &req)
         .await?;
     assert_eq!(group_roles_after.meta.total, 0);
 
-    repo.remove_user_from_group(&u2, &g1.id).await?;
+    repo.remove_user_from_group(&u2, &g1.id, None).await?;
     let group_members_after = repo
         .list_group_members(&realm_id, &g1.id, GroupMemberFilter::Members, &req)
         .await?;
     assert_eq!(group_members_after.meta.total, 0);
 
-    repo.remove_role_from_user(&u1, &r1.id).await?;
+    repo.remove_role_from_user(&u1, &r1.id, None).await?;
     let direct_members_after = repo
         .list_role_members(&realm_id, &r1.id, RoleMemberFilter::Direct, &req)
         .await?;

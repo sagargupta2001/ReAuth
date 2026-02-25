@@ -22,6 +22,9 @@ import { RolesPage } from '@/pages/roles/listing/RolesPage.tsx'
 import { CreateGroupPage } from '@/pages/groups/create/CreateGroupPage.tsx'
 import { EditGroupPage } from '@/pages/groups/edit/EditGroupPage.tsx'
 import { GroupsPage } from '@/pages/groups/listing/GroupsPage.tsx'
+import EventsDashboard from '@/pages/events/EventsDashboard.tsx'
+import TargetDetailsPage from '@/pages/events/TargetDetailsPage.tsx'
+import WebhookSettingsPage from '@/pages/events/WebhookSettingsPage.tsx'
 import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx'
 import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx'
 import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
@@ -60,6 +63,24 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/plugins',
     element: PluginsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/events',
+    element: EventsDashboard,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/events/:targetType/:targetId',
+    element: TargetDetailsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/events/webhooks/:targetId/settings',
+    element: WebhookSettingsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

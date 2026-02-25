@@ -1,6 +1,7 @@
 use crate::domain::pagination::PageResponse;
 use crate::domain::telemetry::{
-    TelemetryLog, TelemetryLogQuery, TelemetryTrace, TelemetryTraceQuery,
+    DeliveryLog, DeliveryLogQuery, TelemetryLog, TelemetryLogQuery, TelemetryTrace,
+    TelemetryTraceQuery,
 };
 use crate::error::Result;
 use crate::ports::telemetry_repository::TelemetryRepository;
@@ -28,6 +29,17 @@ impl TelemetryService {
 
     pub async fn list_trace_spans(&self, trace_id: &str) -> Result<Vec<TelemetryTrace>> {
         self.repo.list_trace_spans(trace_id).await
+    }
+
+    pub async fn list_delivery_logs(
+        &self,
+        query: DeliveryLogQuery,
+    ) -> Result<PageResponse<DeliveryLog>> {
+        self.repo.list_delivery_logs(query).await
+    }
+
+    pub async fn get_delivery_log(&self, delivery_id: &str) -> Result<Option<DeliveryLog>> {
+        self.repo.get_delivery_log(delivery_id).await
     }
 
     pub async fn clear_logs(&self, before: Option<&str>) -> Result<i64> {

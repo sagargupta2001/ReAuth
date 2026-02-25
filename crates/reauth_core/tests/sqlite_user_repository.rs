@@ -57,7 +57,7 @@ async fn save_and_find_users_by_id_and_username() -> Result<()> {
     insert_realm(&db.pool, other_realm, "realm-other").await?;
 
     let alice = user(Uuid::new_v4(), realm_id, "alice", "hash1");
-    repo.save(&alice).await?;
+    repo.save(&alice, None).await?;
 
     let by_id = repo.find_by_id(&alice.id).await?;
     assert_eq!(by_id.unwrap().username, "alice");
@@ -82,11 +82,11 @@ async fn update_user_persists_changes() -> Result<()> {
     insert_realm(&db.pool, realm_id, "realm-update").await?;
 
     let mut alice = user(Uuid::new_v4(), realm_id, "alice", "hash1");
-    repo.save(&alice).await?;
+    repo.save(&alice, None).await?;
 
     alice.username = "alice-updated".to_string();
     alice.hashed_password = "hash2".to_string();
-    repo.update(&alice).await?;
+    repo.update(&alice, None).await?;
 
     let updated = repo.find_by_id(&alice.id).await?.unwrap();
     assert_eq!(updated.username, "alice-updated");
@@ -110,7 +110,7 @@ async fn list_users_with_filters_sorting_and_pagination() -> Result<()> {
     let zara = user(Uuid::new_v4(), other_realm, "zara", "hash");
 
     for u in [&alice, &bob, &carol, &zara] {
-        repo.save(u).await?;
+        repo.save(u, None).await?;
     }
 
     let page1 = repo

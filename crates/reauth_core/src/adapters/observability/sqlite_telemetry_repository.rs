@@ -1,13 +1,14 @@
 use crate::adapters::observability::telemetry_store::TelemetryDatabase;
 use crate::domain::pagination::{PageResponse, SortDirection};
 use crate::domain::telemetry::{
-    TelemetryLog, TelemetryLogQuery, TelemetryTrace, TelemetryTraceQuery,
+    DeliveryLog, DeliveryLogQuery, TelemetryLog, TelemetryLogQuery, TelemetryTrace,
+    TelemetryTraceQuery,
 };
 use crate::error::{Error, Result};
 use crate::ports::telemetry_repository::TelemetryRepository;
 use async_trait::async_trait;
 use serde_json::Value;
-use sqlx::{FromRow, QueryBuilder, Sqlite};
+use sqlx::{FromRow, QueryBuilder, Row, Sqlite};
 use tracing::instrument;
 use uuid::Uuid;
 
@@ -133,6 +134,69 @@ impl SqliteTelemetryRepository {
             builder.push(")");
         }
     }
+
+    fn apply_delivery_filters(builder: &mut QueryBuilder<Sqlite>, query: &DeliveryLogQuery) {
+        let mut has_filter = false;
+        let push_where = |builder: &mut QueryBuilder<Sqlite>, has_filter: &mut bool| {
+            if *has_filter {
+                builder.push(" AND ");
+            } else {
+                builder.push(" WHERE ");
+                *has_filter = true;
+            }
+        };
+
+        if let Some(realm_id) = &query.realm_id {
+            push_where(builder, &mut has_filter);
+            builder.push("realm_id = ");
+            builder.push_bind(realm_id.to_string());
+        }
+
+        if let Some(target_type) = &query.target_type {
+            push_where(builder, &mut has_filter);
+            builder.push("target_type = ");
+            builder.push_bind(target_type.clone());
+        }
+
+        if let Some(target_id) = &query.target_id {
+            push_where(builder, &mut has_filter);
+            builder.push("target_id = ");
+            builder.push_bind(target_id.clone());
+        }
+
+        if let Some(event_type) = &query.event_type {
+            push_where(builder, &mut has_filter);
+            builder.push("event_type = ");
+            builder.push_bind(event_type.clone());
+        }
+
+        if let Some(event_id) = &query.event_id {
+            push_where(builder, &mut has_filter);
+            builder.push("event_id = ");
+            builder.push_bind(event_id.clone());
+        }
+
+        if let Some(failed) = query.failed {
+            push_where(builder, &mut has_filter);
+            if failed {
+                builder.push("error IS NOT NULL");
+            } else {
+                builder.push("error IS NULL");
+            }
+        }
+
+        if let Some(start_time) = &query.start_time {
+            push_where(builder, &mut has_filter);
+            builder.push("delivered_at >= ");
+            builder.push_bind(start_time.clone());
+        }
+
+        if let Some(end_time) = &query.end_time {
+            push_where(builder, &mut has_filter);
+            builder.push("delivered_at <= ");
+            builder.push_bind(end_time.clone());
+        }
+    }
 }
 
 #[derive(Debug, FromRow)]
@@ -171,6 +235,25 @@ struct TelemetryTraceRow {
     request_id: Option<String>,
     user_id: Option<String>,
     realm: Option<String>,
+}
+
+#[derive(Debug, FromRow)]
+struct DeliveryLogRow {
+    id: String,
+    event_id: String,
+    realm_id: Option<String>,
+    target_type: String,
+    target_id: String,
+    event_type: String,
+    event_version: String,
+    attempt: i64,
+    payload: String,
+    payload_compressed: i64,
+    response_status: Option<i64>,
+    response_body: Option<String>,
+    error: Option<String>,
+    latency_ms: Option<i64>,
+    delivered_at: String,
 }
 
 #[async_trait]
@@ -423,6 +506,106 @@ impl TelemetryRepository for SqliteTelemetryRepository {
                 realm: row.realm,
             })
             .collect())
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "delivery_logs", db_op = "select")
+    )]
+    async fn list_delivery_logs(
+        &self,
+        query: DeliveryLogQuery,
+    ) -> Result<PageResponse<DeliveryLog>> {
+        let page = query.page.page.max(1);
+        let limit = query.page.per_page.clamp(1, 200);
+        let offset = (page - 1) * limit;
+
+        let mut count_builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("SELECT COUNT(*) FROM delivery_logs");
+        Self::apply_delivery_filters(&mut count_builder, &query);
+        let total: i64 = count_builder
+            .build()
+            .fetch_one(self.pool.as_ref())
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?
+            .get(0);
+
+        let mut data_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
+            "SELECT id, event_id, realm_id, target_type, target_id, event_type, event_version,
+                    attempt, payload, payload_compressed, response_status, response_body, error,
+                    latency_ms, delivered_at
+             FROM delivery_logs",
+        );
+        Self::apply_delivery_filters(&mut data_builder, &query);
+        data_builder.push(" ORDER BY delivered_at DESC LIMIT ");
+        data_builder.push_bind(limit);
+        data_builder.push(" OFFSET ");
+        data_builder.push_bind(offset);
+
+        let rows: Vec<DeliveryLogRow> = data_builder
+            .build_query_as()
+            .fetch_all(self.pool.as_ref())
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let data = rows
+            .into_iter()
+            .map(|row| DeliveryLog {
+                id: row.id,
+                event_id: row.event_id,
+                realm_id: row.realm_id.and_then(|value| Uuid::parse_str(&value).ok()),
+                target_type: row.target_type,
+                target_id: row.target_id,
+                event_type: row.event_type,
+                event_version: row.event_version,
+                attempt: row.attempt,
+                payload: row.payload,
+                payload_compressed: row.payload_compressed == 1,
+                response_status: row.response_status,
+                response_body: row.response_body,
+                error: row.error,
+                latency_ms: row.latency_ms,
+                delivered_at: row.delivered_at,
+            })
+            .collect();
+
+        Ok(PageResponse::new(data, total, page, limit))
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "delivery_logs", db_op = "select")
+    )]
+    async fn get_delivery_log(&self, delivery_id: &str) -> Result<Option<DeliveryLog>> {
+        let row: Option<DeliveryLogRow> = sqlx::query_as(
+            "SELECT id, event_id, realm_id, target_type, target_id, event_type, event_version,
+                    attempt, payload, payload_compressed, response_status, response_body, error,
+                    latency_ms, delivered_at
+             FROM delivery_logs
+             WHERE id = ?",
+        )
+        .bind(delivery_id)
+        .fetch_optional(self.pool.as_ref())
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(row.map(|row| DeliveryLog {
+            id: row.id,
+            event_id: row.event_id,
+            realm_id: row.realm_id.and_then(|value| Uuid::parse_str(&value).ok()),
+            target_type: row.target_type,
+            target_id: row.target_id,
+            event_type: row.event_type,
+            event_version: row.event_version,
+            attempt: row.attempt,
+            payload: row.payload,
+            payload_compressed: row.payload_compressed == 1,
+            response_status: row.response_status,
+            response_body: row.response_body,
+            error: row.error,
+            latency_ms: row.latency_ms,
+            delivered_at: row.delivered_at,
+        }))
     }
 
     #[instrument(

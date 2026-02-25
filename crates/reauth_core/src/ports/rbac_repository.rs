@@ -10,6 +10,7 @@ use crate::domain::{
     role::Role,
 };
 use crate::error::Result;
+use crate::ports::transaction_manager::Transaction;
 use async_trait::async_trait;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -17,21 +18,52 @@ use uuid::Uuid;
 #[async_trait]
 pub trait RbacRepository: Send + Sync {
     // --- Write ---
-    async fn create_role(&self, role: &Role) -> Result<()>;
-    async fn create_group(&self, group: &Group) -> Result<()>;
-    async fn assign_role_to_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()>;
-    async fn remove_role_from_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()>;
-    async fn assign_user_to_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()>;
-    async fn remove_user_from_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()>;
+    async fn create_role(&self, role: &Role, tx: Option<&mut dyn Transaction>) -> Result<()>;
+    async fn create_group(&self, group: &Group, tx: Option<&mut dyn Transaction>) -> Result<()>;
+    async fn assign_role_to_group(
+        &self,
+        role_id: &Uuid,
+        group_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
+    async fn remove_role_from_group(
+        &self,
+        role_id: &Uuid,
+        group_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
+    async fn assign_user_to_group(
+        &self,
+        user_id: &Uuid,
+        group_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
+    async fn remove_user_from_group(
+        &self,
+        user_id: &Uuid,
+        group_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
     async fn assign_permission_to_role(
         &self,
         permission: &Permission,
         role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()>;
 
     // [NEW] Assign a direct role to a user (Realm Safe)
-    async fn assign_role_to_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()>;
-    async fn remove_role_from_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()>;
+    async fn assign_role_to_user(
+        &self,
+        user_id: &Uuid,
+        role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
+    async fn remove_role_from_user(
+        &self,
+        user_id: &Uuid,
+        role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
 
     // --- Read ---
     async fn find_role_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Role>>;
@@ -107,6 +139,7 @@ pub trait RbacRepository: Send + Sync {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
         ordered_ids: &[Uuid],
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()>;
     async fn is_group_descendant(
         &self,
@@ -137,34 +170,58 @@ pub trait RbacRepository: Send + Sync {
     async fn get_effective_permissions_for_user(&self, user_id: &Uuid) -> Result<HashSet<String>>;
     async fn find_role_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>>;
     async fn find_group_names_for_user(&self, user_id: &Uuid) -> Result<Vec<String>>;
-    async fn delete_role(&self, role_id: &Uuid) -> Result<()>;
-    async fn delete_groups(&self, group_ids: &[Uuid]) -> Result<()>;
-    async fn update_role(&self, role: &Role) -> Result<()>;
-    async fn update_group(&self, group: &Group) -> Result<()>;
+    async fn delete_role(&self, role_id: &Uuid, tx: Option<&mut dyn Transaction>) -> Result<()>;
+    async fn delete_groups(
+        &self,
+        group_ids: &[Uuid],
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
+    async fn update_role(&self, role: &Role, tx: Option<&mut dyn Transaction>) -> Result<()>;
+    async fn update_group(&self, group: &Group, tx: Option<&mut dyn Transaction>) -> Result<()>;
     async fn get_permissions_for_role(&self, role_id: &Uuid) -> Result<Vec<String>>;
-    async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()>;
+    async fn remove_permission(
+        &self,
+        role_id: &Uuid,
+        permission: &str,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
     async fn bulk_update_permissions(
         &self,
         role_id: &Uuid,
         permissions: Vec<String>,
         action: &str,
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()>;
 
     async fn assign_composite_role(
         &self,
         parent_role_id: &Uuid,
         child_role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()>;
     async fn remove_composite_role(
         &self,
         parent_role_id: &Uuid,
         child_role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()>;
     async fn is_role_descendant(&self, ancestor_id: &Uuid, candidate_id: &Uuid) -> Result<bool>;
 
-    async fn create_custom_permission(&self, permission: &CustomPermission) -> Result<()>;
-    async fn update_custom_permission(&self, permission: &CustomPermission) -> Result<()>;
-    async fn delete_custom_permission(&self, permission_id: &Uuid) -> Result<()>;
+    async fn create_custom_permission(
+        &self,
+        permission: &CustomPermission,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
+    async fn update_custom_permission(
+        &self,
+        permission: &CustomPermission,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
+    async fn delete_custom_permission(
+        &self,
+        permission_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
     async fn find_custom_permission_by_key(
         &self,
         realm_id: &Uuid,
@@ -181,5 +238,9 @@ pub trait RbacRepository: Send + Sync {
         realm_id: &Uuid,
         client_id: Option<&Uuid>,
     ) -> Result<Vec<CustomPermission>>;
-    async fn remove_role_permissions_by_key(&self, permission: &str) -> Result<()>;
+    async fn remove_role_permissions_by_key(
+        &self,
+        permission: &str,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
 }

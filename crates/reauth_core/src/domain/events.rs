@@ -1,6 +1,8 @@
 //! Defines the core business events that can occur in the application.
 
+use chrono::{DateTime, Utc};
 use serde::Serialize;
+use serde_json::Value;
 use uuid::Uuid;
 
 /// An enum representing all possible events in the core domain.
@@ -18,6 +20,25 @@ pub enum DomainEvent {
     RoleCompositeChanged(RoleCompositeChanged),
     RoleDeleted(RoleDeleted),
     GroupDeleted(GroupDeleted),
+}
+
+pub const EVENT_VERSION_V1: &str = "v1";
+
+#[derive(Clone, Debug, Serialize)]
+pub struct EventActor {
+    pub user_id: Option<Uuid>,
+    pub client_id: Option<Uuid>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct EventEnvelope {
+    pub event_id: String,
+    pub event_type: String,
+    pub event_version: String,
+    pub occurred_at: String,
+    pub realm_id: Option<Uuid>,
+    pub actor: Option<EventActor>,
+    pub data: Value,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -68,6 +89,74 @@ pub struct RoleDeleted {
 pub struct GroupDeleted {
     pub group_ids: Vec<Uuid>,
     pub affected_user_ids: Vec<Uuid>,
+}
+
+impl DomainEvent {
+    pub fn event_type(&self) -> &'static str {
+        match self {
+            DomainEvent::UserCreated(_) => "user.created",
+            DomainEvent::UserAssignedToGroup(_) => "user.assigned",
+            DomainEvent::UserRemovedFromGroup(_) => "user.removed",
+            DomainEvent::RoleAssignedToGroup(_) => "role.assigned",
+            DomainEvent::RoleRemovedFromGroup(_) => "role.removed",
+            DomainEvent::RolePermissionChanged(_) => "role.updated",
+            DomainEvent::UserRoleAssigned(_) => "role.assigned",
+            DomainEvent::UserRoleRemoved(_) => "role.removed",
+            DomainEvent::RoleCompositeChanged(_) => "role.updated",
+            DomainEvent::RoleDeleted(_) => "role.deleted",
+            DomainEvent::GroupDeleted(_) => "group.deleted",
+        }
+    }
+
+    pub fn payload_value(&self) -> Value {
+        match self {
+            DomainEvent::UserCreated(e) => serde_json::to_value(e),
+            DomainEvent::UserAssignedToGroup(e) => serde_json::to_value(e),
+            DomainEvent::UserRemovedFromGroup(e) => serde_json::to_value(e),
+            DomainEvent::RoleAssignedToGroup(e) => serde_json::to_value(e),
+            DomainEvent::RoleRemovedFromGroup(e) => serde_json::to_value(e),
+            DomainEvent::RolePermissionChanged(e) => serde_json::to_value(e),
+            DomainEvent::UserRoleAssigned(e) => serde_json::to_value(e),
+            DomainEvent::UserRoleRemoved(e) => serde_json::to_value(e),
+            DomainEvent::RoleCompositeChanged(e) => serde_json::to_value(e),
+            DomainEvent::RoleDeleted(e) => serde_json::to_value(e),
+            DomainEvent::GroupDeleted(e) => serde_json::to_value(e),
+        }
+        .unwrap_or_else(|_| Value::Object(Default::default()))
+    }
+
+    pub fn payload_json(&self) -> String {
+        self.payload_value().to_string()
+    }
+
+    pub fn to_envelope(
+        &self,
+        event_id: Uuid,
+        occurred_at: DateTime<Utc>,
+        realm_id: Option<Uuid>,
+        actor: Option<EventActor>,
+    ) -> EventEnvelope {
+        EventEnvelope {
+            event_id: event_id.to_string(),
+            event_type: self.event_type().to_string(),
+            event_version: EVENT_VERSION_V1.to_string(),
+            occurred_at: occurred_at.to_rfc3339(),
+            realm_id,
+            actor,
+            data: self.payload_value(),
+        }
+    }
+
+    pub fn envelope_json(
+        &self,
+        event_id: Uuid,
+        occurred_at: DateTime<Utc>,
+        realm_id: Option<Uuid>,
+        actor: Option<EventActor>,
+    ) -> String {
+        serde_json::to_string(&self.to_envelope(event_id, occurred_at, realm_id, actor))
+            .unwrap_or_else(|_| "{}".to_string())
+    }
 }
 
 #[cfg(test)]

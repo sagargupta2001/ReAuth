@@ -170,6 +170,7 @@ reauth/
 ## Roadmaps & docs
 - Memory docs: `docs/memory/`
 - Feature roadmaps: `docs/memory/roadmaps/`
+- Webhooks event engine roadmap: `docs/memory/roadmaps/webhooks.md`
 
 ---
 

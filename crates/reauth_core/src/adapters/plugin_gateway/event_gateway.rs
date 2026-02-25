@@ -17,7 +17,8 @@ impl PluginEventGateway {
 #[async_trait::async_trait]
 impl EventHandler for PluginEventGateway {
     async fn handle(&self, event: &DomainEvent) {
-        let (event_type, payload) = event.to_serializable();
+        let event_type = event.event_type().to_string();
+        let payload = event.payload_json();
 
         // --- THIS IS THE REFACTOR ---
         // Get a list of all *running* plugins from the manager.
@@ -40,58 +41,5 @@ impl EventHandler for PluginEventGateway {
             }
         }
         // --- END REFACTOR ---
-    }
-}
-
-impl DomainEvent {
-    /// Helper function to serialize events for gRPC.
-    /// Returns a tuple of (event_type, event_payload_json).
-    pub fn to_serializable(&self) -> (String, String) {
-        match self {
-            DomainEvent::UserCreated(e) => (
-                "UserCreated".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::UserAssignedToGroup(e) => (
-                "UserAssignedToGroup".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::UserRemovedFromGroup(e) => (
-                "UserRemovedFromGroup".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::RoleAssignedToGroup(e) => (
-                "RoleAssignedToGroup".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::RoleRemovedFromGroup(e) => (
-                "RoleRemovedFromGroup".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::RolePermissionChanged(e) => (
-                "RolePermissionChanged".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::UserRoleAssigned(e) => (
-                "UserRoleAssigned".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::UserRoleRemoved(e) => (
-                "UserRoleRemoved".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::RoleCompositeChanged(e) => (
-                "RoleCompositeChanged".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::RoleDeleted(e) => (
-                "RoleDeleted".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-            DomainEvent::GroupDeleted(e) => (
-                "GroupDeleted".to_string(),
-                serde_json::to_string(e).unwrap_or_else(|_| "{}".to_string()),
-            ),
-        }
     }
 }

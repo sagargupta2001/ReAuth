@@ -1,4 +1,5 @@
 use crate::adapters::persistence::connection::Database;
+use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::domain::rbac::{
     CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
@@ -6,6 +7,7 @@ use crate::domain::rbac::{
     UserRoleFilter, UserRoleRow,
 };
 use crate::domain::role::Permission;
+use crate::ports::transaction_manager::Transaction;
 use crate::{
     domain::{group::Group, role::Role},
     error::{Error, Result},
@@ -109,24 +111,37 @@ impl SqliteRbacRepository {
 
 #[async_trait]
 impl RbacRepository for SqliteRbacRepository {
-    async fn create_role(&self, role: &Role) -> Result<()> {
+    async fn create_role(&self, role: &Role, tx: Option<&mut dyn Transaction>) -> Result<()> {
         // [UPDATED] Added client_id to INSERT
-        sqlx::query(
+        let query = sqlx::query(
             "INSERT INTO roles (id, realm_id, client_id, name, description) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(role.id.to_string())
         .bind(role.realm_id.to_string())
         .bind(role.client_id.map(|id| id.to_string()))
         .bind(&role.name)
-        .bind(&role.description)
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        .bind(&role.description);
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn create_group(&self, group: &Group) -> Result<()> {
-        sqlx::query(
+    async fn create_group(&self, group: &Group, tx: Option<&mut dyn Transaction>) -> Result<()> {
+        let query = sqlx::query(
             "INSERT INTO groups (id, realm_id, parent_id, name, description, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
         )
             .bind(group.id.to_string())
@@ -134,50 +149,137 @@ impl RbacRepository for SqliteRbacRepository {
             .bind(group.parent_id.map(|id| id.to_string()))
             .bind(&group.name)
             .bind(&group.description)
-            .bind(group.sort_order)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(group.sort_order);
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn assign_role_to_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
-        sqlx::query("INSERT OR IGNORE INTO group_roles (group_id, role_id) VALUES (?, ?)")
+    async fn assign_role_to_group(
+        &self,
+        role_id: &Uuid,
+        group_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query =
+            sqlx::query("INSERT OR IGNORE INTO group_roles (group_id, role_id) VALUES (?, ?)")
+                .bind(group_id.to_string())
+                .bind(role_id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn remove_role_from_group(
+        &self,
+        role_id: &Uuid,
+        group_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query("DELETE FROM group_roles WHERE group_id = ? AND role_id = ?")
             .bind(group_id.to_string())
-            .bind(role_id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(role_id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn remove_role_from_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
-        sqlx::query("DELETE FROM group_roles WHERE group_id = ? AND role_id = ?")
-            .bind(group_id.to_string())
-            .bind(role_id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+    async fn assign_user_to_group(
+        &self,
+        user_id: &Uuid,
+        group_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query =
+            sqlx::query("INSERT OR IGNORE INTO user_groups (user_id, group_id) VALUES (?, ?)")
+                .bind(user_id.to_string())
+                .bind(group_id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn assign_user_to_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
-        sqlx::query("INSERT OR IGNORE INTO user_groups (user_id, group_id) VALUES (?, ?)")
+    async fn remove_user_from_group(
+        &self,
+        user_id: &Uuid,
+        group_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query("DELETE FROM user_groups WHERE user_id = ? AND group_id = ?")
             .bind(user_id.to_string())
-            .bind(group_id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(())
-    }
+            .bind(group_id.to_string());
 
-    async fn remove_user_from_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
-        sqlx::query("DELETE FROM user_groups WHERE user_id = ? AND group_id = ?")
-            .bind(user_id.to_string())
-            .bind(group_id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
@@ -185,39 +287,95 @@ impl RbacRepository for SqliteRbacRepository {
         &self,
         permission: &Permission,
         role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
-        sqlx::query("INSERT INTO role_permissions (role_id, permission_name) VALUES (?, ?)")
-            .bind(role_id.to_string())
-            .bind(permission)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        let query =
+            sqlx::query("INSERT INTO role_permissions (role_id, permission_name) VALUES (?, ?)")
+                .bind(role_id.to_string())
+                .bind(permission);
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn assign_role_to_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()> {
+    async fn assign_role_to_user(
+        &self,
+        user_id: &Uuid,
+        role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         // We use the `user_roles` table created in Phase 1 migration
-        sqlx::query("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)")
-            .bind(user_id.to_string())
-            .bind(role_id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        let query =
+            sqlx::query("INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)")
+                .bind(user_id.to_string())
+                .bind(role_id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn remove_role_from_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()> {
-        sqlx::query("DELETE FROM user_roles WHERE user_id = ? AND role_id = ?")
+    async fn remove_role_from_user(
+        &self,
+        user_id: &Uuid,
+        role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query("DELETE FROM user_roles WHERE user_id = ? AND role_id = ?")
             .bind(user_id.to_string())
-            .bind(role_id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(role_id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn create_custom_permission(&self, permission: &CustomPermission) -> Result<()> {
-        sqlx::query(
+    async fn create_custom_permission(
+        &self,
+        permission: &CustomPermission,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
             "INSERT INTO custom_permissions (id, realm_id, client_id, permission, name, description, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(permission.id.to_string())
@@ -226,32 +384,79 @@ impl RbacRepository for SqliteRbacRepository {
         .bind(&permission.permission)
         .bind(&permission.name)
         .bind(&permission.description)
-        .bind(permission.created_by.map(|id| id.to_string()))
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        .bind(permission.created_by.map(|id| id.to_string()));
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn update_custom_permission(&self, permission: &CustomPermission) -> Result<()> {
-        sqlx::query(
+    async fn update_custom_permission(
+        &self,
+        permission: &CustomPermission,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
             "UPDATE custom_permissions SET name = ?, description = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) WHERE id = ?",
         )
         .bind(&permission.name)
         .bind(&permission.description)
-        .bind(permission.id.to_string())
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        .bind(permission.id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
-    async fn delete_custom_permission(&self, permission_id: &Uuid) -> Result<()> {
-        sqlx::query("DELETE FROM custom_permissions WHERE id = ?")
-            .bind(permission_id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+    async fn delete_custom_permission(
+        &self,
+        permission_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query("DELETE FROM custom_permissions WHERE id = ?")
+            .bind(permission_id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
@@ -332,12 +537,29 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(permissions)
     }
 
-    async fn remove_role_permissions_by_key(&self, permission: &str) -> Result<()> {
-        sqlx::query("DELETE FROM role_permissions WHERE permission_name = ?")
-            .bind(permission)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+    async fn remove_role_permissions_by_key(
+        &self,
+        permission: &str,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query =
+            sqlx::query("DELETE FROM role_permissions WHERE permission_name = ?").bind(permission);
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
@@ -1303,12 +1525,21 @@ impl RbacRepository for SqliteRbacRepository {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
         ordered_ids: &[Uuid],
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        let mut owned_tx: Option<sqlx::Transaction<'_, sqlx::Sqlite>> = None;
+        let sql_tx: &mut sqlx::Transaction<'_, sqlx::Sqlite> = match tx {
+            Some(tx) => SqliteTransaction::from_trait(tx).expect("Invalid TX"),
+            None => {
+                owned_tx = Some(
+                    self.pool
+                        .begin()
+                        .await
+                        .map_err(|e| Error::Unexpected(e.into()))?,
+                );
+                owned_tx.as_mut().expect("owned tx missing")
+            }
+        };
         let parent = parent_id.map(|id| id.to_string());
         let realm = realm_id.to_string();
 
@@ -1320,12 +1551,14 @@ impl RbacRepository for SqliteRbacRepository {
             .bind(index as i64)
             .bind(group_id.to_string())
             .bind(&realm)
-            .execute(&mut *tx)
+            .execute(&mut **sql_tx)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         }
 
-        tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
+        if let Some(tx) = owned_tx {
+            tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
+        }
         Ok(())
     }
 
@@ -1790,14 +2023,23 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(rows.into_iter().map(|(n,)| n).collect())
     }
 
-    async fn delete_role(&self, role_id: &Uuid) -> Result<()> {
+    async fn delete_role(&self, role_id: &Uuid, tx: Option<&mut dyn Transaction>) -> Result<()> {
         // Simple delete. The database FK constraints (ON DELETE CASCADE)
         // will automatically clean up role_permissions, user_roles, etc.
-        let result = sqlx::query("DELETE FROM roles WHERE id = ?")
-            .bind(role_id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        let query = sqlx::query("DELETE FROM roles WHERE id = ?").bind(role_id.to_string());
+        let result = match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?
+            }
+            None => query
+                .execute(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?,
+        };
 
         if result.rows_affected() == 0 {
             return Err(Error::NotFound("Role not found for deletion".into()));
@@ -1806,7 +2048,11 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(())
     }
 
-    async fn delete_groups(&self, group_ids: &[Uuid]) -> Result<()> {
+    async fn delete_groups(
+        &self,
+        group_ids: &[Uuid],
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         if group_ids.is_empty() {
             return Ok(());
         }
@@ -1818,35 +2064,72 @@ impl RbacRepository for SqliteRbacRepository {
         }
         query_builder.push(")");
 
-        query_builder
-            .build()
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        let query = query_builder.build();
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
 
         Ok(())
     }
 
-    async fn update_role(&self, role: &Role) -> Result<()> {
-        sqlx::query("UPDATE roles SET name = ?, description = ? WHERE id = ?")
+    async fn update_role(&self, role: &Role, tx: Option<&mut dyn Transaction>) -> Result<()> {
+        let query = sqlx::query("UPDATE roles SET name = ?, description = ? WHERE id = ?")
             .bind(&role.name)
             .bind(&role.description)
-            .bind(role.id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(role.id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
 
         Ok(())
     }
 
-    async fn update_group(&self, group: &Group) -> Result<()> {
-        sqlx::query("UPDATE groups SET name = ?, description = ? WHERE id = ?")
+    async fn update_group(&self, group: &Group, tx: Option<&mut dyn Transaction>) -> Result<()> {
+        let query = sqlx::query("UPDATE groups SET name = ?, description = ? WHERE id = ?")
             .bind(&group.name)
             .bind(&group.description)
-            .bind(group.id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(group.id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
 
         Ok(())
     }
@@ -1863,13 +2146,32 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(perms)
     }
 
-    async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()> {
-        sqlx::query("DELETE FROM role_permissions WHERE role_id = ? AND permission_name = ?")
-            .bind(role_id.to_string())
-            .bind(permission)
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+    async fn remove_permission(
+        &self,
+        role_id: &Uuid,
+        permission: &str,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query =
+            sqlx::query("DELETE FROM role_permissions WHERE role_id = ? AND permission_name = ?")
+                .bind(role_id.to_string())
+                .bind(permission);
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
@@ -1879,12 +2181,21 @@ impl RbacRepository for SqliteRbacRepository {
         role_id: &Uuid,
         permissions: Vec<String>,
         action: &str,
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        let mut owned_tx: Option<sqlx::Transaction<'_, sqlx::Sqlite>> = None;
+        let sql_tx: &mut sqlx::Transaction<'_, sqlx::Sqlite> = match tx {
+            Some(tx) => SqliteTransaction::from_trait(tx).expect("Invalid TX"),
+            None => {
+                owned_tx = Some(
+                    self.pool
+                        .begin()
+                        .await
+                        .map_err(|e| Error::Unexpected(e.into()))?,
+                );
+                owned_tx.as_mut().expect("owned tx missing")
+            }
+        };
         let rid = role_id.to_string();
 
         for perm in permissions {
@@ -1893,7 +2204,7 @@ impl RbacRepository for SqliteRbacRepository {
                 sqlx::query("INSERT OR IGNORE INTO role_permissions (role_id, permission_name) VALUES (?, ?)")
                     .bind(&rid)
                     .bind(perm)
-                    .execute(&mut *tx)
+                    .execute(&mut **sql_tx)
                     .await
                     .map_err(|e| Error::Unexpected(e.into()))?;
             } else if action == "remove" {
@@ -1902,13 +2213,15 @@ impl RbacRepository for SqliteRbacRepository {
                 )
                 .bind(&rid)
                 .bind(perm)
-                .execute(&mut *tx)
+                .execute(&mut **sql_tx)
                 .await
                 .map_err(|e| Error::Unexpected(e.into()))?;
             }
         }
 
-        tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
+        if let Some(tx) = owned_tx {
+            tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
+        }
         Ok(())
     }
 
@@ -1916,15 +2229,29 @@ impl RbacRepository for SqliteRbacRepository {
         &self,
         parent_role_id: &Uuid,
         child_role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
-        sqlx::query(
+        let query = sqlx::query(
             "INSERT OR IGNORE INTO role_composite_roles (parent_role_id, child_role_id) VALUES (?, ?)",
         )
         .bind(parent_role_id.to_string())
-        .bind(child_role_id.to_string())
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        .bind(child_role_id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
@@ -1932,15 +2259,29 @@ impl RbacRepository for SqliteRbacRepository {
         &self,
         parent_role_id: &Uuid,
         child_role_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
-        sqlx::query(
+        let query = sqlx::query(
             "DELETE FROM role_composite_roles WHERE parent_role_id = ? AND child_role_id = ?",
         )
         .bind(parent_role_id.to_string())
-        .bind(child_role_id.to_string())
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        .bind(child_role_id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 

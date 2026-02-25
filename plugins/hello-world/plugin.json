@@ -12,6 +12,7 @@
     "sidebarLabel": "Hello World"
   },
   "events": {
-    "subscribes_to": ["UserCreated"]
+    "subscribes_to": ["UserCreated"],
+    "supported_event_version": "v1"
   }
 }

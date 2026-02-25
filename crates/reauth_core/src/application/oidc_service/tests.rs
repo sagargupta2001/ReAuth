@@ -5,6 +5,7 @@ use crate::config::AuthConfig;
 use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::AuthFlow;
 use crate::domain::auth_session::AuthenticationSession;
+use crate::domain::events::EventEnvelope;
 use crate::domain::execution::ExecutionPlan;
 use crate::domain::group::Group;
 use crate::domain::oidc::{AuthCode, OidcClient, OidcContext, OidcRequest};
@@ -21,11 +22,12 @@ use crate::error::{Error, Result};
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::oidc_repository::OidcRepository;
+use crate::ports::outbox_repository::OutboxRepository;
 use crate::ports::rbac_repository::RbacRepository;
 use crate::ports::realm_repository::RealmRepository;
 use crate::ports::session_repository::SessionRepository;
 use crate::ports::token_service::{AccessTokenClaims, TokenService};
-use crate::ports::transaction_manager::Transaction;
+use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use crate::ports::user_repository::UserRepository;
 use async_trait::async_trait;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -33,6 +35,7 @@ use base64::Engine;
 use chrono::{Duration, Utc};
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -405,12 +408,12 @@ impl UserRepository for TestUserRepo {
         Ok(self.users.lock().unwrap().get(id).cloned())
     }
 
-    async fn save(&self, user: &User) -> Result<()> {
+    async fn save(&self, user: &User, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         self.users.lock().unwrap().insert(user.id, user.clone());
         Ok(())
     }
 
-    async fn update(&self, user: &User) -> Result<()> {
+    async fn update(&self, user: &User, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         self.users.lock().unwrap().insert(user.id, user.clone());
         Ok(())
     }
@@ -508,27 +511,47 @@ struct TestRbacRepo;
 #[allow(clippy::unused_async)]
 #[async_trait]
 impl RbacRepository for TestRbacRepo {
-    async fn create_role(&self, _role: &Role) -> Result<()> {
+    async fn create_role(&self, _role: &Role, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         Ok(())
     }
 
-    async fn create_group(&self, _group: &Group) -> Result<()> {
+    async fn create_group(&self, _group: &Group, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         Ok(())
     }
 
-    async fn assign_role_to_group(&self, _role_id: &Uuid, _group_id: &Uuid) -> Result<()> {
+    async fn assign_role_to_group(
+        &self,
+        _role_id: &Uuid,
+        _group_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
-    async fn remove_role_from_group(&self, _role_id: &Uuid, _group_id: &Uuid) -> Result<()> {
+    async fn remove_role_from_group(
+        &self,
+        _role_id: &Uuid,
+        _group_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
-    async fn assign_user_to_group(&self, _user_id: &Uuid, _group_id: &Uuid) -> Result<()> {
+    async fn assign_user_to_group(
+        &self,
+        _user_id: &Uuid,
+        _group_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
-    async fn remove_user_from_group(&self, _user_id: &Uuid, _group_id: &Uuid) -> Result<()> {
+    async fn remove_user_from_group(
+        &self,
+        _user_id: &Uuid,
+        _group_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -536,15 +559,26 @@ impl RbacRepository for TestRbacRepo {
         &self,
         _permission: &Permission,
         _role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         Ok(())
     }
 
-    async fn assign_role_to_user(&self, _user_id: &Uuid, _role_id: &Uuid) -> Result<()> {
+    async fn assign_role_to_user(
+        &self,
+        _user_id: &Uuid,
+        _role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
-    async fn remove_role_from_user(&self, _user_id: &Uuid, _role_id: &Uuid) -> Result<()> {
+    async fn remove_role_from_user(
+        &self,
+        _user_id: &Uuid,
+        _role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -670,6 +704,7 @@ impl RbacRepository for TestRbacRepo {
         _realm_id: &Uuid,
         _parent_id: Option<&Uuid>,
         _ordered_ids: &[Uuid],
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         Ok(())
     }
@@ -759,19 +794,23 @@ impl RbacRepository for TestRbacRepo {
         Ok(Vec::new())
     }
 
-    async fn delete_role(&self, _role_id: &Uuid) -> Result<()> {
+    async fn delete_role(&self, _role_id: &Uuid, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         Ok(())
     }
 
-    async fn delete_groups(&self, _group_ids: &[Uuid]) -> Result<()> {
+    async fn delete_groups(
+        &self,
+        _group_ids: &[Uuid],
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
-    async fn update_role(&self, _role: &Role) -> Result<()> {
+    async fn update_role(&self, _role: &Role, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         Ok(())
     }
 
-    async fn update_group(&self, _group: &Group) -> Result<()> {
+    async fn update_group(&self, _group: &Group, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         Ok(())
     }
 
@@ -779,7 +818,12 @@ impl RbacRepository for TestRbacRepo {
         Ok(Vec::new())
     }
 
-    async fn remove_permission(&self, _role_id: &Uuid, _permission: &str) -> Result<()> {
+    async fn remove_permission(
+        &self,
+        _role_id: &Uuid,
+        _permission: &str,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -788,6 +832,7 @@ impl RbacRepository for TestRbacRepo {
         _role_id: &Uuid,
         _permissions: Vec<String>,
         _action: &str,
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         Ok(())
     }
@@ -796,6 +841,7 @@ impl RbacRepository for TestRbacRepo {
         &self,
         _parent_role_id: &Uuid,
         _child_role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         Ok(())
     }
@@ -804,6 +850,7 @@ impl RbacRepository for TestRbacRepo {
         &self,
         _parent_role_id: &Uuid,
         _child_role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         Ok(())
     }
@@ -812,15 +859,27 @@ impl RbacRepository for TestRbacRepo {
         Ok(false)
     }
 
-    async fn create_custom_permission(&self, _permission: &CustomPermission) -> Result<()> {
+    async fn create_custom_permission(
+        &self,
+        _permission: &CustomPermission,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
-    async fn update_custom_permission(&self, _permission: &CustomPermission) -> Result<()> {
+    async fn update_custom_permission(
+        &self,
+        _permission: &CustomPermission,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
-    async fn delete_custom_permission(&self, _permission_id: &Uuid) -> Result<()> {
+    async fn delete_custom_permission(
+        &self,
+        _permission_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -849,7 +908,55 @@ impl RbacRepository for TestRbacRepo {
         Ok(Vec::new())
     }
 
-    async fn remove_role_permissions_by_key(&self, _permission: &str) -> Result<()> {
+    async fn remove_role_permissions_by_key(
+        &self,
+        _permission: &str,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct TestOutboxRepo;
+
+#[async_trait]
+impl OutboxRepository for TestOutboxRepo {
+    async fn insert(
+        &self,
+        _envelope: &EventEnvelope,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+}
+
+struct TestTx;
+
+impl Transaction for TestTx {
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
+}
+
+#[derive(Default)]
+struct TestTxManager;
+
+#[async_trait]
+impl TransactionManager for TestTxManager {
+    async fn begin(&self) -> Result<Box<dyn Transaction>> {
+        Ok(Box::new(TestTx))
+    }
+
+    async fn commit(&self, _tx: Box<dyn Transaction>) -> Result<()> {
+        Ok(())
+    }
+
+    async fn rollback(&self, _tx: Box<dyn Transaction>) -> Result<()> {
         Ok(())
     }
 }
@@ -863,7 +970,15 @@ fn build_auth_service(
     let rbac_repo = Arc::new(TestRbacRepo);
     let cache = Arc::new(crate::adapters::cache::moka_cache::MokaCacheService::default());
     let event_bus = Arc::new(crate::adapters::eventing::in_memory_bus::InMemoryEventBus::default());
-    let rbac_service = Arc::new(RbacService::new(rbac_repo, cache, event_bus));
+    let outbox_repo = Arc::new(TestOutboxRepo);
+    let tx_manager = Arc::new(TestTxManager);
+    let rbac_service = Arc::new(RbacService::new(
+        rbac_repo,
+        cache,
+        event_bus,
+        outbox_repo,
+        tx_manager,
+    ));
     let settings = AuthConfig {
         jwt_secret: "secret".to_string(),
         jwt_key_id: "kid".to_string(),

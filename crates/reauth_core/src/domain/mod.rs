@@ -16,3 +16,4 @@ pub mod role;
 pub mod session;
 pub mod telemetry;
 pub mod user;
+pub mod webhook;
