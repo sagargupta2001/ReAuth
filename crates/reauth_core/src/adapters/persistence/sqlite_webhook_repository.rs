@@ -41,13 +41,14 @@ impl WebhookRepository for SqliteWebhookRepository {
     ) -> Result<()> {
         let query = sqlx::query(
             "INSERT INTO webhook_endpoints (
-                id, realm_id, name, url, status, signing_secret, custom_headers, description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                id, realm_id, name, url, http_method, status, signing_secret, custom_headers, description
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(endpoint.id.to_string())
         .bind(endpoint.realm_id.to_string())
         .bind(&endpoint.name)
         .bind(&endpoint.url)
+        .bind(&endpoint.http_method)
         .bind(&endpoint.status)
         .bind(&endpoint.signing_secret)
         .bind(Self::serialize_headers(&endpoint.custom_headers))
@@ -80,11 +81,12 @@ impl WebhookRepository for SqliteWebhookRepository {
     ) -> Result<()> {
         let query = sqlx::query(
             "UPDATE webhook_endpoints
-             SET name = ?, url = ?, status = ?, signing_secret = ?, custom_headers = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+             SET name = ?, url = ?, http_method = ?, status = ?, signing_secret = ?, custom_headers = ?, description = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ? AND realm_id = ?",
         )
         .bind(&endpoint.name)
         .bind(&endpoint.url)
+        .bind(&endpoint.http_method)
         .bind(&endpoint.status)
         .bind(&endpoint.signing_secret)
         .bind(Self::serialize_headers(&endpoint.custom_headers))
@@ -199,7 +201,7 @@ impl WebhookRepository for SqliteWebhookRepository {
         endpoint_id: &Uuid,
     ) -> Result<Option<WebhookEndpoint>> {
         let row = sqlx::query(
-            "SELECT id, realm_id, name, url, status, signing_secret, custom_headers, description,
+            "SELECT id, realm_id, name, url, http_method, status, signing_secret, custom_headers, description,
                     consecutive_failures, last_failure_at, disabled_at, disabled_reason,
                     created_at, updated_at
              FROM webhook_endpoints
@@ -217,6 +219,7 @@ impl WebhookRepository for SqliteWebhookRepository {
                 .unwrap_or(*realm_id),
             name: row.get("name"),
             url: row.get("url"),
+            http_method: row.get("http_method"),
             status: row.get("status"),
             signing_secret: row.get("signing_secret"),
             custom_headers: Self::parse_headers(&row.get::<String, _>("custom_headers")),
@@ -236,7 +239,7 @@ impl WebhookRepository for SqliteWebhookRepository {
     )]
     async fn list_endpoints(&self, realm_id: &Uuid) -> Result<Vec<WebhookEndpoint>> {
         let rows = sqlx::query(
-            "SELECT id, realm_id, name, url, status, signing_secret, custom_headers, description,
+            "SELECT id, realm_id, name, url, http_method, status, signing_secret, custom_headers, description,
                     consecutive_failures, last_failure_at, disabled_at, disabled_reason,
                     created_at, updated_at
              FROM webhook_endpoints
@@ -257,6 +260,7 @@ impl WebhookRepository for SqliteWebhookRepository {
                     .unwrap_or(*realm_id),
                 name: row.get("name"),
                 url: row.get("url"),
+                http_method: row.get("http_method"),
                 status: row.get("status"),
                 signing_secret: row.get("signing_secret"),
                 custom_headers: Self::parse_headers(&row.get::<String, _>("custom_headers")),

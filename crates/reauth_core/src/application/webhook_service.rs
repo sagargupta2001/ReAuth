@@ -29,6 +29,7 @@ pub struct CreateWebhookPayload {
     pub signing_secret: Option<String>,
     #[serde(default)]
     pub custom_headers: HashMap<String, String>,
+    pub http_method: Option<String>,
     #[serde(default)]
     pub subscriptions: Vec<String>,
 }
@@ -39,6 +40,7 @@ pub struct UpdateWebhookPayload {
     pub url: Option<String>,
     pub description: Option<String>,
     pub signing_secret: Option<String>,
+    pub http_method: Option<String>,
     pub status: Option<String>,
     pub custom_headers: Option<HashMap<String, String>>,
     pub subscriptions: Option<Vec<String>>,
@@ -157,12 +159,14 @@ impl WebhookService {
         let signing_secret = payload
             .signing_secret
             .unwrap_or_else(|| Uuid::new_v4().to_string());
+        let http_method = normalize_http_method(payload.http_method.as_deref())?;
 
         let endpoint = WebhookEndpoint {
             id: Uuid::new_v4(),
             realm_id,
             name: payload.name,
             url: payload.url,
+            http_method,
             status: WEBHOOK_STATUS_ACTIVE.to_string(),
             signing_secret,
             custom_headers: payload.custom_headers,
@@ -215,6 +219,9 @@ impl WebhookService {
         }
         if let Some(ref url) = payload.url {
             endpoint.url = url.to_string();
+        }
+        if let Some(ref http_method) = payload.http_method {
+            endpoint.http_method = normalize_http_method(Some(http_method))?;
         }
         if let Some(description) = payload.description {
             endpoint.description = Some(description);
@@ -431,9 +438,10 @@ impl WebhookService {
 
         let signature = sign_payload(&endpoint.signing_secret, &payload_json);
         let start = Instant::now();
+        let method = parse_http_method(&endpoint.http_method);
         let mut request = self
             .http_client
-            .post(&endpoint.url)
+            .request(method, &endpoint.url)
             .header("Content-Type", "application/json")
             .header("Reauth-Event-Id", event_id.to_string())
             .header("Reauth-Event-Type", event_type.clone())
@@ -540,6 +548,20 @@ fn serialize_error_chain(chain: &[String]) -> Option<String> {
         return None;
     }
     serde_json::to_string(chain).ok()
+}
+
+fn normalize_http_method(method: Option<&str>) -> Result<String> {
+    let normalized = method.unwrap_or("POST").trim().to_uppercase();
+    match normalized.as_str() {
+        "POST" | "PUT" => Ok(normalized),
+        _ => Err(Error::Validation(
+            "Unsupported webhook HTTP method. Use POST or PUT.".to_string(),
+        )),
+    }
+}
+
+fn parse_http_method(method: &str) -> reqwest::Method {
+    reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST)
 }
 
 fn should_update_name_from_url(name: &str, url: &str) -> bool {

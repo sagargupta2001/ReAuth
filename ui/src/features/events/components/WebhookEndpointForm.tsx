@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/checkbox'
 import { Input } from '@/components/input'
 import { Label } from '@/components/label'
 import { ScrollArea } from '@/components/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import { Switch } from '@/components/switch'
 import { Textarea } from '@/components/textarea'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
@@ -63,6 +64,7 @@ interface WebhookEndpointFormProps {
   defaultOpen?: boolean
   endpointId?: string
   initialUrl?: string
+  initialMethod?: string
   initialDescription?: string | null
   initialSubscriptions?: string[]
   onSaved?: () => void
@@ -74,6 +76,7 @@ export function WebhookEndpointForm({
   defaultOpen = false,
   endpointId,
   initialUrl,
+  initialMethod,
   initialDescription,
   initialSubscriptions,
   onSaved,
@@ -89,6 +92,7 @@ export function WebhookEndpointForm({
     () => new Set(DEFAULT_SELECTED_EVENTS),
   )
   const [url, setUrl] = useState('')
+  const [method, setMethod] = useState('POST')
   const [description, setDescription] = useState('')
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -107,8 +111,9 @@ export function WebhookEndpointForm({
     setSelectedEvents(initialSet)
     setSendEverything(initialSubscriptions?.length === allEvents.length)
     setUrl(initialUrl ?? '')
+    setMethod(initialMethod?.toUpperCase() ?? 'POST')
     setDescription(initialDescription ?? '')
-  }, [open, initialSubscriptions, initialUrl, initialDescription, allEvents])
+  }, [open, initialSubscriptions, initialUrl, initialMethod, initialDescription, allEvents])
 
   const toggleEvent = (eventName: string, checked: CheckedState) => {
     setSelectedEvents((prev) => {
@@ -145,6 +150,7 @@ export function WebhookEndpointForm({
     setSendEverything(false)
     setSelectedEvents(new Set(DEFAULT_SELECTED_EVENTS))
     setUrl('')
+    setMethod('POST')
     setDescription('')
   }
 
@@ -153,23 +159,25 @@ export function WebhookEndpointForm({
     try {
       if (!trimmedUrl || selectedEvents.size === 0) return
 
-      if (mode === 'create') {
-        const name = deriveEndpointName(trimmedUrl)
-        await createWebhook.mutateAsync({
-          name,
-          url: trimmedUrl,
-          description: description.trim() || undefined,
-          subscriptions: Array.from(selectedEvents),
-        })
-      } else {
-        if (!endpointId) return
-        await updateWebhook.mutateAsync({
-          endpointId,
-          payload: {
+        if (mode === 'create') {
+          const name = deriveEndpointName(trimmedUrl)
+          await createWebhook.mutateAsync({
+            name,
             url: trimmedUrl,
             description: description.trim() || undefined,
-          },
-        })
+            http_method: method,
+            subscriptions: Array.from(selectedEvents),
+          })
+        } else {
+          if (!endpointId) return
+          await updateWebhook.mutateAsync({
+            endpointId,
+            payload: {
+              url: trimmedUrl,
+              description: description.trim() || undefined,
+              http_method: method,
+            },
+          })
 
         const toggles = allEvents.map((event) => ({
           event_type: event,
@@ -225,6 +233,19 @@ export function WebhookEndpointForm({
               value={url}
               onChange={(event) => setUrl(event.target.value)}
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>HTTP Method</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="POST">POST</SelectItem>
+                <SelectItem value="PUT">PUT</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-2">
@@ -301,15 +322,6 @@ export function WebhookEndpointForm({
         </div>
 
         <DialogFooter className="gap-2">
-          {mode === 'edit' && endpointId && (
-            <Button
-              variant="destructive"
-              onClick={() => setDeleteOpen(true)}
-              disabled={deleteWebhook.isPending}
-            >
-              Delete Endpoint
-            </Button>
-          )}
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>

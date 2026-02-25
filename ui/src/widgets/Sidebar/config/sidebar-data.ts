@@ -1,16 +1,18 @@
-import { AppWindow, Group, KeyRound, LayoutDashboard, LucideClockFading, Package, ScrollText, Settings, Users, Webhook, Workflow } from 'lucide-react';
+import {
+  AppWindow,
+  Group,
+  KeyRound,
+  LayoutDashboard,
+  LucideClockFading,
+  Package,
+  ScrollText,
+  Settings,
+  Users,
+  Webhook,
+  Workflow,
+} from 'lucide-react'
 
-
-
-import type { SidebarData } from '@/widgets/Sidebar/model/types.ts';
-
-
-
-
-
-
-
-
+import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
 export const sidebarData: SidebarData = {
   user: {

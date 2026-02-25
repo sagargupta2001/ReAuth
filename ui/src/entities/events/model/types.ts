@@ -3,6 +3,7 @@ export interface WebhookEndpoint {
   realm_id: string
   name: string
   url: string
+  http_method: string
   status: string
   signing_secret: string
   custom_headers: Record<string, string>
@@ -52,5 +53,6 @@ export interface CreateWebhookPayload {
   description?: string | null
   signing_secret?: string | null
   custom_headers?: Record<string, string>
+  http_method?: string
   subscriptions: string[]
 }

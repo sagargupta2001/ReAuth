@@ -16,8 +16,10 @@ import type { DeliveryInspectorItem } from '@/features/events/components/Deliver
 import { DeliveriesInspector } from '@/features/events/components/DeliveriesInspector'
 import { useDeliveryLogs } from '@/features/events/api/useDeliveryLogs'
 import { useWebhookDeliveries } from '@/features/events/api/useWebhookDeliveries'
+import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useWebhookMutations } from '@/features/events/api/useWebhookMutations'
 import { useWebhook } from '@/features/events/api/useWebhooks'
+import { WebhookEndpointForm } from '@/features/events/components/WebhookEndpointForm'
 import { useRollWebhookSecret } from '@/features/events/api/useRollWebhookSecret'
 import { useReplayDelivery } from '@/features/events/api/useReplayDelivery'
 import { usePlugins } from '@/features/plugin/api/usePlugins'
@@ -25,24 +27,29 @@ import { usePluginMutations } from '@/features/plugin/api/usePluginMutations'
 import { useCurrentRealm } from '@/features/realm/api/useRealm'
 import { RealmLink } from '@/entities/realm/lib/navigation'
 import { formatClockTime } from '@/lib/utils'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { Main } from '@/widgets/Layout/Main'
-import { Copy, Eye, EyeOff, RotateCcw, Settings } from 'lucide-react'
+import { Copy, Eye, EyeOff, RefreshCcw, RotateCcw, Trash2 } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 
 export function TargetDetailsPage() {
   const { targetType, targetId } = useParams<{ targetType: string; targetId: string }>()
   const [showSecret, setShowSecret] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const navigate = useRealmNavigate()
 
   const isWebhook = targetType === 'webhooks'
   const webhookId = isWebhook ? targetId : undefined
 
-  const { data: webhookDetails, isLoading: webhookLoading } = useWebhook(webhookId)
+  const { data: webhookDetails, isLoading: webhookLoading, refetch: refetchWebhook } = useWebhook(
+    webhookId,
+  )
   const { data: pluginData } = usePlugins()
   const { data: currentRealm } = useCurrentRealm()
   const { enableWebhook, disableWebhook } = useWebhookMutations()
   const { enablePlugin, disablePlugin } = usePluginMutations()
+  const deleteWebhook = useDeleteWebhook()
   const rollSecret = useRollWebhookSecret()
   const replayDelivery = useReplayDelivery()
 
@@ -51,12 +58,22 @@ export function TargetDetailsPage() {
     [pluginData, targetId],
   )
 
-  const { data: webhookDeliveries, isLoading: webhookDeliveriesLoading } = useWebhookDeliveries(
+  const {
+    data: webhookDeliveries,
+    isLoading: webhookDeliveriesLoading,
+    isFetching: webhookDeliveriesFetching,
+    refetch: refetchWebhookDeliveries,
+  } = useWebhookDeliveries(
     webhookId,
     { per_page: 50, page: 1 },
   )
 
-  const { data: pluginDeliveries, isLoading: pluginDeliveriesLoading } = useDeliveryLogs(
+  const {
+    data: pluginDeliveries,
+    isLoading: pluginDeliveriesLoading,
+    isFetching: pluginDeliveriesFetching,
+    refetch: refetchPluginDeliveries,
+  } = useDeliveryLogs(
     {
       target_type: 'plugin',
       target_id: targetId,
@@ -141,6 +158,14 @@ export function TargetDetailsPage() {
   }, [isWebhook, pluginDeliveries?.data, webhookDeliveries?.data])
 
   const deliveriesLoading = isWebhook ? webhookDeliveriesLoading : pluginDeliveriesLoading
+  const deliveriesRefreshing = isWebhook ? webhookDeliveriesFetching : pluginDeliveriesFetching
+  const refreshDeliveries = () => {
+    if (isWebhook) {
+      void refetchWebhookDeliveries()
+    } else {
+      void refetchPluginDeliveries()
+    }
+  }
 
   const handleStatusChange = (checked: boolean) => {
     if (isWebhook && endpoint) {
@@ -180,6 +205,17 @@ export function TargetDetailsPage() {
     })
   }
 
+  const handleDelete = async () => {
+    if (!endpoint) return
+    try {
+      await deleteWebhook.mutateAsync(endpoint.id)
+      setDeleteOpen(false)
+      navigate('/events')
+    } catch (err) {
+      console.error('Failed to delete webhook', err)
+    }
+  }
+
   return (
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
       <Breadcrumb>
@@ -211,6 +247,40 @@ export function TargetDetailsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={refreshDeliveries}
+            disabled={deliveriesRefreshing || deliveriesLoading}
+          >
+            <RefreshCcw className="h-4 w-4" />
+          </Button>
+          {isWebhook && endpoint && (
+            <>
+              <WebhookEndpointForm
+                mode="edit"
+                endpointId={endpoint.id}
+                initialUrl={endpoint.url}
+                initialMethod={endpoint.http_method}
+                initialDescription={endpoint.description}
+                initialSubscriptions={(webhookDetails?.subscriptions ?? [])
+                  .filter((sub) => sub.enabled)
+                  .map((sub) => sub.event_type)}
+                onSaved={() => {
+                  void refetchWebhook()
+                  void refetchWebhookDeliveries()
+                }}
+                trigger={<Button variant="secondary">Edit</Button>}
+              />
+              <Button
+                variant="destructive"
+                onClick={() => setDeleteOpen(true)}
+                disabled={deleteWebhook.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </Button>
+            </>
+          )}
           <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs text-muted-foreground">
             <span>Status</span>
             <Switch
@@ -219,18 +289,6 @@ export function TargetDetailsPage() {
               disabled={toggleDisabled}
             />
           </div>
-          <Button
-            variant="outline"
-            onClick={() =>
-              isWebhook && targetId
-                ? navigate(`/events/webhooks/${targetId}/settings`)
-                : undefined
-            }
-            disabled={!isWebhook || !targetId}
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </Button>
         </div>
       </div>
 
@@ -281,6 +339,17 @@ export function TargetDetailsPage() {
         isLoading={deliveriesLoading}
         replayPending={replayDelivery.isPending}
         onReplay={(deliveryId) => replayDelivery.mutate(deliveryId)}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete webhook endpoint"
+        desc="This will permanently delete the webhook and its delivery history."
+        destructive
+        isLoading={deleteWebhook.isPending}
+        handleConfirm={handleDelete}
+        confirmText={deleteWebhook.isPending ? 'Deleting...' : 'Delete'}
       />
     </Main>
   )

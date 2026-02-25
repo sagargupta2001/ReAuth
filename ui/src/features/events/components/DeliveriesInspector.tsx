@@ -6,6 +6,7 @@ import { Card } from '@/components/card'
 import { ScrollArea } from '@/components/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { cn } from '@/lib/utils'
+import { CirclePlay } from 'lucide-react'
 
 export interface DeliveryInspectorItem {
   id: string
@@ -121,6 +122,7 @@ export function DeliveriesInspector({
               disabled={!selected || !onReplay || replayPending}
               onClick={() => selected && onReplay?.(selected.id)}
             >
+              <CirclePlay color="green"/>
               Replay Event
             </Button>
           </div>

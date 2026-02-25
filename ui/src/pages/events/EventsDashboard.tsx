@@ -40,6 +40,7 @@ export function EventsDashboard() {
       return {
         id: details.endpoint.id,
         url: details.endpoint.url,
+        method: details.endpoint.http_method || 'POST',
         status: isFailing ? 'failing' : 'active',
         subscriptions: subscriptionSummary,
         lastFired: formatRelativeTime(details.endpoint.updated_at),
@@ -106,6 +107,7 @@ export function EventsDashboard() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Method</TableHead>
                     <TableHead className="w-[40%]">Endpoint URL</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Subscriptions</TableHead>
@@ -116,7 +118,7 @@ export function EventsDashboard() {
                   {webhooksLoading ? (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={5}
                         className="py-6 text-center text-sm text-muted-foreground"
                       >
                         Loading webhook endpoints...
@@ -125,7 +127,7 @@ export function EventsDashboard() {
                   ) : webhooksError ? (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={5}
                         className="py-6 text-center text-sm text-muted-foreground"
                       >
                         Failed to load webhook endpoints.
@@ -134,7 +136,7 @@ export function EventsDashboard() {
                   ) : webhookRows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={4}
+                        colSpan={5}
                         className="py-6 text-center text-sm text-muted-foreground"
                       >
                         No webhook endpoints configured yet.
@@ -147,6 +149,9 @@ export function EventsDashboard() {
                         className="cursor-pointer transition hover:bg-muted/60"
                         onClick={() => navigate(`/events/webhooks/${row.id}`)}
                       >
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {row.method}
+                        </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {row.url}
                         </TableCell>

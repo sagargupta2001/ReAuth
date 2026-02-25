@@ -94,9 +94,10 @@ impl DeliveryReplayService {
 
         let signature = sign_payload(&endpoint.signing_secret, &log.payload);
         let start = Instant::now();
+        let method = parse_http_method(&endpoint.http_method);
         let mut request = self
             .http_client
-            .post(&endpoint.url)
+            .request(method, &endpoint.url)
             .header("Content-Type", "application/json")
             .header("Reauth-Event-Id", &log.event_id)
             .header("Reauth-Event-Type", &log.event_type)
@@ -415,6 +416,10 @@ fn serialize_error_chain(chain: &[String]) -> Option<String> {
         return None;
     }
     serde_json::to_string(chain).ok()
+}
+
+fn parse_http_method(method: &str) -> reqwest::Method {
+    reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST)
 }
 
 fn sign_payload(secret: &str, payload: &str) -> String {

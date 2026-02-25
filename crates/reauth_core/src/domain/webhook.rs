@@ -8,6 +8,7 @@ pub struct WebhookEndpoint {
     pub realm_id: Uuid,
     pub name: String,
     pub url: String,
+    pub http_method: String,
     pub status: String,
     pub signing_secret: String,
     pub custom_headers: HashMap<String, String>,

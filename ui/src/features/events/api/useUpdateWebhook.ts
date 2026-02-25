@@ -9,6 +9,7 @@ export interface UpdateWebhookPayload {
   url?: string
   description?: string | null
   signing_secret?: string
+  http_method?: string
   status?: string
   custom_headers?: Record<string, string>
 }

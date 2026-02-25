@@ -255,6 +255,7 @@ impl OutboxWorker {
 struct WebhookTargetRow {
     id: String,
     url: String,
+    http_method: String,
     signing_secret: String,
     custom_headers: String,
 }
@@ -275,6 +276,7 @@ struct DeliveryLogEntry<'a> {
 struct WebhookTarget {
     id: String,
     url: String,
+    http_method: String,
     signing_secret: String,
     headers: Vec<(String, String)>,
 }
@@ -297,7 +299,7 @@ impl OutboxWorker {
 
         let rows: Vec<WebhookTargetRow> = sqlx::query_as(
             r#"
-            SELECT e.id, e.url, e.signing_secret, e.custom_headers
+            SELECT e.id, e.url, e.http_method, e.signing_secret, e.custom_headers
             FROM webhook_endpoints e
             JOIN webhook_subscriptions s ON s.endpoint_id = e.id
             WHERE e.status = 'active'
@@ -316,6 +318,7 @@ impl OutboxWorker {
             .map(|row| WebhookTarget {
                 id: row.id,
                 url: row.url,
+                http_method: row.http_method,
                 signing_secret: row.signing_secret,
                 headers: parse_custom_headers(&row.custom_headers),
             })
@@ -348,9 +351,10 @@ impl OutboxWorker {
         let start = Instant::now();
         let signature = sign_payload(&target.signing_secret, &outbox.payload_json);
 
+        let method = parse_http_method(&target.http_method);
         let mut request = self
             .http_client
-            .post(&target.url)
+            .request(method, &target.url)
             .header("Content-Type", "application/json")
             .header("Reauth-Event-Id", &outbox.id)
             .header("Reauth-Event-Type", &outbox.event_type)
@@ -743,6 +747,10 @@ fn serialize_error_chain(chain: &[String]) -> Option<String> {
         return None;
     }
     serde_json::to_string(chain).ok()
+}
+
+fn parse_http_method(method: &str) -> reqwest::Method {
+    reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST)
 }
 
 fn map_payload_for_version(
