@@ -216,13 +216,12 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
     sort_dir: urlState.trace_sort_dir,
   })
 
-  const traces = data?.data ?? []
   const meta = data?.meta
 
-  const requestTraces = useMemo(
-    () => traces.filter((trace) => trace.method || trace.route || trace.path),
-    [traces],
-  )
+  const requestTraces = useMemo(() => {
+    const traces = data?.data ?? []
+    return traces.filter((trace) => trace.method || trace.route || trace.path)
+  }, [data?.data])
 
   const selectedTrace = useMemo(() => {
     if (!requestTraces.length) return null

@@ -317,10 +317,12 @@ export function LogsExplorer({
     { enabled: shouldPollStored },
   )
 
-  const storedLogs = data?.data ?? []
   const meta = data?.meta
 
-  const normalizedStored = useMemo(() => storedLogs.map(normalizeStoredLog), [storedLogs])
+  const normalizedStored = useMemo(() => {
+    const storedLogs = data?.data ?? []
+    return storedLogs.map(normalizeStoredLog)
+  }, [data?.data])
 
   useEffect(() => {
     if (!liveAllowed && isConnected) {

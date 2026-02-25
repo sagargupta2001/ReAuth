@@ -35,10 +35,13 @@ export function LogsPage() {
   })
 
   const timeRangeKey = urlState.range
-  const customRange: CustomTimeRange = {
-    start: urlState.start || undefined,
-    end: urlState.end || undefined,
-  }
+  const customRange: CustomTimeRange = useMemo(
+    () => ({
+      start: urlState.start || undefined,
+      end: urlState.end || undefined,
+    }),
+    [urlState.end, urlState.start],
+  )
   const activeTab = urlState.tab
   const selectedTraceId = urlState.trace ? urlState.trace : null
 
