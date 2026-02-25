@@ -7,7 +7,6 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Command, CommandInput } from '@/components/command'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
-import { Switch } from '@/components/switch'
 import {
   Table,
   TableBody,
@@ -19,15 +18,10 @@ import {
 import type { LogEntry } from '@/entities/log/model/types'
 import { useLogStream } from '@/features/logs/hooks/useLogStream'
 import { cn } from '@/lib/utils'
-import {
-  booleanParam,
-  enumParam,
-  numberParam,
-  stringParam,
-  useUrlState,
-} from '@/shared/lib/hooks/useUrlState'
+import { enumParam, numberParam, stringParam, useUrlState } from '@/shared/lib/hooks/useUrlState'
 
 import { useTelemetryLogs } from '../api/useTelemetryLogs'
+import { useIncludeSpansPreference } from '../lib/observabilityPreferences'
 import { isWithinRange } from '../lib/timeRange'
 import type { ResolvedTimeRange } from '../lib/timeRange'
 import type { TelemetryLog } from '../model/types'
@@ -231,7 +225,6 @@ export function LogsExplorer({
     log_level: LogLevelFilter
     log_source: string
     log_q: string
-    log_spans: boolean
     log_sort_by: SortField
     log_sort_dir: SortDir
   }>({
@@ -240,7 +233,6 @@ export function LogsExplorer({
     log_level: enumParam(LOG_LEVELS, 'all'),
     log_source: stringParam('all'),
     log_q: stringParam(''),
-    log_spans: booleanParam(false),
     log_sort_by: enumParam(SORT_FIELDS, 'timestamp'),
     log_sort_dir: enumParam(SORT_DIRS, 'desc'),
   })
@@ -250,7 +242,7 @@ export function LogsExplorer({
 
   const levelFilter = urlState.log_level
   const moduleFilter = urlState.log_source
-  const includeSpans = urlState.log_spans
+  const { includeSpans } = useIncludeSpansPreference()
   const sortValue = `${urlState.log_sort_by}:${urlState.log_sort_dir}`
 
   useEffect(() => {
@@ -420,13 +412,6 @@ export function LogsExplorer({
               </span>
             )}
           </div>
-          <label className="flex items-center gap-2 rounded-md border border-border/40 bg-background/60 px-3 py-2 text-xs text-muted-foreground">
-            <Switch
-              checked={includeSpans}
-              onCheckedChange={(value) => setUrlState({ log_spans: value, log_page: 1 })}
-            />
-            {t('LOGS_EXPLORER.INCLUDE_SPANS')}
-          </label>
           <Button
             variant="outline"
             className="h-11 gap-2"
