@@ -15,9 +15,11 @@ Omni Search provides a Raycast-style, global command palette for ReAuth. It unif
   - Clients require `client:read`
   - Roles and groups require `rbac:read`
   - Flows require `realm:read`
+  - Webhooks require `realm:read` (or a future `webhook:read`)
 - Server-side aggregation:
   - Users, clients, roles, groups are filtered via `PageRequest` and mapped to lightweight DTOs.
   - Flows are assembled by merging runtime flows with drafts and then filtered by query.
+  - Webhooks are filtered by name/url and mapped to lightweight DTOs (id, name, url, http_method, status).
 
 ### Frontend Data Flow
 - Input is debounced (300ms) and sent to the backend for dynamic items.
@@ -112,12 +114,23 @@ flowchart LR
 2. If it needs highlighting, add a stable `hash` and ensure the target page wraps the section with the same `id`.
 3. If it is a dangerous action, add an `actionId`, `href`, `hash`, and extend `dangerActionConfig` in `OmniCommandPalette`.
 
+### Event Routing Items (Static)
+Add static items that deep-link into Event Routing tabs:
+- `Event Routing` → `/:realm/events?tab=webhooks`
+- `Event Routing — HTTP Webhooks` → `/:realm/events?tab=webhooks`
+- `Event Routing — gRPC Plugins` → `/:realm/events?tab=plugins`
+- `Create Webhook Endpoint` → `/:realm/events?tab=webhooks` (opens the page; user clicks “Add Webhook”)
+
 ### Add a Dynamic Entity Type
 1. Backend: extend `SearchResponse` in `search_handler.rs` and return a new list.
 2. Frontend types: update `OmniSearchResponse` in `omniTypes.ts`.
 3. Ranking: add a `rankedX` list in `OmniCommandPalette.tsx`.
 4. Rendering: add a new `CommandGroup` section and map to rows.
 5. Inspector: extend `OmniInspectorItem` union and render in `PaletteInspector`.
+
+Example: Webhook Endpoints (DB-backed)
+- Add `webhooks` to `SearchResponse` with fields: `id`, `name`, `url`, `http_method`, `status`.
+- Render a “Webhooks” group with rows that deep-link to `/:realm/events/webhooks/:id`.
 
 ### Add a New Action With Confirmation
 1. Add a static item with `kind: 'action'` and a unique `actionId`.

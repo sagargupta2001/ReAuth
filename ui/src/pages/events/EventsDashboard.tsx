@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { Badge } from '@/components/badge'
 import {
@@ -23,9 +24,11 @@ import { Box, Plus, RefreshCcw } from 'lucide-react'
 
 export function EventsDashboard() {
   const navigate = useRealmNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: webhookData, isLoading: webhooksLoading, isError: webhooksError } = useWebhooks()
   const { data: pluginData, isLoading: pluginsLoading, isError: pluginsError } = usePlugins()
   const { enablePlugin, disablePlugin, refreshPlugins } = usePluginMutations()
+  const activeTab = searchParams.get('tab') === 'plugins' ? 'plugins' : 'webhooks'
 
   const webhookRows = useMemo(() => {
     const rows = webhookData ?? []
@@ -69,7 +72,15 @@ export function EventsDashboard() {
         </div>
       </div>
 
-      <Tabs defaultValue="webhooks" className="flex flex-1 flex-col gap-6">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const params = new URLSearchParams(searchParams)
+          params.set('tab', value)
+          setSearchParams(params)
+        }}
+        className="flex flex-1 flex-col gap-6"
+      >
         <TabsList className="w-fit rounded-full border bg-muted/40 p-1">
           <TabsTrigger value="webhooks" className="tab-trigger-styles">
             HTTP Webhooks

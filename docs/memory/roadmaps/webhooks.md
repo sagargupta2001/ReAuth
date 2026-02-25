@@ -10,9 +10,11 @@
 - Subscribers registered at startup are `CacheInvalidator` (permission cache invalidation).
 - Outbox rows are written transactionally for user + RBAC writes, and a background worker dispatches them.
 - HTTP webhook delivery is implemented with HMAC signing and per-target logging.
+- Webhook endpoints support `http_method` (POST/PUT) and dispatchers honor it (test + replay included).
 - gRPC plugin delivery is routed via the outbox worker with response handling and logging.
 - Retry/backoff with jitter + dead-letter + circuit breaker are implemented.
 - Webhook admin API supports CRUD, enable/disable, subscription toggles, and delivery log listing.
+- Event Routing UI ships with tabs, detail inspector, inline edit/delete, refresh, and breadcrumb navigation.
 
 ## Priority plan (tracked)
 - [x] P0: Add `event_outbox` + webhook tables in primary DB (migration).
@@ -24,14 +26,15 @@
 - [x] P1: Retry/backoff + dead-letter + circuit breaker.
 - [x] P1: Admin API for webhook CRUD + test delivery + enable/disable + subscription toggles.
 - [x] P1: Delivery log inspection endpoints.
+- [x] P1: Event Routing UI for webhooks/plugins + delivery inspector.
+- [x] P1: Webhook HTTP method support (POST/PUT) end-to-end.
+- [x] P1: Omni Search entries for Event Routing + DB-backed Webhook search.
 
 ## Next (implementation details)
 - Retry queue: exponential backoff with jitter and a dead-letter state after max attempts.
-- Admin APIs for webhooks: CRUD endpoints and test delivery (pause/resume + delivery log inspection still pending).
 - Split storage into `reauth_primary.db` (auth data + event_outbox) and `reauth_telemetry.db` (delivery logs; audit can move later) with WAL enabled.
 
 ## Later
-- UI for webhook management and delivery troubleshooting.
 - Per-realm quotas and rate limiting for webhooks and plugins.
 - Event filtering rules beyond event type (realm, client_id, predicate rules).
 - Payload encryption at rest for delivery logs (if stored).
@@ -75,6 +78,12 @@ Problem solved: self-amplifying failure loops and upstream outages.
 - [x] Extend plugin manifest with `supported_event_version` and add version mapping in router.
 Reason: legacy plugins can still operate when event schema evolves.
 Problem solved: plugin crashes due to breaking payload changes.
+- [x] Add webhook HTTP method support (POST/PUT) and surface it in the UI table.
+Reason: aligns with downstream expectations for signature verification and routing.
+Problem solved: endpoints that require PUT can be supported without custom proxies.
 - [ ] Store payload inline; use zstd compression for large payloads.
 Reason: IAM events are small; compression keeps DB size predictable.
 Problem solved: avoids premature blob-store complexity while keeping storage efficient.
+- [x] Add DB-backed Webhook search results to Omni Search.
+Reason: quick access to specific endpoints during incident response.
+Problem solved: removes manual scanning of long webhook lists in large realms.

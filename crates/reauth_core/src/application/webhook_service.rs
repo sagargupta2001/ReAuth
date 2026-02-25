@@ -132,6 +132,22 @@ impl WebhookService {
         Ok(details)
     }
 
+    pub async fn search_endpoints(
+        &self,
+        realm_id: Uuid,
+        query: &str,
+        limit: i64,
+    ) -> Result<Vec<WebhookEndpoint>> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return Ok(vec![]);
+        }
+        let bounded = limit.clamp(1, 20);
+        self.repo
+            .search_endpoints(&realm_id, trimmed, bounded)
+            .await
+    }
+
     pub async fn get_endpoint(&self, realm_id: Uuid, id: Uuid) -> Result<WebhookEndpointDetails> {
         let endpoint = self
             .repo

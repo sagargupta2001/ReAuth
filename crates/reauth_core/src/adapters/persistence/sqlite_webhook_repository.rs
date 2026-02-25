@@ -277,6 +277,59 @@ impl WebhookRepository for SqliteWebhookRepository {
 
     #[instrument(
         skip_all,
+        fields(telemetry = "span", db_table = "webhook_endpoints", db_op = "select")
+    )]
+    async fn search_endpoints(
+        &self,
+        realm_id: &Uuid,
+        query: &str,
+        limit: i64,
+    ) -> Result<Vec<WebhookEndpoint>> {
+        let pattern = format!("%{}%", query.to_lowercase());
+        let rows = sqlx::query(
+            "SELECT id, realm_id, name, url, http_method, status, signing_secret, custom_headers, description,
+                    consecutive_failures, last_failure_at, disabled_at, disabled_reason,
+                    created_at, updated_at
+             FROM webhook_endpoints
+             WHERE realm_id = ?
+               AND (lower(name) LIKE ? OR lower(url) LIKE ?)
+             ORDER BY updated_at DESC
+             LIMIT ?",
+        )
+        .bind(realm_id.to_string())
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(limit)
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| WebhookEndpoint {
+                id: Uuid::parse_str(row.get::<String, _>("id").as_str())
+                    .unwrap_or_else(|_| Uuid::nil()),
+                realm_id: Uuid::parse_str(row.get::<String, _>("realm_id").as_str())
+                    .unwrap_or(*realm_id),
+                name: row.get("name"),
+                url: row.get("url"),
+                http_method: row.get("http_method"),
+                status: row.get("status"),
+                signing_secret: row.get("signing_secret"),
+                custom_headers: Self::parse_headers(&row.get::<String, _>("custom_headers")),
+                description: row.get("description"),
+                consecutive_failures: row.get("consecutive_failures"),
+                last_failure_at: row.get("last_failure_at"),
+                disabled_at: row.get("disabled_at"),
+                disabled_reason: row.get("disabled_reason"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect())
+    }
+
+    #[instrument(
+        skip_all,
         fields(
             telemetry = "span",
             db_table = "webhook_subscriptions",

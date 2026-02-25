@@ -36,6 +36,12 @@ pub trait WebhookRepository: Send + Sync {
         endpoint_id: &Uuid,
     ) -> Result<Option<WebhookEndpoint>>;
     async fn list_endpoints(&self, realm_id: &Uuid) -> Result<Vec<WebhookEndpoint>>;
+    async fn search_endpoints(
+        &self,
+        realm_id: &Uuid,
+        query: &str,
+        limit: i64,
+    ) -> Result<Vec<WebhookEndpoint>>;
     async fn upsert_subscriptions(
         &self,
         endpoint_id: &Uuid,

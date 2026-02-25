@@ -11,6 +11,7 @@ export type OmniGroup =
   | 'Roles'
   | 'Groups'
   | 'Flows'
+  | 'Webhooks'
 
 export type OmniStaticItemKind = 'link' | 'action' | 'setting' | 'toggle'
 
@@ -61,12 +62,21 @@ export interface OmniSearchFlow {
   is_draft: boolean
 }
 
+export interface OmniSearchWebhook {
+  id: string
+  name: string
+  url: string
+  http_method: string
+  status: string
+}
+
 export interface OmniSearchResponse {
   users: OmniSearchUser[]
   clients: OmniSearchClient[]
   roles: OmniSearchRole[]
   groups: OmniSearchGroup[]
   flows: OmniSearchFlow[]
+  webhooks: OmniSearchWebhook[]
 }
 
 export type OmniInspectorItem =
@@ -104,6 +114,15 @@ export type OmniInspectorItem =
       label: string
       subtitle?: string
       description?: string
+      href?: string
+    }
+  | {
+      kind: 'webhook'
+      id: string
+      label: string
+      subtitle?: string
+      description?: string
+      status?: string
       href?: string
     }
   | {
