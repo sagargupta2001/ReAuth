@@ -14,7 +14,8 @@
 - gRPC plugin delivery is routed via the outbox worker with response handling and logging.
 - Retry/backoff with jitter + dead-letter + circuit breaker are implemented.
 - Webhook admin API supports CRUD, enable/disable, subscription toggles, and delivery log listing.
-- Event Routing UI ships with tabs, detail inspector, inline edit/delete, refresh, and breadcrumb navigation.
+- Event Routing UI ships with tabs, detail inspector, inline edit/delete, refresh, and back navigation.
+- Event routing metrics API is available (total routed, success rate, active plugins, avg latency).
 
 ## Priority plan (tracked)
 - [x] P0: Add `event_outbox` + webhook tables in primary DB (migration).
@@ -29,9 +30,12 @@
 - [x] P1: Event Routing UI for webhooks/plugins + delivery inspector.
 - [x] P1: Webhook HTTP method support (POST/PUT) end-to-end.
 - [x] P1: Omni Search entries for Event Routing + DB-backed Webhook search.
+- [x] P1: Event routing metrics (total routed, success rate, active plugins, avg latency).
 
 ## Next (implementation details)
-- Retry queue: exponential backoff with jitter and a dead-letter state after max attempts.
+- Expand domain event coverage across backend services (OIDC clients, flows, sessions, audits, tokens, realm settings, etc.).
+- Ensure every new domain write path emits events (including admin updates, deletions, and bulk actions).
+- Add event-type catalog + docs and align UI selection groups with the backend event list.
 - Split storage into `reauth_primary.db` (auth data + event_outbox) and `reauth_telemetry.db` (delivery logs; audit can move later) with WAL enabled.
 
 ## Later
@@ -87,3 +91,6 @@ Problem solved: avoids premature blob-store complexity while keeping storage eff
 - [x] Add DB-backed Webhook search results to Omni Search.
 Reason: quick access to specific endpoints during incident response.
 Problem solved: removes manual scanning of long webhook lists in large realms.
+- [ ] Expand event emission coverage across the backend (clients, flows, sessions, audits, tokens, realm settings).
+Reason: every important state change should be observable and automatable.
+Problem solved: missing events that prevent external systems from staying in sync.
