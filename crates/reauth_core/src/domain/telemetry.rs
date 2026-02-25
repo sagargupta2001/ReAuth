@@ -76,6 +76,7 @@ pub struct DeliveryLog {
     pub response_status: Option<i64>,
     pub response_body: Option<String>,
     pub error: Option<String>,
+    pub error_chain: Option<String>,
     pub latency_ms: Option<i64>,
     pub delivered_at: String,
 }

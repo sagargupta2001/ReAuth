@@ -1,6 +1,14 @@
 import { useMemo, useState } from 'react'
 
 import { Badge } from '@/components/badge'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/breadcrumb'
 import { Button } from '@/components/button'
 import { Card, CardContent } from '@/components/card'
 import { Switch } from '@/components/switch'
@@ -15,6 +23,7 @@ import { useReplayDelivery } from '@/features/events/api/useReplayDelivery'
 import { usePlugins } from '@/features/plugin/api/usePlugins'
 import { usePluginMutations } from '@/features/plugin/api/usePluginMutations'
 import { useCurrentRealm } from '@/features/realm/api/useRealm'
+import { RealmLink } from '@/entities/realm/lib/navigation'
 import { formatClockTime } from '@/lib/utils'
 import { Main } from '@/widgets/Layout/Main'
 import { Copy, Eye, EyeOff, RotateCcw, Settings } from 'lucide-react'
@@ -108,9 +117,9 @@ export function TargetDetailsPage() {
         !log.error
 
       const payload = parseJsonPayload(log.payload)
-      const responseBody = log.error
-        ? { error: log.error }
-        : parseJsonPayload(log.response_body ?? undefined)
+      const responseBody = parseJsonPayload(log.response_body ?? undefined)
+      const failureReason = formatFailureReason(log.error, log.response_status)
+      const errorChain = parseErrorChain(log.error_chain ?? undefined)
       const statusText = formatStatusText(log.response_status, log.error)
 
       return {
@@ -121,6 +130,8 @@ export function TargetDetailsPage() {
         latency: log.latency_ms ? `${log.latency_ms}ms` : '—',
         signature: null,
         payload,
+        failureReason,
+        errorChain,
         response: {
           status: statusText,
           body: responseBody,
@@ -171,6 +182,20 @@ export function TargetDetailsPage() {
 
   return (
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <RealmLink to="/events">Event Routing</RealmLink>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{profileName}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
@@ -186,9 +211,6 @@ export function TargetDetailsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" onClick={() => navigate('/events')}>
-            Back
-          </Button>
           <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs text-muted-foreground">
             <span>Status</span>
             <Switch
@@ -289,6 +311,32 @@ function formatStatusText(status?: number | null, error?: string | null) {
   }
   if (error) return 'Delivery Failed'
   return 'No Response'
+}
+
+function formatFailureReason(error?: string | null, status?: number | null) {
+  if (error) {
+    if (error.startsWith('http_')) {
+      return error.replace('http_', 'HTTP ').toUpperCase()
+    }
+    return error
+  }
+  if (typeof status === 'number' && (status < 200 || status >= 300)) {
+    return `HTTP ${status}`
+  }
+  return null
+}
+
+function parseErrorChain(value?: string | null) {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed.map((entry) => String(entry))
+    }
+  } catch {
+    return [value]
+  }
+  return [value]
 }
 
 function httpStatusText(status: number) {

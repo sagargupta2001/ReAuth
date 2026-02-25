@@ -8,8 +8,10 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::error::Error as StdError;
 use std::sync::Arc;
 use std::time::Instant;
+use url::Url;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -86,6 +88,7 @@ struct TestDeliveryLogEntry<'a> {
     response_status: Option<i64>,
     response_body: Option<String>,
     error: Option<String>,
+    error_chain: Option<String>,
     latency_ms: i64,
 }
 
@@ -204,12 +207,14 @@ impl WebhookService {
             .find_endpoint(&realm_id, &endpoint_id)
             .await?
             .ok_or_else(|| Error::NotFound("Webhook endpoint not found".to_string()))?;
+        let previous_url = endpoint.url.clone();
+        let previous_name = endpoint.name.clone();
 
-        if let Some(name) = payload.name {
-            endpoint.name = name;
+        if let Some(ref name) = payload.name {
+            endpoint.name = name.to_string();
         }
-        if let Some(url) = payload.url {
-            endpoint.url = url;
+        if let Some(ref url) = payload.url {
+            endpoint.url = url.to_string();
         }
         if let Some(description) = payload.description {
             endpoint.description = Some(description);
@@ -222,6 +227,12 @@ impl WebhookService {
         }
         if let Some(headers) = payload.custom_headers {
             endpoint.custom_headers = headers;
+        }
+        if payload.name.is_none()
+            && payload.url.is_some()
+            && should_update_name_from_url(&previous_name, &previous_url)
+        {
+            endpoint.name = derive_endpoint_name(&endpoint.url);
         }
 
         let mut tx = self.tx_manager.begin().await?;
@@ -436,13 +447,17 @@ impl WebhookService {
         let response = request.body(payload_json.clone()).send().await;
 
         let latency_ms = start.elapsed().as_millis() as i64;
-        let (status_code, response_body, error) = match response {
+        let (status_code, response_body, error, error_chain) = match response {
             Ok(resp) => {
                 let status = resp.status().as_u16() as i64;
                 let body = resp.text().await.unwrap_or_default();
-                (Some(status), Some(body), None)
+                (Some(status), Some(body), None, None)
             }
-            Err(err) => (None, None, Some(err.to_string())),
+            Err(err) => {
+                let error = err.to_string();
+                let error_chain = collect_error_chain(&err);
+                (None, None, Some(error), serialize_error_chain(&error_chain))
+            }
         };
 
         let log_entry = TestDeliveryLogEntry {
@@ -455,6 +470,7 @@ impl WebhookService {
             response_status: status_code,
             response_body: response_body.clone(),
             error: error.clone(),
+            error_chain: error_chain.clone(),
             latency_ms,
         };
         log_test_delivery(log_entry)
@@ -484,8 +500,8 @@ async fn log_test_delivery(entry: TestDeliveryLogEntry<'_>) -> anyhow::Result<()
     sqlx::query(
         "INSERT INTO delivery_logs (
             id, event_id, realm_id, target_type, target_id, event_type, event_version, attempt,
-            payload, payload_compressed, response_status, response_body, error, latency_ms, delivered_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            payload, payload_compressed, response_status, response_body, error, error_chain, latency_ms, delivered_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(delivery_id)
     .bind(entry.event_id)
@@ -500,12 +516,57 @@ async fn log_test_delivery(entry: TestDeliveryLogEntry<'_>) -> anyhow::Result<()
     .bind(entry.response_status)
     .bind(entry.response_body)
     .bind(entry.error)
+    .bind(entry.error_chain)
     .bind(entry.latency_ms)
     .bind(delivered_at)
     .execute(&**entry.telemetry_db)
     .await?;
 
     Ok(())
+}
+
+fn collect_error_chain(error: &reqwest::Error) -> Vec<String> {
+    let mut chain = Vec::new();
+    let mut current: Option<&(dyn StdError + 'static)> = Some(error);
+    while let Some(err) = current {
+        chain.push(err.to_string());
+        current = err.source();
+    }
+    chain
+}
+
+fn serialize_error_chain(chain: &[String]) -> Option<String> {
+    if chain.is_empty() {
+        return None;
+    }
+    serde_json::to_string(chain).ok()
+}
+
+fn should_update_name_from_url(name: &str, url: &str) -> bool {
+    let derived = derive_endpoint_name(url);
+    name.eq_ignore_ascii_case(&derived) || name.eq_ignore_ascii_case(url)
+}
+
+fn derive_endpoint_name(url: &str) -> String {
+    if let Ok(parsed) = Url::parse(url) {
+        if let Some(host) = parsed.host_str() {
+            return host.to_string();
+        }
+    }
+
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return url.to_string();
+    }
+
+    let with_scheme = format!("https://{}", trimmed);
+    if let Ok(parsed) = Url::parse(&with_scheme) {
+        if let Some(host) = parsed.host_str() {
+            return host.to_string();
+        }
+    }
+
+    url.to_string()
 }
 
 fn sign_payload(secret: &str, payload: &str) -> String {

@@ -12,6 +12,7 @@ use manager::PluginManager;
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::Row;
+use std::error::Error as StdError;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -113,10 +114,11 @@ impl DeliveryReplayService {
             Ok(resp) => {
                 let status_code = resp.status().as_u16() as i64;
                 let body = resp.text().await.unwrap_or_default();
-                let error = if status_code >= 500 {
-                    Some(format!("http_{}", status_code))
-                } else {
+                let is_success = (200..300).contains(&status_code);
+                let error = if is_success {
                     None
+                } else {
+                    Some(format!("http_{}", status_code))
                 };
 
                 let new_delivery_id = self
@@ -125,11 +127,12 @@ impl DeliveryReplayService {
                         Some(status_code),
                         Some(body.clone()),
                         error.clone(),
+                        None,
                         latency_ms,
                     )
                     .await?;
 
-                if error.is_some() {
+                if !is_success {
                     self.record_webhook_failure(
                         &endpoint_id.to_string(),
                         error.as_deref().unwrap_or(""),
@@ -151,8 +154,16 @@ impl DeliveryReplayService {
             }
             Err(err) => {
                 let error = err.to_string();
+                let error_chain = collect_error_chain(&err);
                 let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, Some(error.clone()), latency_ms)
+                    .insert_delivery_log(
+                        &log,
+                        None,
+                        None,
+                        Some(error.clone()),
+                        serialize_error_chain(&error_chain),
+                        latency_ms,
+                    )
                     .await?;
                 self.record_webhook_failure(&endpoint_id.to_string(), &error)
                     .await?;
@@ -193,7 +204,7 @@ impl DeliveryReplayService {
             Err(err) => {
                 let error = format!("version_mismatch: {}", err);
                 let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, Some(error.clone()), 0)
+                    .insert_delivery_log(&log, None, None, Some(error.clone()), None, 0)
                     .await?;
                 return Ok(ReplayDeliveryResult {
                     delivery_id: new_delivery_id,
@@ -219,7 +230,7 @@ impl DeliveryReplayService {
         match result {
             Ok(Ok(_)) => {
                 let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, None, latency_ms)
+                    .insert_delivery_log(&log, None, None, None, None, latency_ms)
                     .await?;
                 Ok(ReplayDeliveryResult {
                     delivery_id: new_delivery_id,
@@ -233,7 +244,7 @@ impl DeliveryReplayService {
             Ok(Err(err)) => {
                 let error = err.to_string();
                 let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, Some(error.clone()), latency_ms)
+                    .insert_delivery_log(&log, None, None, Some(error.clone()), None, latency_ms)
                     .await?;
                 Ok(ReplayDeliveryResult {
                     delivery_id: new_delivery_id,
@@ -247,7 +258,7 @@ impl DeliveryReplayService {
             Err(err) => {
                 let error = format!("timeout: {}", err);
                 let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, Some(error.clone()), latency_ms)
+                    .insert_delivery_log(&log, None, None, Some(error.clone()), None, latency_ms)
                     .await?;
                 Ok(ReplayDeliveryResult {
                     delivery_id: new_delivery_id,
@@ -267,6 +278,7 @@ impl DeliveryReplayService {
         response_status: Option<i64>,
         response_body: Option<String>,
         error: Option<String>,
+        error_chain: Option<String>,
         latency_ms: i64,
     ) -> Result<String> {
         let delivered_at = Utc::now().to_rfc3339();
@@ -276,8 +288,8 @@ impl DeliveryReplayService {
         sqlx::query(
             "INSERT INTO delivery_logs (
                 id, event_id, realm_id, target_type, target_id, event_type, event_version, attempt,
-                payload, payload_compressed, response_status, response_body, error, latency_ms, delivered_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                payload, payload_compressed, response_status, response_body, error, error_chain, latency_ms, delivered_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&delivery_id)
         .bind(&log.event_id)
@@ -292,6 +304,7 @@ impl DeliveryReplayService {
         .bind(response_status)
         .bind(response_body)
         .bind(error)
+        .bind(error_chain)
         .bind(latency_ms)
         .bind(delivered_at)
         .execute(&*self.telemetry_db)
@@ -385,6 +398,23 @@ fn map_payload_for_version(
         outbox_version,
         supported_version
     ))
+}
+
+fn collect_error_chain(error: &reqwest::Error) -> Vec<String> {
+    let mut chain = Vec::new();
+    let mut current: Option<&(dyn StdError + 'static)> = Some(error);
+    while let Some(err) = current {
+        chain.push(err.to_string());
+        current = err.source();
+    }
+    chain
+}
+
+fn serialize_error_chain(chain: &[String]) -> Option<String> {
+    if chain.is_empty() {
+        return None;
+    }
+    serde_json::to_string(chain).ok()
 }
 
 fn sign_payload(secret: &str, payload: &str) -> String {

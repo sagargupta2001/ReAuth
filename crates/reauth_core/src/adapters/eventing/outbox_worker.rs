@@ -9,8 +9,9 @@ use rand::Rng;
 use serde::Deserialize;
 use serde_json::Value;
 use sqlx::Row;
+use std::error::Error as StdError;
 use std::time::{Duration, Instant};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 const BACKOFF_SCHEDULE_SECS: [i64; 5] = [60, 300, 1800, 7200, 43200];
@@ -36,6 +37,17 @@ pub struct OutboxWorker {
     poll_interval: Duration,
     batch_size: i64,
     worker_id: String,
+}
+
+struct WebhookFailureLog<'a> {
+    outbox: &'a OutboxRow,
+    target: &'a WebhookTarget,
+    attempt: i64,
+    response_status: Option<i64>,
+    response_body: Option<&'a str>,
+    error: Option<&'a str>,
+    error_chain: Option<&'a [String]>,
+    latency_ms: i64,
 }
 
 impl OutboxWorker {
@@ -161,6 +173,7 @@ impl OutboxWorker {
                 response_status: None,
                 response_body: None,
                 error: Some("no_targets".to_string()),
+                error_chain: None,
                 latency_ms: 0,
             })
             .await?;
@@ -254,6 +267,7 @@ struct DeliveryLogEntry<'a> {
     response_status: Option<i64>,
     response_body: Option<String>,
     error: Option<String>,
+    error_chain: Option<String>,
     latency_ms: i64,
 }
 
@@ -354,10 +368,11 @@ impl OutboxWorker {
             Ok(resp) => {
                 let status_code = resp.status().as_u16() as i64;
                 let body = resp.text().await.unwrap_or_default();
-                let error = if status_code >= 500 {
-                    Some(format!("http_{}", status_code))
-                } else {
+                let is_success = (200..300).contains(&status_code);
+                let error = if is_success {
                     None
+                } else {
+                    Some(format!("http_{}", status_code))
                 };
 
                 self.log_delivery(DeliveryLogEntry {
@@ -368,19 +383,41 @@ impl OutboxWorker {
                     response_status: Some(status_code),
                     response_body: Some(body.clone()),
                     error: error.clone(),
+                    error_chain: None,
                     latency_ms,
                 })
                 .await?;
 
-                if error.is_some() {
+                if !is_success {
+                    let log = WebhookFailureLog {
+                        outbox,
+                        target,
+                        attempt,
+                        response_status: Some(status_code),
+                        response_body: Some(&body),
+                        error: error.as_deref(),
+                        error_chain: None,
+                        latency_ms,
+                    };
+                    if let Err(err) = self.log_webhook_failure_telemetry(log).await {
+                        warn!("Failed to log webhook failure telemetry: {}", err);
+                    }
+
                     self.record_webhook_failure(&target.id, error.as_deref().unwrap_or(""))
                         .await?;
-                    return Err(anyhow!("webhook {} failed", target.id));
+                    return Err(anyhow!(
+                        "webhook {} failed with status {}",
+                        target.id,
+                        status_code
+                    ));
                 }
 
                 self.record_webhook_success(&target.id).await?;
             }
             Err(err) => {
+                let error = err.to_string();
+                let error_chain = collect_error_chain(&err);
+                let error_chain_json = serialize_error_chain(&error_chain);
                 self.log_delivery(DeliveryLogEntry {
                     outbox,
                     target_type: "webhook",
@@ -388,12 +425,26 @@ impl OutboxWorker {
                     attempt,
                     response_status: None,
                     response_body: None,
-                    error: Some(err.to_string()),
+                    error: Some(error.clone()),
+                    error_chain: error_chain_json.clone(),
                     latency_ms,
                 })
                 .await?;
-                self.record_webhook_failure(&target.id, &err.to_string())
-                    .await?;
+                let error_chain_ref = (!error_chain.is_empty()).then_some(error_chain.as_slice());
+                let log = WebhookFailureLog {
+                    outbox,
+                    target,
+                    attempt,
+                    response_status: None,
+                    response_body: None,
+                    error: Some(&error),
+                    error_chain: error_chain_ref,
+                    latency_ms,
+                };
+                if let Err(err) = self.log_webhook_failure_telemetry(log).await {
+                    warn!("Failed to log webhook failure telemetry: {}", err);
+                }
+                self.record_webhook_failure(&target.id, &error).await?;
                 return Err(err.into());
             }
         }
@@ -424,6 +475,7 @@ impl OutboxWorker {
                     response_status: None,
                     response_body: None,
                     error: Some(format!("version_mismatch: {}", err)),
+                    error_chain: None,
                     latency_ms: 0,
                 })
                 .await?;
@@ -449,6 +501,7 @@ impl OutboxWorker {
                     response_status: None,
                     response_body: None,
                     error: None,
+                    error_chain: None,
                     latency_ms,
                 })
                 .await?;
@@ -462,6 +515,7 @@ impl OutboxWorker {
                     response_status: None,
                     response_body: None,
                     error: Some(err.to_string()),
+                    error_chain: None,
                     latency_ms,
                 })
                 .await?;
@@ -476,6 +530,7 @@ impl OutboxWorker {
                     response_status: None,
                     response_body: None,
                     error: Some(format!("timeout: {}", err)),
+                    error_chain: None,
                     latency_ms,
                 })
                 .await?;
@@ -543,6 +598,59 @@ impl OutboxWorker {
         Ok(())
     }
 
+    async fn log_webhook_failure_telemetry(
+        &self,
+        entry: WebhookFailureLog<'_>,
+    ) -> anyhow::Result<()> {
+        let fields = serde_json::json!({
+            "event_id": entry.outbox.id,
+            "event_type": entry.outbox.event_type,
+            "event_version": entry.outbox.event_version,
+            "attempt": entry.attempt,
+            "target_id": entry.target.id,
+            "url": entry.target.url,
+            "response_status": entry.response_status,
+            "response_body": entry.response_body,
+            "error": entry.error,
+            "error_chain": entry.error_chain.map(|chain| chain.to_vec()),
+        });
+        let fields_json = serde_json::to_string(&fields).unwrap_or_else(|_| "{}".to_string());
+        let message = if entry.response_status.is_some() {
+            "webhook.response.non_2xx"
+        } else {
+            "webhook.request.failed"
+        };
+
+        sqlx::query(
+            "INSERT INTO telemetry_logs (
+                id, timestamp, level, target, message, fields, request_id, trace_id, span_id,
+                parent_id, user_id, realm, method, route, path, status, duration_ms
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(Uuid::new_v4().to_string())
+        .bind(Utc::now().to_rfc3339())
+        .bind("ERROR")
+        .bind("webhook.delivery")
+        .bind(message)
+        .bind(fields_json)
+        .bind(Option::<String>::None)
+        .bind(Option::<String>::None)
+        .bind(Option::<String>::None)
+        .bind(Option::<String>::None)
+        .bind(Option::<String>::None)
+        .bind(entry.outbox.realm_id.clone())
+        .bind(Option::<String>::None)
+        .bind(Option::<String>::None)
+        .bind(Option::<String>::None)
+        .bind(entry.response_status)
+        .bind(Some(entry.latency_ms))
+        .execute(&*self.telemetry_db)
+        .await?;
+
+        Ok(())
+    }
+
     async fn log_delivery(&self, entry: DeliveryLogEntry<'_>) -> anyhow::Result<()> {
         let delivered_at = Utc::now().to_rfc3339();
         let delivery_id = Uuid::new_v4().to_string();
@@ -550,8 +658,8 @@ impl OutboxWorker {
         sqlx::query(
             "INSERT INTO delivery_logs (
                 id, event_id, realm_id, target_type, target_id, event_type, event_version, attempt,
-                payload, payload_compressed, response_status, response_body, error, latency_ms, delivered_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                payload, payload_compressed, response_status, response_body, error, error_chain, latency_ms, delivered_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(delivery_id)
         .bind(&entry.outbox.id)
@@ -566,6 +674,7 @@ impl OutboxWorker {
         .bind(entry.response_status)
         .bind(entry.response_body)
         .bind(entry.error)
+        .bind(entry.error_chain)
         .bind(entry.latency_ms)
         .bind(delivered_at)
         .execute(&*self.telemetry_db)
@@ -617,6 +726,23 @@ fn next_attempt_at(attempt: i64) -> Option<DateTime<Utc>> {
     let secs = rand::thread_rng().gen_range(min..=max).round() as i64;
 
     Some(Utc::now() + ChronoDuration::seconds(secs))
+}
+
+fn collect_error_chain(error: &reqwest::Error) -> Vec<String> {
+    let mut chain = Vec::new();
+    let mut current: Option<&(dyn StdError + 'static)> = Some(error);
+    while let Some(err) = current {
+        chain.push(err.to_string());
+        current = err.source();
+    }
+    chain
+}
+
+fn serialize_error_chain(chain: &[String]) -> Option<String> {
+    if chain.is_empty() {
+        return None;
+    }
+    serde_json::to_string(chain).ok()
 }
 
 fn map_payload_for_version(

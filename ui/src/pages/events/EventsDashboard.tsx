@@ -1,6 +1,12 @@
 import { useMemo } from 'react'
 
 import { Badge } from '@/components/badge'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from '@/components/breadcrumb'
 import { Button } from '@/components/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 import { Switch } from '@/components/switch'
@@ -45,6 +51,14 @@ export function EventsDashboard() {
 
   return (
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbPage>Event Routing</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Event Routing</h1>

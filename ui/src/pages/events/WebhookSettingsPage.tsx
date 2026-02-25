@@ -1,9 +1,18 @@
 import { useMemo, useState } from 'react'
 
 import { Badge } from '@/components/badge'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/breadcrumb'
 import { Button } from '@/components/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog'
+import { RealmLink } from '@/entities/realm/lib/navigation'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useWebhook } from '@/features/events/api/useWebhooks'
@@ -40,6 +49,28 @@ export function WebhookSettingsPage() {
 
   return (
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <RealmLink to="/events">Event Routing</RealmLink>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <RealmLink to={endpoint ? `/events/webhooks/${endpoint.id}` : '/events'}>
+                {endpoint?.name ?? 'Webhook Endpoint'}
+              </RealmLink>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>Settings</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Webhook Settings</h1>
@@ -47,9 +78,6 @@ export function WebhookSettingsPage() {
             Update endpoint details, subscriptions, and manage lifecycle actions.
           </p>
         </div>
-        <Button variant="outline" onClick={() => navigate('/events')}>
-          Back to Event Routing
-        </Button>
       </div>
 
       {isLoading ? (

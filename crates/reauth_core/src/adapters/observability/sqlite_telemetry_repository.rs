@@ -252,6 +252,7 @@ struct DeliveryLogRow {
     response_status: Option<i64>,
     response_body: Option<String>,
     error: Option<String>,
+    error_chain: Option<String>,
     latency_ms: Option<i64>,
     delivered_at: String,
 }
@@ -533,7 +534,7 @@ impl TelemetryRepository for SqliteTelemetryRepository {
         let mut data_builder: QueryBuilder<Sqlite> = QueryBuilder::new(
             "SELECT id, event_id, realm_id, target_type, target_id, event_type, event_version,
                     attempt, payload, payload_compressed, response_status, response_body, error,
-                    latency_ms, delivered_at
+                    error_chain, latency_ms, delivered_at
              FROM delivery_logs",
         );
         Self::apply_delivery_filters(&mut data_builder, &query);
@@ -564,6 +565,7 @@ impl TelemetryRepository for SqliteTelemetryRepository {
                 response_status: row.response_status,
                 response_body: row.response_body,
                 error: row.error,
+                error_chain: row.error_chain,
                 latency_ms: row.latency_ms,
                 delivered_at: row.delivered_at,
             })
@@ -580,7 +582,7 @@ impl TelemetryRepository for SqliteTelemetryRepository {
         let row: Option<DeliveryLogRow> = sqlx::query_as(
             "SELECT id, event_id, realm_id, target_type, target_id, event_type, event_version,
                     attempt, payload, payload_compressed, response_status, response_body, error,
-                    latency_ms, delivered_at
+                    error_chain, latency_ms, delivered_at
              FROM delivery_logs
              WHERE id = ?",
         )
@@ -603,6 +605,7 @@ impl TelemetryRepository for SqliteTelemetryRepository {
             response_status: row.response_status,
             response_body: row.response_body,
             error: row.error,
+            error_chain: row.error_chain,
             latency_ms: row.latency_ms,
             delivered_at: row.delivered_at,
         }))

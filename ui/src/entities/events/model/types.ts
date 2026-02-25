@@ -41,6 +41,7 @@ export interface DeliveryLog {
   response_status?: number | null
   response_body?: string | null
   error?: string | null
+  error_chain?: string | null
   latency_ms?: number | null
   delivered_at: string
 }

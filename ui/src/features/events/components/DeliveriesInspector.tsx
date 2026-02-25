@@ -15,6 +15,8 @@ export interface DeliveryInspectorItem {
   latency: string
   signature?: string | null
   payload: unknown
+  failureReason?: string | null
+  errorChain?: string[] | null
   response: {
     status: string
     body: unknown
@@ -163,6 +165,26 @@ export function DeliveriesInspector({
                   {selected?.response.status}
                 </Badge>
               </div>
+              {selected?.status === 'failed' && (selected.failureReason || selected.errorChain?.length) ? (
+                <div className="rounded-md border border-rose-200/70 bg-rose-50/60 p-3">
+                  <p className="text-xs font-semibold text-rose-800">Failure reason</p>
+                  <p className="mt-1 break-words font-mono text-xs text-rose-900">
+                    {selected.failureReason ?? 'Unknown failure'}
+                  </p>
+                  {selected.errorChain && selected.errorChain.length > 0 ? (
+                    <div className="mt-3">
+                      <p className="text-xs font-semibold text-rose-800">Error chain</p>
+                      <div className="mt-2 flex flex-col gap-1 text-xs text-rose-900">
+                        {selected.errorChain.map((item, index) => (
+                          <span key={`${selected.id}-chain-${index}`} className="break-words font-mono">
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <HighlightedJsonBlock value={selected?.response.body} />
             </TabsContent>
           </Tabs>

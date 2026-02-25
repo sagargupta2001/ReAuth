@@ -124,12 +124,17 @@ async fn create_schema(pool: &SqlitePool) -> Result<()> {
             response_status INTEGER,
             response_body TEXT,
             error TEXT,
+            error_chain TEXT,
             latency_ms INTEGER,
             delivered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )",
     )
     .execute(pool)
     .await?;
+
+    let _ = sqlx::query("ALTER TABLE delivery_logs ADD COLUMN error_chain TEXT")
+        .execute(pool)
+        .await;
 
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_telemetry_logs_timestamp ON telemetry_logs (timestamp)",
