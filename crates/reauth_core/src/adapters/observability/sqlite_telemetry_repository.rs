@@ -404,6 +404,35 @@ impl TelemetryRepository for SqliteTelemetryRepository {
 
     #[instrument(
         skip_all,
+        fields(telemetry = "span", db_table = "telemetry_logs", db_op = "select")
+    )]
+    async fn list_log_targets(&self, mut query: TelemetryLogQuery) -> Result<Vec<String>> {
+        query.target = None;
+
+        let mut builder: QueryBuilder<Sqlite> =
+            QueryBuilder::new("SELECT DISTINCT target FROM telemetry_logs");
+        Self::apply_log_filters(&mut builder, &query);
+        builder.push(" ORDER BY target ASC");
+        builder.push(" LIMIT ");
+        builder.push_bind(50_i64);
+
+        let rows: Vec<Option<String>> = builder
+            .build_query_scalar()
+            .fetch_all(self.pool.as_ref())
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let targets = rows
+            .into_iter()
+            .flatten()
+            .filter(|target| !target.trim().is_empty())
+            .collect();
+
+        Ok(targets)
+    }
+
+    #[instrument(
+        skip_all,
         fields(telemetry = "span", db_table = "telemetry_traces", db_op = "select")
     )]
     async fn list_traces(

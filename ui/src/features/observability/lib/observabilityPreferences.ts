@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 
 const storageKey = (realm: string) => `reauth:observability:include-spans:${realm}`
+const includeSpansEvent = 'reauth:observability:include-spans'
 
 export function readIncludeSpansPreference(realm: string) {
   if (typeof window === 'undefined') return false
@@ -12,6 +13,9 @@ export function readIncludeSpansPreference(realm: string) {
 export function writeIncludeSpansPreference(realm: string, value: boolean) {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(storageKey(realm), String(value))
+  window.dispatchEvent(
+    new CustomEvent(includeSpansEvent, { detail: { realm, value } }),
+  )
 }
 
 export function useIncludeSpansPreference() {
@@ -33,6 +37,16 @@ export function useIncludeSpansPreference() {
     }
     window.addEventListener('storage', handleStorage)
     return () => window.removeEventListener('storage', handleStorage)
+  }, [realm])
+
+  useEffect(() => {
+    const handleCustom = (event: Event) => {
+      const detail = (event as CustomEvent<{ realm: string; value: boolean }>).detail
+      if (!detail || detail.realm !== realm) return
+      setIncludeSpans(detail.value)
+    }
+    window.addEventListener(includeSpansEvent, handleCustom)
+    return () => window.removeEventListener(includeSpansEvent, handleCustom)
   }, [realm])
 
   return { includeSpans, setIncludeSpans }

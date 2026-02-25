@@ -270,7 +270,7 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
               </>
             )
           }}
-          className="h-[calc(100vh-440px)]"
+          className="h-[calc(100vh-450px)]"
         />
       )}
     </div>

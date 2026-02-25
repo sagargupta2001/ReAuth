@@ -170,10 +170,11 @@ export function useOmniStaticItems() {
         label: 'Include Trace Spans in Logs',
         description: 'Show span entries alongside log records',
         group: 'Settings',
-        kind: 'setting',
+        kind: 'toggle',
         icon: Settings,
         href: `/${realm}/settings/observability`,
         hash: 'telemetry-include-spans',
+        toggleId: 'include-spans',
         keywords: ['observability', 'logs', 'spans', 'telemetry'],
       },
       {

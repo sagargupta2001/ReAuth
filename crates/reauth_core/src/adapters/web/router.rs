@@ -363,6 +363,10 @@ fn observability_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/logs", get(observability_handler::list_logs_handler))
         .route(
+            "/logs/targets",
+            get(observability_handler::list_log_targets_handler),
+        )
+        .route(
             "/logs/clear",
             post(observability_handler::clear_logs_handler),
         )
@@ -454,6 +458,10 @@ fn execution_routes() -> Router<AppState> {
 fn plugin_routes() -> Router<AppState> {
     Router::new()
         .route("/manifests", get(plugin_handler::get_plugin_manifests))
+        .route(
+            "/statuses",
+            get(plugin_handler::list_plugin_statuses_handler),
+        )
         .route("/{id}/say-hello", get(plugin_handler::plugin_proxy_handler))
         .route("/{id}/enable", post(plugin_handler::enable_plugin_handler))
         .route(

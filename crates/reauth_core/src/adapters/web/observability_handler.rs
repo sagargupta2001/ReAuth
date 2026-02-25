@@ -102,6 +102,27 @@ pub async fn list_logs_handler(
     Ok((StatusCode::OK, Json(logs)))
 }
 
+// GET /api/system/observability/logs/targets
+pub async fn list_log_targets_handler(
+    State(state): State<AppState>,
+    Query(query): Query<LogQuery>,
+) -> Result<impl IntoResponse> {
+    let search = query.search.or_else(|| query.page.q.clone());
+    let (start, end) = normalize_time_range(query.start, query.end)?;
+    let filter = TelemetryLogQuery {
+        page: query.page,
+        level: query.level.map(|value| value.to_uppercase()),
+        target: None,
+        search,
+        start_time: start,
+        end_time: end,
+        include_spans: query.include_spans.unwrap_or(true),
+    };
+
+    let targets = state.telemetry_service.list_log_targets(filter).await?;
+    Ok((StatusCode::OK, Json(targets)))
+}
+
 // GET /api/system/observability/traces
 pub async fn list_traces_handler(
     State(state): State<AppState>,

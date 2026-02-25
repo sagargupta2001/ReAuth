@@ -20,6 +20,10 @@ impl TelemetryService {
         self.repo.list_logs(query).await
     }
 
+    pub async fn list_log_targets(&self, query: TelemetryLogQuery) -> Result<Vec<String>> {
+        self.repo.list_log_targets(query).await
+    }
+
     pub async fn list_traces(
         &self,
         query: TelemetryTraceQuery,

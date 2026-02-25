@@ -3,7 +3,7 @@ use crate::application::webhook_service::{
     CreateWebhookPayload, TestWebhookPayload, UpdateWebhookPayload,
     UpdateWebhookSubscriptionsPayload,
 };
-use crate::domain::pagination::PageRequest;
+use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::domain::telemetry::DeliveryLogQuery;
 use crate::error::{Error, Result};
 use crate::AppState;
@@ -28,9 +28,16 @@ pub struct DisableWebhookPayload {
     pub reason: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct WebhookListQuery {
+    #[serde(flatten)]
+    pub page: PageRequest,
+}
+
 pub async fn list_webhooks_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
+    Query(query): Query<WebhookListQuery>,
 ) -> Result<impl IntoResponse> {
     let realm = state
         .realm_service
@@ -38,8 +45,51 @@ pub async fn list_webhooks_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    let endpoints = state.webhook_service.list_endpoints(realm.id).await?;
-    Ok((StatusCode::OK, Json(endpoints)))
+    let mut endpoints = state.webhook_service.list_endpoints(realm.id).await?;
+    if let Some(query) = query.page.q.as_ref().map(|value| value.to_lowercase()) {
+        endpoints.retain(|details| {
+            details.endpoint.name.to_lowercase().contains(&query)
+                || details.endpoint.url.to_lowercase().contains(&query)
+                || details.endpoint.http_method.to_lowercase().contains(&query)
+        });
+    }
+
+    let sort_by = query.page.sort_by.as_deref().unwrap_or("updated_at");
+    let sort_dir = query.page.sort_dir.unwrap_or(SortDirection::Desc);
+    endpoints.sort_by(|a, b| {
+        let ordering = match sort_by {
+            "name" => a.endpoint.name.cmp(&b.endpoint.name),
+            "url" => a.endpoint.url.cmp(&b.endpoint.url),
+            "status" => a.endpoint.status.cmp(&b.endpoint.status),
+            "http_method" => a.endpoint.http_method.cmp(&b.endpoint.http_method),
+            "created_at" => a.endpoint.created_at.cmp(&b.endpoint.created_at),
+            "updated_at" => a.endpoint.updated_at.cmp(&b.endpoint.updated_at),
+            _ => a.endpoint.updated_at.cmp(&b.endpoint.updated_at),
+        };
+        match sort_dir {
+            SortDirection::Asc => ordering,
+            SortDirection::Desc => ordering.reverse(),
+        }
+    });
+
+    let total = endpoints.len() as i64;
+    let per_page = query.page.per_page.clamp(1, 100);
+    let page = query.page.page.max(1);
+    let start = ((page - 1) * per_page) as usize;
+    let data = if start >= endpoints.len() {
+        Vec::new()
+    } else {
+        endpoints
+            .into_iter()
+            .skip(start)
+            .take(per_page as usize)
+            .collect()
+    };
+
+    Ok((
+        StatusCode::OK,
+        Json(PageResponse::new(data, total, page, per_page)),
+    ))
 }
 
 pub async fn get_webhook_handler(

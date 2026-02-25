@@ -19,6 +19,7 @@ import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useCurrentRealm } from '@/features/realm/api/useRealm'
 import { useUpdateRealmOptimistic } from '@/features/realm/api/useUpdateRealmOptimistic'
 import { useOmniSearch } from '@/features/Search/api/useOmniSearch'
+import { useIncludeSpansPreference } from '@/features/observability/lib/observabilityPreferences'
 import { CommandEntityRow } from '@/features/Search/components/CommandEntityRow'
 import { CommandSettingRow } from '@/features/Search/components/CommandSettingRow'
 import { PaletteInspector } from '@/features/Search/components/PaletteInspector'
@@ -102,6 +103,7 @@ export function OmniCommandPalette() {
   const realm = useActiveRealm()
   const { data: realmData } = useCurrentRealm()
   const updateRealm = useUpdateRealmOptimistic(realmData?.id || '', realmData?.name || '')
+  const { includeSpans, setIncludeSpans } = useIncludeSpansPreference()
   const [query, setQuery] = React.useState('')
   const [activeItem, setActiveItem] = React.useState<OmniInspectorItem | null>(null)
   const [selectedValue, setSelectedValue] = React.useState('')
@@ -337,6 +339,12 @@ export function OmniCommandPalette() {
       setActiveItem(null)
       setDangerAction(null)
       setDangerInput('')
+    }
+  }, [open])
+
+  React.useEffect(() => {
+    if (open) {
+      setSelectedValue('')
     }
   }, [open])
 
@@ -752,7 +760,7 @@ export function OmniCommandPalette() {
                                         handleNavigate(item.href, item.hash)
                                       }}
                                       onHighlight={() => setActiveItem(entry.inspector)}
-                                      toggle={
+                                        toggle={
                                         item.kind === 'toggle' && item.toggleId === 'registration'
                                           ? {
                                               checked: registrationEnabled,
@@ -760,7 +768,17 @@ export function OmniCommandPalette() {
                                               ariaLabel: item.label,
                                               disabled: updateRealm.isPending,
                                             }
-                                          : undefined
+                                          : item.kind === 'toggle' &&
+                                              item.toggleId === 'include-spans'
+                                            ? {
+                                                checked: includeSpans,
+                                                onChange: (checked) => {
+                                                  recordSelection(item.id)
+                                                  setIncludeSpans(checked)
+                                                },
+                                                ariaLabel: item.label,
+                                              }
+                                            : undefined
                                       }
                                     />
                                   )

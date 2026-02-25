@@ -11,6 +11,7 @@ pub trait TelemetryRepository: Send + Sync {
     async fn insert_log(&self, log: &TelemetryLog) -> Result<()>;
     async fn insert_trace(&self, trace: &TelemetryTrace) -> Result<()>;
     async fn list_logs(&self, query: TelemetryLogQuery) -> Result<PageResponse<TelemetryLog>>;
+    async fn list_log_targets(&self, query: TelemetryLogQuery) -> Result<Vec<String>>;
     async fn list_traces(&self, query: TelemetryTraceQuery)
         -> Result<PageResponse<TelemetryTrace>>;
     async fn list_trace_spans(&self, trace_id: &str) -> Result<Vec<TelemetryTrace>>;
