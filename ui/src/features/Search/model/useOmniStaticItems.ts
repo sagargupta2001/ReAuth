@@ -154,6 +154,17 @@ export function useOmniStaticItems() {
         hash: 'token-refresh-ttl',
         keywords: ['token', 'refresh', 'sso'],
       },
+      {
+        id: 'setting.observability-cleanup',
+        label: 'Observability Cleanup',
+        description: 'Manage log and trace cleanup actions',
+        group: 'Settings',
+        kind: 'setting',
+        icon: Settings,
+        href: `/${realm}/settings/observability`,
+        hash: 'logs-cleanup',
+        keywords: ['observability', 'logs', 'traces', 'cleanup'],
+      },
     )
 
     items.push(
@@ -214,7 +225,7 @@ export function useOmniStaticItems() {
         group: 'Observability',
         kind: 'link',
         icon: Database,
-        href: `/${realm}/logs?tab=cache`,
+        href: `/${realm}/cache`,
         keywords: ['observability', 'cache', 'flush'],
       },
       {
@@ -225,8 +236,8 @@ export function useOmniStaticItems() {
         kind: 'action',
         icon: Trash2,
         actionId: 'observability.clear-logs',
-        href: `/${realm}/logs`,
-        hash: 'logs-danger-zone',
+        href: `/${realm}/settings/observability`,
+        hash: 'logs-cleanup',
         keywords: ['danger', 'logs', 'clear'],
       },
       {
@@ -237,8 +248,8 @@ export function useOmniStaticItems() {
         kind: 'action',
         icon: Trash2,
         actionId: 'observability.clear-traces',
-        href: `/${realm}/logs?tab=traces`,
-        hash: 'traces-danger-zone',
+        href: `/${realm}/settings/observability`,
+        hash: 'traces-cleanup',
         keywords: ['danger', 'traces', 'clear'],
       },
       {
@@ -249,7 +260,7 @@ export function useOmniStaticItems() {
         kind: 'action',
         icon: Database,
         actionId: 'observability.flush-cache',
-        href: `/${realm}/logs?tab=cache`,
+        href: `/${realm}/cache`,
         hash: 'cache-danger-zone',
         keywords: ['danger', 'cache', 'flush'],
       },

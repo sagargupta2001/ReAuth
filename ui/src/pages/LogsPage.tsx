@@ -6,13 +6,12 @@ import { ObservabilityLayout } from '@/features/observability/components/Observa
 import { MetricsOverview } from '@/features/observability/components/MetricsOverview'
 import { LogsExplorer } from '@/features/observability/components/LogsExplorer'
 import { TracesExplorer } from '@/features/observability/components/TracesExplorer'
-import { CacheManager } from '@/features/observability/components/CacheManager'
 import type { CustomTimeRange, TimeRangeKey } from '@/features/observability/lib/timeRange'
 import { resolveTimeRange, TIME_RANGE_OPTIONS } from '@/features/observability/lib/timeRange'
 import { enumParam, stringParam, useUrlState } from '@/shared/lib/hooks/useUrlState'
 import { Main } from '@/widgets/Layout/Main'
 
-const TAB_OPTIONS = ['logs', 'traces', 'cache'] as const
+const TAB_OPTIONS = ['logs', 'traces'] as const
 
 export function LogsPage() {
   const { t } = useTranslation('logs')
@@ -83,11 +82,6 @@ export function LogsPage() {
           onSelectTrace={(traceId) => setUrlState({ trace: traceId })}
         />
       ),
-    },
-    {
-      value: 'cache',
-      label: t('OBSERVABILITY.TABS.CACHE'),
-      content: <CacheManager />,
     },
   ]
 

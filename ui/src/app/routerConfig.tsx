@@ -7,6 +7,7 @@ import { LoginPage } from '@/pages/LoginPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PluginsPage } from '@/pages/PluginsPage.tsx'
+import { CachePage } from '@/pages/CachePage.tsx'
 import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
@@ -15,6 +16,7 @@ import { FlowsIndexPage } from '@/pages/flow/FlowsIndexPage.tsx'
 import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
+import { ObservabilitySettingsPage } from '@/pages/realm/settings/ObservabilitySettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
 import { CreateRolePage } from '@/pages/roles/create/CreateRolePage.tsx'
 import { EditRolePage } from '@/pages/roles/edit/EditRolePage.tsx'
@@ -84,8 +86,20 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
+    path: '/:realm/cache',
+    element: CachePage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
     path: '/:realm/settings/general',
     element: GeneralSettingsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/settings/observability',
+    element: ObservabilitySettingsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

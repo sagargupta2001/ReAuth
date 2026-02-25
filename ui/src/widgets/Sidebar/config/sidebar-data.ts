@@ -1,5 +1,6 @@
 import {
   AppWindow,
+  Database,
   Group,
   KeyRound,
   LayoutDashboard,
@@ -63,6 +64,11 @@ export const sidebarData: SidebarData = {
       icon: ScrollText,
     },
     {
+      title: 'Cache',
+      url: '/cache',
+      icon: Database,
+    },
+    {
       title: 'Clients',
       url: '/clients',
       icon: AppWindow,
@@ -86,6 +92,10 @@ export const sidebarData: SidebarData = {
         {
           title: 'Token',
           url: '/settings/token',
+        },
+        {
+          title: 'Observability',
+          url: '/settings/observability',
         },
       ],
     },

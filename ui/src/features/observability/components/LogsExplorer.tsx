@@ -1,32 +1,11 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 
-import {
-  AlertTriangle,
-  ChevronLeft,
-  ChevronRight,
-  Pause,
-  Play,
-  RotateCw,
-  Sparkles,
-  Trash2,
-} from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pause, Play, RotateCw, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/alert-dialog'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Command, CommandInput } from '@/components/command'
-import { Input } from '@/components/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import { Switch } from '@/components/switch'
 import {
@@ -48,7 +27,6 @@ import {
   useUrlState,
 } from '@/shared/lib/hooks/useUrlState'
 
-import { useTelemetryClearLogs } from '../api/useTelemetryCleanup'
 import { useTelemetryLogs } from '../api/useTelemetryLogs'
 import { isWithinRange } from '../lib/timeRange'
 import type { ResolvedTimeRange } from '../lib/timeRange'
@@ -269,8 +247,6 @@ export function LogsExplorer({
 
   const [searchInput, setSearchInput] = useState(urlState.log_q)
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [confirmInput, setConfirmInput] = useState('')
 
   const levelFilter = urlState.log_level
   const moduleFilter = urlState.log_source
@@ -408,8 +384,6 @@ export function LogsExplorer({
   const totalPages = meta?.total_pages && meta.total_pages > 0 ? meta.total_pages : 1
   const isFirstPage = urlState.log_page <= 1
   const isLastPage = totalPages > 0 ? urlState.log_page >= totalPages : true
-  const clearLogs = useTelemetryClearLogs()
-
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex flex-col gap-3">
@@ -460,7 +434,6 @@ export function LogsExplorer({
             disabled={isLoading || isFetching}
           >
             <RotateCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
-            {t('LOGS_EXPLORER.REFRESH')}
           </Button>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -710,73 +683,6 @@ export function LogsExplorer({
         </div>
       </div>
 
-      <div
-        id="logs-danger-zone"
-        className="rounded-xl border border-destructive/50 bg-destructive/10 p-4"
-      >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-destructive/20 p-2 text-destructive">
-              <AlertTriangle className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-destructive">
-                {t('LOGS_CLEANUP.TITLE')}
-              </div>
-              <p className="text-xs text-muted-foreground">{t('LOGS_CLEANUP.DESC')}</p>
-            </div>
-          </div>
-          <AlertDialog
-            open={confirmOpen}
-            onOpenChange={(open) => {
-              setConfirmOpen(open)
-              if (!open) setConfirmInput('')
-            }}
-          >
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" className="gap-2">
-                <Trash2 className="h-4 w-4" />
-                {t('LOGS_CLEANUP.CLEAR_ALL')}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t('LOGS_CLEANUP.CONFIRM_TITLE')}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t('LOGS_CLEANUP.CONFIRM_DESC')}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="space-y-2">
-                <Input
-                  placeholder={t('LOGS_CLEANUP.CONFIRM_PLACEHOLDER')}
-                  value={confirmInput}
-                  onChange={(event) => setConfirmInput(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t('LOGS_CLEANUP.CONFIRM_HELPER')}
-                </p>
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t('LOGS_CLEANUP.CANCEL')}</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => {
-                    clearLogs.mutate(undefined, {
-                      onSuccess: () => {
-                        setConfirmInput('')
-                        void refetch()
-                      },
-                    })
-                  }}
-                  disabled={confirmInput.trim() !== 'CLEAR' || clearLogs.isPending}
-                >
-                  {t('LOGS_CLEANUP.CONFIRM_ACTION')}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
     </div>
   )
 }

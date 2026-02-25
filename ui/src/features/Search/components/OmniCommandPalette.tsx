@@ -1077,7 +1077,7 @@ export function OmniCommandPalette() {
                     variant="secondary"
                     onClick={() => handleNavigate(dangerAction.href, dangerAction.hash)}
                   >
-                    Open in Observability
+                    Open location
                   </Button>
                 )}
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
