@@ -57,6 +57,7 @@ export function useOmniStaticItems() {
         kind: 'link',
         icon: Zap,
         href: `/${realm}/events?tab=webhooks`,
+        hash: 'create-webhook',
         suggested: true,
         keywords: ['webhook', 'event', 'routing', 'endpoint'],
       },

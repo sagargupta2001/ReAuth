@@ -19,6 +19,7 @@ import { WebhookEndpointForm } from '@/features/events/components/WebhookEndpoin
 import { usePlugins } from '@/features/plugin/api/usePlugins'
 import { usePluginMutations } from '@/features/plugin/api/usePluginMutations'
 import { cn, formatRelativeTime } from '@/lib/utils'
+import { useHashScrollHighlight } from '@/shared/hooks/useHashScrollHighlight'
 import { Main } from '@/widgets/Layout/Main'
 import { Box, Plus, RefreshCcw } from 'lucide-react'
 
@@ -29,6 +30,8 @@ export function EventsDashboard() {
   const { data: pluginData, isLoading: pluginsLoading, isError: pluginsError } = usePlugins()
   const { enablePlugin, disablePlugin, refreshPlugins } = usePluginMutations()
   const activeTab = searchParams.get('tab') === 'plugins' ? 'plugins' : 'webhooks'
+
+  useHashScrollHighlight()
 
   const webhookRows = useMemo(() => {
     const rows = webhookData ?? []
@@ -100,7 +103,7 @@ export function EventsDashboard() {
             </div>
             <WebhookEndpointForm
               trigger={
-                <Button>
+                <Button id="create-webhook">
                   <Plus className="h-4 w-4" />
                   Add Webhook
                 </Button>
