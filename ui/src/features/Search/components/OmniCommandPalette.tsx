@@ -19,6 +19,7 @@ import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useCurrentRealm } from '@/features/realm/api/useRealm'
 import { useUpdateRealmOptimistic } from '@/features/realm/api/useUpdateRealmOptimistic'
 import { useOmniSearch } from '@/features/Search/api/useOmniSearch'
+import { useIncludeSpansPreference } from '@/features/observability/lib/observabilityPreferences'
 import { CommandEntityRow } from '@/features/Search/components/CommandEntityRow'
 import { CommandSettingRow } from '@/features/Search/components/CommandSettingRow'
 import { PaletteInspector } from '@/features/Search/components/PaletteInspector'
@@ -55,7 +56,7 @@ const groupOrder = [
   'Danger Zone',
   'Navigation',
 ] as const
-const dynamicGroupOrder = ['Users', 'Clients', 'Roles', 'Groups', 'Flows'] as const
+const dynamicGroupOrder = ['Users', 'Clients', 'Roles', 'Groups', 'Flows', 'Webhooks'] as const
 
 type StaticEntry = {
   item: OmniStaticItem
@@ -102,18 +103,21 @@ export function OmniCommandPalette() {
   const realm = useActiveRealm()
   const { data: realmData } = useCurrentRealm()
   const updateRealm = useUpdateRealmOptimistic(realmData?.id || '', realmData?.name || '')
+  const { includeSpans, setIncludeSpans } = useIncludeSpansPreference()
   const [query, setQuery] = React.useState('')
   const [activeItem, setActiveItem] = React.useState<OmniInspectorItem | null>(null)
   const [selectedValue, setSelectedValue] = React.useState('')
   const [dangerInput, setDangerInput] = React.useState('')
   const [dangerAction, setDangerAction] = React.useState<{
-    actionId: string
+    actionId?: string
     label: string
     confirmText: string
     description: string
     href?: string
     hash?: string
+    onConfirm?: () => Promise<void> | void
   } | null>(null)
+  const [webhookAction, setWebhookAction] = React.useState<string | null>(null)
   const { recordSelection, recencyMap } = useRecentOmniItems()
   const registrationFlowIdRef = React.useRef<string | null>(null)
   const queryClient = useQueryClient()
@@ -214,6 +218,86 @@ export function OmniCommandPalette() {
     [setTheme],
   )
 
+  const runWebhookAction = React.useCallback(
+    async (action: string, execute: () => Promise<void>) => {
+      setWebhookAction(action)
+      try {
+        await execute()
+      } finally {
+        setWebhookAction(null)
+      }
+    },
+    [],
+  )
+
+  const handleWebhookEnable = React.useCallback(
+    (id: string) =>
+      runWebhookAction('enable', async () => {
+        await apiClient.post(`/api/realms/${realm}/webhooks/${id}/enable`, {})
+        toast.success('Webhook enabled')
+        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
+        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm, id] })
+        void queryClient.invalidateQueries({ queryKey: ['omni-search', realm] })
+      }),
+    [queryClient, realm, runWebhookAction],
+  )
+
+  const handleWebhookDisable = React.useCallback(
+    (id: string) =>
+      runWebhookAction('disable', async () => {
+        await apiClient.post(`/api/realms/${realm}/webhooks/${id}/disable`, {
+          reason: 'Disabled via Omni',
+        })
+        toast.success('Webhook disabled')
+        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
+        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm, id] })
+        void queryClient.invalidateQueries({ queryKey: ['omni-search', realm] })
+      }),
+    [queryClient, realm, runWebhookAction],
+  )
+
+  const handleWebhookRollSecret = React.useCallback(
+    (id: string) =>
+      runWebhookAction('roll', async () => {
+        await apiClient.post(`/api/realms/${realm}/webhooks/${id}/roll-secret`, {})
+        toast.success('Signing secret rotated')
+        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
+        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm, id] })
+        void queryClient.invalidateQueries({ queryKey: ['omni-search', realm] })
+      }),
+    [queryClient, realm, runWebhookAction],
+  )
+
+  const handleWebhookDelete = React.useCallback(
+    (id: string) =>
+      runWebhookAction('delete', async () => {
+        await apiClient.delete(`/api/realms/${realm}/webhooks/${id}`)
+        toast.success('Webhook deleted')
+        setOpen(false)
+        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
+        void queryClient.invalidateQueries({ queryKey: ['omni-search', realm] })
+      }),
+    [queryClient, realm, runWebhookAction, setOpen],
+  )
+
+  const openDangerConfirm = React.useCallback(
+    (config: {
+      label: string
+      confirmText: string
+      description: string
+      onConfirm: () => Promise<void> | void
+    }) => {
+      setDangerAction({
+        label: config.label,
+        confirmText: config.confirmText,
+        description: config.description,
+        onConfirm: config.onConfirm,
+      })
+      setDangerInput('')
+    },
+    [],
+  )
+
   const runCommand = React.useCallback(
     (command: () => void, keepOpen = false) => {
       if (!keepOpen) setOpen(false)
@@ -255,6 +339,12 @@ export function OmniCommandPalette() {
       setActiveItem(null)
       setDangerAction(null)
       setDangerInput('')
+    }
+  }, [open])
+
+  React.useEffect(() => {
+    if (open) {
+      setSelectedValue('')
     }
   }, [open])
 
@@ -318,12 +408,26 @@ export function OmniCommandPalette() {
     [dynamicResults?.flows, debouncedQuery, recencyMap],
   )
 
+  const rankedWebhooks = React.useMemo(
+    () =>
+      rankItems(
+        dynamicResults?.webhooks || [],
+        debouncedQuery,
+        (webhook) =>
+          buildHaystack([webhook.name, webhook.url, webhook.http_method, webhook.status]),
+        (webhook) => `webhook:${webhook.id}`,
+        recencyMap,
+      ),
+    [dynamicResults?.webhooks, debouncedQuery, recencyMap],
+  )
+
   const hasDynamicResults =
     rankedUsers.length +
       rankedClients.length +
       rankedRoles.length +
       rankedGroups.length +
-      rankedFlows.length >
+      rankedFlows.length +
+      rankedWebhooks.length >
     0
 
   const hasStaticResults = filteredStatic.length > 0
@@ -340,6 +444,7 @@ export function OmniCommandPalette() {
       if (group === 'Roles' && rankedRoles.length) names.push(group)
       if (group === 'Groups' && rankedGroups.length) names.push(group)
       if (group === 'Flows' && rankedFlows.length) names.push(group)
+      if (group === 'Webhooks' && rankedWebhooks.length) names.push(group)
     })
     return names
   }, [
@@ -349,6 +454,7 @@ export function OmniCommandPalette() {
     rankedRoles.length,
     rankedGroups.length,
     rankedFlows.length,
+    rankedWebhooks.length,
   ])
 
   const firstValueByGroup = React.useMemo(() => {
@@ -362,8 +468,17 @@ export function OmniCommandPalette() {
     if (rankedRoles[0]) map.set('Roles', `role:${rankedRoles[0].id}`)
     if (rankedGroups[0]) map.set('Groups', `group:${rankedGroups[0].id}`)
     if (rankedFlows[0]) map.set('Flows', `flow:${rankedFlows[0].id}`)
+    if (rankedWebhooks[0]) map.set('Webhooks', `webhook:${rankedWebhooks[0].id}`)
     return map
-  }, [staticGroups, rankedUsers, rankedClients, rankedRoles, rankedGroups, rankedFlows])
+  }, [
+    staticGroups,
+    rankedUsers,
+    rankedClients,
+    rankedRoles,
+    rankedGroups,
+    rankedFlows,
+    rankedWebhooks,
+  ])
 
   const valueToInspector = React.useMemo(() => {
     const map = new Map<string, OmniInspectorItem>()
@@ -418,8 +533,29 @@ export function OmniCommandPalette() {
         href: `/${realm}/flows/${flow.id}`,
       })
     })
+    rankedWebhooks.forEach((webhook) => {
+      const webhookSubtitle = `${webhook.http_method} · ${webhook.url}`
+      map.set(`webhook:${webhook.id}`, {
+        kind: 'webhook',
+        id: webhook.id,
+        label: webhook.name || webhook.url,
+        subtitle: webhookSubtitle,
+        description: webhook.status,
+        status: webhook.status,
+        href: `/${realm}/events/webhooks/${webhook.id}`,
+      })
+    })
     return map
-  }, [staticEntries, rankedUsers, rankedClients, rankedRoles, rankedGroups, rankedFlows, realm])
+  }, [
+    staticEntries,
+    rankedUsers,
+    rankedClients,
+    rankedRoles,
+    rankedGroups,
+    rankedFlows,
+    rankedWebhooks,
+    realm,
+  ])
 
   React.useEffect(() => {
     if (!selectedValue) {
@@ -465,10 +601,21 @@ export function OmniCommandPalette() {
       (rankedClients[0] ? `client:${rankedClients[0].id}` : '') ||
       (rankedRoles[0] ? `role:${rankedRoles[0].id}` : '') ||
       (rankedGroups[0] ? `group:${rankedGroups[0].id}` : '') ||
-      (rankedFlows[0] ? `flow:${rankedFlows[0].id}` : '')
+      (rankedFlows[0] ? `flow:${rankedFlows[0].id}` : '') ||
+      (rankedWebhooks[0] ? `webhook:${rankedWebhooks[0].id}` : '')
 
     if (firstValue) setSelectedValue(firstValue)
-  }, [open, selectedValue, staticEntries, rankedUsers, rankedClients, rankedRoles, rankedGroups, rankedFlows])
+  }, [
+    open,
+    selectedValue,
+    staticEntries,
+    rankedUsers,
+    rankedClients,
+    rankedRoles,
+    rankedGroups,
+    rankedFlows,
+    rankedWebhooks,
+  ])
 
   React.useEffect(() => {
     if (!canShowDynamic) return
@@ -507,6 +654,38 @@ export function OmniCommandPalette() {
     })
   }, [canShowDynamic, rankedUsers, rankedClients, rankedRoles, rankedGroups, queryClient, realm])
 
+  const handleWebhookAction = React.useCallback(
+    (action: 'enable' | 'disable' | 'roll' | 'delete', id: string, label: string) => {
+      if (action === 'enable') {
+        void handleWebhookEnable(id)
+        return
+      }
+      if (action === 'disable') {
+        void handleWebhookDisable(id)
+        return
+      }
+      if (action === 'roll') {
+        void handleWebhookRollSecret(id)
+        return
+      }
+      if (action === 'delete') {
+        openDangerConfirm({
+          label: `Delete ${label}`,
+          confirmText: 'DELETE',
+          description: `This permanently deletes the webhook "${label}".`,
+          onConfirm: () => handleWebhookDelete(id),
+        })
+      }
+    },
+    [
+      handleWebhookDisable,
+      handleWebhookEnable,
+      handleWebhookRollSecret,
+      handleWebhookDelete,
+      openDangerConfirm,
+    ],
+  )
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogPortal>
@@ -541,7 +720,7 @@ export function OmniCommandPalette() {
               <CommandInput
                 value={query}
                 onValueChange={setQuery}
-                placeholder="Search commands, settings, users, clients, groups, flows..."
+                placeholder="Search commands, settings, users, clients, groups, flows, webhooks..."
                 className="h-12 text-base"
                 wrapperClassName="bg-muted/30 border border-input rounded-lg px-3"
                 aria-label="Search"
@@ -581,7 +760,7 @@ export function OmniCommandPalette() {
                                         handleNavigate(item.href, item.hash)
                                       }}
                                       onHighlight={() => setActiveItem(entry.inspector)}
-                                      toggle={
+                                        toggle={
                                         item.kind === 'toggle' && item.toggleId === 'registration'
                                           ? {
                                               checked: registrationEnabled,
@@ -589,7 +768,18 @@ export function OmniCommandPalette() {
                                               ariaLabel: item.label,
                                               disabled: updateRealm.isPending,
                                             }
-                                          : undefined
+                                          : item.kind === 'toggle' &&
+                                              item.toggleId === 'include-spans'
+                                            ? {
+                                                checked: includeSpans,
+                                                onChange: (checked) => {
+                                                  recordSelection(item.id)
+                                                  setIncludeSpans(checked)
+                                                  toast.success('Settings updated')
+                                                },
+                                                ariaLabel: item.label,
+                                              }
+                                            : undefined
                                       }
                                     />
                                   )
@@ -808,6 +998,38 @@ export function OmniCommandPalette() {
                         </CommandGroup>
                       )}
 
+                      {rankedWebhooks.length > 0 && <CommandSeparator />}
+                      {rankedWebhooks.length > 0 && (
+                        <CommandGroup heading="Webhooks" data-omni-group="Webhooks">
+                          {rankedWebhooks.map((webhook) => (
+                            <CommandEntityRow
+                              key={webhook.id}
+                              value={`webhook:${webhook.id}`}
+                              kind="webhook"
+                              primary={webhook.name || webhook.url}
+                              secondary={`${webhook.http_method} · ${webhook.url}`}
+                              onSelect={() =>
+                                runCommand(() => {
+                                  recordSelection(`webhook:${webhook.id}`)
+                                  navigate(`/${realm}/events/webhooks/${webhook.id}`)
+                                })
+                              }
+                              onHighlight={() =>
+                                setActiveItem({
+                                  kind: 'webhook',
+                                  id: webhook.id,
+                                  label: webhook.name || webhook.url,
+                                  subtitle: `${webhook.http_method} · ${webhook.url}`,
+                                  description: webhook.status,
+                                  status: webhook.status,
+                                  href: `/${realm}/events/webhooks/${webhook.id}`,
+                                })
+                              }
+                            />
+                          ))}
+                        </CommandGroup>
+                      )}
+
                       {canShowDynamic && isFetching && (
                         <div className="px-4 py-3 text-sm text-muted-foreground">Searching...</div>
                       )}
@@ -829,7 +1051,12 @@ export function OmniCommandPalette() {
                 aria-live="polite"
                 aria-describedby={inspectorDescriptionId}
               >
-                <PaletteInspector item={activeItem} descriptionId={inspectorDescriptionId} />
+                <PaletteInspector
+                  item={activeItem}
+                  descriptionId={inspectorDescriptionId}
+                  onWebhookAction={handleWebhookAction}
+                  webhookActionPending={webhookAction}
+                />
               </div>
             </div>
           </Command>
@@ -869,13 +1096,20 @@ export function OmniCommandPalette() {
                     variant="secondary"
                     onClick={() => handleNavigate(dangerAction.href, dangerAction.hash)}
                   >
-                    Open in Observability
+                    Open location
                   </Button>
                 )}
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   onClick={() => {
+                    if (dangerAction?.onConfirm) {
+                      void Promise.resolve(dangerAction.onConfirm()).finally(() => {
+                        setDangerAction(null)
+                        setDangerInput('')
+                      })
+                      return
+                    }
                     executeAction(dangerAction?.actionId)
                     setDangerAction(null)
                     setDangerInput('')

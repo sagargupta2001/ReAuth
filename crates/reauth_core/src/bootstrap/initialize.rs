@@ -1,8 +1,10 @@
+use crate::adapters::eventing::outbox_worker::OutboxWorker;
 use crate::adapters::logging::banner::print_banner;
 use crate::adapters::observability::sqlite_telemetry_repository::SqliteTelemetryRepository;
 use crate::adapters::observability::telemetry_store::init_telemetry_db;
 use crate::adapters::observability::telemetry_writer::TelemetryWriter;
 use crate::adapters::persistence::transaction::SqliteTransactionManager;
+use crate::application::delivery_replay_service::DeliveryReplayService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::telemetry_service::TelemetryService;
 use crate::bootstrap::database::{initialize_database, run_migrations_and_seed};
@@ -27,6 +29,7 @@ struct InitializeOptions {
     log_summary: bool,
     watch_config: bool,
     enable_telemetry_cleanup: bool,
+    enable_outbox_worker: bool,
 }
 
 pub async fn initialize() -> anyhow::Result<AppState> {
@@ -38,6 +41,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
             log_summary: true,
             watch_config: true,
             enable_telemetry_cleanup: true,
+            enable_outbox_worker: true,
         },
     )
     .await
@@ -52,6 +56,7 @@ pub async fn initialize_for_tests() -> anyhow::Result<AppState> {
             log_summary: false,
             watch_config: false,
             enable_telemetry_cleanup: false,
+            enable_outbox_worker: false,
         },
     )
     .await
@@ -72,7 +77,7 @@ async fn initialize_with_settings(
 
     let plugins_path = determine_plugins_path()?;
     let telemetry_db = init_telemetry_db(&settings.observability.telemetry_db_path).await?;
-    let telemetry_repo = Arc::new(SqliteTelemetryRepository::new(telemetry_db));
+    let telemetry_repo = Arc::new(SqliteTelemetryRepository::new(telemetry_db.clone()));
     let telemetry_service = Arc::new(TelemetryService::new(telemetry_repo.clone()));
     TelemetryWriter::new(telemetry_repo).spawn(log_bus.clone());
     let metrics_service = Arc::new(MetricsService::new());
@@ -84,24 +89,27 @@ async fn initialize_with_settings(
     let tx_manager: Arc<dyn TransactionManager> =
         Arc::new(SqliteTransactionManager::new(db_pool.clone()));
 
-    let services = initialize_services(
-        &settings,
-        &repos,
-        &cache_service,
-        &event_bus,
-        &jwt_service,
-        &tx_manager,
-    );
+    let services = initialize_services(crate::bootstrap::services::ServiceInitContext {
+        settings: &settings,
+        repos: &repos,
+        cache: &cache_service,
+        event_publisher: event_bus.clone(),
+        outbox_repo: repos.outbox_repo.clone(),
+        token_service: &jwt_service,
+        telemetry_db: &telemetry_db,
+        tx_manager: &tx_manager,
+    });
 
     let plugin_manager = initialize_plugins(&settings, &plugins_path);
-
-    subscribe_event_listeners(
-        &event_bus,
-        &cache_service,
-        &repos.rbac_repo,
+    let delivery_replay_service = Arc::new(DeliveryReplayService::new(
+        telemetry_service.clone(),
+        services.webhook_service.clone(),
+        telemetry_db.clone(),
+        db_pool.clone(),
         plugin_manager.clone(),
-    )
-    .await;
+    ));
+
+    subscribe_event_listeners(&event_bus, &cache_service, &repos.rbac_repo).await;
 
     run_migrations_and_seed(
         &db_pool,
@@ -123,6 +131,9 @@ async fn initialize_with_settings(
     if options.enable_telemetry_cleanup {
         spawn_telemetry_cleanup(settings_shared.clone(), telemetry_service.clone());
     }
+    if options.enable_outbox_worker {
+        OutboxWorker::new(db_pool.clone(), telemetry_db, plugin_manager.clone()).spawn();
+    }
 
     Ok(AppState {
         settings: settings_shared,
@@ -133,8 +144,10 @@ async fn initialize_with_settings(
         auth_service: services.auth_service,
         audit_service: services.audit_service,
         telemetry_service,
+        delivery_replay_service,
         metrics_service,
         realm_service: services.realm_service,
+        webhook_service: services.webhook_service,
         log_subscriber: log_bus,
         cache_service: cache_service.clone(),
         auth_session_repo: repos.auth_session_repo,

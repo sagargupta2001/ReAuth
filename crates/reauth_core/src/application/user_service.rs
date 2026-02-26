@@ -5,24 +5,36 @@ use crate::domain::crypto::HashedPassword;
 use crate::domain::events::{DomainEvent, UserCreated};
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::ports::event_bus::EventPublisher;
+use crate::ports::outbox_repository::OutboxRepository;
+use crate::ports::transaction_manager::TransactionManager;
 use crate::{
     domain::user::User,
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
+use chrono::Utc;
 
 /// A service that handles user-related application logic.
 /// It depends on the `UserRepository` port, not a concrete database implementation.
 pub struct UserService {
     user_repo: Arc<dyn UserRepository>,
     event_bus: Arc<dyn EventPublisher>,
+    outbox_repo: Arc<dyn OutboxRepository>,
+    tx_manager: Arc<dyn TransactionManager>,
 }
 
 impl UserService {
-    pub fn new(user_repo: Arc<dyn UserRepository>, event_bus: Arc<dyn EventPublisher>) -> Self {
+    pub fn new(
+        user_repo: Arc<dyn UserRepository>,
+        event_bus: Arc<dyn EventPublisher>,
+        outbox_repo: Arc<dyn OutboxRepository>,
+        tx_manager: Arc<dyn TransactionManager>,
+    ) -> Self {
         Self {
             user_repo,
             event_bus,
+            outbox_repo,
+            tx_manager,
         }
     }
 
@@ -51,14 +63,30 @@ impl UserService {
             hashed_password: hashed_password.as_str().to_string(),
         };
 
-        self.user_repo.save(&user).await?;
+        let mut tx = self.tx_manager.begin().await?;
 
-        self.event_bus
-            .publish(DomainEvent::UserCreated(UserCreated {
-                user_id: user.id,
-                username: user.username.clone(),
-            }))
-            .await;
+        let event = DomainEvent::UserCreated(UserCreated {
+            user_id: user.id,
+            username: user.username.clone(),
+        });
+        let result = async {
+            self.user_repo.save(&user, Some(&mut *tx)).await?;
+            let envelope = event.to_envelope(Uuid::new_v4(), Utc::now(), Some(realm_id), None);
+            self.outbox_repo.insert(&envelope, Some(&mut *tx)).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(user)
     }
@@ -97,7 +125,7 @@ impl UserService {
                 return Err(Error::UserAlreadyExists);
             }
             user.username = new_username;
-            self.user_repo.update(&user).await?;
+            self.user_repo.update(&user, None).await?;
         }
         Ok(user)
     }

@@ -1,10 +1,12 @@
 use crate::domain::pagination::PageResponse;
 use crate::domain::telemetry::{
-    TelemetryLog, TelemetryLogQuery, TelemetryTrace, TelemetryTraceQuery,
+    DeliveryLog, DeliveryLogQuery, DeliveryMetricsAggregate, TelemetryLog, TelemetryLogQuery,
+    TelemetryTrace, TelemetryTraceQuery,
 };
 use crate::error::Result;
 use crate::ports::telemetry_repository::TelemetryRepository;
 use std::sync::Arc;
+use uuid::Uuid;
 
 pub struct TelemetryService {
     repo: Arc<dyn TelemetryRepository>,
@@ -19,6 +21,10 @@ impl TelemetryService {
         self.repo.list_logs(query).await
     }
 
+    pub async fn list_log_targets(&self, query: TelemetryLogQuery) -> Result<Vec<String>> {
+        self.repo.list_log_targets(query).await
+    }
+
     pub async fn list_traces(
         &self,
         query: TelemetryTraceQuery,
@@ -28,6 +34,25 @@ impl TelemetryService {
 
     pub async fn list_trace_spans(&self, trace_id: &str) -> Result<Vec<TelemetryTrace>> {
         self.repo.list_trace_spans(trace_id).await
+    }
+
+    pub async fn list_delivery_logs(
+        &self,
+        query: DeliveryLogQuery,
+    ) -> Result<PageResponse<DeliveryLog>> {
+        self.repo.list_delivery_logs(query).await
+    }
+
+    pub async fn get_delivery_metrics(
+        &self,
+        realm_id: Option<Uuid>,
+        window_hours: i64,
+    ) -> Result<DeliveryMetricsAggregate> {
+        self.repo.get_delivery_metrics(realm_id, window_hours).await
+    }
+
+    pub async fn get_delivery_log(&self, delivery_id: &str) -> Result<Option<DeliveryLog>> {
+        self.repo.get_delivery_log(delivery_id).await
     }
 
     pub async fn clear_logs(&self, before: Option<&str>) -> Result<i64> {

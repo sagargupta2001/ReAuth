@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { Fragment, type ReactNode, useState } from 'react'
 
 import {
   type ColumnDef,
@@ -14,6 +14,7 @@ import {
 } from '@tanstack/react-table'
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
+import { cn } from '@/lib/utils'
 import { DataTableBulkActions } from '@/shared/ui/data-table/bulk-actions.tsx'
 import { DataTablePagination } from '@/shared/ui/data-table/pagination.tsx'
 import { DataTableToolbar } from '@/shared/ui/data-table/toolbar.tsx'
@@ -41,7 +42,14 @@ interface DataTableProps<TData, TValue> {
   bulkEntityName?: string
   renderBulkActions?: (table: Tb<TData>) => ReactNode
 
+  showToolbar?: boolean
+  rootClassName?: string
   className?: string
+  pageSizeOptions?: number[]
+
+  getRowClassName?: (row: TData) => string
+  isRowExpanded?: (row: TData) => boolean
+  renderSubRow?: (row: TData) => ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -59,7 +67,13 @@ export function DataTable<TData, TValue>({
   searchPlaceholder = 'Filter...',
   bulkEntityName,
   renderBulkActions,
+  showToolbar = true,
+  rootClassName,
   className,
+  pageSizeOptions,
+  getRowClassName,
+  isRowExpanded,
+  renderSubRow,
 }: DataTableProps<TData, TValue>) {
   // These remain client-side as they don't usually affect the API fetch
   const [rowSelection, setRowSelection] = useState({})
@@ -101,15 +115,17 @@ export function DataTable<TData, TValue>({
   const bulkActions = renderBulkActions?.(table)
 
   return (
-    <div className="space-y-4">
-      <DataTableToolbar
-        table={table}
-        searchKey={searchKey}
-        searchPlaceholder={searchPlaceholder}
-        searchValue={searchValue}
-        onSearch={onSearch}
-      />
-      <div className={`relative overflow-auto rounded-md border ${className}`}>
+    <div className={cn('flex flex-col gap-4', rootClassName)}>
+      {showToolbar ? (
+        <DataTableToolbar
+          table={table}
+          searchKey={searchKey}
+          searchPlaceholder={searchPlaceholder}
+          searchValue={searchValue}
+          onSearch={onSearch}
+        />
+      ) : null}
+      <div className={cn('relative overflow-auto rounded-md border', className)}>
         <Table className="w-full table-fixed" noWrapper>
           <TableHeader className="bg-background sticky top-0 z-10 shadow-sm">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -128,23 +144,41 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && 'selected'}
-                  onClick={() => onRowClick?.(row.original)}
-                  className="hover:cursor-pointer"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const expanded = isRowExpanded?.(row.original) ?? false
+                const rowClassName = getRowClassName?.(row.original)
+                return (
+                  <Fragment key={row.id}>
+                    <TableRow
+                      data-state={row.getIsSelected() && 'selected'}
+                      onClick={() => onRowClick?.(row.original)}
+                      className={cn(onRowClick && 'hover:cursor-pointer', rowClassName)}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {expanded && renderSubRow ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={table.getVisibleLeafColumns().length}
+                          className="p-0"
+                        >
+                          {renderSubRow(row.original)}
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                  </Fragment>
+                )
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+                <TableCell
+                  colSpan={table.getVisibleLeafColumns().length}
+                  className="h-24 text-center"
+                >
                   No results.
                 </TableCell>
               </TableRow>
@@ -157,7 +191,7 @@ export function DataTable<TData, TValue>({
           {bulkActions}
         </DataTableBulkActions>
       ) : null}
-      <DataTablePagination table={table} />
+      <DataTablePagination table={table} pageSizeOptions={pageSizeOptions} />
     </div>
   )
 }

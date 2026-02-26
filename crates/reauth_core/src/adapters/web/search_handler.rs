@@ -53,12 +53,22 @@ pub struct SearchFlowResult {
 }
 
 #[derive(Debug, Serialize)]
+pub struct SearchWebhookResult {
+    pub id: Uuid,
+    pub name: String,
+    pub url: String,
+    pub http_method: String,
+    pub status: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct SearchResponse {
     pub users: Vec<SearchUserResult>,
     pub clients: Vec<SearchClientResult>,
     pub roles: Vec<SearchRoleResult>,
     pub groups: Vec<SearchGroupResult>,
     pub flows: Vec<SearchFlowResult>,
+    pub webhooks: Vec<SearchWebhookResult>,
 }
 
 impl SearchResponse {
@@ -69,6 +79,7 @@ impl SearchResponse {
             roles: vec![],
             groups: vec![],
             flows: vec![],
+            webhooks: vec![],
         }
     }
 }
@@ -120,6 +131,7 @@ pub async fn omni_search_handler(
         .user_has_permission(&user.id, permissions::REALM_READ)
         .await
         .unwrap_or(false);
+    let can_read_webhooks = can_read_flows;
 
     let users = if can_read_users {
         let response = state
@@ -257,6 +269,25 @@ pub async fn omni_search_handler(
         vec![]
     };
 
+    let webhooks = if can_read_webhooks {
+        let results = state
+            .webhook_service
+            .search_endpoints(realm.id, q, limit)
+            .await?;
+        results
+            .into_iter()
+            .map(|endpoint| SearchWebhookResult {
+                id: endpoint.id,
+                name: endpoint.name,
+                url: endpoint.url,
+                http_method: endpoint.http_method,
+                status: endpoint.status,
+            })
+            .collect()
+    } else {
+        vec![]
+    };
+
     Ok((
         StatusCode::OK,
         Json(SearchResponse {
@@ -265,6 +296,7 @@ pub async fn omni_search_handler(
             roles,
             groups,
             flows,
+            webhooks,
         }),
     ))
 }

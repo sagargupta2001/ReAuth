@@ -2,36 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 
 import {
   Activity,
-  AlertTriangle,
   ArrowRight,
   ChevronLeft,
   ChevronRight,
   Timer,
-  Trash2,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/alert-dialog'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Command, CommandInput } from '@/components/command'
-import { Input } from '@/components/input'
 import { ScrollArea } from '@/components/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import { cn } from '@/lib/utils'
 import { enumParam, numberParam, stringParam, useUrlState } from '@/shared/lib/hooks/useUrlState'
 
-import { useTelemetryClearTraces } from '../api/useTelemetryCleanup'
 import { useTelemetryTraceSpans } from '../api/useTelemetryTraceSpans'
 import { useTelemetryTraces } from '../api/useTelemetryTraces'
 import type { ResolvedTimeRange } from '../lib/timeRange'
@@ -206,7 +191,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
   const start = timeRange.start ? timeRange.start.toISOString() : undefined
   const end = timeRange.end ? timeRange.end.toISOString() : undefined
 
-  const { data, isLoading, refetch } = useTelemetryTraces({
+  const { data, isLoading } = useTelemetryTraces({
     search: urlState.trace_q || undefined,
     start,
     end,
@@ -216,13 +201,12 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
     sort_dir: urlState.trace_sort_dir,
   })
 
-  const traces = data?.data ?? []
   const meta = data?.meta
 
-  const requestTraces = useMemo(
-    () => traces.filter((trace) => trace.method || trace.route || trace.path),
-    [traces],
-  )
+  const requestTraces = useMemo(() => {
+    const traces = data?.data ?? []
+    return traces.filter((trace) => trace.method || trace.route || trace.path)
+  }, [data?.data])
 
   const selectedTrace = useMemo(() => {
     if (!requestTraces.length) return null
@@ -245,9 +229,6 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
   const isFirstPage = urlState.trace_page <= 1
   const isLastPage = totalPages > 0 ? urlState.trace_page >= totalPages : true
   const sortValue = `${urlState.trace_sort_by}:${urlState.trace_sort_dir}`
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [confirmInput, setConfirmInput] = useState('')
-  const clearTraces = useTelemetryClearTraces()
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -289,7 +270,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
+      <div className="grid min-h-[520px] flex-1 grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
         <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-background/40">
           <div className="border-b px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -456,73 +437,6 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
         </div>
       </div>
 
-      <div
-        id="traces-danger-zone"
-        className="rounded-xl border border-destructive/50 bg-destructive/10 p-4"
-      >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="rounded-full bg-destructive/20 p-2 text-destructive">
-              <AlertTriangle className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-destructive">
-                {t('TRACES_CLEANUP.TITLE')}
-              </div>
-              <p className="text-xs text-muted-foreground">{t('TRACES_CLEANUP.DESC')}</p>
-            </div>
-          </div>
-          <AlertDialog
-            open={confirmOpen}
-            onOpenChange={(open) => {
-              setConfirmOpen(open)
-              if (!open) setConfirmInput('')
-            }}
-          >
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" className="gap-2">
-                <Trash2 className="h-4 w-4" />
-                {t('TRACES_CLEANUP.CLEAR_ALL')}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t('TRACES_CLEANUP.CONFIRM_TITLE')}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t('TRACES_CLEANUP.CONFIRM_DESC')}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="space-y-2">
-                <Input
-                  placeholder={t('TRACES_CLEANUP.CONFIRM_PLACEHOLDER')}
-                  value={confirmInput}
-                  onChange={(event) => setConfirmInput(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t('TRACES_CLEANUP.CONFIRM_HELPER')}
-                </p>
-              </div>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t('TRACES_CLEANUP.CANCEL')}</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={() => {
-                    clearTraces.mutate(undefined, {
-                      onSuccess: () => {
-                        void refetch()
-                      },
-                    })
-                    setConfirmInput('')
-                  }}
-                  disabled={confirmInput.trim() !== 'CLEAR' || clearTraces.isPending}
-                >
-                  {t('TRACES_CLEANUP.CONFIRM_ACTION')}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
     </div>
   )
 }

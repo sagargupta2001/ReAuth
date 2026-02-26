@@ -271,7 +271,7 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
               </>
             )
           }}
-          className="h-[calc(100vh-440px)]"
+          className="h-[calc(100vh-450px)]"
         />
       )}
     </div>

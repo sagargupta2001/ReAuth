@@ -47,6 +47,7 @@ export interface FrontendConfig {
 export interface PluginEvents {
   subscribes_to?: string[]
   emits?: string[]
+  supported_event_version?: string
 }
 
 /**

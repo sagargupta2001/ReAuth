@@ -17,6 +17,7 @@ export function usePluginMutations() {
   // A helper to refetch the plugin list after a change
   const invalidatePlugins = () => {
     void queryClient.invalidateQueries({ queryKey: ['plugins'] })
+    void queryClient.invalidateQueries({ queryKey: ['plugin-statuses'] })
   }
 
   const enablePlugin = useMutation({

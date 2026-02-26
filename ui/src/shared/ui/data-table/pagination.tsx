@@ -13,9 +13,14 @@ import { cn, getPageNumbers } from '@/lib/utils'
 type DataTablePaginationProps<TData> = {
   table: Table<TData>
   className?: string
+  pageSizeOptions?: number[]
 }
 
-export function DataTablePagination<TData>({ table, className }: DataTablePaginationProps<TData>) {
+export function DataTablePagination<TData>({
+  table,
+  className,
+  pageSizeOptions = [10, 20, 30, 40, 50],
+}: DataTablePaginationProps<TData>) {
   const currentPage = table.getState().pagination.pageIndex + 1
   const totalPages = table.getPageCount()
   const pageNumbers = getPageNumbers(currentPage, totalPages)
@@ -40,7 +45,7 @@ export function DataTablePagination<TData>({ table, className }: DataTablePagina
             <SelectValue placeholder={table.getState().pagination.pageSize} />
           </SelectTrigger>
           <SelectContent side="top">
-            {[10, 20, 30, 40, 50].map((pageSize) => (
+            {pageSizeOptions.map((pageSize) => (
               <SelectItem key={pageSize} value={`${pageSize}`}>
                 {pageSize}
               </SelectItem>

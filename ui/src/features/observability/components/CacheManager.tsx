@@ -28,7 +28,7 @@ function formatPercent(value: number) {
 export function CacheManager() {
   const { t } = useTranslation('logs')
   const { data, isLoading } = useCacheStats()
-  const stats = Array.isArray(data) ? data : data ? [data] : []
+  const stats = useMemo(() => (Array.isArray(data) ? data : data ? [data] : []), [data])
   const cacheFlush = useCacheFlush()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmInput, setConfirmInput] = useState('')

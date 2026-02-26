@@ -3,10 +3,14 @@ use crate::adapters::persistence::sqlite_audit_repository::SqliteAuditRepository
 use crate::adapters::persistence::sqlite_auth_session_repository::SqliteAuthSessionRepository;
 use crate::adapters::persistence::sqlite_flow_store::SqliteFlowStore;
 use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
+use crate::adapters::persistence::sqlite_outbox_repository::SqliteOutboxRepository;
+use crate::adapters::persistence::sqlite_webhook_repository::SqliteWebhookRepository;
 use crate::ports::audit_repository::AuditRepository;
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::oidc_repository::OidcRepository;
+use crate::ports::outbox_repository::OutboxRepository;
+use crate::ports::webhook_repository::WebhookRepository;
 use crate::{
     adapters::persistence::{
         sqlite_flow_repository::SqliteFlowRepository, sqlite_rbac_repository::SqliteRbacRepository,
@@ -36,6 +40,8 @@ pub struct Repositories {
     pub flow_store: Arc<dyn FlowStore>,
     pub auth_session_repo: Arc<dyn AuthSessionRepository>,
     pub audit_repo: Arc<dyn AuditRepository>,
+    pub outbox_repo: Arc<dyn OutboxRepository>,
+    pub webhook_repo: Arc<dyn WebhookRepository>,
 }
 
 pub fn initialize_repositories(db_pool: &Database) -> Repositories {
@@ -50,6 +56,8 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let flow_store = Arc::new(SqliteFlowStore::new(db_pool.clone()));
     let auth_session_repo = Arc::new(SqliteAuthSessionRepository::new(db_pool.clone()));
     let audit_repo = Arc::new(SqliteAuditRepository::new(db_pool.clone()));
+    let outbox_repo = Arc::new(SqliteOutboxRepository::new(db_pool.clone()));
+    let webhook_repo = Arc::new(SqliteWebhookRepository::new(db_pool.clone()));
 
     Repositories {
         user_repo,
@@ -61,5 +69,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         flow_store,
         auth_session_repo,
         audit_repo,
+        outbox_repo,
+        webhook_repo,
     }
 }

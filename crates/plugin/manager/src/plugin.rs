@@ -63,6 +63,13 @@ pub struct EventsConfig {
     /// A list of event type strings that the plugin wants to receive.
     #[serde(default = "Vec::new")]
     pub subscribes_to: Vec<String>,
+    /// The event payload version the plugin expects (defaults to v1 envelope).
+    #[serde(default = "default_supported_event_version")]
+    pub supported_event_version: String,
+}
+
+fn default_supported_event_version() -> String {
+    "v1".to_string()
 }
 
 /// Represents the `plugin.json` manifest file.

@@ -110,6 +110,33 @@ async fn create_schema(pool: &SqlitePool) -> Result<()> {
     .await?;
 
     sqlx::query(
+        "CREATE TABLE IF NOT EXISTS delivery_logs (
+            id TEXT PRIMARY KEY NOT NULL,
+            event_id TEXT NOT NULL,
+            realm_id TEXT,
+            target_type TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            event_version TEXT NOT NULL,
+            attempt INTEGER NOT NULL,
+            payload TEXT NOT NULL,
+            payload_compressed BOOLEAN NOT NULL DEFAULT FALSE,
+            response_status INTEGER,
+            response_body TEXT,
+            error TEXT,
+            error_chain TEXT,
+            latency_ms INTEGER,
+            delivered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    let _ = sqlx::query("ALTER TABLE delivery_logs ADD COLUMN error_chain TEXT")
+        .execute(pool)
+        .await;
+
+    sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_telemetry_logs_timestamp ON telemetry_logs (timestamp)",
     )
     .execute(pool)
@@ -133,6 +160,18 @@ async fn create_schema(pool: &SqlitePool) -> Result<()> {
     .await?;
     sqlx::query(
         "CREATE INDEX IF NOT EXISTS idx_telemetry_traces_trace ON telemetry_traces (trace_id)",
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_delivery_logs_event ON delivery_logs (event_id)")
+        .execute(pool)
+        .await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_delivery_logs_target ON delivery_logs (target_id)")
+        .execute(pool)
+        .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_delivery_logs_delivered_at ON delivery_logs (delivered_at)",
     )
     .execute(pool)
     .await?;

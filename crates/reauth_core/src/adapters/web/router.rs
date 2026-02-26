@@ -2,6 +2,7 @@ use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
     log_stream_handler, observability_handler, oidc_handler, plugin_handler, rbac_handler,
     realm_handler, search_handler, server::ui_handler, session_handler, user_handler,
+    webhook_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
@@ -40,6 +41,10 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
             protected_user_routes(app_state.clone()),
         )
         .nest("/realms/{realm}/flows", flow_routes(app_state.clone()))
+        .nest(
+            "/realms/{realm}/webhooks",
+            webhook_routes(app_state.clone()),
+        )
         .route(
             "/realms/{realm}/search",
             get(search_handler::omni_search_handler),
@@ -307,6 +312,46 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         ))
 }
 
+fn webhook_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        .route("/", get(webhook_handler::list_webhooks_handler))
+        .route("/", post(webhook_handler::create_webhook_handler))
+        .route(
+            "/metrics",
+            get(webhook_handler::event_routing_metrics_handler),
+        )
+        .route("/{id}", get(webhook_handler::get_webhook_handler))
+        .route("/{id}", put(webhook_handler::update_webhook_handler))
+        .route("/{id}", delete(webhook_handler::delete_webhook_handler))
+        .route(
+            "/{id}/enable",
+            post(webhook_handler::enable_webhook_handler),
+        )
+        .route(
+            "/{id}/disable",
+            post(webhook_handler::disable_webhook_handler),
+        )
+        .route(
+            "/{id}/roll-secret",
+            post(webhook_handler::roll_webhook_secret_handler),
+        )
+        .route(
+            "/{id}/subscriptions",
+            post(webhook_handler::update_webhook_subscriptions_handler),
+        )
+        .route("/{id}/test", post(webhook_handler::test_webhook_handler))
+        .route(
+            "/{id}/deliveries",
+            get(webhook_handler::list_webhook_deliveries_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::REALM_WRITE)
+            },
+        ))
+}
+
 fn audit_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(audit_handler::list_audit_events_handler))
@@ -322,8 +367,20 @@ fn observability_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/logs", get(observability_handler::list_logs_handler))
         .route(
+            "/logs/targets",
+            get(observability_handler::list_log_targets_handler),
+        )
+        .route(
             "/logs/clear",
             post(observability_handler::clear_logs_handler),
+        )
+        .route(
+            "/deliveries",
+            get(observability_handler::list_delivery_logs_handler),
+        )
+        .route(
+            "/deliveries/{delivery_id}/replay",
+            post(observability_handler::replay_delivery_handler),
         )
         .route("/traces", get(observability_handler::list_traces_handler))
         .route(
@@ -405,6 +462,10 @@ fn execution_routes() -> Router<AppState> {
 fn plugin_routes() -> Router<AppState> {
     Router::new()
         .route("/manifests", get(plugin_handler::get_plugin_manifests))
+        .route(
+            "/statuses",
+            get(plugin_handler::list_plugin_statuses_handler),
+        )
         .route("/{id}/say-hello", get(plugin_handler::plugin_proxy_handler))
         .route("/{id}/enable", post(plugin_handler::enable_plugin_handler))
         .route(

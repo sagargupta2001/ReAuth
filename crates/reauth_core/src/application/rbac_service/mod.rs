@@ -14,9 +14,14 @@ use crate::{
     },
     error::{Error, Result},
     ports::{
-        cache_service::CacheService, event_bus::EventPublisher, rbac_repository::RbacRepository,
+        cache_service::CacheService,
+        event_bus::EventPublisher,
+        outbox_repository::OutboxRepository,
+        rbac_repository::RbacRepository,
+        transaction_manager::{Transaction, TransactionManager},
     },
 };
+use chrono::Utc;
 use std::{collections::HashSet, sync::Arc};
 use tracing::instrument;
 use uuid::Uuid;
@@ -54,6 +59,8 @@ pub struct RbacService {
     rbac_repo: Arc<dyn RbacRepository>,
     cache: Arc<dyn CacheService>,
     event_bus: Arc<dyn EventPublisher>,
+    outbox_repo: Arc<dyn OutboxRepository>,
+    tx_manager: Arc<dyn TransactionManager>,
 }
 
 impl RbacService {
@@ -61,12 +68,26 @@ impl RbacService {
         rbac_repo: Arc<dyn RbacRepository>,
         cache: Arc<dyn CacheService>,
         event_bus: Arc<dyn EventPublisher>,
+        outbox_repo: Arc<dyn OutboxRepository>,
+        tx_manager: Arc<dyn TransactionManager>,
     ) -> Self {
         Self {
             rbac_repo,
             cache,
             event_bus,
+            outbox_repo,
+            tx_manager,
         }
+    }
+
+    async fn write_outbox(
+        &self,
+        event: &DomainEvent,
+        realm_id: Option<Uuid>,
+        tx: &mut dyn Transaction,
+    ) -> Result<()> {
+        let envelope = event.to_envelope(Uuid::new_v4(), Utc::now(), realm_id, None);
+        self.outbox_repo.insert(&envelope, Some(tx)).await
     }
 
     // --- Write Operations (CRUD) ---
@@ -87,7 +108,7 @@ impl RbacService {
             name: payload.name,
             description: payload.description,
         };
-        self.rbac_repo.create_role(&role).await?;
+        self.rbac_repo.create_role(&role, None).await?;
         Ok(role)
     }
 
@@ -140,7 +161,7 @@ impl RbacService {
         role.description = payload.description;
 
         // Persist
-        self.rbac_repo.update_role(&role).await?;
+        self.rbac_repo.update_role(&role, None).await?;
 
         // Invalidate caches (Logic depends on your cache strategy, e.g. simply clearing user permissions cache)
         // self.event_bus.publish(...)
@@ -165,18 +186,30 @@ impl RbacService {
         // 2. Find affected users BEFORE deletion
         let affected_users = self.rbac_repo.find_user_ids_for_role(&role_id).await?;
 
-        // 3. Delete from DB (Cascades will wipe the links)
-        self.rbac_repo.delete_role(&role_id).await?;
+        let event = DomainEvent::RoleDeleted(crate::domain::events::RoleDeleted {
+            role_id,
+            affected_user_ids: affected_users,
+        });
 
-        // 4. Publish Event to Clear Cache
-        self.event_bus
-            .publish(DomainEvent::RoleDeleted(
-                crate::domain::events::RoleDeleted {
-                    role_id,
-                    affected_user_ids: affected_users,
-                },
-            ))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            // 3. Delete from DB (Cascades will wipe the links)
+            self.rbac_repo.delete_role(&role_id, Some(&mut *tx)).await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -209,7 +242,7 @@ impl RbacService {
             description: payload.description,
             sort_order,
         };
-        self.rbac_repo.create_group(&group).await?;
+        self.rbac_repo.create_group(&group, None).await?;
         Ok(group)
     }
 
@@ -318,7 +351,7 @@ impl RbacService {
         siblings.insert(insert_index, group_id);
 
         self.rbac_repo
-            .set_group_orders(&realm_id, parent_id.as_ref(), &siblings)
+            .set_group_orders(&realm_id, parent_id.as_ref(), &siblings, None)
             .await?;
 
         if group.parent_id != parent_id {
@@ -328,7 +361,7 @@ impl RbacService {
                 .await?;
             old_siblings.retain(|id| id != &group_id);
             self.rbac_repo
-                .set_group_orders(&realm_id, group.parent_id.as_ref(), &old_siblings)
+                .set_group_orders(&realm_id, group.parent_id.as_ref(), &old_siblings, None)
                 .await?;
         }
 
@@ -456,7 +489,9 @@ impl RbacService {
             created_by: None,
         };
 
-        self.rbac_repo.create_custom_permission(&permission).await?;
+        self.rbac_repo
+            .create_custom_permission(&permission, None)
+            .await?;
 
         Ok(permission)
     }
@@ -494,7 +529,9 @@ impl RbacService {
             created_by: existing.created_by,
         };
 
-        self.rbac_repo.update_custom_permission(&updated).await?;
+        self.rbac_repo
+            .update_custom_permission(&updated, None)
+            .await?;
         Ok(updated)
     }
 
@@ -510,10 +547,10 @@ impl RbacService {
             .ok_or(Error::NotFound("Custom permission not found".into()))?;
 
         self.rbac_repo
-            .remove_role_permissions_by_key(&permission.permission)
+            .remove_role_permissions_by_key(&permission.permission, None)
             .await?;
         self.rbac_repo
-            .delete_custom_permission(&permission_id)
+            .delete_custom_permission(&permission_id, None)
             .await?;
 
         Ok(())
@@ -546,7 +583,7 @@ impl RbacService {
         group.name = payload.name;
         group.description = payload.description;
 
-        self.rbac_repo.update_group(&group).await?;
+        self.rbac_repo.update_group(&group, None).await?;
 
         Ok(group)
     }
@@ -611,16 +648,31 @@ impl RbacService {
 
         let affected_users = self.rbac_repo.find_user_ids_in_groups(&group_ids).await?;
 
-        self.rbac_repo.delete_groups(&group_ids).await?;
+        let event = DomainEvent::GroupDeleted(crate::domain::events::GroupDeleted {
+            group_ids: group_ids.clone(),
+            affected_user_ids: affected_users,
+        });
 
-        self.event_bus
-            .publish(DomainEvent::GroupDeleted(
-                crate::domain::events::GroupDeleted {
-                    group_ids,
-                    affected_user_ids: affected_users,
-                },
-            ))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .delete_groups(&group_ids, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -636,16 +688,28 @@ impl RbacService {
         let _ = self.get_role(realm_id, role_id).await?;
         let _ = self.get_group(realm_id, group_id).await?;
 
-        self.rbac_repo
-            .assign_role_to_group(&role_id, &group_id)
-            .await?;
+        let event = DomainEvent::RoleAssignedToGroup(RoleGroupChanged { role_id, group_id });
 
-        self.event_bus
-            .publish(DomainEvent::RoleAssignedToGroup(RoleGroupChanged {
-                role_id,
-                group_id,
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .assign_role_to_group(&role_id, &group_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -681,17 +745,32 @@ impl RbacService {
             ));
         }
 
-        self.rbac_repo
-            .assign_composite_role(&parent_role_id, &child_role_id)
-            .await?;
+        let event = DomainEvent::RoleCompositeChanged(RoleCompositeChanged {
+            parent_role_id,
+            child_role_id,
+            action: "assigned".to_string(),
+        });
 
-        self.event_bus
-            .publish(DomainEvent::RoleCompositeChanged(RoleCompositeChanged {
-                parent_role_id,
-                child_role_id,
-                action: "assigned".to_string(),
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .assign_composite_role(&parent_role_id, &child_role_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -704,16 +783,28 @@ impl RbacService {
     ) -> Result<()> {
         let _ = self.get_group(realm_id, group_id).await?;
 
-        self.rbac_repo
-            .assign_user_to_group(&user_id, &group_id)
-            .await?;
+        let event = DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id, group_id });
 
-        self.event_bus
-            .publish(DomainEvent::UserAssignedToGroup(UserGroupChanged {
-                user_id,
-                group_id,
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .assign_user_to_group(&user_id, &group_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -727,16 +818,28 @@ impl RbacService {
         let _ = self.get_role(realm_id, role_id).await?;
         let _ = self.get_group(realm_id, group_id).await?;
 
-        self.rbac_repo
-            .remove_role_from_group(&role_id, &group_id)
-            .await?;
+        let event = DomainEvent::RoleRemovedFromGroup(RoleGroupChanged { role_id, group_id });
 
-        self.event_bus
-            .publish(DomainEvent::RoleRemovedFromGroup(RoleGroupChanged {
-                role_id,
-                group_id,
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .remove_role_from_group(&role_id, &group_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -756,17 +859,32 @@ impl RbacService {
             ));
         }
 
-        self.rbac_repo
-            .remove_composite_role(&parent_role_id, &child_role_id)
-            .await?;
+        let event = DomainEvent::RoleCompositeChanged(RoleCompositeChanged {
+            parent_role_id,
+            child_role_id,
+            action: "removed".to_string(),
+        });
 
-        self.event_bus
-            .publish(DomainEvent::RoleCompositeChanged(RoleCompositeChanged {
-                parent_role_id,
-                child_role_id,
-                action: "removed".to_string(),
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .remove_composite_role(&parent_role_id, &child_role_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -779,16 +897,28 @@ impl RbacService {
     ) -> Result<()> {
         let _ = self.get_group(realm_id, group_id).await?;
 
-        self.rbac_repo
-            .remove_user_from_group(&user_id, &group_id)
-            .await?;
+        let event = DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id, group_id });
 
-        self.event_bus
-            .publish(DomainEvent::UserRemovedFromGroup(UserGroupChanged {
-                user_id,
-                group_id,
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .remove_user_from_group(&user_id, &group_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -809,16 +939,28 @@ impl RbacService {
             return Err(Error::SecurityViolation("Cross-realm assignment".into()));
         }
 
-        self.rbac_repo
-            .assign_role_to_user(&user_id, &role_id)
-            .await?;
+        let event = DomainEvent::UserRoleAssigned(UserRoleChanged { user_id, role_id });
 
-        self.event_bus
-            .publish(DomainEvent::UserRoleAssigned(UserRoleChanged {
-                user_id,
-                role_id,
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .assign_role_to_user(&user_id, &role_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -839,16 +981,28 @@ impl RbacService {
             return Err(Error::SecurityViolation("Cross-realm assignment".into()));
         }
 
-        self.rbac_repo
-            .remove_role_from_user(&user_id, &role_id)
-            .await?;
+        let event = DomainEvent::UserRoleRemoved(UserRoleChanged { user_id, role_id });
 
-        self.event_bus
-            .publish(DomainEvent::UserRoleRemoved(UserRoleChanged {
-                user_id,
-                role_id,
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .remove_role_from_user(&user_id, &role_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -879,18 +1033,32 @@ impl RbacService {
             .await?;
 
         // 2. Assign
-        self.rbac_repo
-            .assign_permission_to_role(&permission, &role_id)
-            .await?;
+        let event = DomainEvent::RolePermissionChanged(RolePermissionChanged {
+            role_id,
+            permission: permission.clone(),
+            action: "assigned".to_string(),
+        });
 
-        // 3. Event
-        self.event_bus
-            .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
-                role_id,
-                permission: permission.clone(),
-                action: "assigned".to_string(),
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .assign_permission_to_role(&permission, &role_id, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -905,18 +1073,32 @@ impl RbacService {
         let _ = self.get_role(realm_id, role_id).await?;
 
         // 2. Remove
-        self.rbac_repo
-            .remove_permission(&role_id, &permission)
-            .await?;
+        let event = DomainEvent::RolePermissionChanged(RolePermissionChanged {
+            role_id,
+            permission: permission.clone(),
+            action: "revoked".to_string(),
+        });
 
-        // 3. Event
-        self.event_bus
-            .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
-                role_id,
-                permission,
-                action: "revoked".to_string(),
-            }))
-            .await;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .remove_permission(&role_id, &permission, Some(&mut *tx))
+                .await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(())
     }
@@ -945,26 +1127,50 @@ impl RbacService {
         }
 
         // 3. Perform Bulk Update
-        self.rbac_repo
-            .bulk_update_permissions(&role_id, permissions.clone(), &action)
-            .await?;
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo
+                .bulk_update_permissions(&role_id, permissions.clone(), &action, Some(&mut *tx))
+                .await?;
 
-        // 4. Emit Events (Ideally batch this or emit one "Bulk" event)
-        // For now we assume a simple generic event or skip high-volume auditing for bulk ops
-        // or emit one event per permission if strict audit is required.
-        // Keeping it simple here:
-        for perm in permissions {
-            self.event_bus
-                .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
+            for perm in &permissions {
+                let event = DomainEvent::RolePermissionChanged(RolePermissionChanged {
                     role_id,
-                    permission: perm,
+                    permission: perm.clone(),
                     action: if action == "add" {
                         "assigned".to_string()
                     } else {
                         "revoked".to_string()
                     },
-                }))
-                .await; // Note: awaiting inside loop might be slow for massive updates, consider backgrounding or batch event
+                });
+                self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            }
+
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                for perm in permissions {
+                    self.event_bus
+                        .publish(DomainEvent::RolePermissionChanged(RolePermissionChanged {
+                            role_id,
+                            permission: perm,
+                            action: if action == "add" {
+                                "assigned".to_string()
+                            } else {
+                                "revoked".to_string()
+                            },
+                        }))
+                        .await;
+                }
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
         }
 
         Ok(())

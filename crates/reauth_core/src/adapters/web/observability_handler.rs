@@ -1,11 +1,12 @@
 use crate::domain::pagination::{PageRequest, SortDirection};
-use crate::domain::telemetry::{TelemetryLogQuery, TelemetryTraceQuery};
+use crate::domain::telemetry::{DeliveryLogQuery, TelemetryLogQuery, TelemetryTraceQuery};
 use crate::error::{Error, Result};
 use crate::AppState;
-use axum::extract::Query;
+use axum::extract::{Path, Query};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use chrono::{DateTime, FixedOffset};
 use serde::Deserialize;
+use uuid::Uuid;
 
 #[derive(Deserialize)]
 pub struct LogQuery {
@@ -31,6 +32,21 @@ pub struct TraceQuery {
 }
 
 #[derive(Deserialize)]
+pub struct DeliveryQuery {
+    #[serde(flatten)]
+    pub page: PageRequest,
+    pub realm_id: Option<String>,
+    pub target_type: Option<String>,
+    pub target_id: Option<String>,
+    pub event_type: Option<String>,
+    pub event_id: Option<String>,
+    pub failed: Option<bool>,
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Deserialize)]
 pub struct CacheFlushPayload {
     pub namespace: Option<String>,
 }
@@ -49,6 +65,8 @@ const DEFAULT_LOG_LIMIT: i64 = 200;
 const MAX_LOG_LIMIT: i64 = 1000;
 const DEFAULT_TRACE_LIMIT: i64 = 200;
 const MAX_TRACE_LIMIT: i64 = 1000;
+const DEFAULT_DELIVERY_LIMIT: i64 = 200;
+const MAX_DELIVERY_LIMIT: i64 = 1000;
 
 // GET /api/system/observability/logs
 pub async fn list_logs_handler(
@@ -82,6 +100,27 @@ pub async fn list_logs_handler(
 
     let logs = state.telemetry_service.list_logs(filter).await?;
     Ok((StatusCode::OK, Json(logs)))
+}
+
+// GET /api/system/observability/logs/targets
+pub async fn list_log_targets_handler(
+    State(state): State<AppState>,
+    Query(query): Query<LogQuery>,
+) -> Result<impl IntoResponse> {
+    let search = query.search.or_else(|| query.page.q.clone());
+    let (start, end) = normalize_time_range(query.start, query.end)?;
+    let filter = TelemetryLogQuery {
+        page: query.page,
+        level: query.level.map(|value| value.to_uppercase()),
+        target: None,
+        search,
+        start_time: start,
+        end_time: end,
+        include_spans: query.include_spans.unwrap_or(true),
+    };
+
+    let targets = state.telemetry_service.list_log_targets(filter).await?;
+    Ok((StatusCode::OK, Json(targets)))
 }
 
 // GET /api/system/observability/traces
@@ -122,6 +161,58 @@ pub async fn list_trace_spans_handler(
 ) -> Result<impl IntoResponse> {
     let spans = state.telemetry_service.list_trace_spans(&trace_id).await?;
     Ok((StatusCode::OK, Json(spans)))
+}
+
+// GET /api/system/observability/deliveries
+pub async fn list_delivery_logs_handler(
+    State(state): State<AppState>,
+    Query(query): Query<DeliveryQuery>,
+) -> Result<impl IntoResponse> {
+    let mut page = query.page;
+    if let Some(limit) = query.limit {
+        page.per_page = limit.clamp(1, MAX_DELIVERY_LIMIT);
+        page.page = 1;
+    }
+    if page.per_page <= 0 {
+        page.per_page = DEFAULT_DELIVERY_LIMIT;
+    }
+    page.per_page = page.per_page.min(MAX_DELIVERY_LIMIT);
+
+    let realm_id = match query.realm_id {
+        Some(value) => Some(
+            Uuid::parse_str(&value)
+                .map_err(|_| Error::Validation("Invalid realm_id".to_string()))?,
+        ),
+        None => None,
+    };
+
+    let (start, end) = normalize_time_range(query.start, query.end)?;
+    let filter = DeliveryLogQuery {
+        page,
+        realm_id,
+        target_type: query.target_type,
+        target_id: query.target_id,
+        event_type: query.event_type,
+        event_id: query.event_id,
+        failed: query.failed,
+        start_time: start,
+        end_time: end,
+    };
+
+    let logs = state.telemetry_service.list_delivery_logs(filter).await?;
+    Ok((StatusCode::OK, Json(logs)))
+}
+
+// POST /api/system/observability/deliveries/{delivery_id}/replay
+pub async fn replay_delivery_handler(
+    State(state): State<AppState>,
+    Path(delivery_id): Path<String>,
+) -> Result<impl IntoResponse> {
+    let result = state
+        .delivery_replay_service
+        .replay_delivery(&delivery_id)
+        .await?;
+    Ok((StatusCode::OK, Json(result)))
 }
 
 // GET /api/system/observability/cache/stats

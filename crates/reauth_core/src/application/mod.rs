@@ -1,5 +1,6 @@
 pub mod audit_service;
 pub mod auth_service;
+pub mod delivery_replay_service;
 pub mod flow_engine;
 pub mod flow_executor;
 pub mod flow_manager;
@@ -12,3 +13,4 @@ pub mod realm_service;
 pub mod runtime_registry;
 pub mod telemetry_service;
 pub mod user_service;
+pub mod webhook_service;

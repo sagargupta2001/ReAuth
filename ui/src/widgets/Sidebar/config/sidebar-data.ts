@@ -1,16 +1,19 @@
-import { AppWindow, Group, KeyRound, LayoutDashboard, LucideClockFading, Package, ScrollText, Settings, Users, Workflow } from 'lucide-react';
+import {
+  AppWindow,
+  Database,
+  Group,
+  KeyRound,
+  LayoutDashboard,
+  LucideClockFading,
+  Package,
+  ScrollText,
+  Settings,
+  Users,
+  Webhook,
+  Workflow,
+} from 'lucide-react'
 
-
-
-import type { SidebarData } from '@/widgets/Sidebar/model/types.ts';
-
-
-
-
-
-
-
-
+import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
 
 export const sidebarData: SidebarData = {
   user: {
@@ -51,9 +54,19 @@ export const sidebarData: SidebarData = {
       icon: Package,
     },
     {
+      title: 'Event Routing',
+      url: '/events',
+      icon: Webhook,
+    },
+    {
       title: 'Observability',
       url: '/logs',
       icon: ScrollText,
+    },
+    {
+      title: 'Cache',
+      url: '/cache',
+      icon: Database,
     },
     {
       title: 'Clients',
@@ -79,6 +92,10 @@ export const sidebarData: SidebarData = {
         {
           title: 'Token',
           url: '/settings/token',
+        },
+        {
+          title: 'Observability',
+          url: '/settings/observability',
         },
       ],
     },

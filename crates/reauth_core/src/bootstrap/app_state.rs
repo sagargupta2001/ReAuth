@@ -1,12 +1,14 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::application::delivery_replay_service::DeliveryReplayService;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::webhook_service::WebhookService;
 use crate::application::{
     audit_service::AuditService, auth_service::AuthService, rbac_service::RbacService,
     realm_service::RealmService, telemetry_service::TelemetryService, user_service::UserService,
@@ -31,8 +33,10 @@ pub struct AppState {
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
     pub telemetry_service: Arc<TelemetryService>,
+    pub delivery_replay_service: Arc<DeliveryReplayService>,
     pub metrics_service: Arc<MetricsService>,
     pub realm_service: Arc<RealmService>,
+    pub webhook_service: Arc<WebhookService>,
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
     pub flow_manager: Arc<FlowManager>,

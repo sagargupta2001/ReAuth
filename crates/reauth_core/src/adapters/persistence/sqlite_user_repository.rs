@@ -1,5 +1,7 @@
 use crate::adapters::persistence::connection::Database;
+use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
+use crate::ports::transaction_manager::Transaction;
 use crate::{
     domain::user::User,
     error::{Error, Result},
@@ -73,17 +75,30 @@ impl UserRepository for SqliteUserRepository {
         skip_all,
         fields(telemetry = "span", db_table = "users", db_op = "insert")
     )]
-    async fn save(&self, user: &User) -> Result<()> {
-        sqlx::query(
+    async fn save(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
+        let query = sqlx::query(
             "INSERT INTO users (id, realm_id, username, hashed_password) VALUES (?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(user.realm_id.to_string())
         .bind(&user.username)
-        .bind(&user.hashed_password)
-        .execute(&*self.pool)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        .bind(&user.hashed_password);
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX type");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 
@@ -91,14 +106,27 @@ impl UserRepository for SqliteUserRepository {
         skip_all,
         fields(telemetry = "span", db_table = "users", db_op = "update")
     )]
-    async fn update(&self, user: &User) -> Result<()> {
-        sqlx::query("UPDATE users SET username = ?, hashed_password = ? WHERE id = ?")
+    async fn update(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
+        let query = sqlx::query("UPDATE users SET username = ?, hashed_password = ? WHERE id = ?")
             .bind(&user.username)
             .bind(&user.hashed_password)
-            .bind(user.id.to_string())
-            .execute(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+            .bind(user.id.to_string());
+
+        match tx {
+            Some(tx) => {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX type");
+                query
+                    .execute(&mut **sql_tx)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+            None => {
+                query
+                    .execute(&*self.pool)
+                    .await
+                    .map_err(|e| Error::Unexpected(e.into()))?;
+            }
+        }
         Ok(())
     }
 

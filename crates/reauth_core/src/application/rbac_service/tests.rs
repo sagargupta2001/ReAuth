@@ -1,8 +1,12 @@
 use super::*;
+use crate::domain::events::EventEnvelope;
 use crate::domain::rbac::{
     GroupMemberRow, GroupRoleRow, GroupTreeRow, RoleCompositeRow, RoleMemberRow, UserRoleRow,
 };
+use crate::ports::outbox_repository::OutboxRepository;
+use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use async_trait::async_trait;
+use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
@@ -66,6 +70,60 @@ struct TestEventBus {
 impl EventPublisher for TestEventBus {
     async fn publish(&self, event: DomainEvent) {
         self.events.lock().unwrap().push(event);
+    }
+}
+
+#[derive(Default)]
+struct TestOutboxRepo {
+    envelopes: Mutex<Vec<EventEnvelope>>,
+}
+
+#[async_trait]
+impl OutboxRepository for TestOutboxRepo {
+    async fn insert(
+        &self,
+        envelope: &EventEnvelope,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        self.envelopes.lock().unwrap().push(envelope.clone());
+        Ok(())
+    }
+}
+
+struct TestTx;
+
+impl Transaction for TestTx {
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any> {
+        self
+    }
+}
+
+#[derive(Default)]
+struct TestTxManager {
+    begin_calls: Mutex<usize>,
+    commit_calls: Mutex<usize>,
+    rollback_calls: Mutex<usize>,
+}
+
+#[async_trait]
+impl TransactionManager for TestTxManager {
+    async fn begin(&self) -> Result<Box<dyn Transaction>> {
+        *self.begin_calls.lock().unwrap() += 1;
+        Ok(Box::new(TestTx))
+    }
+
+    async fn commit(&self, _tx: Box<dyn Transaction>) -> Result<()> {
+        *self.commit_calls.lock().unwrap() += 1;
+        Ok(())
+    }
+
+    async fn rollback(&self, _tx: Box<dyn Transaction>) -> Result<()> {
+        *self.rollback_calls.lock().unwrap() += 1;
+        Ok(())
     }
 }
 
@@ -389,34 +447,54 @@ impl TestRbacRepo {
 #[async_trait]
 #[allow(unused_variables)]
 impl RbacRepository for TestRbacRepo {
-    async fn create_role(&self, role: &Role) -> Result<()> {
+    async fn create_role(&self, role: &Role, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         self.maybe_fail("create_role")?;
         self.roles.lock().unwrap().insert(role.id, role.clone());
         Ok(())
     }
 
-    async fn create_group(&self, group: &Group) -> Result<()> {
+    async fn create_group(&self, group: &Group, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         self.maybe_fail("create_group")?;
         self.groups.lock().unwrap().insert(group.id, group.clone());
         Ok(())
     }
 
-    async fn assign_role_to_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
+    async fn assign_role_to_group(
+        &self,
+        role_id: &Uuid,
+        group_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("assign_role_to_group")?;
         Ok(())
     }
 
-    async fn remove_role_from_group(&self, role_id: &Uuid, group_id: &Uuid) -> Result<()> {
+    async fn remove_role_from_group(
+        &self,
+        role_id: &Uuid,
+        group_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("remove_role_from_group")?;
         Ok(())
     }
 
-    async fn assign_user_to_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
+    async fn assign_user_to_group(
+        &self,
+        user_id: &Uuid,
+        group_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("assign_user_to_group")?;
         Ok(())
     }
 
-    async fn remove_user_from_group(&self, user_id: &Uuid, group_id: &Uuid) -> Result<()> {
+    async fn remove_user_from_group(
+        &self,
+        user_id: &Uuid,
+        group_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("remove_user_from_group")?;
         Ok(())
     }
@@ -425,6 +503,7 @@ impl RbacRepository for TestRbacRepo {
         &self,
         permission: &Permission,
         role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         self.maybe_fail("assign_permission_to_role")?;
         self.assign_permission_to_role_calls
@@ -434,12 +513,22 @@ impl RbacRepository for TestRbacRepo {
         Ok(())
     }
 
-    async fn assign_role_to_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()> {
+    async fn assign_role_to_user(
+        &self,
+        user_id: &Uuid,
+        role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("assign_role_to_user")?;
         Ok(())
     }
 
-    async fn remove_role_from_user(&self, user_id: &Uuid, role_id: &Uuid) -> Result<()> {
+    async fn remove_role_from_user(
+        &self,
+        user_id: &Uuid,
+        role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("remove_role_from_user")?;
         Ok(())
     }
@@ -663,6 +752,7 @@ impl RbacRepository for TestRbacRepo {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
         ordered_ids: &[Uuid],
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         self.maybe_fail("set_group_orders")?;
         self.set_group_orders_calls
@@ -851,13 +941,17 @@ impl RbacRepository for TestRbacRepo {
             .unwrap_or_default())
     }
 
-    async fn delete_role(&self, role_id: &Uuid) -> Result<()> {
+    async fn delete_role(&self, role_id: &Uuid, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         self.maybe_fail("delete_role")?;
         self.roles.lock().unwrap().remove(role_id);
         Ok(())
     }
 
-    async fn delete_groups(&self, group_ids: &[Uuid]) -> Result<()> {
+    async fn delete_groups(
+        &self,
+        group_ids: &[Uuid],
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("delete_groups")?;
         let mut groups = self.groups.lock().unwrap();
         for id in group_ids {
@@ -870,13 +964,13 @@ impl RbacRepository for TestRbacRepo {
         Ok(())
     }
 
-    async fn update_role(&self, role: &Role) -> Result<()> {
+    async fn update_role(&self, role: &Role, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         self.maybe_fail("update_role")?;
         self.roles.lock().unwrap().insert(role.id, role.clone());
         Ok(())
     }
 
-    async fn update_group(&self, group: &Group) -> Result<()> {
+    async fn update_group(&self, group: &Group, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         self.maybe_fail("update_group")?;
         self.groups.lock().unwrap().insert(group.id, group.clone());
         Ok(())
@@ -887,7 +981,12 @@ impl RbacRepository for TestRbacRepo {
         Ok(self.get_permissions_for_role_result.lock().unwrap().clone())
     }
 
-    async fn remove_permission(&self, role_id: &Uuid, permission: &str) -> Result<()> {
+    async fn remove_permission(
+        &self,
+        role_id: &Uuid,
+        permission: &str,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("remove_permission")?;
         self.remove_permission_calls
             .lock()
@@ -901,6 +1000,7 @@ impl RbacRepository for TestRbacRepo {
         role_id: &Uuid,
         permissions: Vec<String>,
         action: &str,
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         self.maybe_fail("bulk_update_permissions")?;
         self.bulk_update_permissions_calls
@@ -918,6 +1018,7 @@ impl RbacRepository for TestRbacRepo {
         &self,
         parent_role_id: &Uuid,
         child_role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         self.maybe_fail("assign_composite_role")?;
         Ok(())
@@ -927,6 +1028,7 @@ impl RbacRepository for TestRbacRepo {
         &self,
         parent_role_id: &Uuid,
         child_role_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         self.maybe_fail("remove_composite_role")?;
         Ok(())
@@ -937,7 +1039,11 @@ impl RbacRepository for TestRbacRepo {
         Ok(*self.role_descendant.lock().unwrap())
     }
 
-    async fn create_custom_permission(&self, permission: &CustomPermission) -> Result<()> {
+    async fn create_custom_permission(
+        &self,
+        permission: &CustomPermission,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("create_custom_permission")?;
         let key = Self::permission_key(
             &permission.realm_id,
@@ -955,7 +1061,11 @@ impl RbacRepository for TestRbacRepo {
         Ok(())
     }
 
-    async fn update_custom_permission(&self, permission: &CustomPermission) -> Result<()> {
+    async fn update_custom_permission(
+        &self,
+        permission: &CustomPermission,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("update_custom_permission")?;
         self.custom_permissions
             .lock()
@@ -964,7 +1074,11 @@ impl RbacRepository for TestRbacRepo {
         Ok(())
     }
 
-    async fn delete_custom_permission(&self, permission_id: &Uuid) -> Result<()> {
+    async fn delete_custom_permission(
+        &self,
+        permission_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("delete_custom_permission")?;
         self.custom_permissions
             .lock()
@@ -1014,7 +1128,11 @@ impl RbacRepository for TestRbacRepo {
         Ok(self.list_custom_permissions_result.lock().unwrap().clone())
     }
 
-    async fn remove_role_permissions_by_key(&self, permission: &str) -> Result<()> {
+    async fn remove_role_permissions_by_key(
+        &self,
+        permission: &str,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         self.maybe_fail("remove_role_permissions_by_key")?;
         self.remove_role_permissions_by_key_calls
             .lock()
@@ -1035,7 +1153,15 @@ fn harness() -> RbacTestHarness {
     let repo = Arc::new(TestRbacRepo::default());
     let cache = Arc::new(TestCache::default());
     let events = Arc::new(TestEventBus::default());
-    let service = RbacService::new(repo.clone(), cache.clone(), events.clone());
+    let outbox_repo = Arc::new(TestOutboxRepo::default());
+    let tx_manager = Arc::new(TestTxManager::default());
+    let service = RbacService::new(
+        repo.clone(),
+        cache.clone(),
+        events.clone(),
+        outbox_repo.clone(),
+        tx_manager.clone(),
+    );
 
     RbacTestHarness {
         service,
