@@ -14,7 +14,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Button } from '@/components/button'
 import { Input } from '@/components/input'
 import type { Group } from '@/entities/group/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
@@ -463,9 +462,6 @@ export function GroupTreePanel({
         ) : tree.length === 0 ? (
           <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 text-sm">
             <span>No groups yet.</span>
-            <Button size="sm" variant="outline" onClick={() => onCreateGroup(null)}>
-              Create your first group
-            </Button>
           </div>
         ) : (
           <DndContext

@@ -135,9 +135,6 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
           {!groupId ? (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2">
               <p>Select a group to manage its members and roles.</p>
-              <Button variant="outline" onClick={() => handleCreateGroup(null)}>
-                Create a group
-              </Button>
             </div>
           ) : isLoading ? (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2">
