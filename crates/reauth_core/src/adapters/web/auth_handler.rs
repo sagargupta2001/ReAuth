@@ -188,7 +188,7 @@ async fn handle_flow_success(
 }
 
 // GET /api/auth/login
-#[instrument(skip(state, jar))]
+#[instrument(skip_all)]
 pub async fn start_login_flow_handler(
     State(state): State<AppState>,
     jar: CookieJar,
@@ -359,7 +359,7 @@ pub async fn start_login_flow_handler(
 }
 
 // POST /api/auth/login/execute
-#[instrument(skip(state, jar))]
+#[instrument(skip_all)]
 pub async fn execute_login_step_handler(
     State(state): State<AppState>,
     jar: CookieJar,
