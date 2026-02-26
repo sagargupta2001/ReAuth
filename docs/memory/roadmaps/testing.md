@@ -56,13 +56,13 @@ The same checks are enforced in GitHub. A PR cannot be merged unless the **Build
 - [x] Setup UI testing environment.
 
 ### Phase 2: Expansion (Next)
-1. **Adapter/port contract tests**
+1. **[x] Adapter/port contract tests**
    - Ensure repository implementations satisfy port contracts.
-2. **E2E Testing**
+2. **[ ] E2E Testing**
    - Implement Playwright/Cypress for critical user journeys (Login, Flow Builder).
-3. **Property-based tests**
+3. **[x] Property-based tests**
    - RBAC resolution and flow graph invariants.
-4. **Coverage hardening**
+4. **[ ] Coverage hardening**
    - Raise coverage gates incrementally toward **100%**.
 
 ## Risks / dependencies
