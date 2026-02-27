@@ -47,10 +47,8 @@ tests=sum(int(m.group(1)) for m in re.finditer(r"\\((\\d+)\\s+tests?\\)", data))
 print(tests if tests else 0)'); \
 	 FAIL_UI=$$(UI_LOG="$(TMP_DIR)/ui_coverage.log" python3 -c 'import os,re; path=os.environ.get("UI_LOG"); \
 data=open(path, "r", encoding="utf-8", errors="ignore").read() if path and os.path.exists(path) else ""; \
-fail=0; \
-for m in re.finditer(r"Tests?\\s+(\\d+)\\s+failed", data): fail=max(fail, int(m.group(1))); \
-for m in re.finditer(r"(\\d+)\\s+failed", data): fail=max(fail, int(m.group(1))); \
-print(fail)'); \
+fails=[int(x) for x in re.findall(r"Tests?\\s+(\\d+)\\s+failed", data)] + [int(x) for x in re.findall(r"(\\d+)\\s+failed", data)]; \
+print(max(fails) if fails else 0)'); \
 	 printf "%-30s | $(GREEN)%s Passed$(RESET), $(RED)%s Failed$(RESET)\n" "UI Tests" "$$PASS_UI" "$$FAIL_UI"
 
 	@# Coverage Summary
@@ -147,6 +145,10 @@ dev:
 	cargo run --package reauth_core --bin reauth_core
 
 embed:
+	@if [ ! -d ui/dist ]; then \
+		echo "$(YELLOW)ui/dist missing. Building UI...$(RESET)"; \
+		$(MAKE) ui-build; \
+	fi
 	cargo run --package reauth_core --bin reauth_core --features embed-ui
 
 clean-tmp:
