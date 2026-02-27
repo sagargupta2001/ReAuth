@@ -96,6 +96,7 @@ fn auth_routes() -> Router<AppState> {
             "/login/execute",
             post(auth_handler::execute_login_step_handler),
         )
+        .route("/resume", post(auth_handler::resume_action_handler))
         .route("/refresh", post(auth_handler::refresh_handler))
         .route("/logout", post(auth_handler::logout_handler))
 }

@@ -7,7 +7,9 @@
 - OIDC authorize/token/JWKS endpoints exist.
 - PKCE S256 is supported but not enforced for public clients.
 - Refresh tokens exist without rotation on use.
-- Flow engine supports challenge/success/failure but does not persist async resume state.
+- Flow engine supports challenge/success/failure.
+- UI step resumption already works via `auth_sessions` + login session cookies (refreshing keeps the current node).
+- Async pause/resume (email verification, magic link, webhook) is implemented via action tokens and waiting UI.
 - No engine-level brute force protection or lockout policy.
 
 ## Now
@@ -27,7 +29,8 @@
 - [x] Add refresh token family model and rotation with reuse detection.
 - [x] Invalidate entire token family on reuse detection.
 - [x] Add brute-force protection: attempts counter + lockout window in the password authenticator.
-- [ ] Store execution state and last UI output for suspend/resume flows.
+- [x] Implement async pause/resume using action tokens (see `flow-resume-design.md`).
+- [x] Store execution state and last UI output for suspend/resume flows (async).
 - [x] Add config defaults for PKCE enforcement, lockout threshold, and lockout duration.
 - [x] UI settings/toggles to override PKCE enforcement, lockout thresholds, and lockout duration.
 

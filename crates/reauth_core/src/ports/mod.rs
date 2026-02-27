@@ -1,4 +1,5 @@
 pub mod audit_repository;
+pub mod auth_session_action_repository;
 pub mod auth_session_repository;
 pub mod cache_service;
 pub mod event_bus;

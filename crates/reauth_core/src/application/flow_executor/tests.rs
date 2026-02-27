@@ -1,17 +1,22 @@
 use super::FlowExecutor;
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
+use crate::domain::auth_session_action::AuthSessionAction;
 use crate::domain::execution::lifecycle::{LifecycleNode, NodeOutcome};
 use crate::domain::execution::{ExecutionNode, ExecutionPlan, ExecutionResult, StepType};
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::error::{Error, Result};
+use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::transaction_manager::Transaction;
 use async_trait::async_trait;
-use chrono::Utc;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
+use chrono::{DateTime, Utc};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -58,6 +63,51 @@ impl AuthSessionRepository for TestAuthSessionRepo {
     async fn delete(&self, id: &Uuid) -> Result<()> {
         self.sessions.lock().unwrap().remove(id);
         Ok(())
+    }
+}
+
+#[derive(Default)]
+struct TestAuthSessionActionRepo {
+    actions: Mutex<HashMap<Uuid, AuthSessionAction>>,
+}
+
+impl TestAuthSessionActionRepo {
+    fn count(&self) -> usize {
+        self.actions.lock().unwrap().len()
+    }
+}
+
+#[async_trait]
+impl AuthSessionActionRepository for TestAuthSessionActionRepo {
+    async fn create(&self, action: &AuthSessionAction) -> Result<()> {
+        self.actions
+            .lock()
+            .unwrap()
+            .insert(action.id, action.clone());
+        Ok(())
+    }
+
+    async fn find_by_token_hash(&self, token_hash: &str) -> Result<Option<AuthSessionAction>> {
+        let actions = self.actions.lock().unwrap();
+        Ok(actions
+            .values()
+            .find(|action| action.token_hash == token_hash)
+            .cloned())
+    }
+
+    async fn mark_consumed(&self, id: &Uuid) -> Result<()> {
+        if let Some(action) = self.actions.lock().unwrap().get_mut(id) {
+            action.consumed_at = Some(Utc::now());
+            action.updated_at = Utc::now();
+        }
+        Ok(())
+    }
+
+    async fn delete_expired_before(&self, cutoff: DateTime<Utc>) -> Result<u64> {
+        let mut actions = self.actions.lock().unwrap();
+        let before = actions.len();
+        actions.retain(|_, action| action.expires_at >= cutoff && action.consumed_at.is_none());
+        Ok((before - actions.len()) as u64)
     }
 }
 
@@ -268,6 +318,22 @@ fn build_version(id: Uuid, plan: &ExecutionPlan) -> FlowVersion {
     }
 }
 
+fn new_executor(
+    repo: Arc<TestAuthSessionRepo>,
+    flow_store: Arc<TestFlowStore>,
+    registry: Arc<RuntimeRegistry>,
+) -> FlowExecutor {
+    let action_repo = Arc::new(TestAuthSessionActionRepo::default());
+    FlowExecutor::new(repo, flow_store, registry, action_repo)
+}
+
+fn hash_action_token(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let result = hasher.finalize();
+    URL_SAFE_NO_PAD.encode(result)
+}
+
 #[tokio::test]
 async fn execute_handle_input_forces_password_success_path() {
     let realm_id = Uuid::new_v4();
@@ -308,7 +374,7 @@ async fn execute_handle_input_forces_password_success_path() {
     let mut registry = RuntimeRegistry::new();
     registry.register_node("core.auth.password", node, StepType::Authenticator);
 
-    let executor = FlowExecutor::new(repo.clone(), flow_store, Arc::new(registry));
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
     let result = executor
         .execute(session_id, Some(json!({ "password": "secret" })))
         .await
@@ -359,7 +425,7 @@ async fn execute_handle_input_rejects_and_returns_ui() {
     let mut registry = RuntimeRegistry::new();
     registry.register_node("core.auth.password", node, StepType::Authenticator);
 
-    let executor = FlowExecutor::new(repo, flow_store, Arc::new(registry));
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
     let result = executor
         .execute(session_id, Some(json!({ "password": "wrong" })))
         .await
@@ -407,7 +473,7 @@ async fn execute_reject_without_ui_is_error() {
     let mut registry = RuntimeRegistry::new();
     registry.register_node("core.auth.password", node, StepType::Authenticator);
 
-    let executor = FlowExecutor::new(repo, flow_store, Arc::new(registry));
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
     let err = executor
         .execute(session_id, Some(json!({ "password": "wrong" })))
         .await
@@ -455,7 +521,7 @@ async fn execute_rejects_unexpected_handle_input_outcome() {
     let mut registry = RuntimeRegistry::new();
     registry.register_node("core.auth.password", node, StepType::Authenticator);
 
-    let executor = FlowExecutor::new(repo, flow_store, Arc::new(registry));
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
     let err = executor
         .execute(session_id, Some(json!({ "password": "ok" })))
         .await
@@ -503,7 +569,7 @@ async fn execute_rejects_handle_input_without_path() {
     let mut registry = RuntimeRegistry::new();
     registry.register_node("core.auth.password", node, StepType::Authenticator);
 
-    let executor = FlowExecutor::new(repo, flow_store, Arc::new(registry));
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
     let err = executor
         .execute(session_id, Some(json!({ "otp": "123456" })))
         .await
@@ -541,7 +607,7 @@ async fn execute_errors_when_node_missing_from_plan() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let executor = FlowExecutor::new(repo, flow_store, Arc::new(RuntimeRegistry::new()));
+    let executor = new_executor(repo, flow_store, Arc::new(RuntimeRegistry::new()));
     let err = executor
         .execute(session_id, None)
         .await
@@ -579,7 +645,7 @@ async fn execute_logic_node_without_outputs_is_error() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let executor = FlowExecutor::new(repo, flow_store, Arc::new(RuntimeRegistry::new()));
+    let executor = new_executor(repo, flow_store, Arc::new(RuntimeRegistry::new()));
     let err = executor
         .execute(session_id, None)
         .await
@@ -617,7 +683,7 @@ async fn execute_terminal_failure_sets_status() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let executor = FlowExecutor::new(repo.clone(), flow_store, Arc::new(RuntimeRegistry::new()));
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(RuntimeRegistry::new()));
     let result = executor.execute(session_id, None).await.unwrap();
 
     match result {
@@ -655,7 +721,7 @@ async fn execute_terminal_success_sets_status() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let executor = FlowExecutor::new(repo.clone(), flow_store, Arc::new(RuntimeRegistry::new()));
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(RuntimeRegistry::new()));
     let result = executor.execute(session_id, None).await.unwrap();
 
     match result {
@@ -691,7 +757,7 @@ async fn execute_errors_when_worker_missing_for_input() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let executor = FlowExecutor::new(repo, flow_store, Arc::new(RuntimeRegistry::new()));
+    let executor = new_executor(repo, flow_store, Arc::new(RuntimeRegistry::new()));
     let err = executor
         .execute(session_id, Some(json!({ "password": "secret" })))
         .await
@@ -741,7 +807,7 @@ async fn execute_heals_inactive_session_and_ignores_input() {
     let mut registry = RuntimeRegistry::new();
     registry.register_node("core.auth.password", node.clone(), StepType::Authenticator);
 
-    let executor = FlowExecutor::new(repo.clone(), flow_store, Arc::new(registry));
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
     let result = executor
         .execute(session_id, Some(json!({ "password": "secret" })))
         .await
@@ -760,4 +826,133 @@ async fn execute_heals_inactive_session_and_ignores_input() {
     let updates = repo.updates();
     assert!(updates.iter().any(|s| s.status == SessionStatus::Active));
     assert!(updates.iter().any(|s| s.user_id.is_none()));
+}
+
+#[tokio::test]
+async fn execute_returns_awaiting_action_and_stores_action() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let auth_node = ExecutionNode {
+        id: "auth-email".to_string(),
+        step_type: StepType::Authenticator,
+        next: HashMap::new(),
+        config: json!({ "auth_type": "core.auth.email" }),
+    };
+    let plan = build_plan("auth-email", vec![auth_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "auth-email".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let token = "resume-token";
+    let node = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForAsync {
+            action_type: "email_verify".to_string(),
+            token: token.to_string(),
+            expires_at: Utc::now() + chrono::Duration::minutes(15),
+            resume_node_id: None,
+            payload: json!({ "email": "admin@example.com" }),
+            screen: "core.awaiting-action".to_string(),
+            context: json!({ "message": "Check your email." }),
+        },
+        NodeOutcome::Continue {
+            output: "success".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node("core.auth.email", node, StepType::Authenticator);
+
+    let action_repo = Arc::new(TestAuthSessionActionRepo::default());
+    let executor = FlowExecutor::new(
+        repo.clone(),
+        flow_store,
+        Arc::new(registry),
+        action_repo.clone(),
+    );
+
+    let result = executor
+        .execute(session_id, None)
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::AwaitingAction { screen_id, .. } => {
+            assert_eq!(screen_id, "core.awaiting-action");
+        }
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    let stored_token_hash = {
+        assert_eq!(action_repo.count(), 1);
+        let actions = action_repo.actions.lock().unwrap();
+        actions.values().next().unwrap().token_hash.clone()
+    };
+    assert_eq!(stored_token_hash, hash_action_token(token));
+
+    let session = repo.find_by_id(&session_id).await.unwrap().unwrap();
+    assert!(session.context.get("pending_action_id").is_some());
+    assert!(session.context.get("last_ui").is_some());
+}
+
+#[tokio::test]
+async fn execute_returns_pending_action_without_reexecuting_node() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let auth_node = ExecutionNode {
+        id: "auth-email".to_string(),
+        step_type: StepType::Authenticator,
+        next: HashMap::new(),
+        config: json!({ "auth_type": "core.auth.email" }),
+    };
+    let plan = build_plan("auth-email", vec![auth_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let mut session = AuthenticationSession::new(realm_id, version_id, "auth-email".to_string());
+    session.update_context("pending_action_id", json!(Uuid::new_v4().to_string()));
+    session.update_context(
+        "last_ui",
+        json!({
+            "screen_id": "core.awaiting-action",
+            "context": { "message": "Waiting..." }
+        }),
+    );
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let node = Arc::new(ScriptedNode::new(
+        NodeOutcome::FlowFailure {
+            reason: "should not execute".to_string(),
+        },
+        NodeOutcome::Continue {
+            output: "success".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node("core.auth.email", node.clone(), StepType::Authenticator);
+
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
+    let result = executor
+        .execute(session_id, None)
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::AwaitingAction { screen_id, .. } => {
+            assert_eq!(screen_id, "core.awaiting-action");
+        }
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    assert_eq!(node.execute_calls(), 0);
 }

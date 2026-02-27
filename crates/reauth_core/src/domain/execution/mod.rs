@@ -39,6 +39,11 @@ pub enum ExecutionResult {
         screen_id: String,
         context: serde_json::Value,
     },
+    /// Stop and show a waiting screen while an async action completes
+    AwaitingAction {
+        screen_id: String,
+        context: serde_json::Value,
+    },
     /// Flow finished successfully
     Success { redirect_url: String },
     /// Flow finished with failure

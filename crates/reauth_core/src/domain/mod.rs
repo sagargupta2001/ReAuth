@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod auth_flow;
 pub mod auth_session;
+pub mod auth_session_action;
 pub mod compiler;
 pub mod crypto;
 pub mod events;

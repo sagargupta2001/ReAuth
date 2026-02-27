@@ -36,4 +36,11 @@ export const authApi = {
     // The backend accepts a generic JSON payload (e.g. { "username": "...", "password": "..." })
     return apiClient.post<AuthExecutionResponse>(`/api/realms/${realm}/auth/login/execute`, data)
   },
+
+  /**
+   * Resume a flow that is waiting on an async action (email, magic link).
+   */
+  resumeFlow: async (realm: string, token: string) => {
+    return apiClient.post<AuthExecutionResponse>(`/api/realms/${realm}/auth/resume`, { token })
+  },
 }

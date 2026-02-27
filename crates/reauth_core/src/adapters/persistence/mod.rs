@@ -1,6 +1,7 @@
 pub mod connection;
 pub mod migrate;
 pub mod sqlite_audit_repository;
+pub mod sqlite_auth_session_action_repository;
 pub mod sqlite_auth_session_repository;
 pub mod sqlite_flow_repository;
 pub mod sqlite_flow_store;

@@ -18,6 +18,7 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::{Duration, Utc};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use tracing::{error, instrument, warn};
@@ -423,6 +424,10 @@ fn map_execution_result(result: ExecutionResult, headers: HeaderMap) -> Result<R
             let body = serde_json::json!({ "status": "challenge", "challengeName": screen_id, "context": context });
             Ok((StatusCode::OK, headers, Json(body)).into_response())
         }
+        ExecutionResult::AwaitingAction { screen_id, context } => {
+            let body = serde_json::json!({ "status": "awaiting_action", "challengeName": screen_id, "context": context });
+            Ok((StatusCode::OK, headers, Json(body)).into_response())
+        }
         ExecutionResult::Success { redirect_url } => {
             let body = serde_json::json!({ "status": "redirect", "url": redirect_url });
             Ok((StatusCode::OK, headers, Json(body)).into_response())
@@ -438,6 +443,32 @@ fn map_execution_result(result: ExecutionResult, headers: HeaderMap) -> Result<R
             Ok((StatusCode::INTERNAL_SERVER_ERROR, headers, Json(body)).into_response())
         }
     }
+}
+
+#[derive(Deserialize)]
+pub struct ResumeActionRequest {
+    pub token: String,
+}
+
+// POST /api/realms/{realm}/auth/resume
+#[instrument(skip_all)]
+pub async fn resume_action_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Json(payload): Json<ResumeActionRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+
+    let result = state
+        .flow_executor
+        .resume_action(realm.id, &payload.token)
+        .await?;
+
+    map_execution_result(result, HeaderMap::new())
 }
 
 // Refresh and Logout handlers remain largely the same, just standard auth_service calls.

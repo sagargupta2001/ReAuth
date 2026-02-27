@@ -1,5 +1,6 @@
 use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::sqlite_audit_repository::SqliteAuditRepository;
+use crate::adapters::persistence::sqlite_auth_session_action_repository::SqliteAuthSessionActionRepository;
 use crate::adapters::persistence::sqlite_auth_session_repository::SqliteAuthSessionRepository;
 use crate::adapters::persistence::sqlite_flow_store::SqliteFlowStore;
 use crate::adapters::persistence::sqlite_login_attempt_repository::SqliteLoginAttemptRepository;
@@ -7,6 +8,7 @@ use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
 use crate::adapters::persistence::sqlite_outbox_repository::SqliteOutboxRepository;
 use crate::adapters::persistence::sqlite_webhook_repository::SqliteWebhookRepository;
 use crate::ports::audit_repository::AuditRepository;
+use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::oidc_repository::OidcRepository;
@@ -42,6 +44,7 @@ pub struct Repositories {
     pub oidc_repo: Arc<dyn OidcRepository>,
     pub flow_store: Arc<dyn FlowStore>,
     pub auth_session_repo: Arc<dyn AuthSessionRepository>,
+    pub auth_session_action_repo: Arc<dyn AuthSessionActionRepository>,
     pub audit_repo: Arc<dyn AuditRepository>,
     pub outbox_repo: Arc<dyn OutboxRepository>,
     pub webhook_repo: Arc<dyn WebhookRepository>,
@@ -59,6 +62,8 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let oidc_repo = Arc::new(SqliteOidcRepository::new(db_pool.clone()));
     let flow_store = Arc::new(SqliteFlowStore::new(db_pool.clone()));
     let auth_session_repo = Arc::new(SqliteAuthSessionRepository::new(db_pool.clone()));
+    let auth_session_action_repo =
+        Arc::new(SqliteAuthSessionActionRepository::new(db_pool.clone()));
     let audit_repo = Arc::new(SqliteAuditRepository::new(db_pool.clone()));
     let outbox_repo = Arc::new(SqliteOutboxRepository::new(db_pool.clone()));
     let webhook_repo = Arc::new(SqliteWebhookRepository::new(db_pool.clone()));
@@ -73,6 +78,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         oidc_repo,
         flow_store,
         auth_session_repo,
+        auth_session_action_repo,
         audit_repo,
         outbox_repo,
         webhook_repo,

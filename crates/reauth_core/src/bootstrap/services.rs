@@ -120,6 +120,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.auth_session_repo.clone(),
         repos.flow_store.clone(),
         runtime_registry.clone(),
+        repos.auth_session_action_repo.clone(),
     ));
 
     let flow_manager = Arc::new(FlowManager::new(
