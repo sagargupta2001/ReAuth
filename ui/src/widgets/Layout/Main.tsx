@@ -10,14 +10,19 @@ type MainProps = HTMLAttributes<HTMLElement> & {
 
 export function Main({ fixed, className, fluid, ...props }: MainProps) {
   return (
-    <div className="w-full min-w-0 flex-1 overflow-x-hidden">
+    <div
+      className={cn(
+        'w-full min-h-0 min-w-0 flex-1 overflow-x-hidden',
+        fixed && 'flex min-h-0 flex-1 flex-col overflow-hidden',
+      )}
+    >
       <main
         data-layout={fixed ? 'fixed' : 'auto'}
         className={cn(
           'px-4 py-6',
 
           // If layout is fixed, make the main container flex and grow
-          fixed && 'flex grow flex-col overflow-hidden',
+          fixed && 'flex min-h-0 flex-1 flex-col overflow-hidden',
 
           // If layout is not fluid, set the max-width
           !fluid && '@7xl/content:mx-auto @7xl/content:w-full @7xl/content:max-w-7xl',

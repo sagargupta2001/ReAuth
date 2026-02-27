@@ -32,6 +32,7 @@
 - [x] Observability filters/pagination/sorting state is URL-backed.
 - [x] Telemetry cleanup endpoints (logs/traces) with RFC3339 `before` support.
 - [x] Scheduled telemetry retention cleanup (configurable interval + days).
+- [x] Logs/Traces layout uses fixed-height scroll containers with Chromium parity (min-height chain + overflow fixes).
 
 ## MVP scope (prioritized)
 1. **Audit persistence (RBAC)** (done)

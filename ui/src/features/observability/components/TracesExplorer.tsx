@@ -231,7 +231,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
   const sortValue = `${urlState.trace_sort_by}:${urlState.trace_sort_dir}`
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden ">
       <div className="flex flex-wrap items-center gap-3">
         <Command className="flex-1 border bg-background/60">
           <CommandInput
@@ -270,8 +270,8 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
         </div>
       </div>
 
-      <div className="grid min-h-[520px] flex-1 grid-cols-1 gap-4 lg:grid-cols-[420px_1fr]">
-        <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-background/40">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden lg:grid-cols-[420px_1fr] ">
+        <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-background/40 h-[calc(100vh-490px)]">
           <div className="border-b px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Activity className="h-4 w-4 text-muted-foreground" />
@@ -373,7 +373,7 @@ export function TracesExplorer({ timeRange, selectedTraceId, onSelectTrace }: Tr
           </div>
         </div>
 
-        <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-background/40">
+        <div className="flex min-h-0 min-w-0 flex-col rounded-xl border bg-background/40 h-[calc(100vh-490px)]">
           <div className="border-b px-4 py-3">
             {selectedTrace ? (
               <div className="flex flex-wrap items-center justify-between gap-3">

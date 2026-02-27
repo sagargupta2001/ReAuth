@@ -7,6 +7,7 @@
 - Default flows exist (browser, registration, reset) but lack verification and MFA steps.
 - No password policy enforcement beyond basic validation.
 - No email verification or recovery token workflows.
+- Flow engine now supports async pause/resume via action tokens + waiting UI.
 
 ## Now
 - Registration flow with password policy validation and zxcvbn scoring.
@@ -24,7 +25,6 @@
 - Step-up authentication for sensitive actions.
 
 ## Risks / dependencies
-- Depends on flow engine pause/resume and secure state serialization.
 - Requires reliable email delivery and templating strategy.
 - Session invalidation must be consistent across token families.
 
