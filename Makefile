@@ -21,7 +21,6 @@ run-before-raising-pr: clean-tmp
 	$(call run_step,Building UI,$(MAKE) ui-build,ui_build.log)
 	$(call run_step,Checking formatting,$(MAKE) fmt,fmt.log)
 	$(call run_step,Running Clippy,$(MAKE) clippy,clippy.log)
-	$(call run_step,Running Backend Tests,$(MAKE) test,test.log)
 	$(call run_step,Running Documentation Tests,$(MAKE) test-docs,test_docs.log)
 	$(call run_step,Generating Coverage,$(MAKE) coverage,coverage.log)
 	$(call run_step,Linting UI,$(MAKE) ui-lint,ui_lint.log)
@@ -35,15 +34,23 @@ summary:
 	@printf "%-30s | %-15s\n" "Check" "Result"
 	@echo "--------------------------------------------------"
 	
-	@# Extract Backend Test Stats
-	@PASS_BE=$$(grep -o "[0-9]* passed" $(TMP_DIR)/test.log | awk '{sum += $$1} END {print (sum == "" ? 0 : sum)}'); \
-	 FAIL_BE=$$(grep -o "[0-9]* failed" $(TMP_DIR)/test.log | awk '{sum += $$1} END {print (sum == "" ? 0 : sum)}'); \
+	@# Extract Backend Test Stats (from test.log or coverage.log)
+	@TEST_LOG=$$( [ -s $(TMP_DIR)/test.log ] && echo $(TMP_DIR)/test.log || echo $(TMP_DIR)/coverage.log ); \
+	 PASS_BE=$$(grep -o "[0-9]* passed" $$TEST_LOG | awk '{sum += $$1} END {print (sum == "" ? 0 : sum)}'); \
+	 FAIL_BE=$$(grep -o "[0-9]* failed" $$TEST_LOG | awk '{sum += $$1} END {print (sum == "" ? 0 : sum)}'); \
 	 printf "%-30s | $(GREEN)%s Passed$(RESET), $(RED)%s Failed$(RESET)\n" "Backend Tests" "$$PASS_BE" "$$FAIL_BE"
 	
-	@# Extract UI Test Stats
-	@PASS_UI=$$(grep -E "Tests\\s+[0-9]+\\s+passed" $(TMP_DIR)/ui_coverage.log | awk '{print $$2}' | tail -n 1); \
-	 FAIL_UI=$$(grep -E "Tests\\s+[0-9]+\\s+failed" $(TMP_DIR)/ui_coverage.log | awk '{print $$2}' | tail -n 1); \
-	 [ -z "$$PASS_UI" ] && PASS_UI=0; [ -z "$$FAIL_UI" ] && FAIL_UI=0; \
+	@# Extract UI Test Stats (vitest output varies; parse "(N tests)" and "failed" lines)
+	@PASS_UI=$$(UI_LOG="$(TMP_DIR)/ui_coverage.log" python3 -c 'import os,re; path=os.environ.get("UI_LOG"); \
+data=open(path, "r", encoding="utf-8", errors="ignore").read() if path and os.path.exists(path) else ""; \
+tests=sum(int(m.group(1)) for m in re.finditer(r"\\((\\d+)\\s+tests?\\)", data)); \
+print(tests if tests else 0)'); \
+	 FAIL_UI=$$(UI_LOG="$(TMP_DIR)/ui_coverage.log" python3 -c 'import os,re; path=os.environ.get("UI_LOG"); \
+data=open(path, "r", encoding="utf-8", errors="ignore").read() if path and os.path.exists(path) else ""; \
+fail=0; \
+for m in re.finditer(r"Tests?\\s+(\\d+)\\s+failed", data): fail=max(fail, int(m.group(1))); \
+for m in re.finditer(r"(\\d+)\\s+failed", data): fail=max(fail, int(m.group(1))); \
+print(fail)'); \
 	 printf "%-30s | $(GREEN)%s Passed$(RESET), $(RED)%s Failed$(RESET)\n" "UI Tests" "$$PASS_UI" "$$FAIL_UI"
 
 	@# Coverage Summary

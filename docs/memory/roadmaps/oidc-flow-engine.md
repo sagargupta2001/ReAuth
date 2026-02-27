@@ -5,12 +5,12 @@
 
 ## Current state (code-aligned)
 - OIDC authorize/token/JWKS endpoints exist.
-- PKCE S256 is supported but not enforced for public clients.
-- Refresh tokens exist without rotation on use.
-- Flow engine supports challenge/success/failure.
+- PKCE S256 enforcement for public clients is implemented (configurable).
+- Refresh tokens rotate on use with family invalidation on reuse.
+- Flow engine supports challenge/success/failure plus async waiting states.
 - UI step resumption already works via `auth_sessions` + login session cookies (refreshing keeps the current node).
 - Async pause/resume (email verification, magic link, webhook) is implemented via action tokens and waiting UI.
-- No engine-level brute force protection or lockout policy.
+- Engine-level brute force protection/lockout is implemented in the password authenticator.
 
 ## Now
 - Enforce PKCE for public clients; reject missing code_challenge.
@@ -23,9 +23,9 @@
 ## Phase 1 Implementation Checklist
 - [ ] Add `/.well-known/openid-configuration` endpoint with issuer, endpoints, and supported features.
 - [ ] Add `/userinfo` endpoint and validate access tokens.
-- [ ] Enforce PKCE for public clients at `/authorize`.
-- [ ] Reject `code_challenge_method` not equal to `S256`.
-- [ ] Require `code_verifier` when a `code_challenge` exists.
+- [x] Enforce PKCE for public clients at `/authorize`.
+- [x] Reject `code_challenge_method` not equal to `S256`.
+- [x] Require `code_verifier` when a `code_challenge` exists.
 - [x] Add refresh token family model and rotation with reuse detection.
 - [x] Invalidate entire token family on reuse detection.
 - [x] Add brute-force protection: attempts counter + lockout window in the password authenticator.
