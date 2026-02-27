@@ -41,14 +41,8 @@ summary:
 	 printf "%-30s | $(GREEN)%s Passed$(RESET), $(RED)%s Failed$(RESET)\n" "Backend Tests" "$$PASS_BE" "$$FAIL_BE"
 	
 	@# Extract UI Test Stats (vitest output varies; parse "(N tests)" and "failed" lines)
-	@PASS_UI=$$(UI_LOG="$(TMP_DIR)/ui_coverage.log" python3 -c 'import os,re; path=os.environ.get("UI_LOG"); \
-data=open(path, "r", encoding="utf-8", errors="ignore").read() if path and os.path.exists(path) else ""; \
-tests=sum(int(m.group(1)) for m in re.finditer(r"\\((\\d+)\\s+tests?\\)", data)); \
-print(tests if tests else 0)'); \
-	 FAIL_UI=$$(UI_LOG="$(TMP_DIR)/ui_coverage.log" python3 -c 'import os,re; path=os.environ.get("UI_LOG"); \
-data=open(path, "r", encoding="utf-8", errors="ignore").read() if path and os.path.exists(path) else ""; \
-fails=[int(x) for x in re.findall(r"Tests?\\s+(\\d+)\\s+failed", data)] + [int(x) for x in re.findall(r"(\\d+)\\s+failed", data)]; \
-print(max(fails) if fails else 0)'); \
+	@PASS_UI=$$(UI_LOG="$(TMP_DIR)/ui_coverage.log" python3 -c 'import os,re; path=os.environ.get("UI_LOG"); data=open(path, "r", encoding="utf-8", errors="ignore").read() if path and os.path.exists(path) else ""; data=re.sub(r"\x1b\[[0-9;]*m", "", data); file_counts=[int(x) for x in re.findall(r"\((\d+)\s+tests?\)", data)]; summary_counts=[int(x) for x in re.findall(r"Tests\s+(\d+)\s+passed", data)]; tests=sum(file_counts) if file_counts else (max(summary_counts) if summary_counts else 0); print(tests)'); \
+	 FAIL_UI=$$(UI_LOG="$(TMP_DIR)/ui_coverage.log" python3 -c 'import os,re; path=os.environ.get("UI_LOG"); data=open(path, "r", encoding="utf-8", errors="ignore").read() if path and os.path.exists(path) else ""; data=re.sub(r"\x1b\[[0-9;]*m", "", data); fails=[int(x) for x in re.findall(r"Tests?\s+(\d+)\s+failed", data)] + [int(x) for x in re.findall(r"(\d+)\s+failed", data)]; print(max(fails) if fails else 0)'); \
 	 printf "%-30s | $(GREEN)%s Passed$(RESET), $(RED)%s Failed$(RESET)\n" "UI Tests" "$$PASS_UI" "$$FAIL_UI"
 
 	@# Coverage Summary

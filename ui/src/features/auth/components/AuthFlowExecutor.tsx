@@ -96,7 +96,7 @@ export function AuthFlowExecutor() {
     return () => {
       active = false
     }
-  }, [realm, location.search, currentStep, resumeToken])
+  }, [realm, location.pathname, location.search, currentStep, resumeToken])
 
   // 2. SUBMIT HANDLER
   const handleSubmit = async (data: Record<string, unknown>) => {
