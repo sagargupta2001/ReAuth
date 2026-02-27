@@ -593,6 +593,8 @@ struct TestSessionRepo {
     saved: Mutex<Vec<RefreshToken>>,
     stored: Mutex<HashMap<Uuid, RefreshToken>>,
     deleted: Mutex<Vec<Uuid>>,
+    replaced: Mutex<Vec<(Uuid, Uuid)>>,
+    revoked_families: Mutex<Vec<Uuid>>,
 }
 
 impl TestSessionRepo {
@@ -604,8 +606,8 @@ impl TestSessionRepo {
         self.saved.lock().unwrap().clone()
     }
 
-    fn deleted_tokens(&self) -> Vec<Uuid> {
-        self.deleted.lock().unwrap().clone()
+    fn replaced_tokens(&self) -> Vec<(Uuid, Uuid)> {
+        self.replaced.lock().unwrap().clone()
     }
 }
 
@@ -619,12 +621,52 @@ impl SessionRepository for TestSessionRepo {
     }
 
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<RefreshToken>> {
+        Ok(self
+            .stored
+            .lock()
+            .unwrap()
+            .get(id)
+            .cloned()
+            .and_then(|token| {
+                if token.revoked_at.is_some() || token.replaced_by.is_some() {
+                    None
+                } else {
+                    Some(token)
+                }
+            }))
+    }
+
+    async fn find_by_id_any(&self, id: &Uuid) -> Result<Option<RefreshToken>> {
         Ok(self.stored.lock().unwrap().get(id).cloned())
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<()> {
-        self.stored.lock().unwrap().remove(id);
+        let mut stored = self.stored.lock().unwrap();
+        if let Some(token) = stored.get_mut(id) {
+            token.revoked_at = Some(Utc::now());
+        }
         self.deleted.lock().unwrap().push(*id);
+        Ok(())
+    }
+
+    async fn mark_replaced(&self, old_id: &Uuid, new_id: &Uuid) -> Result<()> {
+        let mut stored = self.stored.lock().unwrap();
+        if let Some(token) = stored.get_mut(old_id) {
+            token.replaced_by = Some(*new_id);
+            token.revoked_at = Some(Utc::now());
+        }
+        self.replaced.lock().unwrap().push((*old_id, *new_id));
+        Ok(())
+    }
+
+    async fn revoke_family(&self, family_id: &Uuid) -> Result<()> {
+        let mut stored = self.stored.lock().unwrap();
+        for token in stored.values_mut() {
+            if &token.family_id == family_id {
+                token.revoked_at = Some(Utc::now());
+            }
+        }
+        self.revoked_families.lock().unwrap().push(*family_id);
         Ok(())
     }
 
@@ -727,6 +769,9 @@ fn build_service(
         issuer: "http://issuer".to_string(),
         access_token_ttl_secs: 60,
         refresh_token_ttl_secs: 120,
+        pkce_required_public_clients: true,
+        lockout_threshold: 5,
+        lockout_duration_secs: 900,
     };
 
     AuthService::new(
@@ -745,6 +790,9 @@ fn base_realm() -> crate::domain::realm::Realm {
         name: DEFAULT_REALM_NAME.to_string(),
         access_token_ttl_secs: 300,
         refresh_token_ttl_secs: 900,
+        pkce_required_public_clients: true,
+        lockout_threshold: 5,
+        lockout_duration_secs: 900,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
@@ -897,6 +945,7 @@ async fn validate_token_and_get_user_returns_user() {
     let sid = Uuid::new_v4();
     session_repo.insert(RefreshToken {
         id: sid,
+        family_id: Uuid::new_v4(),
         user_id: user.id,
         realm_id: user.realm_id,
         client_id: None,
@@ -905,6 +954,8 @@ async fn validate_token_and_get_user_returns_user() {
         user_agent: None,
         created_at: Utc::now(),
         last_used_at: Utc::now(),
+        revoked_at: None,
+        replaced_by: None,
     });
 
     token_service.set_claims(AccessTokenClaims {
@@ -947,6 +998,7 @@ async fn refresh_session_errors_when_user_missing() {
     let refresh_id = Uuid::new_v4();
     session_repo.insert(RefreshToken {
         id: refresh_id,
+        family_id: Uuid::new_v4(),
         user_id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         client_id: None,
@@ -955,6 +1007,8 @@ async fn refresh_session_errors_when_user_missing() {
         user_agent: None,
         created_at: Utc::now(),
         last_used_at: Utc::now(),
+        revoked_at: None,
+        replaced_by: None,
     });
 
     let service = build_service(
@@ -986,6 +1040,7 @@ async fn refresh_session_errors_when_realm_missing() {
     let refresh_id = Uuid::new_v4();
     session_repo.insert(RefreshToken {
         id: refresh_id,
+        family_id: Uuid::new_v4(),
         user_id: user.id,
         realm_id: user.realm_id,
         client_id: None,
@@ -994,6 +1049,8 @@ async fn refresh_session_errors_when_realm_missing() {
         user_agent: None,
         created_at: Utc::now(),
         last_used_at: Utc::now(),
+        revoked_at: None,
+        replaced_by: None,
     });
 
     let service = build_service(
@@ -1030,6 +1087,7 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
     let refresh_id = Uuid::new_v4();
     session_repo.insert(RefreshToken {
         id: refresh_id,
+        family_id: Uuid::new_v4(),
         user_id: user.id,
         realm_id: user.realm_id,
         client_id: Some("client".to_string()),
@@ -1038,6 +1096,8 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
         user_agent: Some("agent".to_string()),
         created_at: Utc::now(),
         last_used_at: Utc::now(),
+        revoked_at: None,
+        replaced_by: None,
     });
 
     let token_service = Arc::new(TestTokenService::default());
@@ -1057,7 +1117,10 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
     assert_eq!(login.access_token, "access-token");
     assert_eq!(login.id_token, Some("id-token".to_string()));
     assert_eq!(refresh.client_id, Some("client".to_string()));
-    assert_eq!(session_repo.deleted_tokens(), vec![refresh_id]);
+    assert_eq!(
+        session_repo.replaced_tokens(),
+        vec![(refresh_id, refresh.id)]
+    );
     assert_eq!(session_repo.saved_tokens().len(), 1);
     assert_eq!(token_service.id_token_calls(), 1);
 }

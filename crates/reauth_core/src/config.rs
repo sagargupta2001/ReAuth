@@ -77,6 +77,12 @@ pub struct AuthConfig {
     pub issuer: String,
     pub access_token_ttl_secs: i64,
     pub refresh_token_ttl_secs: i64,
+    #[serde(default = "default_pkce_required_public_clients")]
+    pub pkce_required_public_clients: bool,
+    #[serde(default = "default_lockout_threshold")]
+    pub lockout_threshold: i64,
+    #[serde(default = "default_lockout_duration_secs")]
+    pub lockout_duration_secs: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -232,6 +238,8 @@ impl Settings {
             &self.default_oidc_client.web_origins,
         )?;
 
+        validate_lockout_settings(self.auth.lockout_threshold, self.auth.lockout_duration_secs)?;
+
         Ok(())
     }
 
@@ -308,6 +316,18 @@ fn default_trace_retention_days() -> i64 {
 
 fn default_cleanup_interval_secs() -> u64 {
     3600
+}
+
+fn default_pkce_required_public_clients() -> bool {
+    true
+}
+
+fn default_lockout_threshold() -> i64 {
+    5
+}
+
+fn default_lockout_duration_secs() -> i64 {
+    900
 }
 
 fn default_data_dir() -> String {
@@ -391,4 +411,31 @@ fn normalize_list(values: &mut Vec<String>) {
         }
     }
     *values = normalized;
+}
+
+fn validate_lockout_settings(
+    lockout_threshold: i64,
+    lockout_duration_secs: i64,
+) -> Result<(), config::ConfigError> {
+    if lockout_threshold < 0 {
+        return Err(config::ConfigError::Message(
+            "auth.lockout_threshold must be >= 0".to_string(),
+        ));
+    }
+    if lockout_duration_secs < 0 {
+        return Err(config::ConfigError::Message(
+            "auth.lockout_duration_secs must be >= 0".to_string(),
+        ));
+    }
+    if lockout_threshold > 50 {
+        return Err(config::ConfigError::Message(
+            "auth.lockout_threshold must be <= 50".to_string(),
+        ));
+    }
+    if lockout_duration_secs > 86_400 {
+        return Err(config::ConfigError::Message(
+            "auth.lockout_duration_secs must be <= 86400".to_string(),
+        ));
+    }
+    Ok(())
 }

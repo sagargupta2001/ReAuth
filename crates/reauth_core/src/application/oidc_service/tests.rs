@@ -445,11 +445,49 @@ impl SessionRepository for TestSessionRepo {
     }
 
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<RefreshToken>> {
+        Ok(self
+            .stored
+            .lock()
+            .unwrap()
+            .get(id)
+            .cloned()
+            .and_then(|token| {
+                if token.revoked_at.is_some() || token.replaced_by.is_some() {
+                    None
+                } else {
+                    Some(token)
+                }
+            }))
+    }
+
+    async fn find_by_id_any(&self, id: &Uuid) -> Result<Option<RefreshToken>> {
         Ok(self.stored.lock().unwrap().get(id).cloned())
     }
 
     async fn delete_by_id(&self, id: &Uuid) -> Result<()> {
-        self.stored.lock().unwrap().remove(id);
+        if let Some(mut token) = self.stored.lock().unwrap().get(id).cloned() {
+            token.revoked_at = Some(Utc::now());
+            self.stored.lock().unwrap().insert(*id, token);
+        }
+        Ok(())
+    }
+
+    async fn mark_replaced(&self, old_id: &Uuid, new_id: &Uuid) -> Result<()> {
+        if let Some(mut token) = self.stored.lock().unwrap().get(old_id).cloned() {
+            token.replaced_by = Some(*new_id);
+            token.revoked_at = Some(Utc::now());
+            self.stored.lock().unwrap().insert(*old_id, token);
+        }
+        Ok(())
+    }
+
+    async fn revoke_family(&self, family_id: &Uuid) -> Result<()> {
+        let mut stored = self.stored.lock().unwrap();
+        for token in stored.values_mut() {
+            if &token.family_id == family_id {
+                token.revoked_at = Some(Utc::now());
+            }
+        }
         Ok(())
     }
 
@@ -985,6 +1023,9 @@ fn build_auth_service(
         issuer: "http://issuer".to_string(),
         access_token_ttl_secs: 60,
         refresh_token_ttl_secs: 120,
+        pkce_required_public_clients: true,
+        lockout_threshold: 5,
+        lockout_duration_secs: 900,
     };
 
     Arc::new(AuthService::new(
@@ -1030,6 +1071,9 @@ fn base_realm() -> crate::domain::realm::Realm {
         name: DEFAULT_REALM_NAME.to_string(),
         access_token_ttl_secs: 300,
         refresh_token_ttl_secs: 900,
+        pkce_required_public_clients: true,
+        lockout_threshold: 5,
+        lockout_duration_secs: 900,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
@@ -1047,6 +1091,19 @@ fn build_oidc_request(client_id: &str, redirect_uri: &str) -> OidcRequest {
         nonce: Some("nonce".to_string()),
         code_challenge: Some("challenge".to_string()),
         code_challenge_method: Some("S256".to_string()),
+    }
+}
+
+fn build_oidc_request_without_pkce(client_id: &str, redirect_uri: &str) -> OidcRequest {
+    OidcRequest {
+        client_id: client_id.to_string(),
+        redirect_uri: redirect_uri.to_string(),
+        response_type: "code".to_string(),
+        scope: Some("openid".to_string()),
+        state: Some("state".to_string()),
+        nonce: Some("nonce".to_string()),
+        code_challenge: None,
+        code_challenge_method: None,
     }
 }
 
@@ -1260,6 +1317,120 @@ async fn initiate_browser_login_requires_flow_version() {
         Error::NotFound(message) => assert!(message.contains("Flow version not found")),
         other => panic!("unexpected error: {:?}", other),
     }
+}
+
+#[tokio::test]
+async fn initiate_browser_login_requires_pkce_for_public_clients() {
+    let realm_id = Uuid::new_v4();
+    let flow_id = Uuid::new_v4();
+
+    let oidc_repo = Arc::new(TestOidcRepo::default());
+    oidc_repo.set_client(Some(build_client(
+        realm_id,
+        "client",
+        vec!["http://localhost"],
+    )));
+
+    let realm_repo = Arc::new(TestRealmRepo::default());
+    let mut realm = base_realm();
+    realm.id = realm_id;
+    realm.browser_flow_id = Some(flow_id.to_string());
+    realm_repo.set_realm(Some(realm));
+
+    let version_id = Uuid::new_v4();
+    let flow_store = TestFlowStore::default();
+    flow_store.set_active_version(flow_id, Some(version_id.to_string()));
+    let execution_plan = json!({
+        "start_node_id": "success",
+        "nodes": {
+            "success": {
+                "id": "success",
+                "step_type": "terminal",
+                "next": {},
+                "config": { "is_failure": false }
+            }
+        }
+    });
+    flow_store.set_version(&version_id.to_string(), &execution_plan.to_string());
+
+    let service = build_service(
+        oidc_repo,
+        Arc::new(TestAuthSessionRepo::default()),
+        Arc::new(flow_store),
+        realm_repo,
+        Arc::new(TestUserRepo::default()),
+        Arc::new(TestSessionRepo::default()),
+        Arc::new(TestTokenService::default()),
+    );
+
+    let err = service
+        .initiate_browser_login(
+            realm_id,
+            build_oidc_request_without_pkce("client", "http://localhost"),
+        )
+        .await
+        .unwrap_err();
+
+    match err {
+        Error::OidcInvalidRequest(message) => assert!(message.contains("PKCE")),
+        other => panic!("unexpected error: {:?}", other),
+    }
+}
+
+#[tokio::test]
+async fn initiate_browser_login_allows_missing_pkce_when_disabled() {
+    let realm_id = Uuid::new_v4();
+    let flow_id = Uuid::new_v4();
+
+    let oidc_repo = Arc::new(TestOidcRepo::default());
+    oidc_repo.set_client(Some(build_client(
+        realm_id,
+        "client",
+        vec!["http://localhost"],
+    )));
+
+    let flow_store = TestFlowStore::default();
+    let version_id = Uuid::new_v4();
+    flow_store.set_active_version(flow_id, Some(version_id.to_string()));
+    let execution_plan = json!({
+        "start_node_id": "success",
+        "nodes": {
+            "success": {
+                "id": "success",
+                "step_type": "terminal",
+                "next": {},
+                "config": { "is_failure": false }
+            }
+        }
+    });
+    flow_store.set_version(&version_id.to_string(), &execution_plan.to_string());
+
+    let realm_repo = Arc::new(TestRealmRepo::default());
+    let mut realm = base_realm();
+    realm.id = realm_id;
+    realm.browser_flow_id = Some(flow_id.to_string());
+    realm.pkce_required_public_clients = false;
+    realm_repo.set_realm(Some(realm));
+
+    let service = build_service(
+        oidc_repo,
+        Arc::new(TestAuthSessionRepo::default()),
+        Arc::new(flow_store),
+        realm_repo,
+        Arc::new(TestUserRepo::default()),
+        Arc::new(TestSessionRepo::default()),
+        Arc::new(TestTokenService::default()),
+    );
+
+    let session = service
+        .initiate_browser_login(
+            realm_id,
+            build_oidc_request_without_pkce("client", "http://localhost"),
+        )
+        .await
+        .expect("login should succeed");
+
+    assert_eq!(session.realm_id, realm_id);
 }
 
 #[tokio::test]

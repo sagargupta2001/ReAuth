@@ -476,7 +476,12 @@ fn plugin_routes() -> Router<AppState> {
 
 fn oidc_routes() -> Router<AppState> {
     Router::new()
+        .route(
+            "/.well-known/openid-configuration",
+            get(oidc_handler::discovery_handler),
+        )
         .route("/authorize", get(oidc_handler::authorize_handler))
         .route("/token", post(oidc_handler::token_handler))
+        .route("/userinfo", get(oidc_handler::userinfo_handler))
         .route("/.well-known/jwks.json", get(oidc_handler::jwks_handler))
 }

@@ -39,23 +39,29 @@ function getRealmFromUrl(): string {
  * Helper to perform the actual refresh call.
  * We do NOT use the main 'request' wrapper here to avoid circular logic.
  */
-async function refreshAccessToken(): Promise<string> {
-  // [FIX] Dynamically determine the realm
-  const realm = getRealmFromUrl()
+export async function refreshAccessToken(realmOverride?: string): Promise<string> {
+  if (!refreshPromise) {
+    // [FIX] Dynamically determine the realm unless overridden
+    const realm = realmOverride || getRealmFromUrl()
 
-  // [FIX] Hit the correct Realm-Scoped Endpoint
-  const response = await fetch(`/api/realms/${realm}/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include', // CRITICAL: Send the HttpOnly cookie
-  })
-
-  if (!response.ok) {
-    throw new Error('Session expired')
+    refreshPromise = fetch(`/api/realms/${realm}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // CRITICAL: Send the HttpOnly cookie
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error('Session expired')
+        }
+        const data = await response.json()
+        return data.access_token as string
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
   }
 
-  const data = await response.json()
-  return data.access_token
+  return refreshPromise
 }
 
 /**
@@ -91,11 +97,7 @@ async function request<T>(endpoint: string, config: RequestConfig = {}): Promise
 
     try {
       // A. Mutex Logic: If a refresh is already in progress, wait for it.
-      if (!refreshPromise) {
-        refreshPromise = refreshAccessToken()
-      }
-
-      const newToken = await refreshPromise
+      const newToken = await refreshAccessToken()
 
       // B. Update Global Store
       useSessionStore.getState().setSession(newToken)
@@ -114,8 +116,7 @@ async function request<T>(endpoint: string, config: RequestConfig = {}): Promise
 
       throw new Error('Session expired')
     } finally {
-      // Reset the promise so future 401s trigger a new refresh
-      refreshPromise = null
+      // Reset handled inside refreshAccessToken
     }
   }
 

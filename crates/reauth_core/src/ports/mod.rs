@@ -4,6 +4,7 @@ pub mod cache_service;
 pub mod event_bus;
 pub mod flow_repository;
 pub mod flow_store;
+pub mod login_attempt_repository;
 pub mod oidc_repository;
 pub mod outbox_repository;
 pub mod rbac_repository;

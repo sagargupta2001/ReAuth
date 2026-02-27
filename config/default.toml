@@ -35,6 +35,11 @@ max_connections = 5
 jwt_secret = "a-very-secret-default-key-please-change-this-in-production"
 access_token_ttl_secs = 900  # 15 minutes
 refresh_token_ttl_secs = 604800 # 7 days
+# OIDC hardening
+pkce_required_public_clients = true
+# Brute-force protection
+lockout_threshold = 5
+lockout_duration_secs = 900
 # A unique signing ID for the JWKS endpoint
 jwt_key_id = "reauth-rs-v1"
 issuer = "" # Leave empty to derive from server.public_url

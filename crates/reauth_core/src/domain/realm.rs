@@ -8,6 +8,9 @@ pub struct Realm {
     pub name: String,
     pub access_token_ttl_secs: i64,
     pub refresh_token_ttl_secs: i64,
+    pub pkce_required_public_clients: bool,
+    pub lockout_threshold: i64,
+    pub lockout_duration_secs: i64,
 
     // This matches the SQLite TEXT column perfectly.
     pub browser_flow_id: Option<String>,
@@ -40,6 +43,9 @@ mod tests {
             name: "default".to_string(),
             access_token_ttl_secs: 3600,
             refresh_token_ttl_secs: 7200,
+            pkce_required_public_clients: true,
+            lockout_threshold: 5,
+            lockout_duration_secs: 900,
             browser_flow_id: Some(flow_id.to_string()),
             registration_flow_id: None,
             direct_grant_flow_id: Some(Uuid::new_v4().to_string()),
@@ -55,6 +61,12 @@ mod tests {
         assert_eq!(decoded.name, realm.name);
         assert_eq!(decoded.access_token_ttl_secs, realm.access_token_ttl_secs);
         assert_eq!(decoded.refresh_token_ttl_secs, realm.refresh_token_ttl_secs);
+        assert_eq!(
+            decoded.pkce_required_public_clients,
+            realm.pkce_required_public_clients
+        );
+        assert_eq!(decoded.lockout_threshold, realm.lockout_threshold);
+        assert_eq!(decoded.lockout_duration_secs, realm.lockout_duration_secs);
         assert_eq!(decoded.browser_flow_id, realm.browser_flow_id);
     }
 
@@ -65,6 +77,9 @@ mod tests {
             name: "default".to_string(),
             access_token_ttl_secs: 3600,
             refresh_token_ttl_secs: 7200,
+            pkce_required_public_clients: true,
+            lockout_threshold: 5,
+            lockout_duration_secs: 900,
             browser_flow_id: Some("not-a-uuid".to_string()),
             registration_flow_id: None,
             direct_grant_flow_id: None,

@@ -105,6 +105,10 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     register_builtins(
         &mut registry_impl,
         repos.user_repo.clone(),
+        repos.realm_repo.clone(),
+        repos.login_attempt_repo.clone(),
+        settings.auth.lockout_threshold,
+        settings.auth.lockout_duration_secs,
         repos.session_repo.clone(),
     );
 

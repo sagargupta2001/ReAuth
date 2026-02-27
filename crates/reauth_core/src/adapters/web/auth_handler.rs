@@ -128,7 +128,7 @@ async fn handle_flow_success(
                     oidc_ctx.code_challenge,
                     oidc_ctx
                         .code_challenge_method
-                        .unwrap_or_else(|| "plain".to_string()),
+                        .unwrap_or_else(|| "S256".to_string()),
                 )
                 .await?;
 

@@ -219,7 +219,7 @@ async fn resolve_redirect_target(
                     oidc_ctx.code_challenge,
                     oidc_ctx
                         .code_challenge_method
-                        .unwrap_or_else(|| "plain".to_string()),
+                        .unwrap_or_else(|| "S256".to_string()),
                 )
                 .await?;
 

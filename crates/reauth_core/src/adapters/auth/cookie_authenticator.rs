@@ -133,7 +133,10 @@ mod tests {
         impl SessionRepository for SessionRepo {
             async fn save(&self, token: &RefreshToken) -> Result<()>;
             async fn find_by_id(&self, id: &Uuid) -> Result<Option<RefreshToken>>;
+            async fn find_by_id_any(&self, id: &Uuid) -> Result<Option<RefreshToken>>;
             async fn delete_by_id(&self, id: &Uuid) -> Result<()>;
+            async fn mark_replaced(&self, old_id: &Uuid, new_id: &Uuid) -> Result<()>;
+            async fn revoke_family(&self, family_id: &Uuid) -> Result<()>;
             async fn list(&self, realm_id: &Uuid, req: &crate::domain::pagination::PageRequest) -> Result<crate::domain::pagination::PageResponse<RefreshToken>>;
         }
     }
@@ -177,6 +180,7 @@ mod tests {
 
         let token = RefreshToken {
             id: token_id,
+            family_id: Uuid::new_v4(),
             user_id,
             realm_id: realm_a, // Token belongs to Realm A
             client_id: None,
@@ -185,6 +189,8 @@ mod tests {
             user_agent: None,
             created_at: Utc::now(),
             last_used_at: Utc::now(),
+            revoked_at: None,
+            replaced_by: None,
         };
 
         let mut repo = MockSessionRepo::new();
@@ -210,6 +216,7 @@ mod tests {
 
         let token = RefreshToken {
             id: token_id,
+            family_id: Uuid::new_v4(),
             user_id,
             realm_id,
             client_id: None,
@@ -218,6 +225,8 @@ mod tests {
             user_agent: None,
             created_at: Utc::now(),
             last_used_at: Utc::now(),
+            revoked_at: None,
+            replaced_by: None,
         };
 
         let mut repo = MockSessionRepo::new();

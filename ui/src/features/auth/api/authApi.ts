@@ -1,23 +1,12 @@
 import type { AuthExecutionResponse } from '@/entities/auth/model/types.ts'
-import { apiClient } from '@/shared/api/client'
-
-let refreshPromise: Promise<string> | null = null
+import { apiClient, refreshAccessToken } from '@/shared/api/client'
 
 export const authApi = {
   /**
    * Refreshes the roles token using the HttpOnly cookie.
    */
   refreshAccessToken: async (realm: string) => {
-    if (!refreshPromise) {
-      refreshPromise = apiClient
-        .post<{ access_token: string }>(`/api/realms/${realm}/auth/refresh`, {})
-        .then((data) => data.access_token)
-        .finally(() => {
-          refreshPromise = null
-        })
-    }
-
-    return refreshPromise
+    return refreshAccessToken(realm)
   },
 
   /**

@@ -17,30 +17,15 @@ UI_COV_SUMMARY := $(UI_COV_DIR)/coverage-summary.json
 run-before-raising-pr: clean-tmp
 	@mkdir -p $(TMP_DIR)
 	@echo "$(YELLOW)🚀 Starting pre-PR validation...$(RESET)"
-	
-	@echo "$(CYAN)Building UI...$(RESET)"
-	@$(MAKE) ui-build > $(TMP_DIR)/ui_build.log 2>&1 || (echo "$(RED)❌ UI Build failed!$(RESET)" && cat $(TMP_DIR)/ui_build.log && exit 1)
-	
-	@echo "$(CYAN)Checking formatting...$(RESET)"
-	@$(MAKE) fmt > $(TMP_DIR)/fmt.log 2>&1 || (echo "$(RED)❌ Formatting check failed!$(RESET)" && cat $(TMP_DIR)/fmt.log && exit 1)
-	
-	@echo "$(CYAN)Running Clippy...$(RESET)"
-	@$(MAKE) clippy > $(TMP_DIR)/clippy.log 2>&1 || (echo "$(RED)❌ Clippy lints failed!$(RESET)" && cat $(TMP_DIR)/clippy.log && exit 1)
-	
-	@echo "$(CYAN)Running Backend Tests...$(RESET)"
-	@$(MAKE) test > $(TMP_DIR)/test.log 2>&1 || (echo "$(RED)❌ Backend tests failed!$(RESET)" && cat $(TMP_DIR)/test.log && exit 1)
-	
-	@echo "$(CYAN)Running Documentation Tests...$(RESET)"
-	@$(MAKE) test-docs > $(TMP_DIR)/test_docs.log 2>&1 || (echo "$(RED)❌ Documentation tests failed!$(RESET)" && cat $(TMP_DIR)/test_docs.log && exit 1)
-	
-	@echo "$(CYAN)Generating Coverage...$(RESET)"
-	@$(MAKE) coverage > $(TMP_DIR)/coverage.log 2>&1 || (echo "$(RED)❌ Coverage report failed!$(RESET)" && cat $(TMP_DIR)/coverage.log && exit 1)
-	
-	@echo "$(CYAN)Linting UI...$(RESET)"
-	@$(MAKE) ui-lint > $(TMP_DIR)/ui_lint.log 2>&1 || (echo "$(RED)❌ UI Linting failed!$(RESET)" && cat $(TMP_DIR)/ui_lint.log && exit 1)
-	
-	@echo "$(CYAN)Running UI Tests + Coverage...$(RESET)"
-	@$(MAKE) ui-coverage > $(TMP_DIR)/ui_coverage.log 2>&1 || (echo "$(RED)❌ UI Tests/Coverage failed!$(RESET)" && cat $(TMP_DIR)/ui_coverage.log && exit 1)
+
+	$(call run_step,Building UI,$(MAKE) ui-build,ui_build.log)
+	$(call run_step,Checking formatting,$(MAKE) fmt,fmt.log)
+	$(call run_step,Running Clippy,$(MAKE) clippy,clippy.log)
+	$(call run_step,Running Backend Tests,$(MAKE) test,test.log)
+	$(call run_step,Running Documentation Tests,$(MAKE) test-docs,test_docs.log)
+	$(call run_step,Generating Coverage,$(MAKE) coverage,coverage.log)
+	$(call run_step,Linting UI,$(MAKE) ui-lint,ui_lint.log)
+	$(call run_step,Running UI Tests + Coverage,$(MAKE) ui-coverage,ui_coverage.log)
 
 	@$(MAKE) summary
 
@@ -103,6 +88,24 @@ print("N/A" if pct is None else "{:.2f}%".format(float(pct)))'); \
 	@echo "$(GREEN)✅ ALL CHECKS PASSED! You are ready to raise a PR.$(RESET)"
 	@echo "$(GREEN)==================================================$(RESET)\n"
 	@$(MAKE) clean-tmp
+
+define run_step
+	@echo "$(CYAN)$(1)... (log: $(TMP_DIR)/$(3))$(RESET)"
+	@LOG="$(TMP_DIR)/$(3)"; \
+	set -e; \
+	( $(2) > $$LOG 2>&1 ) & PID=$$!; \
+	while kill -0 $$PID 2>/dev/null; do \
+		sleep 5; \
+		if [ -s $$LOG ]; then \
+			TAIL=$$(tail -n 1 $$LOG | tr -d '\r'); \
+			echo "$(CYAN)  ... $(1): $$TAIL$(RESET)"; \
+		else \
+			echo "$(CYAN)  ... $(1) in progress$(RESET)"; \
+		fi; \
+	done; \
+	wait $$PID || { echo "$(RED)❌ $(1) failed!$(RESET)"; cat $$LOG; exit 1; }; \
+	echo "$(GREEN)✔ $(1) done$(RESET)"
+endef
 
 fmt:
 	cargo fmt --all
