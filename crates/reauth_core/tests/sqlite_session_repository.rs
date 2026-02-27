@@ -148,8 +148,19 @@ async fn list_refresh_tokens_with_filters_and_pagination() -> Result<()> {
     );
     let token_c = token(Uuid::new_v4(), user_id, realm_id, now);
     let other_token = token(Uuid::new_v4(), user_id, other_realm, now);
+    let mut revoked_token = token(Uuid::new_v4(), user_id, realm_id, now);
+    revoked_token.revoked_at = Some(Utc::now());
+    let mut replaced_token = token(Uuid::new_v4(), user_id, realm_id, now);
+    replaced_token.replaced_by = Some(Uuid::new_v4());
 
-    for t in [&token_a, &token_b, &token_c, &other_token] {
+    for t in [
+        &token_a,
+        &token_b,
+        &token_c,
+        &other_token,
+        &revoked_token,
+        &replaced_token,
+    ] {
         repo.save(t).await?;
     }
 
