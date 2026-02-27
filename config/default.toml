@@ -40,6 +40,9 @@ pkce_required_public_clients = true
 # Brute-force protection
 lockout_threshold = 5
 lockout_duration_secs = 900
+# Refresh token cleanup
+refresh_token_cleanup_interval_secs = 3600 # 0 disables cleanup
+refresh_token_retention_secs = 0 # Keep expired tokens for this many seconds
 # A unique signing ID for the JWKS endpoint
 jwt_key_id = "reauth-rs-v1"
 issuer = "" # Leave empty to derive from server.public_url

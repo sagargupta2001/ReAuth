@@ -1026,6 +1026,8 @@ fn build_auth_service(
         pkce_required_public_clients: true,
         lockout_threshold: 5,
         lockout_duration_secs: 900,
+        refresh_token_cleanup_interval_secs: 3600,
+        refresh_token_retention_secs: 0,
     };
 
     Arc::new(AuthService::new(

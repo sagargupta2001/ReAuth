@@ -143,9 +143,8 @@ impl SessionRepository for SqliteSessionRepository {
            1. COUNT QUERY
         ------------------------- */
 
-        let mut count_builder = sqlx::QueryBuilder::new(
-            "SELECT COUNT(*) FROM refresh_tokens WHERE realm_id = ",
-        );
+        let mut count_builder =
+            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM refresh_tokens WHERE realm_id = ");
         count_builder.push_bind(realm_id.to_string());
         count_builder.push(" AND revoked_at IS NULL AND replaced_by IS NULL AND expires_at > ");
         count_builder.push_bind(Utc::now());

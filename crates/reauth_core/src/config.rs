@@ -83,6 +83,10 @@ pub struct AuthConfig {
     pub lockout_threshold: i64,
     #[serde(default = "default_lockout_duration_secs")]
     pub lockout_duration_secs: i64,
+    #[serde(default = "default_refresh_token_cleanup_interval_secs")]
+    pub refresh_token_cleanup_interval_secs: u64,
+    #[serde(default = "default_refresh_token_retention_secs")]
+    pub refresh_token_retention_secs: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -239,6 +243,10 @@ impl Settings {
         )?;
 
         validate_lockout_settings(self.auth.lockout_threshold, self.auth.lockout_duration_secs)?;
+        validate_refresh_cleanup_settings(
+            self.auth.refresh_token_cleanup_interval_secs,
+            self.auth.refresh_token_retention_secs,
+        )?;
 
         Ok(())
     }
@@ -328,6 +336,14 @@ fn default_lockout_threshold() -> i64 {
 
 fn default_lockout_duration_secs() -> i64 {
     900
+}
+
+fn default_refresh_token_cleanup_interval_secs() -> u64 {
+    3600
+}
+
+fn default_refresh_token_retention_secs() -> i64 {
+    0
 }
 
 fn default_data_dir() -> String {
@@ -435,6 +451,28 @@ fn validate_lockout_settings(
     if lockout_duration_secs > 86_400 {
         return Err(config::ConfigError::Message(
             "auth.lockout_duration_secs must be <= 86400".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_refresh_cleanup_settings(
+    cleanup_interval_secs: u64,
+    retention_secs: i64,
+) -> Result<(), config::ConfigError> {
+    if retention_secs < 0 {
+        return Err(config::ConfigError::Message(
+            "auth.refresh_token_retention_secs must be >= 0".to_string(),
+        ));
+    }
+    if cleanup_interval_secs > 86_400 {
+        return Err(config::ConfigError::Message(
+            "auth.refresh_token_cleanup_interval_secs must be <= 86400".to_string(),
+        ));
+    }
+    if retention_secs > 31_536_000 {
+        return Err(config::ConfigError::Message(
+            "auth.refresh_token_retention_secs must be <= 31536000".to_string(),
         ));
     }
     Ok(())
