@@ -25,11 +25,10 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 - Goal: token exchange and back-channel logout.
 
 ### Cross-Cutting Architecture
-- Hybrid Plugin Architecture: `reauth/docs/memory/roadmaps/poly-plugin-architecture.md`
-- Developer Tooling (reauth-cli): `reauth/docs/memory/roadmaps/reauth-cli.md`
+- Remove Plugin System: `reauth/docs/memory/roadmaps/remove-plugin.md`
 
 ## Risks and dependencies
 - Flow engine pause/resume is a prerequisite for email verification and recovery flows.
 - OIDC hardening requires token family tracking and stricter client type validation.
-- Plugin security and isolation will gate enterprise adoption and advanced flows.
+- Embedded scripting safety and sandboxing will gate advanced extensibility.
 - SDKs depend on stable, well-documented API contracts and error semantics.

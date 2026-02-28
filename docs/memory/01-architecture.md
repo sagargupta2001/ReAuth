@@ -15,7 +15,6 @@ graph TD
   App -->|Domain| Domain[Domain Model]
   App -->|Adapters| Adapters[Adapters]
   Adapters -->|DB| SQLite[(SQLite)]
-  Adapters -->|gRPC| Plugins[Plugins]
 
   subgraph UI Modes
     DevUI[React Dev Server]
@@ -31,7 +30,7 @@ graph TD
 - Ports: interfaces for persistence, caching, token, eventing, and transactions in `reauth/crates/reauth_core/src/ports`.
 - Application: use cases and orchestration services in `reauth/crates/reauth_core/src/application`.
 - Adapters: concrete implementations for ports in `reauth/crates/reauth_core/src/adapters`.
-- Bootstrap: wiring, config, migrations, plugin init in `reauth/crates/reauth_core/src/bootstrap`.
+- Bootstrap: wiring, config, migrations in `reauth/crates/reauth_core/src/bootstrap`.
 
 ## Application services (current)
 - Auth, OIDC, RBAC, Realm, User services.
@@ -48,7 +47,6 @@ graph TD
 - Crypto (Argon2, JWT, key management): `reauth/crates/reauth_core/src/adapters/crypto`.
 - Cache (Moka + invalidation): `reauth/crates/reauth_core/src/adapters/cache`.
 - Eventing (in-memory bus + log broadcast): `reauth/crates/reauth_core/src/adapters/eventing`.
-- Plugin gateway (gRPC): `reauth/crates/reauth_core/src/adapters/plugin_gateway`.
 - Logging (tracing + banner): `reauth/crates/reauth_core/src/adapters/logging`.
 
 ## UI architecture (FSD)

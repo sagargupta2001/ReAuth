@@ -6,4 +6,3 @@
 - Do we want realm binding columns for `client` and `docker` flows in the schema?
 - Should flow version checksums be cryptographic hashes of the execution artifact, the graph JSON, or both?
 - What is the desired policy for refresh-token SSO cookie lifetime and renewal?
-- What is the minimum plugin security model required for early adopters?

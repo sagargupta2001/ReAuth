@@ -79,7 +79,6 @@
    - Prefetch user profile fragments for the inspector (pending).
 
 ## Later (advanced capabilities)
-- Query plugins to register their own palette items.
 - Add workspace-wide deep links for audit/logs, flow builder nodes, observability queries.
 - Saved searches and pinned actions.
 - Federation into the API (cross-realm super admin search).

@@ -53,7 +53,7 @@
    - Standardize key fields across handler logs (request_id, user_id, realm, trace_id, span_id).
 5. **UI MVP** (in progress)
    - [x] Observability layout with Logs/Traces/Cache tabs + time range selector.
-   - [x] Logs tab includes existing real-time log stream (system + plugin logs) with a `Live Trail` toggle.
+   - [x] Logs tab includes existing real-time log stream with a `Live Trail` toggle.
    - [x] Logs Explorer: search/filters, live tail, dense table + JSON expansion.
    - [x] Traces view: request list + waterfall chart.
    - [x] Cache Manager: stats, namespaces, purge actions, guarded global flush.
@@ -67,7 +67,6 @@
 - Log redaction/PII policy enforcement.
 - OTLP export (OpenTelemetry) + external backends.
 - Alerting and anomaly detection.
-- Plugin RPC spans (defer until plugin system revamp).
 
 ## Open questions
 - What retention period is required for audit and telemetry records?

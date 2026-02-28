@@ -1,14 +1,14 @@
 # Context
 
 ## One-liner
-ReAuth is a single-binary, self-hosted IdP inspired by Keycloak, built with Rust (backend) and React (UI), providing multi-realm auth, OIDC/SSO, RBAC, a flow builder, and a plugin POC.
+ReAuth is a single-binary, self-hosted IdP inspired by Keycloak, built with Rust (backend) and React (UI), providing multi-realm auth, OIDC/SSO, RBAC, and a visual flow builder.
 
 ## Goals
 - Single-binary deployment option (Rust backend with embedded UI).
 - Multi-realm identity and authorization management.
 - Extensible auth flows via a visual flow builder.
 - Basic RBAC with clear, auditable policies.
-- Plugin extension via gRPC (POC).
+- Native extensibility via a theme engine and embedded scripting (no external plugins).
 - Developer-friendly local setup (SQLite, minimal infra).
 - High performance with minimal footprint and fast startup.
 
@@ -28,7 +28,6 @@ ReAuth is a single-binary, self-hosted IdP inspired by Keycloak, built with Rust
 - Multi-realm
 - Flow builder (React Flow)
 - Basic RBAC
-- gRPC plugin POC
 - Basic SSO + OIDC implementations
 
 ## Target users

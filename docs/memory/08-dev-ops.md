@@ -32,9 +32,5 @@
 - Dev: backend proxies UI requests to `ui.dev_url` when `embed-ui` is disabled.
 - Embedded: backend serves `ui/dist` via `rust-embed` when `embed-ui` is enabled.
 
-## Plugins
-- Default plugins directory: `reauth/plugins` (dev).
-- In production, plugins directory is a sibling of the executable.
-
 ## Notes
 - Cookies are currently set with `secure=false` for localhost dev.
