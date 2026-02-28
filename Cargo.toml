@@ -63,3 +63,10 @@ proptest = "1.10.0"
 [profile.dev]
 incremental = true
 opt-level = 0
+
+[profile.release]
+opt-level = "z"     # Optimize for size
+lto = true          # Enable Link Time Optimization
+codegen-units = 1   # Maximize LTO impact
+panic = "abort"     # Remove unwinding tables (saves ~10% size)
+strip = true        # Automatically strip symbols from the binary

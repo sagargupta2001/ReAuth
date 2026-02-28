@@ -145,5 +145,11 @@ embed:
 	fi
 	cargo run --features embed-ui
 
+release:
+	@echo "$(YELLOW)📦 Building production release...$(RESET)"
+	$(MAKE) ui-build
+	cargo build --release --features embed-ui
+	@echo "$(GREEN)✅ Release build complete: target/release/reauth$(RESET)"
+
 clean-tmp:
 	@rm -rf $(TMP_DIR)
