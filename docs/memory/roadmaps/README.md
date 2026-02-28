@@ -11,6 +11,7 @@ Example paths:
 - `reauth/docs/memory/roadmaps/seeding.md`
 - `reauth/docs/memory/roadmaps/webhooks.md`
 - `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
+- `reauth/docs/memory/roadmaps/oidc-future-enhancements.md`
 - `reauth/docs/memory/roadmaps/identity-flows.md`
 - `reauth/docs/memory/roadmaps/developer-experience.md`
 - `reauth/docs/memory/roadmaps/identity-brokering.md`

@@ -10,7 +10,7 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 - Goal: fully remove plugin system and simplify to a single-binary core.
 
 ### Phase 1: OIDC Hardening & Flow Engine Maturity (Foundation)
-- Status: Planned
+- Status: Complete
 - Roadmap: `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
 - Goal: bring protocol compliance and the engine to production-grade security.
 
@@ -42,7 +42,6 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 
 ## Risks and dependencies
 - Flow engine pause/resume is a prerequisite for email verification and recovery flows.
-- OIDC hardening requires token family tracking and stricter client type validation.
 - Theme engine depends on stable page/block schemas and resolver contracts.
 - Embedded scripting safety and sandboxing will gate advanced extensibility.
 - SDKs depend on stable, well-documented API contracts and error semantics.
