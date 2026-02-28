@@ -2,7 +2,7 @@ use crate::adapters::observability::telemetry_store::TelemetryDatabase;
 use crate::adapters::persistence::connection::Database;
 use anyhow::anyhow;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use rand::Rng;
+use rand::RngExt;
 use serde::Deserialize;
 use sqlx::Row;
 use std::error::Error as StdError;
@@ -595,7 +595,7 @@ fn next_attempt_at(attempt: i64) -> Option<DateTime<Utc>> {
     let jitter = base * BACKOFF_JITTER_FRACTION;
     let min = (base - jitter).max(1.0);
     let max = base + jitter;
-    let secs = rand::thread_rng().gen_range(min..=max).round() as i64;
+    let secs = rand::rng().random_range(min..=max).round() as i64;
 
     Some(Utc::now() + ChronoDuration::seconds(secs))
 }

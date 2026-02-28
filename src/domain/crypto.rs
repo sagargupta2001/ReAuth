@@ -1,15 +1,13 @@
 use crate::error::{Error, Result};
 use argon2::{Algorithm, Argon2, Params, Version};
-use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
-use rand_core::OsRng;
+use password_hash::phc::PasswordHash;
+use password_hash::{PasswordHasher, PasswordVerifier};
 
 #[derive(Debug, Clone)]
 pub struct HashedPassword(String);
 
 impl HashedPassword {
     pub fn new(password: &str) -> Result<Self> {
-        let salt = SaltString::generate(&mut OsRng);
-
         // Explicit parameters (no default() anymore)
         // Use lower parameters during tests to speed up the suite
         #[cfg(not(test))]
@@ -22,7 +20,7 @@ impl HashedPassword {
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
         let hash = argon2
-            .hash_password(password.as_bytes(), &salt)
+            .hash_password(password.as_bytes())
             .map_err(|e| Error::Unexpected(anyhow::Error::msg(e.to_string())))?
             .to_string();
 

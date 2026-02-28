@@ -39,7 +39,7 @@ impl KeyManager {
         info!("No RSA keys found. Generating new 2048-bit keypair...");
 
         // 1. Generate Private Key
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let private_key = RsaPrivateKey::new(&mut rng, 2048).map_err(|e| {
             Error::Unexpected(anyhow::anyhow!("Failed to generate private key: {}", e))
         })?;

@@ -48,7 +48,7 @@ impl<'q> sqlx::Encode<'q, sqlx::Sqlite> for SessionStatus {
     fn encode_by_ref(
         &self,
         args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
-    ) -> sqlx::encode::IsNull {
+    ) -> std::result::Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
         let s = self.to_string();
         <String as sqlx::Encode<sqlx::Sqlite>>::encode(s, args)
     }

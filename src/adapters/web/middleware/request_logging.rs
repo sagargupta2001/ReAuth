@@ -6,7 +6,7 @@ use axum::http::{header, HeaderValue, Request};
 use axum::middleware::Next;
 use axum::response::Response;
 use http_body_util::BodyExt;
-use rand::RngCore;
+use rand::RngExt;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -349,8 +349,7 @@ fn extract_realm_from_path(path: &str) -> Option<String> {
 fn generate_nonzero_hex(byte_len: usize) -> String {
     let mut bytes = vec![0u8; byte_len];
     loop {
-        let mut rng = rand::rngs::OsRng;
-        rng.fill_bytes(&mut bytes);
+        rand::rng().fill(&mut bytes);
         if bytes.iter().any(|b| *b != 0) {
             break;
         }

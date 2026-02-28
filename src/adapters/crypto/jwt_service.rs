@@ -138,8 +138,8 @@ impl TokenService for JwtService {
         let e = public_key.e();
 
         // 3. Convert to Base64URL (Big Endian)
-        let n_b64 = URL_SAFE_NO_PAD.encode(n.to_bytes_be());
-        let e_b64 = URL_SAFE_NO_PAD.encode(e.to_bytes_be());
+        let n_b64 = URL_SAFE_NO_PAD.encode(n.to_be_bytes());
+        let e_b64 = URL_SAFE_NO_PAD.encode(e.to_be_bytes());
 
         // 4. Construct the JWKS JSON
         Ok(json!({

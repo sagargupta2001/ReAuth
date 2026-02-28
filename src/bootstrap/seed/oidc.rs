@@ -1,7 +1,6 @@
 use crate::bootstrap::seed::context::SeedContext;
 use crate::domain::oidc::OidcClient;
-use rand::distributions::Alphanumeric;
-use rand::Rng;
+use rand::distr::{Alphanumeric, SampleString};
 use tracing::info;
 use uuid::Uuid;
 
@@ -44,11 +43,7 @@ pub async fn seed_default_oidc_client(ctx: &SeedContext<'_>, realm_id: Uuid) -> 
         None => {
             info!("Seeding default OIDC client '{}'...", client_id);
 
-            let secret: String = rand::thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(32)
-                .map(char::from)
-                .collect();
+            let secret: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
 
             let mut client = OidcClient {
                 id: uuid::Uuid::new_v4(),

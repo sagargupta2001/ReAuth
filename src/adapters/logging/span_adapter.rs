@@ -1,6 +1,5 @@
 use crate::domain::log::{LogEntry, LogPublisher};
 use chrono::Utc;
-use rand::RngCore;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
@@ -257,32 +256,8 @@ fn apply_field_update(data: &mut SpanData, fields: &HashMap<String, String>) {
 }
 
 fn generate_span_id() -> String {
-    let mut bytes = [0u8; 8];
-    let mut rng = rand::rngs::OsRng;
-    loop {
-        rng.fill_bytes(&mut bytes);
-        if bytes.iter().any(|b| *b != 0) {
-            break;
-        }
-    }
-    hex_encode(&bytes)
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push(hex_char(byte >> 4));
-        out.push(hex_char(byte & 0x0f));
-    }
-    out
-}
-
-fn hex_char(value: u8) -> char {
-    match value {
-        0..=9 => (b'0' + value) as char,
-        10..=15 => (b'a' + (value - 10)) as char,
-        _ => '0',
-    }
+    use rand::distr::{Alphanumeric, SampleString};
+    Alphanumeric.sample_string(&mut rand::rng(), 16)
 }
 
 // A visitor to extract key-value fields from a tracing span.

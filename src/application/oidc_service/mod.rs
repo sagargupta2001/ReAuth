@@ -16,8 +16,7 @@ use crate::{
     },
 };
 use chrono::{Duration, Utc};
-use rand::distributions::Alphanumeric;
-use rand::Rng;
+use rand::distr::{Alphanumeric, SampleString};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::sync::Arc;
@@ -285,11 +284,7 @@ impl OidcService {
 
     pub async fn register_client(&self, client: &mut OidcClient) -> Result<()> {
         if client.client_secret.is_none() {
-            let secret: String = rand::thread_rng()
-                .sample_iter(&Alphanumeric)
-                .take(32)
-                .map(char::from)
-                .collect();
+            let secret: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
 
             client.client_secret = Some(secret);
         }
