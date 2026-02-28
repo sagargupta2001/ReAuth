@@ -154,6 +154,9 @@ fn base_realm() -> Realm {
         name: "example".to_string(),
         access_token_ttl_secs: 300,
         refresh_token_ttl_secs: 900,
+        pkce_required_public_clients: true,
+        lockout_threshold: 5,
+        lockout_duration_secs: 900,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
@@ -173,6 +176,9 @@ async fn update_realm_errors_when_missing() {
                 name: Some("new".to_string()),
                 access_token_ttl_secs: None,
                 refresh_token_ttl_secs: None,
+                pkce_required_public_clients: None,
+                lockout_threshold: None,
+                lockout_duration_secs: None,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
@@ -204,6 +210,9 @@ async fn update_realm_updates_selected_fields() {
                 name: Some("updated".to_string()),
                 access_token_ttl_secs: Some(111),
                 refresh_token_ttl_secs: Some(222),
+                pkce_required_public_clients: Some(false),
+                lockout_threshold: Some(7),
+                lockout_duration_secs: Some(1200),
                 browser_flow_id: Some(Some(new_browser)),
                 registration_flow_id: Some(None),
                 direct_grant_flow_id: None,
@@ -216,12 +225,72 @@ async fn update_realm_updates_selected_fields() {
     assert_eq!(result.name, "updated");
     assert_eq!(result.access_token_ttl_secs, 111);
     assert_eq!(result.refresh_token_ttl_secs, 222);
+    assert!(!result.pkce_required_public_clients);
+    assert_eq!(result.lockout_threshold, 7);
+    assert_eq!(result.lockout_duration_secs, 1200);
     assert_eq!(result.browser_flow_id, Some(new_browser.to_string()));
     assert_eq!(result.registration_flow_id, None);
 
     let updates = realm_repo.update_calls();
     assert_eq!(updates.len(), 1);
     assert_eq!(updates[0].0.name, "updated");
+}
+
+#[tokio::test]
+async fn update_realm_rejects_invalid_lockout_values() {
+    let realm_repo = Arc::new(TestRealmRepo::default());
+    let realm = base_realm();
+    realm_repo.set_realm(realm.clone());
+
+    let service = build_service(realm_repo.clone());
+
+    let err = service
+        .update_realm(
+            realm.id,
+            UpdateRealmPayload {
+                name: None,
+                access_token_ttl_secs: None,
+                refresh_token_ttl_secs: None,
+                pkce_required_public_clients: None,
+                lockout_threshold: Some(-1),
+                lockout_duration_secs: None,
+                browser_flow_id: None,
+                registration_flow_id: None,
+                direct_grant_flow_id: None,
+                reset_credentials_flow_id: None,
+            },
+        )
+        .await
+        .expect_err("expected error");
+
+    match err {
+        Error::Validation(message) => assert!(message.contains("lockout_threshold")),
+        other => panic!("unexpected error: {:?}", other),
+    }
+
+    let err = service
+        .update_realm(
+            realm.id,
+            UpdateRealmPayload {
+                name: None,
+                access_token_ttl_secs: None,
+                refresh_token_ttl_secs: None,
+                pkce_required_public_clients: None,
+                lockout_threshold: None,
+                lockout_duration_secs: Some(86_401),
+                browser_flow_id: None,
+                registration_flow_id: None,
+                direct_grant_flow_id: None,
+                reset_credentials_flow_id: None,
+            },
+        )
+        .await
+        .expect_err("expected error");
+
+    match err {
+        Error::Validation(message) => assert!(message.contains("lockout_duration_secs")),
+        other => panic!("unexpected error: {:?}", other),
+    }
 }
 
 #[tokio::test]
@@ -241,6 +310,9 @@ async fn update_realm_with_tx_forwards_transaction() {
                 name: Some("with-tx".to_string()),
                 access_token_ttl_secs: None,
                 refresh_token_ttl_secs: None,
+                pkce_required_public_clients: None,
+                lockout_threshold: None,
+                lockout_duration_secs: None,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,

@@ -324,7 +324,7 @@ export function LogsExplorer({
     })
   }
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
       <div className="flex flex-wrap items-center gap-3">
         <Command className="min-w-[240px] flex-1 border bg-background/60">
           <CommandInput
@@ -369,30 +369,23 @@ export function LogsExplorer({
           </Select>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-col gap-1">
-            <Button
-              variant={isConnected ? 'secondary' : 'outline'}
-              onClick={isConnected ? disconnect : connect}
-              className="h-11 gap-2"
-              disabled={!liveAllowed}
-            >
+          <Button
+            variant={isConnected ? 'secondary' : 'outline'}
+            onClick={isConnected ? disconnect : connect}
+            className="h-11 gap-2"
+            disabled={!liveAllowed}
+          >
               <span
                 className={cn(
                   'h-2 w-2 rounded-full bg-muted-foreground/40',
                   isConnected &&
-                    liveAllowed &&
-                    'animate-pulse bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]',
+                  liveAllowed &&
+                  'animate-pulse bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]',
                 )}
               />
-              {isConnected ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {t('LOGS_EXPLORER.LIVE_TRAIL')}
-            </Button>
-            {!liveAllowed && (
-              <span className="text-[10px] text-muted-foreground">
-                {t('LOGS_EXPLORER.LIVE_TRAIL_HINT')}
-              </span>
-            )}
-          </div>
+            {isConnected ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {t('LOGS_EXPLORER.LIVE_TRAIL')}
+          </Button>
           <Button
             variant="outline"
             className="h-11 gap-2"
@@ -421,7 +414,7 @@ export function LogsExplorer({
           onSortingChange={handleSortingChange}
           showToolbar={false}
           rootClassName="min-h-0 flex-1"
-          className="min-h-0 flex-1"
+          className="h-[calc(100vh-540px)]"
           pageSizeOptions={[50, 100, 200]}
           onRowClick={(log) =>
             setExpandedLogId((current) => (current === log.id ? null : log.id))

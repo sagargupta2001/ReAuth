@@ -10,6 +10,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
+const MAX_LOCKOUT_THRESHOLD: i64 = 50;
+const MAX_LOCKOUT_DURATION_SECS: i64 = 86_400;
+
 #[derive(Deserialize)]
 pub struct CreateRealmPayload {
     pub name: String,
@@ -20,6 +23,9 @@ pub struct UpdateRealmPayload {
     pub name: Option<String>,
     pub access_token_ttl_secs: Option<i64>,
     pub refresh_token_ttl_secs: Option<i64>,
+    pub pkce_required_public_clients: Option<bool>,
+    pub lockout_threshold: Option<i64>,
+    pub lockout_duration_secs: Option<i64>,
     pub browser_flow_id: Option<Option<Uuid>>,
     pub registration_flow_id: Option<Option<Uuid>>,
     pub direct_grant_flow_id: Option<Option<Uuid>>,
@@ -65,6 +71,9 @@ impl RealmService {
                 name: payload.name,
                 access_token_ttl_secs: settings.auth.access_token_ttl_secs,
                 refresh_token_ttl_secs: settings.auth.refresh_token_ttl_secs,
+                pkce_required_public_clients: settings.auth.pkce_required_public_clients,
+                lockout_threshold: settings.auth.lockout_threshold,
+                lockout_duration_secs: settings.auth.lockout_duration_secs,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
@@ -144,6 +153,17 @@ impl RealmService {
         if let Some(ttl) = payload.refresh_token_ttl_secs {
             realm.refresh_token_ttl_secs = ttl;
         }
+        if let Some(value) = payload.pkce_required_public_clients {
+            realm.pkce_required_public_clients = value;
+        }
+        if let Some(value) = payload.lockout_threshold {
+            validate_lockout_value("lockout_threshold", value, MAX_LOCKOUT_THRESHOLD)?;
+            realm.lockout_threshold = value;
+        }
+        if let Some(value) = payload.lockout_duration_secs {
+            validate_lockout_value("lockout_duration_secs", value, MAX_LOCKOUT_DURATION_SECS)?;
+            realm.lockout_duration_secs = value;
+        }
 
         if let Some(val) = payload.browser_flow_id {
             realm.browser_flow_id = val.map(|id| id.to_string());
@@ -162,6 +182,22 @@ impl RealmService {
 
         Ok(realm)
     }
+}
+
+fn validate_lockout_value(field: &str, value: i64, max: i64) -> Result<()> {
+    if value < 0 {
+        return Err(Error::Validation(format!(
+            "{} must be greater than or equal to 0",
+            field
+        )));
+    }
+    if value > max {
+        return Err(Error::Validation(format!(
+            "{} must be less than or equal to {}",
+            field, max
+        )));
+    }
+    Ok(())
 }
 
 #[cfg(test)]

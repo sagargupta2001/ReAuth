@@ -185,6 +185,49 @@ pub async fn jwks_handler(State(state): State<AppState>) -> Result<impl IntoResp
     Ok((StatusCode::OK, Json(jwks)))
 }
 
+/// Get /.well-known/openid-configuration
+pub async fn discovery_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+) -> Result<impl IntoResponse> {
+    let settings = state.settings.read().await;
+    let base = settings.server.public_url.trim_end_matches('/').to_string();
+
+    let response = serde_json::json!({
+        "issuer": settings.auth.issuer,
+        "authorization_endpoint": format!("{}/api/realms/{}/oidc/authorize", base, realm_name),
+        "token_endpoint": format!("{}/api/realms/{}/oidc/token", base, realm_name),
+        "userinfo_endpoint": format!("{}/api/realms/{}/oidc/userinfo", base, realm_name),
+        "jwks_uri": format!("{}/api/realms/{}/oidc/.well-known/jwks.json", base, realm_name),
+        "response_types_supported": ["code"],
+        "subject_types_supported": ["public"],
+        "id_token_signing_alg_values_supported": ["RS256"],
+        "code_challenge_methods_supported": ["S256"],
+        "token_endpoint_auth_methods_supported": ["none"],
+        "scopes_supported": ["openid", "profile"]
+    });
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// Get /userinfo
+pub async fn userinfo_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse> {
+    let auth_header = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .ok_or_else(|| Error::OidcInvalidRequest("Missing Authorization header".to_string()))?;
+
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| Error::OidcInvalidRequest("Invalid Authorization header".to_string()))?;
+
+    let response = state.oidc_service.userinfo(token).await?;
+    Ok((StatusCode::OK, Json(response)))
+}
+
 pub async fn list_clients_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,

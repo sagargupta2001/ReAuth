@@ -77,6 +77,7 @@ impl AuthService {
         let now = Utc::now();
         let refresh_token = RefreshToken {
             id: Uuid::new_v4(),
+            family_id: Uuid::new_v4(),
             user_id: user.id,
             realm_id: realm.id,
             client_id: client_id.clone(),
@@ -85,6 +86,8 @@ impl AuthService {
             user_agent,
             created_at: now,
             last_used_at: now,
+            revoked_at: None,
+            replaced_by: None,
         };
         self.session_repo.save(&refresh_token).await?;
 
@@ -151,20 +154,27 @@ impl AuthService {
         &self,
         refresh_token_id: Uuid,
     ) -> Result<(LoginResponse, RefreshToken)> {
-        // 1. Find and *immediately delete* the old refresh token.
-        // This is the core of "token rotation." The token is now single-use.
-        // We find and delete in one operation if possible, or two separate calls.
-        // Let's assume `find_by_id` checks expiry.
+        // 1. Find the token (including revoked/replaced) to detect reuse.
         let old_token = self
             .session_repo
-            .find_by_id(&refresh_token_id)
+            .find_by_id_any(&refresh_token_id)
             .await?
             .ok_or(Error::InvalidRefreshToken)?;
 
-        // If this fails (because another thread deleted it 1ms ago),
-        // the whole function returns Err(InvalidRefreshToken).
-        // The subsequent code (create new token) will NEVER run.
-        self.session_repo.delete_by_id(&old_token.id).await?;
+        // Reject expired tokens.
+        if old_token.expires_at <= Utc::now() {
+            return Err(Error::InvalidRefreshToken);
+        }
+
+        // Reuse detection: if this token was already rotated or revoked, kill the family.
+        if old_token.revoked_at.is_some() || old_token.replaced_by.is_some() {
+            self.session_repo
+                .revoke_family(&old_token.family_id)
+                .await?;
+            return Err(Error::SecurityViolation(
+                "Refresh token reuse detected".to_string(),
+            ));
+        }
 
         // 2. Get the associated user and realm
         let user = self
@@ -184,6 +194,7 @@ impl AuthService {
         let now = Utc::now();
         let new_refresh_token = RefreshToken {
             id: Uuid::new_v4(), // New ID
+            family_id: old_token.family_id,
             user_id: user.id,
             realm_id: realm.id,
             client_id: old_token.client_id.clone(),
@@ -192,7 +203,13 @@ impl AuthService {
             user_agent: old_token.user_agent.clone(),
             created_at: now,
             last_used_at: now,
+            revoked_at: None,
+            replaced_by: None,
         };
+        // Mark the old token as replaced (rotation).
+        self.session_repo
+            .mark_replaced(&old_token.id, &new_refresh_token.id)
+            .await?;
         self.session_repo.save(&new_refresh_token).await?;
 
         // 4. Get *fresh* permissions (this is critical for RBAC)

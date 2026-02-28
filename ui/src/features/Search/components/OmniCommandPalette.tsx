@@ -183,6 +183,7 @@ export function OmniCommandPalette() {
   }, [realmData?.registration_flow_id])
 
   const registrationEnabled = Boolean(realmData?.registration_flow_id)
+  const pkceRequired = Boolean(realmData?.pkce_required_public_clients)
 
   const executeAction = React.useCallback(
     (actionId?: string) => {
@@ -216,6 +217,15 @@ export function OmniCommandPalette() {
       }
     },
     [setTheme],
+  )
+
+  const handlePkceToggle = React.useCallback(
+    (enabled: boolean) => {
+      if (!realmData) return
+      recordSelection('setting.pkce-required')
+      updateRealm.mutate({ pkce_required_public_clients: enabled })
+    },
+    [recordSelection, updateRealm, realmData],
   )
 
   const runWebhookAction = React.useCallback(
@@ -761,27 +771,36 @@ export function OmniCommandPalette() {
                                       }}
                                       onHighlight={() => setActiveItem(entry.inspector)}
                                         toggle={
-                                        item.kind === 'toggle' && item.toggleId === 'registration'
-                                          ? {
-                                              checked: registrationEnabled,
-                                              onChange: handleRegistrationToggle,
-                                              ariaLabel: item.label,
-                                              disabled: updateRealm.isPending,
-                                            }
-                                          : item.kind === 'toggle' &&
-                                              item.toggleId === 'include-spans'
+                                          item.kind === 'toggle' &&
+                                          item.toggleId === 'registration'
                                             ? {
-                                                checked: includeSpans,
-                                                onChange: (checked) => {
-                                                  recordSelection(item.id)
-                                                  setIncludeSpans(checked)
-                                                  toast.success('Settings updated')
-                                                },
+                                                checked: registrationEnabled,
+                                                onChange: handleRegistrationToggle,
                                                 ariaLabel: item.label,
+                                                disabled: updateRealm.isPending,
                                               }
-                                            : undefined
-                                      }
-                                    />
+                                            : item.kind === 'toggle' &&
+                                                item.toggleId === 'pkce-required'
+                                              ? {
+                                                  checked: pkceRequired,
+                                                  onChange: handlePkceToggle,
+                                                  ariaLabel: item.label,
+                                                  disabled: updateRealm.isPending,
+                                                }
+                                              : item.kind === 'toggle' &&
+                                                  item.toggleId === 'include-spans'
+                                                ? {
+                                                    checked: includeSpans,
+                                                    onChange: (checked) => {
+                                                      recordSelection(item.id)
+                                                      setIncludeSpans(checked)
+                                                      toast.success('Settings updated')
+                                                    },
+                                                    ariaLabel: item.label,
+                                                  }
+                                                : undefined
+                                        }
+                                      />
                                   )
                                 }
 

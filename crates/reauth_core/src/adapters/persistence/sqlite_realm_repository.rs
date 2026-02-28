@@ -31,13 +31,17 @@ impl RealmRepository for SqliteRealmRepository {
         let query = sqlx::query(
             "INSERT INTO realms (
                 id, name, access_token_ttl_secs, refresh_token_ttl_secs,
+                pkce_required_public_clients, lockout_threshold, lockout_duration_secs,
                 browser_flow_id, registration_flow_id, direct_grant_flow_id, reset_credentials_flow_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
             .bind(realm.id.to_string())
             .bind(&realm.name)
             .bind(realm.access_token_ttl_secs)
             .bind(realm.refresh_token_ttl_secs)
+            .bind(realm.pkce_required_public_clients)
+            .bind(realm.lockout_threshold)
+            .bind(realm.lockout_duration_secs)
             .bind(&realm.browser_flow_id)
             .bind(&realm.registration_flow_id)
             .bind(&realm.direct_grant_flow_id)
@@ -102,6 +106,9 @@ impl RealmRepository for SqliteRealmRepository {
                 name = ?,
                 access_token_ttl_secs = ?,
                 refresh_token_ttl_secs = ?,
+                pkce_required_public_clients = ?,
+                lockout_threshold = ?,
+                lockout_duration_secs = ?,
                 browser_flow_id = ?,
                 registration_flow_id = ?,
                 direct_grant_flow_id = ?,
@@ -111,6 +118,9 @@ impl RealmRepository for SqliteRealmRepository {
         .bind(&realm.name)
         .bind(realm.access_token_ttl_secs)
         .bind(realm.refresh_token_ttl_secs)
+        .bind(realm.pkce_required_public_clients)
+        .bind(realm.lockout_threshold)
+        .bind(realm.lockout_duration_secs)
         .bind(&realm.browser_flow_id)
         .bind(&realm.registration_flow_id)
         .bind(&realm.direct_grant_flow_id)

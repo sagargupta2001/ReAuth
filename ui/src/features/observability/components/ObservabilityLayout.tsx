@@ -46,7 +46,7 @@ export function ObservabilityLayout({
   summary,
 }: ObservabilityLayoutProps) {
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
@@ -92,7 +92,11 @@ export function ObservabilityLayout({
 
       {summary}
 
-      <Tabs value={activeTab} onValueChange={onTabChange} className="flex min-h-0 flex-1 flex-col">
+      <Tabs
+        value={activeTab}
+        onValueChange={onTabChange}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
         <TabsList className="w-fit rounded-full border bg-muted/40 p-1">
           {tabs.map((tab) => (
             <TabsTrigger
@@ -107,11 +111,17 @@ export function ObservabilityLayout({
             </TabsTrigger>
           ))}
         </TabsList>
-        {tabs.map((tab) => (
-          <TabsContent key={tab.value} value={tab.value} className="min-h-0 flex-1 pt-4">
-            {tab.content}
-          </TabsContent>
-        ))}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {tabs.map((tab) => (
+            <TabsContent
+              key={tab.value}
+              value={tab.value}
+              className="mt-0 flex min-h-0 flex-1 flex-col pt-4"
+            >
+              {tab.content}
+            </TabsContent>
+          ))}
+        </div>
       </Tabs>
     </div>
   )

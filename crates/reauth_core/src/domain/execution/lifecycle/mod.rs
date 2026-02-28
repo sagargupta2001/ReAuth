@@ -1,6 +1,7 @@
 use crate::domain::auth_session::AuthenticationSession;
 use crate::error::Result;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -20,7 +21,15 @@ pub enum NodeOutcome {
     },
 
     /// Async Node: Stop execution and wait for an external event (Webhook/MagicLink).
-    SuspendForAsync,
+    SuspendForAsync {
+        action_type: String,
+        token: String,
+        expires_at: DateTime<Utc>,
+        resume_node_id: Option<String>,
+        payload: Value,
+        screen: String,
+        context: Value,
+    },
 
     /// Validation Failure: The user input was invalid (e.g., wrong password).
     /// Stay on the SAME node and re-render the UI with an error.

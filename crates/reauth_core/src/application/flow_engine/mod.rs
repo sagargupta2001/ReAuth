@@ -19,6 +19,8 @@ pub enum EngineResult {
     Redirect { url: String },
     /// Stop and wait (e.g. Email Sent)
     Wait,
+    /// Stop and wait with UI context
+    AwaitingAction { screen_id: String, context: Value },
 }
 
 pub struct FlowEngine {
@@ -176,6 +178,15 @@ impl FlowEngine {
                         // Stop! Persist state and return UI.
                         self.session_repo.update(&session).await?;
                         return Ok(EngineResult::ShowUI {
+                            screen_id: screen,
+                            context,
+                        });
+                    }
+                    NodeOutcome::SuspendForAsync {
+                        screen, context, ..
+                    } => {
+                        self.session_repo.update(&session).await?;
+                        return Ok(EngineResult::AwaitingAction {
                             screen_id: screen,
                             context,
                         });

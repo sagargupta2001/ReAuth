@@ -625,7 +625,8 @@ impl TelemetryRepository for SqliteTelemetryRepository {
                 COALESCE(SUM(CASE WHEN error IS NULL THEN 1 ELSE 0 END), 0) as success_count,
                 AVG(latency_ms) as avg_latency_ms
              FROM delivery_logs
-             WHERE strftime('%s', delivered_at) >= strftime('%s', 'now', ",
+             WHERE target_type != 'none'
+               AND strftime('%s', delivered_at) >= strftime('%s', 'now', ",
         );
         builder.push_bind(format!("-{} hours", window_hours));
         builder.push(")");

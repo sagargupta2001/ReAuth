@@ -172,6 +172,28 @@ impl FlowStore for SqliteFlowStore {
         skip_all,
         fields(telemetry = "span", db_table = "flow_drafts", db_op = "select")
     )]
+    async fn get_draft_by_id_with_tx(
+        &self,
+        id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<FlowDraft>> {
+        let query = sqlx::query_as("SELECT * FROM flow_drafts WHERE id = ?").bind(id.to_string());
+
+        let draft = if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.fetch_optional(&mut **sql_tx).await
+        } else {
+            query.fetch_optional(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(draft)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "flow_drafts", db_op = "select")
+    )]
     async fn list_drafts(
         &self,
         realm_id: &Uuid,

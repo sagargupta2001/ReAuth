@@ -4,17 +4,24 @@ use uuid::Uuid;
 
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
+use crate::domain::auth_session_action::AuthSessionAction;
 use crate::domain::execution::lifecycle::NodeOutcome;
 use crate::domain::execution::{ExecutionPlan, ExecutionResult, StepType};
 use crate::error::{Error, Result};
+use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
+use chrono::Utc;
+use sha2::{Digest, Sha256};
 use tracing::{info_span, instrument, Instrument};
 
 pub struct FlowExecutor {
     session_repo: Arc<dyn AuthSessionRepository>,
     flow_store: Arc<dyn FlowStore>,
     registry: Arc<RuntimeRegistry>,
+    action_repo: Arc<dyn AuthSessionActionRepository>,
 }
 
 impl FlowExecutor {
@@ -22,11 +29,13 @@ impl FlowExecutor {
         session_repo: Arc<dyn AuthSessionRepository>,
         flow_store: Arc<dyn FlowStore>,
         registry: Arc<RuntimeRegistry>,
+        action_repo: Arc<dyn AuthSessionActionRepository>,
     ) -> Self {
         Self {
             session_repo,
             flow_store,
             registry,
+            action_repo,
         }
     }
 
@@ -45,6 +54,10 @@ impl FlowExecutor {
         if session.status != SessionStatus::Active {
             self.heal_session(&mut session).await?;
             user_input = None;
+        }
+
+        if let Some(result) = self.pending_action_result(&session, user_input.is_some())? {
+            return Ok(result);
         }
 
         let version = self
@@ -139,6 +152,31 @@ impl FlowExecutor {
                         }
                         return Err(Error::System("Rejecting node did not return UI".into()));
                     }
+                    NodeOutcome::SuspendForAsync {
+                        action_type,
+                        token,
+                        expires_at,
+                        resume_node_id,
+                        payload,
+                        screen,
+                        context,
+                    } => {
+                        let result = self
+                            .handle_async_suspend(
+                                &mut session,
+                                AsyncSuspendRequest {
+                                    action_type,
+                                    token,
+                                    expires_at,
+                                    resume_node_id,
+                                    payload,
+                                    screen,
+                                    context,
+                                },
+                            )
+                            .await?;
+                        return Ok(result);
+                    }
                     _ => return Err(Error::System("Unexpected outcome from handle_input".into())),
                 }
             }
@@ -210,6 +248,31 @@ impl FlowExecutor {
                             context,
                         });
                     }
+                    NodeOutcome::SuspendForAsync {
+                        action_type,
+                        token,
+                        expires_at,
+                        resume_node_id,
+                        payload,
+                        screen,
+                        context,
+                    } => {
+                        let result = self
+                            .handle_async_suspend(
+                                &mut session,
+                                AsyncSuspendRequest {
+                                    action_type,
+                                    token,
+                                    expires_at,
+                                    resume_node_id,
+                                    payload,
+                                    screen,
+                                    context,
+                                },
+                            )
+                            .await?;
+                        return Ok(result);
+                    }
                     NodeOutcome::FlowSuccess { user_id: _ } => {
                         session.status = SessionStatus::Completed;
                         self.session_repo.update(&session).await?;
@@ -275,6 +338,50 @@ impl FlowExecutor {
         }
     }
 
+    pub async fn resume_action(&self, realm_id: Uuid, token: &str) -> Result<ExecutionResult> {
+        let token_hash = hash_token(token);
+        let action = self
+            .action_repo
+            .find_by_token_hash(&token_hash)
+            .await?
+            .ok_or(Error::InvalidActionToken)?;
+
+        if action.realm_id != realm_id {
+            return Err(Error::SecurityViolation(
+                "Resume token does not belong to this realm".to_string(),
+            ));
+        }
+
+        if action.is_expired() || action.is_consumed() {
+            return Err(Error::InvalidActionToken);
+        }
+
+        self.action_repo.mark_consumed(&action.id).await?;
+
+        let mut session = self
+            .session_repo
+            .find_by_id(&action.session_id)
+            .await?
+            .ok_or(Error::NotFound("Session not found".into()))?;
+
+        if let Some(resume_node_id) = action.resume_node_id.clone() {
+            session.current_node_id = resume_node_id;
+        }
+
+        session.status = SessionStatus::Active;
+        clear_pending_action(&mut session);
+        session.update_context(
+            "action_result",
+            serde_json::json!({
+                "action_id": action.id.to_string(),
+                "action_type": action.action_type,
+            }),
+        );
+
+        self.session_repo.update(&session).await?;
+        self.execute(session.id, None).await
+    }
+
     async fn heal_session(&self, session: &mut AuthenticationSession) -> Result<()> {
         let version = self
             .flow_store
@@ -288,9 +395,111 @@ impl FlowExecutor {
         session.current_node_id = plan.start_node_id;
         session.status = SessionStatus::Active;
         session.user_id = None;
+        clear_pending_action(session);
 
         self.session_repo.update(session).await?;
         Ok(())
+    }
+}
+
+fn hash_token(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    let result = hasher.finalize();
+    URL_SAFE_NO_PAD.encode(result)
+}
+
+fn clear_pending_action(session: &mut AuthenticationSession) {
+    if let serde_json::Value::Object(ref mut map) = session.context {
+        map.remove("pending_action_id");
+        map.remove("last_ui");
+    }
+}
+
+fn extract_pending_ui(session: &AuthenticationSession) -> Option<(String, Value)> {
+    let context = session.context.as_object()?;
+    if !context.contains_key("pending_action_id") {
+        return None;
+    }
+    let last_ui = context.get("last_ui")?.as_object()?;
+    let screen_id = last_ui.get("screen_id")?.as_str()?.to_string();
+    let ui_context = last_ui
+        .get("context")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    Some((screen_id, ui_context))
+}
+
+struct AsyncSuspendRequest {
+    action_type: String,
+    token: String,
+    expires_at: chrono::DateTime<chrono::Utc>,
+    resume_node_id: Option<String>,
+    payload: Value,
+    screen: String,
+    context: Value,
+}
+
+impl FlowExecutor {
+    fn pending_action_result(
+        &self,
+        session: &AuthenticationSession,
+        has_user_input: bool,
+    ) -> Result<Option<ExecutionResult>> {
+        if let Some((screen_id, context)) = extract_pending_ui(session) {
+            if has_user_input {
+                return Err(Error::Validation(
+                    "Flow is waiting for an async action".into(),
+                ));
+            }
+            return Ok(Some(ExecutionResult::AwaitingAction { screen_id, context }));
+        }
+        Ok(None)
+    }
+
+    async fn handle_async_suspend(
+        &self,
+        session: &mut AuthenticationSession,
+        request: AsyncSuspendRequest,
+    ) -> Result<ExecutionResult> {
+        if let Some((screen_id, context)) = extract_pending_ui(session) {
+            return Ok(ExecutionResult::AwaitingAction { screen_id, context });
+        }
+
+        let token_hash = hash_token(&request.token);
+        let action = AuthSessionAction::new(
+            session.id,
+            session.realm_id,
+            request.action_type,
+            token_hash,
+            request.payload,
+            request.resume_node_id,
+            request.expires_at,
+        );
+
+        self.action_repo.create(&action).await?;
+
+        session.update_context(
+            "pending_action_id",
+            serde_json::json!(action.id.to_string()),
+        );
+        let screen_id = request.screen.clone();
+        let ui_context = request.context.clone();
+        session.update_context(
+            "last_ui",
+            serde_json::json!({
+                "screen_id": screen_id,
+                "context": ui_context,
+                "updated_at": Utc::now(),
+            }),
+        );
+
+        self.session_repo.update(session).await?;
+
+        Ok(ExecutionResult::AwaitingAction {
+            screen_id: request.screen,
+            context: request.context,
+        })
     }
 }
 

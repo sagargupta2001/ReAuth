@@ -3,6 +3,7 @@ use crate::adapters::logging::banner::print_banner;
 use crate::adapters::observability::sqlite_telemetry_repository::SqliteTelemetryRepository;
 use crate::adapters::observability::telemetry_store::init_telemetry_db;
 use crate::adapters::observability::telemetry_writer::TelemetryWriter;
+use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::transaction::SqliteTransactionManager;
 use crate::application::delivery_replay_service::DeliveryReplayService;
 use crate::application::metrics_service::MetricsService;
@@ -30,6 +31,7 @@ struct InitializeOptions {
     watch_config: bool,
     enable_telemetry_cleanup: bool,
     enable_outbox_worker: bool,
+    enable_refresh_cleanup: bool,
 }
 
 pub async fn initialize() -> anyhow::Result<AppState> {
@@ -42,6 +44,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
             watch_config: true,
             enable_telemetry_cleanup: true,
             enable_outbox_worker: true,
+            enable_refresh_cleanup: true,
         },
     )
     .await
@@ -57,6 +60,7 @@ pub async fn initialize_for_tests() -> anyhow::Result<AppState> {
             watch_config: false,
             enable_telemetry_cleanup: false,
             enable_outbox_worker: false,
+            enable_refresh_cleanup: false,
         },
     )
     .await
@@ -133,6 +137,9 @@ async fn initialize_with_settings(
     }
     if options.enable_outbox_worker {
         OutboxWorker::new(db_pool.clone(), telemetry_db, plugin_manager.clone()).spawn();
+    }
+    if options.enable_refresh_cleanup {
+        spawn_refresh_token_cleanup(settings_shared.clone(), db_pool.clone());
     }
 
     Ok(AppState {
@@ -314,6 +321,51 @@ fn retention_cutoff(days: i64) -> Option<String> {
         return None;
     }
     Some((Utc::now() - Duration::days(days)).to_rfc3339())
+}
+
+fn spawn_refresh_token_cleanup(settings: Arc<RwLock<Settings>>, db_pool: Database) {
+    tokio::spawn(async move {
+        loop {
+            let interval_secs = {
+                settings
+                    .read()
+                    .await
+                    .auth
+                    .refresh_token_cleanup_interval_secs
+            };
+            if interval_secs == 0 {
+                info!("Refresh token cleanup disabled (refresh_token_cleanup_interval_secs=0).");
+                return;
+            }
+
+            tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
+
+            let retention_secs = { settings.read().await.auth.refresh_token_retention_secs };
+
+            let cutoff = if retention_secs <= 0 {
+                Utc::now()
+            } else {
+                Utc::now() - Duration::seconds(retention_secs)
+            };
+
+            match sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < ?")
+                .bind(cutoff)
+                .execute(&*db_pool)
+                .await
+            {
+                Ok(result) => {
+                    info!(
+                        "Refresh token cleanup removed {} tokens (expired before {}).",
+                        result.rows_affected(),
+                        cutoff
+                    );
+                }
+                Err(err) => {
+                    warn!("Failed to cleanup refresh tokens: {}", err);
+                }
+            }
+        }
+    });
 }
 
 pub(crate) async fn apply_settings_update(

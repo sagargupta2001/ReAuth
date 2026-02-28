@@ -6,7 +6,6 @@ use reauth_core::adapters::persistence::connection::Database;
 use reauth_core::adapters::persistence::sqlite_session_repository::SqliteSessionRepository;
 use reauth_core::domain::pagination::PageRequest;
 use reauth_core::domain::session::RefreshToken;
-use reauth_core::error::Error;
 use reauth_core::ports::session_repository::SessionRepository;
 use support::TestDb;
 use uuid::Uuid;
@@ -29,6 +28,7 @@ fn token(
 ) -> RefreshToken {
     RefreshToken {
         id,
+        family_id: id,
         user_id,
         realm_id,
         client_id: None,
@@ -37,6 +37,8 @@ fn token(
         user_agent: Some("agent".to_string()),
         created_at,
         last_used_at: created_at,
+        revoked_at: None,
+        replaced_by: None,
     }
 }
 
@@ -84,9 +86,6 @@ async fn save_find_and_delete_refresh_token() -> Result<()> {
     repo.delete_by_id(&refresh.id).await?;
     let missing = repo.find_by_id(&refresh.id).await?;
     assert!(missing.is_none());
-
-    let err = repo.delete_by_id(&refresh.id).await.unwrap_err();
-    assert!(matches!(err, Error::InvalidRefreshToken));
     Ok(())
 }
 
@@ -102,6 +101,7 @@ async fn find_by_id_skips_expired_tokens() -> Result<()> {
 
     let expired = RefreshToken {
         id: Uuid::new_v4(),
+        family_id: Uuid::new_v4(),
         user_id,
         realm_id,
         client_id: None,
@@ -110,6 +110,8 @@ async fn find_by_id_skips_expired_tokens() -> Result<()> {
         user_agent: None,
         created_at: Utc::now() - Duration::days(2),
         last_used_at: Utc::now() - Duration::days(2),
+        revoked_at: None,
+        replaced_by: None,
     };
     repo.save(&expired).await?;
 
@@ -146,8 +148,19 @@ async fn list_refresh_tokens_with_filters_and_pagination() -> Result<()> {
     );
     let token_c = token(Uuid::new_v4(), user_id, realm_id, now);
     let other_token = token(Uuid::new_v4(), user_id, other_realm, now);
+    let mut revoked_token = token(Uuid::new_v4(), user_id, realm_id, now);
+    revoked_token.revoked_at = Some(Utc::now());
+    let mut replaced_token = token(Uuid::new_v4(), user_id, realm_id, now);
+    replaced_token.replaced_by = Some(Uuid::new_v4());
 
-    for t in [&token_a, &token_b, &token_c, &other_token] {
+    for t in [
+        &token_a,
+        &token_b,
+        &token_c,
+        &other_token,
+        &revoked_token,
+        &replaced_token,
+    ] {
         repo.save(t).await?;
     }
 

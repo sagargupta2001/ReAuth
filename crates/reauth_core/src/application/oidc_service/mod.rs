@@ -19,6 +19,7 @@ use chrono::{Duration, Utc};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -78,7 +79,14 @@ impl OidcService {
     ) -> Result<AuthenticationSession> {
         // 1. Validate Client & Redirect URI immediately
         // This ensures we don't start a flow for a bad client.
-        self.validate_client(&realm_id, &req.client_id, &req.redirect_uri)
+        if req.response_type != "code" {
+            return Err(Error::OidcInvalidRequest(
+                "Unsupported response_type".to_string(),
+            ));
+        }
+
+        let client = self
+            .validate_client(&realm_id, &req.client_id, &req.redirect_uri)
             .await?;
 
         // 2. Fetch Realm to find the configured Browser Flow
@@ -87,6 +95,7 @@ impl OidcService {
             .find_by_id(&realm_id)
             .await?
             .ok_or(Error::NotFound("Realm not found".to_string()))?;
+        enforce_pkce_requirements(&client, &req, realm.pkce_required_public_clients)?;
 
         // 3. Identify the Flow ID
         let flow_id_str = realm.browser_flow_id.ok_or(Error::Validation(
@@ -114,7 +123,7 @@ impl OidcService {
             state: req.state,
             nonce: req.nonce,
             code_challenge: req.code_challenge,
-            code_challenge_method: req.code_challenge_method,
+            code_challenge_method: req.code_challenge_method.map(normalize_pkce_method),
         };
 
         // 6. Create the Authentication Session
@@ -167,7 +176,7 @@ impl OidcService {
             redirect_uri,
             nonce,
             code_challenge,
-            code_challenge_method,
+            code_challenge_method: normalize_pkce_method(code_challenge_method),
             expires_at: Utc::now() + Duration::seconds(300),
         };
 
@@ -195,12 +204,23 @@ impl OidcService {
             return Err(Error::OidcInvalidRedirect(redirect_uri.to_string()));
         }
 
-        // 2. Verify PKCE
-        if !crate::domain::oidc::verify_pkce_challenge(
-            auth_code.code_challenge.as_deref().unwrap_or(""),
-            code_verifier,
-        ) {
-            return Err(Error::OidcInvalidCode);
+        // 2. Verify PKCE if present
+        if let Some(expected_challenge) = auth_code.code_challenge.as_deref() {
+            if code_verifier.is_empty() {
+                return Err(Error::OidcInvalidRequest(
+                    "code_verifier is required".to_string(),
+                ));
+            }
+
+            if auth_code.code_challenge_method != "S256" {
+                return Err(Error::OidcInvalidRequest(
+                    "Unsupported code_challenge_method".to_string(),
+                ));
+            }
+
+            if !crate::domain::oidc::verify_pkce_challenge(expected_challenge, code_verifier) {
+                return Err(Error::OidcInvalidCode);
+            }
         }
 
         // 3. Delete the code
@@ -338,7 +358,63 @@ impl OidcService {
     pub async fn is_origin_allowed(&self, origin: &str) -> Result<bool> {
         self.oidc_repo.is_origin_allowed(origin).await
     }
+
+    pub async fn userinfo(&self, access_token: &str) -> Result<serde_json::Value> {
+        let claims = self
+            .token_service
+            .validate_access_token(access_token)
+            .await?;
+        let user = self
+            .user_repo
+            .find_by_id(&claims.sub)
+            .await?
+            .ok_or(Error::UserNotFound)?;
+
+        Ok(json!({
+            "sub": user.id.to_string(),
+            "preferred_username": user.username,
+            "roles": claims.roles,
+            "groups": claims.groups,
+        }))
+    }
 }
 
 #[cfg(test)]
 mod tests;
+
+fn normalize_pkce_method(method: String) -> String {
+    method.to_uppercase()
+}
+
+fn enforce_pkce_requirements(
+    client: &OidcClient,
+    req: &OidcRequest,
+    pkce_required_public_clients: bool,
+) -> Result<()> {
+    let is_public_client = client.client_secret.is_none();
+    let code_challenge = req.code_challenge.as_deref();
+    let code_challenge_method = req
+        .code_challenge_method
+        .as_deref()
+        .map(|value| value.to_uppercase());
+
+    if pkce_required_public_clients && is_public_client && code_challenge.is_none() {
+        return Err(Error::OidcInvalidRequest(
+            "PKCE is required for public clients".to_string(),
+        ));
+    }
+
+    if let Some(method) = code_challenge_method.as_deref() {
+        if method != "S256" {
+            return Err(Error::OidcInvalidRequest(
+                "Unsupported code_challenge_method".to_string(),
+            ));
+        }
+    } else if code_challenge.is_some() {
+        return Err(Error::OidcInvalidRequest(
+            "code_challenge_method is required".to_string(),
+        ));
+    }
+
+    Ok(())
+}

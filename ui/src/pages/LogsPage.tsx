@@ -86,7 +86,7 @@ export function LogsPage() {
   ]
 
   return (
-    <Main fixed className="flex h-full flex-col p-12">
+    <Main fixed className="flex min-h-0 flex-1 flex-col p-12">
       <ObservabilityLayout
         title={t('OBSERVABILITY.TITLE')}
         description={t('OBSERVABILITY.DESCRIPTION')}

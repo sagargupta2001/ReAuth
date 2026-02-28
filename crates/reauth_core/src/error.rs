@@ -35,6 +35,9 @@ pub enum Error {
     #[error("Invalid or expired refresh token")]
     InvalidRefreshToken,
 
+    #[error("Invalid or expired action token")]
+    InvalidActionToken,
+
     #[error("The session has been revoked.")]
     SessionRevoked,
 

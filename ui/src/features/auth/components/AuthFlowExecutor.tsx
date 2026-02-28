@@ -30,6 +30,11 @@ export function AuthFlowExecutor() {
     return searchParams.get('realm') || params.realm || 'master'
   }, [location.search, params.realm])
 
+  const resumeToken = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('resume_token') || searchParams.get('action_token')
+  }, [location.search])
+
   const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
@@ -45,6 +50,17 @@ export function AuthFlowExecutor() {
     const runInit = async () => {
       try {
         console.log(`[Executor] Starting Flow for realm: ${realm}`)
+
+        if (resumeToken) {
+          const response = await authApi.resumeFlow(realm, resumeToken)
+          const cleaned = new URLSearchParams(location.search)
+          cleaned.delete('resume_token')
+          cleaned.delete('action_token')
+          const search = cleaned.toString()
+          const nextUrl = search ? `${location.pathname}?${search}` : location.pathname
+          window.history.replaceState({}, document.title, nextUrl)
+          return response
+        }
 
         // [FIX] We pass the extracted 'realm' variable here
         // verify your authApi.startFlow uses this first argument to build the URL:
@@ -80,7 +96,7 @@ export function AuthFlowExecutor() {
     return () => {
       active = false
     }
-  }, [realm, location.search, currentStep])
+  }, [realm, location.pathname, location.search, currentStep, resumeToken])
 
   // 2. SUBMIT HANDLER
   const handleSubmit = async (data: Record<string, unknown>) => {
@@ -167,6 +183,29 @@ export function AuthFlowExecutor() {
       <div className="space-y-2 text-center text-green-600">
         <Loader2 className="mx-auto h-6 w-6 animate-spin" />
         <p className="text-sm">Redirecting...</p>
+      </div>
+    )
+  }
+
+  if (currentStep?.status === 'awaiting_action') {
+    const { challengeName, context } = currentStep
+    const ScreenComponent = getScreenComponent(challengeName)
+
+    if (ScreenComponent) {
+      return (
+        <ScreenComponent
+          onSubmit={handleSubmit}
+          isLoading={isLoading}
+          error={globalError}
+          context={context}
+        />
+      )
+    }
+
+    return (
+      <div className="space-y-2 text-center text-muted-foreground">
+        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+        <p className="text-sm">Waiting for verification...</p>
       </div>
     )
   }

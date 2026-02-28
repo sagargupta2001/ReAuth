@@ -170,7 +170,15 @@ impl FlowManager {
         mut tx: Option<&mut dyn Transaction>,
     ) -> Result<FlowVersion> {
         // 1. Get the Draft
-        let draft = self.get_draft(flow_id).await?;
+        let draft = if tx.is_some() {
+            let tx_ref = tx.as_deref_mut();
+            self.flow_store
+                .get_draft_by_id_with_tx(&flow_id, tx_ref)
+                .await?
+                .ok_or(Error::FlowNotFound(flow_id.to_string()))?
+        } else {
+            self.get_draft(flow_id).await?
+        };
 
         // 2. Parse Draft JSON (String -> Value)
         let graph_json_value: serde_json::Value = serde_json::from_str(&draft.graph_json)
@@ -247,9 +255,9 @@ impl FlowManager {
         if let Some(col_name) = column_to_update {
             debug!("Auto-binding flow {} to realm slot {}", flow_id, col_name);
 
-            // Pass references (&) for IDs and None for the transaction
+            let tx_ref = tx.as_deref_mut();
             self.realm_repo
-                .update_flow_binding(&realm_id, col_name, &flow_id, None)
+                .update_flow_binding(&realm_id, col_name, &flow_id, tx_ref)
                 .await?;
         }
 

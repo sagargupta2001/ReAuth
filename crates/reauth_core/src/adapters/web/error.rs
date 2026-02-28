@@ -16,6 +16,7 @@ impl IntoResponse for Error {
             Error::InvalidCredentials
             | Error::SessionRevoked
             | Error::InvalidRefreshToken
+            | Error::InvalidActionToken
             | Error::OidcInvalidCode => (StatusCode::UNAUTHORIZED, self.to_string()),
 
             // 403 Forbidden
@@ -75,6 +76,7 @@ fn error_code(error: &Error) -> &'static str {
         Error::InvalidCredentials => "auth.invalid_credentials",
         Error::SessionRevoked => "auth.session_revoked",
         Error::InvalidRefreshToken => "auth.invalid_refresh_token",
+        Error::InvalidActionToken => "auth.invalid_action_token",
         Error::OidcInvalidCode => "oidc.invalid_code",
         Error::SecurityViolation(_) => "security.violation",
         Error::UserAlreadyExists => "user.already_exists",

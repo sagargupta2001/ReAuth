@@ -2,24 +2,34 @@
 
 This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/docs/memory/roadmaps/`.
 
-## Now (next 2-4 weeks)
-- Implement flow version checksum in `FlowManager` (`TODO_HASH` currently).
-- Decide on `auth_sessions.execution_state` + `last_ui_output`: wire into runtime or remove from schema.
-- Capture IP/user-agent in execution flow (TODO in `execution_handler.rs`).
-- Align realm schema with flow bindings used in code (`client_authentication_flow_id`, `docker_authentication_flow_id`) or remove those bindings.
-- Decide how to handle `code_challenge_method` (currently only SHA-256 is implemented).
+## Focus Shift: Core Platform Roadmap (Phased)
 
-## Next (1-3 months)
-- Implement flow simulation (UI button exists, no backend implementation yet).
-- Expand node library and config schemas (e.g., registration/reset-specific nodes).
-- Solidify plugin security model (signing, permissions, isolation).
-- Define performance targets (startup time, memory) and add benchmarks.
+### Phase 1: OIDC Hardening & Flow Engine Maturity (Foundation)
+- Roadmap: `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
+- Goal: bring protocol compliance and the engine to production-grade security.
 
-## Later (3+ months)
-- Audit log persistence and export (currently event bus + log broadcast).
-- Multi-tenant operational tooling (backup/restore, data migration utilities).
+### Phase 2: Must-Have Identity Flows (MVP Parity)
+- Roadmap: `reauth/docs/memory/roadmaps/identity-flows.md`
+- Goal: registration, email verification, credential recovery, and MFA.
+
+### Phase 3: Developer Experience (SDKs)
+- Roadmap: `reauth/docs/memory/roadmaps/developer-experience.md`
+- Goal: React SDK and Node.js/Express SDK for 5-minute integration.
+
+### Phase 4: Enterprise Identity Brokering (Post-MVP)
+- Roadmap: `reauth/docs/memory/roadmaps/identity-brokering.md`
+- Goal: inbound social login and LDAP/AD integrations.
+
+### Phase 5: Advanced IAM Protocols
+- Roadmap: `reauth/docs/memory/roadmaps/advanced-iam.md`
+- Goal: token exchange and back-channel logout.
+
+### Cross-Cutting Architecture
+- Hybrid Plugin Architecture: `reauth/docs/memory/roadmaps/poly-plugin-architecture.md`
+- Developer Tooling (reauth-cli): `reauth/docs/memory/roadmaps/reauth-cli.md`
 
 ## Risks and dependencies
-- Flow type bindings for `client` and `docker` are referenced in code but missing in schema.
-- Plugin system security is currently minimal (POC) and may block enterprise usage.
-- OIDC `client_id` is globally unique in schema; may need per-realm uniqueness.
+- Flow engine pause/resume is a prerequisite for email verification and recovery flows.
+- OIDC hardening requires token family tracking and stricter client type validation.
+- Plugin security and isolation will gate enterprise adoption and advanced flows.
+- SDKs depend on stable, well-documented API contracts and error semantics.

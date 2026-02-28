@@ -35,7 +35,7 @@ For deeper documentation, see `docs/memory/`.
 
 ### 1) Backend (API)
 ```bash
-cargo run --package reauth_core --bin reauth_core
+make dev
 ```
 API runs at: `http://127.0.0.1:3000`
 
@@ -51,13 +51,7 @@ UI runs at: `http://localhost:5173`
 
 ## Embed UI (single binary)
 ```bash
-cd ui
-npm install
-npm run build
-
-# back to repo root
-cd ..
-cargo run --package reauth_core --features embed-ui
+make embed
 ```
 
 ---

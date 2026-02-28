@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use chrono::Utc;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tracing::{instrument, warn};
@@ -9,17 +10,47 @@ use crate::domain::{
     execution::lifecycle::{LifecycleNode, NodeOutcome},
 };
 use crate::error::{Error, Result};
+use crate::ports::login_attempt_repository::LoginAttemptRepository;
+use crate::ports::realm_repository::RealmRepository;
 use crate::ports::user_repository::UserRepository;
+const LOCKOUT_MESSAGE: &str = "Account temporarily locked. Try again later.";
 
 /// The Runtime Worker.
 /// It implements the LifecycleNode trait to handle the state machine logic.
 pub struct PasswordAuthenticator {
     user_repo: Arc<dyn UserRepository>,
+    realm_repo: Arc<dyn RealmRepository>,
+    login_attempt_repo: Arc<dyn LoginAttemptRepository>,
+    lockout_threshold: i64,
+    lockout_duration_secs: i64,
 }
 
 impl PasswordAuthenticator {
-    pub fn new(user_repo: Arc<dyn UserRepository>) -> Self {
-        Self { user_repo }
+    pub fn new(
+        user_repo: Arc<dyn UserRepository>,
+        realm_repo: Arc<dyn RealmRepository>,
+        login_attempt_repo: Arc<dyn LoginAttemptRepository>,
+        lockout_threshold: i64,
+        lockout_duration_secs: i64,
+    ) -> Self {
+        Self {
+            user_repo,
+            realm_repo,
+            login_attempt_repo,
+            lockout_threshold,
+            lockout_duration_secs,
+        }
+    }
+
+    async fn lockout_policy(&self, realm_id: &uuid::Uuid) -> Result<(i64, i64)> {
+        if let Some(realm) = self.realm_repo.find_by_id(realm_id).await? {
+            return Ok((realm.lockout_threshold, realm.lockout_duration_secs));
+        }
+        Ok((self.lockout_threshold, self.lockout_duration_secs))
+    }
+
+    fn lockout_enabled(&self, threshold: i64, duration_secs: i64) -> bool {
+        threshold > 0 && duration_secs > 0
     }
 }
 
@@ -91,6 +122,26 @@ impl LifecycleNode for PasswordAuthenticator {
             .and_then(|v| v.as_str())
             .ok_or(Error::Validation("Password is required".to_string()))?;
 
+        let (lockout_threshold, lockout_duration_secs) =
+            self.lockout_policy(&_session.realm_id).await?;
+        let lockout_enabled = self.lockout_enabled(lockout_threshold, lockout_duration_secs);
+        if lockout_enabled {
+            if let Some(attempt) = self
+                .login_attempt_repo
+                .find(&_session.realm_id, username)
+                .await?
+            {
+                if let Some(locked_until) = attempt.locked_until {
+                    if locked_until > Utc::now() {
+                        return self.reject_auth(_session, username, LOCKOUT_MESSAGE).await;
+                    }
+                    self.login_attempt_repo
+                        .clear(&_session.realm_id, username)
+                        .await?;
+                }
+            }
+        }
+
         // 2. Lookup User
         let user = match self
             .user_repo
@@ -101,6 +152,22 @@ impl LifecycleNode for PasswordAuthenticator {
             None => {
                 // Security: Fake verify to prevent timing attacks (optional)
                 warn!("Login failed: User not found '{}'", username);
+                if lockout_enabled {
+                    let attempt = self
+                        .login_attempt_repo
+                        .record_failure(
+                            &_session.realm_id,
+                            username,
+                            lockout_threshold,
+                            lockout_duration_secs,
+                        )
+                        .await?;
+                    if let Some(locked_until) = attempt.locked_until {
+                        if locked_until > Utc::now() {
+                            return self.reject_auth(_session, username, LOCKOUT_MESSAGE).await;
+                        }
+                    }
+                }
                 return self
                     .reject_auth(_session, username, "Invalid credentials")
                     .await;
@@ -111,9 +178,31 @@ impl LifecycleNode for PasswordAuthenticator {
         let hashed = HashedPassword::from_hash(&user.hashed_password)?;
         if !hashed.verify(password)? {
             warn!("Login failed: Invalid password for '{}'", username);
+            if lockout_enabled {
+                let attempt = self
+                    .login_attempt_repo
+                    .record_failure(
+                        &_session.realm_id,
+                        username,
+                        lockout_threshold,
+                        lockout_duration_secs,
+                    )
+                    .await?;
+                if let Some(locked_until) = attempt.locked_until {
+                    if locked_until > Utc::now() {
+                        return self.reject_auth(_session, username, LOCKOUT_MESSAGE).await;
+                    }
+                }
+            }
             return self
                 .reject_auth(_session, username, "Invalid credentials")
                 .await;
+        }
+
+        if lockout_enabled {
+            self.login_attempt_repo
+                .clear(&_session.realm_id, username)
+                .await?;
         }
 
         // 4. Success Logic

@@ -13,6 +13,11 @@ export type AuthExecutionResponse =
       url: string // e.g. "/" or "https://oidc-client.com/callback?code=..."
     }
   | {
+      status: 'awaiting_action'
+      challengeName: string // e.g. "awaiting-action"
+      context: Record<string, unknown>
+    }
+  | {
       status: 'failure'
       message: string // e.g. "Account locked"
     }

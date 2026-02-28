@@ -27,6 +27,13 @@ pub trait FlowStore: Send + Sync {
         self.update_draft(draft).await
     }
     async fn get_draft_by_id(&self, id: &Uuid) -> Result<Option<FlowDraft>>;
+    async fn get_draft_by_id_with_tx(
+        &self,
+        id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<FlowDraft>> {
+        self.get_draft_by_id(id).await
+    }
     async fn list_drafts(
         &self,
         realm_id: &Uuid,

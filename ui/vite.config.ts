@@ -29,7 +29,7 @@ export default defineConfig(({ mode }) => {
       coverage: {
         all: true,
         provider: 'v8',
-        reporter: ['text', 'json', 'html'],
+        reporter: ['text', 'json', 'json-summary', 'html'],
         include: ['src/**/*'],
         exclude: [
           'node_modules/',
