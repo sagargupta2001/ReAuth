@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/reauth_core", "crates/plugin/sdk", "crates/plugin/manager", "plugins/hello-world/backend"]
+members = ["crates/reauth_core"]
 resolver = "2"
 
 [workspace.dependencies]

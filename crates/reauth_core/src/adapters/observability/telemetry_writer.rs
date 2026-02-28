@@ -1,8 +1,7 @@
+use crate::domain::log::{LogEntry, LogSubscriber};
 use crate::domain::telemetry::{TelemetryLog, TelemetryTrace};
 use crate::ports::telemetry_repository::TelemetryRepository;
 use chrono::{DateTime, Duration, Utc};
-use manager::log_bus::LogSubscriber;
-use manager::LogEntry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast;

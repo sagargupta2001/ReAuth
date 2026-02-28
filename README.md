@@ -5,7 +5,7 @@
 
   **A modern, high‑performance, single‑binary IdP in Rust + React**
 
-  Multi‑realm · Flow Builder · OIDC/SSO · RBAC · gRPC Plugin POC
+  Multi‑realm · Flow Builder · OIDC/SSO · RBAC
 </div>
 
 ---
@@ -19,7 +19,6 @@ ReAuth is a lightweight identity provider inspired by Keycloak, designed for fas
 - SSO via refresh‑token cookie
 - Graph‑based flow builder (React Flow)
 - Basic RBAC (roles, permissions, groups)
-- gRPC plugin system (proof‑of‑concept)
 - SQLite‑first persistence
 
 ## Architecture
@@ -140,22 +139,12 @@ Default DB: `sqlite:data/reauth.db`
 
 ---
 
-## Plugins (POC)
-Plugins are discovered in `plugins/` and managed via the API:
-- `GET /api/plugins/manifests`
-- `POST /api/plugins/{id}/enable`
-- `POST /api/plugins/{id}/disable`
-
----
-
 ## Project structure (high‑level)
 ```
 reauth/
 ├─ crates/reauth_core/         # Rust backend
 ├─ ui/                         # React UI
 ├─ migrations/                 # SQLite schema
-├─ plugins/                    # Plugin binaries + manifests
-├─ proto/                      # gRPC proto files
 └─ docs/memory/                # Architecture + flow docs
 ```
 

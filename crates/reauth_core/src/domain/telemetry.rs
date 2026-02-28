@@ -107,5 +107,4 @@ pub struct EventRoutingMetrics {
     pub total_routed: i64,
     pub success_rate: f64,
     pub avg_latency_ms: Option<f64>,
-    pub active_plugins: i64,
 }

@@ -2,12 +2,8 @@ use crate::adapters::observability::telemetry_store::TelemetryDatabase;
 use crate::adapters::persistence::connection::Database;
 use anyhow::anyhow;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use manager::grpc::plugin::v1::event_listener_client::EventListenerClient;
-use manager::grpc::plugin::v1::EventRequest;
-use manager::PluginManager;
 use rand::Rng;
 use serde::Deserialize;
-use serde_json::Value;
 use sqlx::Row;
 use std::error::Error as StdError;
 use std::time::{Duration, Instant};
@@ -17,7 +13,6 @@ use uuid::Uuid;
 const BACKOFF_SCHEDULE_SECS: [i64; 5] = [60, 300, 1800, 7200, 43200];
 const BACKOFF_JITTER_FRACTION: f64 = 0.2;
 const MAX_CONSECUTIVE_FAILURES: i64 = 10;
-const PLUGIN_LEGACY_VERSION: &str = "v0";
 
 #[derive(Debug)]
 struct OutboxRow {
@@ -32,7 +27,6 @@ struct OutboxRow {
 pub struct OutboxWorker {
     db: Database,
     telemetry_db: TelemetryDatabase,
-    plugin_manager: PluginManager,
     http_client: reqwest::Client,
     poll_interval: Duration,
     batch_size: i64,
@@ -51,11 +45,7 @@ struct WebhookFailureLog<'a> {
 }
 
 impl OutboxWorker {
-    pub fn new(
-        db: Database,
-        telemetry_db: TelemetryDatabase,
-        plugin_manager: PluginManager,
-    ) -> Self {
+    pub fn new(db: Database, telemetry_db: TelemetryDatabase) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
             .build()
@@ -63,7 +53,6 @@ impl OutboxWorker {
         Self {
             db,
             telemetry_db,
-            plugin_manager,
             http_client,
             poll_interval: Duration::from_millis(500),
             batch_size: 50,
@@ -162,9 +151,8 @@ impl OutboxWorker {
         let mut failures: Vec<String> = Vec::new();
 
         let webhook_targets = self.fetch_webhook_targets(outbox).await?;
-        let plugin_targets = self.fetch_plugin_targets(outbox).await?;
 
-        if webhook_targets.is_empty() && plugin_targets.is_empty() {
+        if webhook_targets.is_empty() {
             self.log_delivery(DeliveryLogEntry {
                 outbox,
                 target_type: "none",
@@ -194,13 +182,6 @@ impl OutboxWorker {
 
         for target in webhook_targets {
             match self.dispatch_webhook(outbox, attempt, &target).await {
-                Ok(()) => {}
-                Err(err) => failures.push(err.to_string()),
-            }
-        }
-
-        for target in plugin_targets {
-            match self.dispatch_plugin(outbox, attempt, &target).await {
                 Ok(()) => {}
                 Err(err) => failures.push(err.to_string()),
             }
@@ -281,13 +262,6 @@ struct WebhookTarget {
     headers: Vec<(String, String)>,
 }
 
-#[derive(Debug, Clone)]
-struct PluginTarget {
-    id: String,
-    channel: tonic::transport::Channel,
-    supported_event_version: String,
-}
-
 impl OutboxWorker {
     async fn fetch_webhook_targets(
         &self,
@@ -323,23 +297,6 @@ impl OutboxWorker {
                 headers: parse_custom_headers(&row.custom_headers),
             })
             .collect())
-    }
-
-    async fn fetch_plugin_targets(&self, outbox: &OutboxRow) -> anyhow::Result<Vec<PluginTarget>> {
-        let active_plugins = self.plugin_manager.get_all_active_plugins().await;
-        let mut targets = Vec::new();
-
-        for (manifest, channel) in active_plugins {
-            if manifest.events.subscribes_to.contains(&outbox.event_type) {
-                targets.push(PluginTarget {
-                    id: manifest.id,
-                    channel,
-                    supported_event_version: manifest.events.supported_event_version,
-                });
-            }
-        }
-
-        Ok(targets)
     }
 
     async fn dispatch_webhook(
@@ -449,95 +406,6 @@ impl OutboxWorker {
                     warn!("Failed to log webhook failure telemetry: {}", err);
                 }
                 self.record_webhook_failure(&target.id, &error).await?;
-                return Err(err.into());
-            }
-        }
-
-        Ok(())
-    }
-
-    async fn dispatch_plugin(
-        &self,
-        outbox: &OutboxRow,
-        attempt: i64,
-        target: &PluginTarget,
-    ) -> anyhow::Result<()> {
-        let start = Instant::now();
-        let mut client = EventListenerClient::new(target.channel.clone());
-        let payload_json = match map_payload_for_version(
-            &outbox.payload_json,
-            &outbox.event_version,
-            &target.supported_event_version,
-        ) {
-            Ok(payload) => payload,
-            Err(err) => {
-                self.log_delivery(DeliveryLogEntry {
-                    outbox,
-                    target_type: "plugin",
-                    target_id: &target.id,
-                    attempt,
-                    response_status: None,
-                    response_body: None,
-                    error: Some(format!("version_mismatch: {}", err)),
-                    error_chain: None,
-                    latency_ms: 0,
-                })
-                .await?;
-                return Ok(());
-            }
-        };
-
-        let request = tonic::Request::new(EventRequest {
-            event_type: outbox.event_type.clone(),
-            event_payload_json: payload_json,
-        });
-
-        let result = tokio::time::timeout(Duration::from_secs(5), client.on_event(request)).await;
-        let latency_ms = start.elapsed().as_millis() as i64;
-
-        match result {
-            Ok(Ok(_)) => {
-                self.log_delivery(DeliveryLogEntry {
-                    outbox,
-                    target_type: "plugin",
-                    target_id: &target.id,
-                    attempt,
-                    response_status: None,
-                    response_body: None,
-                    error: None,
-                    error_chain: None,
-                    latency_ms,
-                })
-                .await?;
-            }
-            Ok(Err(err)) => {
-                self.log_delivery(DeliveryLogEntry {
-                    outbox,
-                    target_type: "plugin",
-                    target_id: &target.id,
-                    attempt,
-                    response_status: None,
-                    response_body: None,
-                    error: Some(err.to_string()),
-                    error_chain: None,
-                    latency_ms,
-                })
-                .await?;
-                return Err(err.into());
-            }
-            Err(err) => {
-                self.log_delivery(DeliveryLogEntry {
-                    outbox,
-                    target_type: "plugin",
-                    target_id: &target.id,
-                    attempt,
-                    response_status: None,
-                    response_body: None,
-                    error: Some(format!("timeout: {}", err)),
-                    error_chain: None,
-                    latency_ms,
-                })
-                .await?;
                 return Err(err.into());
             }
         }
@@ -751,28 +619,4 @@ fn serialize_error_chain(chain: &[String]) -> Option<String> {
 
 fn parse_http_method(method: &str) -> reqwest::Method {
     reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST)
-}
-
-fn map_payload_for_version(
-    payload_json: &str,
-    outbox_version: &str,
-    supported_version: &str,
-) -> anyhow::Result<String> {
-    if supported_version == outbox_version {
-        return Ok(payload_json.to_string());
-    }
-
-    if supported_version == PLUGIN_LEGACY_VERSION {
-        let value: Value = serde_json::from_str(payload_json)?;
-        if let Some(data) = value.get("data") {
-            return Ok(data.to_string());
-        }
-        return Ok("{}".to_string());
-    }
-
-    Err(anyhow!(
-        "unsupported mapping from {} to {}",
-        outbox_version,
-        supported_version
-    ))
 }

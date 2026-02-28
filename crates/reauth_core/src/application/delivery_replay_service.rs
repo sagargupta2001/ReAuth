@@ -4,20 +4,14 @@ use crate::application::telemetry_service::TelemetryService;
 use crate::application::webhook_service::WebhookService;
 use crate::domain::telemetry::DeliveryLog;
 use crate::error::{Error, Result};
-use anyhow::anyhow;
 use chrono::Utc;
-use manager::grpc::plugin::v1::event_listener_client::EventListenerClient;
-use manager::grpc::plugin::v1::EventRequest;
-use manager::PluginManager;
 use serde::Serialize;
-use serde_json::Value;
 use sqlx::Row;
 use std::error::Error as StdError;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const MAX_CONSECUTIVE_FAILURES: i64 = 10;
-const PLUGIN_LEGACY_VERSION: &str = "v0";
 
 #[derive(Debug, Serialize)]
 pub struct ReplayDeliveryResult {
@@ -34,7 +28,6 @@ pub struct DeliveryReplayService {
     webhook_service: std::sync::Arc<WebhookService>,
     telemetry_db: TelemetryDatabase,
     db: Database,
-    plugin_manager: PluginManager,
     http_client: reqwest::Client,
 }
 
@@ -44,7 +37,6 @@ impl DeliveryReplayService {
         webhook_service: std::sync::Arc<WebhookService>,
         telemetry_db: TelemetryDatabase,
         db: Database,
-        plugin_manager: PluginManager,
     ) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
@@ -55,7 +47,6 @@ impl DeliveryReplayService {
             webhook_service,
             telemetry_db,
             db,
-            plugin_manager,
             http_client,
         }
     }
@@ -67,7 +58,6 @@ impl DeliveryReplayService {
 
         match log.target_type.as_str() {
             "webhook" => self.replay_webhook(log).await,
-            "plugin" => self.replay_plugin(log).await,
             _ => Err(Error::Validation(format!(
                 "Unsupported target type {}",
                 log.target_type
@@ -169,98 +159,6 @@ impl DeliveryReplayService {
                 self.record_webhook_failure(&endpoint_id.to_string(), &error)
                     .await?;
 
-                Ok(ReplayDeliveryResult {
-                    delivery_id: new_delivery_id,
-                    target_type: log.target_type,
-                    target_id: log.target_id,
-                    response_status: None,
-                    error: Some(error),
-                    latency_ms: Some(latency_ms),
-                })
-            }
-        }
-    }
-
-    async fn replay_plugin(&self, log: DeliveryLog) -> Result<ReplayDeliveryResult> {
-        if log.payload_compressed {
-            return Err(Error::Validation(
-                "Compressed payload replay not supported".to_string(),
-            ));
-        }
-
-        let active_plugins = self.plugin_manager.get_all_active_plugins().await;
-        let Some((manifest, channel)) = active_plugins
-            .into_iter()
-            .find(|(manifest, _)| manifest.id == log.target_id)
-        else {
-            return Err(Error::System("Plugin is not active".to_string()));
-        };
-
-        let payload_json = match map_payload_for_version(
-            &log.payload,
-            &log.event_version,
-            &manifest.events.supported_event_version,
-        ) {
-            Ok(payload) => payload,
-            Err(err) => {
-                let error = format!("version_mismatch: {}", err);
-                let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, Some(error.clone()), None, 0)
-                    .await?;
-                return Ok(ReplayDeliveryResult {
-                    delivery_id: new_delivery_id,
-                    target_type: log.target_type,
-                    target_id: log.target_id,
-                    response_status: None,
-                    error: Some(error),
-                    latency_ms: Some(0),
-                });
-            }
-        };
-
-        let start = Instant::now();
-        let mut client = EventListenerClient::new(channel.clone());
-        let request = tonic::Request::new(EventRequest {
-            event_type: log.event_type.clone(),
-            event_payload_json: payload_json,
-        });
-
-        let result = tokio::time::timeout(Duration::from_secs(5), client.on_event(request)).await;
-        let latency_ms = start.elapsed().as_millis() as i64;
-
-        match result {
-            Ok(Ok(_)) => {
-                let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, None, None, latency_ms)
-                    .await?;
-                Ok(ReplayDeliveryResult {
-                    delivery_id: new_delivery_id,
-                    target_type: log.target_type,
-                    target_id: log.target_id,
-                    response_status: None,
-                    error: None,
-                    latency_ms: Some(latency_ms),
-                })
-            }
-            Ok(Err(err)) => {
-                let error = err.to_string();
-                let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, Some(error.clone()), None, latency_ms)
-                    .await?;
-                Ok(ReplayDeliveryResult {
-                    delivery_id: new_delivery_id,
-                    target_type: log.target_type,
-                    target_id: log.target_id,
-                    response_status: None,
-                    error: Some(error),
-                    latency_ms: Some(latency_ms),
-                })
-            }
-            Err(err) => {
-                let error = format!("timeout: {}", err);
-                let new_delivery_id = self
-                    .insert_delivery_log(&log, None, None, Some(error.clone()), None, latency_ms)
-                    .await?;
                 Ok(ReplayDeliveryResult {
                     delivery_id: new_delivery_id,
                     target_type: log.target_type,
@@ -375,30 +273,6 @@ impl DeliveryReplayService {
 
         Ok(())
     }
-}
-
-fn map_payload_for_version(
-    payload_json: &str,
-    outbox_version: &str,
-    supported_version: &str,
-) -> anyhow::Result<String> {
-    if supported_version == outbox_version {
-        return Ok(payload_json.to_string());
-    }
-
-    if supported_version == PLUGIN_LEGACY_VERSION {
-        let value: Value = serde_json::from_str(payload_json)?;
-        if let Some(data) = value.get("data") {
-            return Ok(data.to_string());
-        }
-        return Ok("{}".to_string());
-    }
-
-    Err(anyhow!(
-        "unsupported mapping from {} to {}",
-        outbox_version,
-        supported_version
-    ))
 }
 
 fn collect_error_chain(error: &reqwest::Error) -> Vec<String> {

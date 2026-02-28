@@ -57,11 +57,6 @@ pub struct CorsConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct PluginsConfig {
-    pub handshake_timeout_secs: u64,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
@@ -113,7 +108,6 @@ pub struct Settings {
     pub observability: ObservabilityConfig,
     #[serde(default)]
     pub cors: CorsConfig,
-    pub plugins: PluginsConfig,
     pub database: DatabaseConfig,
     pub auth: AuthConfig,
     pub default_admin: DefaultAdminConfig,

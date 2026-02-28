@@ -82,12 +82,8 @@ pub async fn start_server(app_state: AppState) -> anyhow::Result<()> {
     // Extract settings for binding
     let settings = app_state.settings.read().await.clone();
 
-    // Extract plugins path (Assuming it was added to AppState in bootstrap,
-    // otherwise pass it as a 2nd argument)
-    let plugins_path = app_state.plugins_path.clone();
-
     // Create Router
-    let app = create_router(app_state, plugins_path);
+    let app = create_router(app_state);
 
     let addr = SocketAddr::from((
         settings.server.host.parse::<std::net::IpAddr>()?,

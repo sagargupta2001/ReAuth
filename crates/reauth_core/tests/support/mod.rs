@@ -9,7 +9,6 @@ use reauth_core::config::DatabaseConfig;
 use reauth_core::initialize_for_tests;
 use reauth_core::AppState;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -56,7 +55,7 @@ impl TestContext {
             .await
             .expect("failed to initialize app state");
 
-        let router = create_router(app_state.clone(), app_state.plugins_path.clone());
+        let router = create_router(app_state.clone());
 
         Self {
             app_state,
@@ -72,11 +71,6 @@ impl TestContext {
             .oneshot(request)
             .await
             .expect("request failed")
-    }
-
-    #[allow(dead_code)]
-    pub fn plugins_path(&self) -> PathBuf {
-        self.app_state.plugins_path.clone()
     }
 }
 

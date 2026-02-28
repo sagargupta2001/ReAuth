@@ -119,14 +119,12 @@ pub async fn event_routing_metrics_handler(
     } else {
         0.0
     };
-    let active_plugins = state.plugin_manager.get_all_active_plugins().await.len() as i64;
 
     let response = EventRoutingMetrics {
         window_hours,
         total_routed,
         success_rate,
         avg_latency_ms: metrics.avg_latency_ms,
-        active_plugins,
     };
 
     Ok((StatusCode::OK, Json(response)))

@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::application::delivery_replay_service::DeliveryReplayService;
@@ -14,18 +13,16 @@ use crate::application::{
     realm_service::RealmService, telemetry_service::TelemetryService, user_service::UserService,
 };
 use crate::config::Settings;
+use crate::domain::log::LogSubscriber;
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::cache_service::CacheService;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::session_repository::SessionRepository;
-use manager::{log_bus::LogSubscriber, PluginManager};
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
     pub settings: Arc<RwLock<Settings>>,
-    pub plugin_manager: PluginManager,
-    pub plugins_path: PathBuf,
 
     // Services
     pub user_service: Arc<UserService>,

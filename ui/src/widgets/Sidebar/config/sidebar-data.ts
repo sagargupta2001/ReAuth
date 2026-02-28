@@ -5,7 +5,6 @@ import {
   KeyRound,
   LayoutDashboard,
   LucideClockFading,
-  Package,
   ScrollText,
   Settings,
   Users,
@@ -47,11 +46,6 @@ export const sidebarData: SidebarData = {
       title: 'Sessions',
       url: '/sessions',
       icon: LucideClockFading,
-    },
-    {
-      title: 'Plugins',
-      url: '/plugins',
-      icon: Package,
     },
     {
       title: 'Event Routing',

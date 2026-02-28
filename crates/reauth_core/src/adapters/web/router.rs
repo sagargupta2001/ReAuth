@@ -1,22 +1,19 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
-    log_stream_handler, observability_handler, oidc_handler, plugin_handler, rbac_handler,
-    realm_handler, search_handler, server::ui_handler, session_handler, user_handler,
-    webhook_handler,
+    log_stream_handler, observability_handler, oidc_handler, rbac_handler, realm_handler,
+    search_handler, server::ui_handler, session_handler, user_handler, webhook_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
 use crate::AppState;
-use axum::routing::{delete, get_service, put};
+use axum::routing::{delete, put};
 use axum::{
     middleware,
     routing::{get, post},
     Router,
 };
-use std::path::PathBuf;
-use tower_http::services::ServeDir;
 
-pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
+pub fn create_router(app_state: AppState) -> Router {
     // 1. Public Routes
     let public_api = Router::new()
         .route("/health", get(|| async { "OK" }))
@@ -25,7 +22,6 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
         .nest("/execution", execution_routes())
         .nest("/realms/{realm}/auth", auth_routes())
         .nest("/realms/{realm}/oidc", oidc_routes())
-        .nest("/plugins", plugin_routes())
         .nest("/realms/{realm}/users", public_user_routes());
 
     // 2. Protected Routes (Require Login)
@@ -78,7 +74,6 @@ pub fn create_router(app_state: AppState, plugins_path: PathBuf) -> Router {
     Router::new()
         .nest("/api", api_router)
         .nest("/api/system", system_api)
-        .nest_service("/plugins", get_service(ServeDir::new(plugins_path)))
         .fallback(ui_handler::static_handler)
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -458,21 +453,6 @@ fn flow_routes(state: AppState) -> Router<AppState> {
 
 fn execution_routes() -> Router<AppState> {
     Router::new().route("/{session_id}", post(execution_handler::submit_execution))
-}
-
-fn plugin_routes() -> Router<AppState> {
-    Router::new()
-        .route("/manifests", get(plugin_handler::get_plugin_manifests))
-        .route(
-            "/statuses",
-            get(plugin_handler::list_plugin_statuses_handler),
-        )
-        .route("/{id}/say-hello", get(plugin_handler::plugin_proxy_handler))
-        .route("/{id}/enable", post(plugin_handler::enable_plugin_handler))
-        .route(
-            "/{id}/disable",
-            post(plugin_handler::disable_plugin_handler),
-        )
 }
 
 fn oidc_routes() -> Router<AppState> {

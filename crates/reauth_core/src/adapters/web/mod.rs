@@ -9,7 +9,6 @@ pub mod log_stream_handler;
 pub mod middleware;
 pub mod observability_handler;
 pub mod oidc_handler;
-pub mod plugin_handler;
 pub mod rbac_handler;
 mod realm_handler;
 pub mod router;

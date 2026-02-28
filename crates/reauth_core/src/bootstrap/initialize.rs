@@ -12,7 +12,6 @@ use crate::bootstrap::database::{initialize_database, run_migrations_and_seed};
 use crate::bootstrap::events::subscribe_event_listeners;
 use crate::bootstrap::infrastructure::initialize_core_infra;
 use crate::bootstrap::logging::init_logging;
-use crate::bootstrap::plugins::{determine_plugins_path, initialize_plugins};
 use crate::bootstrap::repositories::initialize_repositories;
 use crate::bootstrap::services::initialize_services;
 use crate::config::Settings;
@@ -79,7 +78,6 @@ async fn initialize_with_settings(
         warn_public_url_mismatch(&settings);
     }
 
-    let plugins_path = determine_plugins_path()?;
     let telemetry_db = init_telemetry_db(&settings.observability.telemetry_db_path).await?;
     let telemetry_repo = Arc::new(SqliteTelemetryRepository::new(telemetry_db.clone()));
     let telemetry_service = Arc::new(TelemetryService::new(telemetry_repo.clone()));
@@ -104,13 +102,11 @@ async fn initialize_with_settings(
         tx_manager: &tx_manager,
     });
 
-    let plugin_manager = initialize_plugins(&settings, &plugins_path);
     let delivery_replay_service = Arc::new(DeliveryReplayService::new(
         telemetry_service.clone(),
         services.webhook_service.clone(),
         telemetry_db.clone(),
         db_pool.clone(),
-        plugin_manager.clone(),
     ));
 
     subscribe_event_listeners(&event_bus, &cache_service, &repos.rbac_repo).await;
@@ -136,7 +132,7 @@ async fn initialize_with_settings(
         spawn_telemetry_cleanup(settings_shared.clone(), telemetry_service.clone());
     }
     if options.enable_outbox_worker {
-        OutboxWorker::new(db_pool.clone(), telemetry_db, plugin_manager.clone()).spawn();
+        OutboxWorker::new(db_pool.clone(), telemetry_db).spawn();
     }
     if options.enable_refresh_cleanup {
         spawn_refresh_token_cleanup(settings_shared.clone(), db_pool.clone());
@@ -144,8 +140,6 @@ async fn initialize_with_settings(
 
     Ok(AppState {
         settings: settings_shared,
-        plugin_manager,
-        plugins_path,
         user_service: services.user_service,
         rbac_service: services.rbac_service,
         auth_service: services.auth_service,

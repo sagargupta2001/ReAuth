@@ -10,7 +10,6 @@ embed-ui = []      # prod mode (embed UI)
 
 [dependencies]
 # Local Crate Dependencies
-manager = { path = "../plugin/manager" }
 
 validator = { workspace = true, features = ["derive"] }
 config = { workspace = true, features = ["toml"] }
@@ -27,7 +26,6 @@ rust-embed = { workspace = true }
 anyhow = { workspace = true }
 mime_guess = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
-tonic = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }

@@ -8,6 +8,7 @@ pub mod events;
 pub mod execution;
 pub mod flow;
 pub mod group;
+pub mod log;
 pub mod login_attempt;
 pub mod oidc;
 pub mod pagination;

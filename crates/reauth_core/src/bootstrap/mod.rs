@@ -4,7 +4,6 @@ mod events;
 pub mod infrastructure;
 pub mod initialize;
 pub mod logging;
-pub mod plugins;
 pub mod repositories;
 pub mod runtime;
 pub mod seed;
