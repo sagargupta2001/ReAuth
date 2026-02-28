@@ -416,7 +416,7 @@ impl OutboxWorker {
     async fn record_webhook_success(&self, endpoint_id: &str) -> anyhow::Result<()> {
         sqlx::query(
             "UPDATE webhook_endpoints
-             SET consecutive_failures = 0, last_failure_at = NULL, updated_at = CURRENT_TIMESTAMP
+             SET consecutive_failures = 0, last_fired_at = CURRENT_TIMESTAMP, last_failure_at = NULL, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?",
         )
         .bind(endpoint_id)

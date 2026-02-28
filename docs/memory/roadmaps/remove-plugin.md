@@ -8,6 +8,8 @@
 - gRPC plugin POC has been entirely removed.
 - Event routing is now strictly for HTTP webhooks.
 - Project simplified to a single-crate structure (`reauth`).
+- UI "Event Routing" renamed to "Webhooks" and simplified.
+- "Last Fired" timestamp logic corrected with new database column.
 - All tests passing and documentation updated.
 
 ## Step-by-step plan (ordered)
@@ -40,4 +42,4 @@
 - None remaining.
 
 ## Open questions
-- Which comes first: theme schema + resolver or the scripting engine abstraction?
+- When should the theme engine + embedded scripting roadmap be formalized and added to memory docs?

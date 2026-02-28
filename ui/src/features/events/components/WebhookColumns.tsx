@@ -10,6 +10,7 @@ export type WebhookRow = {
   http_method: string
   status: 'active' | 'failing'
   subscriptions: string
+  last_fired_at: string | null
   updated_at: string
 }
 
@@ -54,13 +55,16 @@ export const webhookColumns: ColumnDef<WebhookRow>[] = [
     enableSorting: false,
   },
   {
-    accessorKey: 'updated_at',
+    accessorKey: 'last_fired_at',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Last Fired" />,
-    cell: ({ row }) => (
-      <div className="text-sm text-muted-foreground">
-        {formatRelativeTime(row.getValue('updated_at'))}
-      </div>
-    ),
+    cell: ({ row }) => {
+      const val = row.getValue('last_fired_at') as string | null
+      return (
+        <div className="text-sm text-muted-foreground">
+          {val ? formatRelativeTime(val) : 'Never'}
+        </div>
+      )
+    },
     enableSorting: true,
   },
 ]

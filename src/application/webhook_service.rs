@@ -188,6 +188,7 @@ impl WebhookService {
             custom_headers: payload.custom_headers,
             description: payload.description,
             consecutive_failures: 0,
+            last_fired_at: None,
             last_failure_at: None,
             disabled_at: None,
             disabled_reason: None,

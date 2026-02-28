@@ -38,6 +38,7 @@ fn create_endpoint(realm_id: Uuid) -> WebhookEndpoint {
         custom_headers: headers,
         description: Some("Test endpoint".to_string()),
         consecutive_failures: 0,
+        last_fired_at: None,
         last_failure_at: None,
         disabled_at: None,
         disabled_reason: None,

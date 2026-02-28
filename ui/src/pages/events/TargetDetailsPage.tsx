@@ -143,7 +143,7 @@ export function TargetDetailsPage() {
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
       <Button variant="ghost" className="w-fit gap-2" onClick={() => navigate('/events')}>
         <ArrowLeft className="h-4 w-4" />
-        Back to Event Routing
+        Back to Webhooks
       </Button>
 
       <div className="flex flex-wrap items-center justify-between gap-4">

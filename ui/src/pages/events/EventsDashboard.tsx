@@ -14,33 +14,24 @@ export function EventsDashboard() {
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Event Routing</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Webhooks</h1>
           <p className="text-muted-foreground">
-            Manage how ReAuth events are delivered to external webhook endpoints.
+            Manage how ReAuth events are delivered to external HTTP endpoints.
           </p>
         </div>
+        <WebhookEndpointForm
+          trigger={
+            <Button id="create-webhook">
+              <Plus className="h-4 w-4" />
+              Add Webhook
+            </Button>
+          }
+        />
       </div>
 
       <EventRoutingMetrics />
 
       <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold">HTTP Webhooks</h2>
-            <p className="text-sm text-muted-foreground">
-              Route selected events to third-party services with signed payloads.
-            </p>
-          </div>
-          <WebhookEndpointForm
-            trigger={
-              <Button id="create-webhook">
-                <Plus className="h-4 w-4" />
-                Add Webhook
-              </Button>
-            }
-          />
-        </div>
-
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardContent className="flex min-h-0 flex-1 flex-col p-4">
             <WebhooksTable />

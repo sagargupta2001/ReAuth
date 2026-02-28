@@ -14,6 +14,7 @@ pub struct WebhookEndpoint {
     pub custom_headers: HashMap<String, String>,
     pub description: Option<String>,
     pub consecutive_failures: i64,
+    pub last_fired_at: Option<String>,
     pub last_failure_at: Option<String>,
     pub disabled_at: Option<String>,
     pub disabled_reason: Option<String>,

@@ -202,7 +202,7 @@ impl WebhookRepository for SqliteWebhookRepository {
     ) -> Result<Option<WebhookEndpoint>> {
         let row = sqlx::query(
             "SELECT id, realm_id, name, url, http_method, status, signing_secret, custom_headers, description,
-                    consecutive_failures, last_failure_at, disabled_at, disabled_reason,
+                    consecutive_failures, last_fired_at, last_failure_at, disabled_at, disabled_reason,
                     created_at, updated_at
              FROM webhook_endpoints
              WHERE id = ? AND realm_id = ?",
@@ -225,6 +225,7 @@ impl WebhookRepository for SqliteWebhookRepository {
             custom_headers: Self::parse_headers(&row.get::<String, _>("custom_headers")),
             description: row.get("description"),
             consecutive_failures: row.get("consecutive_failures"),
+            last_fired_at: row.get("last_fired_at"),
             last_failure_at: row.get("last_failure_at"),
             disabled_at: row.get("disabled_at"),
             disabled_reason: row.get("disabled_reason"),
@@ -240,7 +241,7 @@ impl WebhookRepository for SqliteWebhookRepository {
     async fn list_endpoints(&self, realm_id: &Uuid) -> Result<Vec<WebhookEndpoint>> {
         let rows = sqlx::query(
             "SELECT id, realm_id, name, url, http_method, status, signing_secret, custom_headers, description,
-                    consecutive_failures, last_failure_at, disabled_at, disabled_reason,
+                    consecutive_failures, last_fired_at, last_failure_at, disabled_at, disabled_reason,
                     created_at, updated_at
              FROM webhook_endpoints
              WHERE realm_id = ?
@@ -266,6 +267,7 @@ impl WebhookRepository for SqliteWebhookRepository {
                 custom_headers: Self::parse_headers(&row.get::<String, _>("custom_headers")),
                 description: row.get("description"),
                 consecutive_failures: row.get("consecutive_failures"),
+                last_fired_at: row.get("last_fired_at"),
                 last_failure_at: row.get("last_failure_at"),
                 disabled_at: row.get("disabled_at"),
                 disabled_reason: row.get("disabled_reason"),
@@ -288,7 +290,7 @@ impl WebhookRepository for SqliteWebhookRepository {
         let pattern = format!("%{}%", query.to_lowercase());
         let rows = sqlx::query(
             "SELECT id, realm_id, name, url, http_method, status, signing_secret, custom_headers, description,
-                    consecutive_failures, last_failure_at, disabled_at, disabled_reason,
+                    consecutive_failures, last_fired_at, last_failure_at, disabled_at, disabled_reason,
                     created_at, updated_at
              FROM webhook_endpoints
              WHERE realm_id = ?
@@ -319,6 +321,7 @@ impl WebhookRepository for SqliteWebhookRepository {
                 custom_headers: Self::parse_headers(&row.get::<String, _>("custom_headers")),
                 description: row.get("description"),
                 consecutive_failures: row.get("consecutive_failures"),
+                last_fired_at: row.get("last_fired_at"),
                 last_failure_at: row.get("last_failure_at"),
                 disabled_at: row.get("disabled_at"),
                 disabled_reason: row.get("disabled_reason"),

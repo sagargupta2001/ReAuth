@@ -48,7 +48,7 @@ export const sidebarData: SidebarData = {
       icon: LucideClockFading,
     },
     {
-      title: 'Event Routing',
+      title: 'Webhooks',
       url: '/events',
       icon: Webhook,
     },
