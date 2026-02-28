@@ -8,7 +8,6 @@ export interface EventRoutingMetrics {
   total_routed: number
   success_rate: number
   avg_latency_ms: number | null
-  active_plugins: number
 }
 
 export function useEventRoutingMetrics(windowHours = 24) {

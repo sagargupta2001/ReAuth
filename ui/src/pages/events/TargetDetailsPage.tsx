@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useParams } from 'react-router-dom'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -6,7 +7,6 @@ import { Card, CardContent } from '@/components/card'
 import { Switch } from '@/components/switch'
 import type { DeliveryInspectorItem } from '@/features/events/components/DeliveriesInspector'
 import { DeliveriesInspector } from '@/features/events/components/DeliveriesInspector'
-import { useDeliveryLogs } from '@/features/events/api/useDeliveryLogs'
 import { useWebhookDeliveries } from '@/features/events/api/useWebhookDeliveries'
 import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useWebhookMutations } from '@/features/events/api/useWebhookMutations'
@@ -14,98 +14,44 @@ import { useWebhook } from '@/features/events/api/useWebhooks'
 import { WebhookEndpointForm } from '@/features/events/components/WebhookEndpointForm'
 import { useRollWebhookSecret } from '@/features/events/api/useRollWebhookSecret'
 import { useReplayDelivery } from '@/features/events/api/useReplayDelivery'
-import { usePlugins } from '@/features/plugin/api/usePlugins'
-import { usePluginMutations } from '@/features/plugin/api/usePluginMutations'
-import { useCurrentRealm } from '@/features/realm/api/useRealm'
 import { formatClockTime } from '@/lib/utils'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { Main } from '@/widgets/Layout/Main'
 import { ArrowLeft, Copy, Eye, EyeOff, RefreshCcw, RotateCcw, Trash2 } from 'lucide-react'
-import { useParams } from 'react-router-dom'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 
 export function TargetDetailsPage() {
-  const { targetType, targetId } = useParams<{ targetType: string; targetId: string }>()
+  const { targetId } = useParams<{ targetId: string }>()
   const [showSecret, setShowSecret] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const navigate = useRealmNavigate()
 
-  const isWebhook = targetType === 'webhooks'
-  const webhookId = isWebhook ? targetId : undefined
+  const webhookId = targetId
 
   const { data: webhookDetails, isLoading: webhookLoading, refetch: refetchWebhook } = useWebhook(
     webhookId,
   )
-  const { data: pluginData } = usePlugins()
-  const { data: currentRealm } = useCurrentRealm()
   const { enableWebhook, disableWebhook } = useWebhookMutations()
-  const { enablePlugin, disablePlugin } = usePluginMutations()
   const deleteWebhook = useDeleteWebhook()
   const rollSecret = useRollWebhookSecret()
   const replayDelivery = useReplayDelivery()
-
-  const plugin = useMemo(
-    () => pluginData?.statuses.find((item) => item.manifest.id === targetId),
-    [pluginData, targetId],
-  )
 
   const {
     data: webhookDeliveries,
     isLoading: webhookDeliveriesLoading,
     isFetching: webhookDeliveriesFetching,
     refetch: refetchWebhookDeliveries,
-  } = useWebhookDeliveries(
-    webhookId,
-    { per_page: 50, page: 1 },
-  )
-
-  const {
-    data: pluginDeliveries,
-    isLoading: pluginDeliveriesLoading,
-    isFetching: pluginDeliveriesFetching,
-    refetch: refetchPluginDeliveries,
-  } = useDeliveryLogs(
-    {
-      target_type: 'plugin',
-      target_id: targetId,
-      realm_id: currentRealm?.id,
-      limit: 50,
-    },
-    !isWebhook && !!targetId,
-  )
+  } = useWebhookDeliveries(webhookId, { per_page: 50, page: 1 })
 
   const endpoint = webhookDetails?.endpoint
-  const isActive = isWebhook
-    ? endpoint?.status === 'active'
-    : plugin?.status === 'active'
+  const isActive = endpoint?.status === 'active'
+  const toggleDisabled =
+    !endpoint || enableWebhook.isPending || disableWebhook.isPending || webhookLoading
 
-  const toggleDisabled = isWebhook
-    ? !endpoint || enableWebhook.isPending || disableWebhook.isPending || webhookLoading
-    : !plugin || enablePlugin.isPending || disablePlugin.isPending
+  const profileName = endpoint?.url || endpoint?.name || 'Webhook endpoint'
 
-  const profileName = isWebhook
-    ? endpoint?.url || endpoint?.name || 'Webhook endpoint'
-    : plugin?.manifest.name || 'gRPC plugin'
-
-  const pluginFailed =
-    !isWebhook && !!plugin && typeof plugin.status === 'object' && 'failed' in plugin.status
-
-  const statusLabel =
-    isActive === undefined
-      ? 'Loading'
-      : pluginFailed
-        ? 'Failed'
-        : isActive
-          ? 'Active'
-          : 'Disabled'
-  const statusVariant =
-    isActive === undefined
-      ? 'muted'
-      : pluginFailed
-        ? 'destructive'
-        : isActive
-          ? 'success'
-          : 'destructive'
+  const statusLabel = !endpoint ? 'Loading' : isActive ? 'Active' : 'Disabled'
+  const statusVariant = !endpoint ? 'muted' : isActive ? 'success' : 'destructive'
 
   const maskedSecret = useMemo(() => {
     const secret = endpoint?.signing_secret
@@ -116,7 +62,7 @@ export function TargetDetailsPage() {
   }, [endpoint?.signing_secret, showSecret])
 
   const deliveries = useMemo<DeliveryInspectorItem[]>(() => {
-    const logs = isWebhook ? webhookDeliveries?.data ?? [] : pluginDeliveries?.data ?? []
+    const logs = webhookDeliveries?.data ?? []
     return logs.map((log) => {
       const isSuccess =
         typeof log.response_status === 'number' &&
@@ -146,34 +92,20 @@ export function TargetDetailsPage() {
         },
       }
     })
-  }, [isWebhook, pluginDeliveries?.data, webhookDeliveries?.data])
+  }, [webhookDeliveries?.data])
 
-  const deliveriesLoading = isWebhook ? webhookDeliveriesLoading : pluginDeliveriesLoading
-  const deliveriesRefreshing = isWebhook ? webhookDeliveriesFetching : pluginDeliveriesFetching
+  const deliveriesLoading = webhookDeliveriesLoading
+  const deliveriesRefreshing = webhookDeliveriesFetching
   const refreshDeliveries = () => {
-    if (isWebhook) {
-      void refetchWebhookDeliveries()
-    } else {
-      void refetchPluginDeliveries()
-    }
+    void refetchWebhookDeliveries()
   }
 
   const handleStatusChange = (checked: boolean) => {
-    if (isWebhook && endpoint) {
-      if (checked) {
-        enableWebhook.mutate(endpoint.id)
-      } else {
-        disableWebhook.mutate({ endpointId: endpoint.id, reason: 'Disabled via UI' })
-      }
-      return
-    }
-
-    if (!isWebhook && plugin) {
-      if (checked) {
-        enablePlugin.mutate(plugin.manifest.id)
-      } else {
-        disablePlugin.mutate(plugin.manifest.id)
-      }
+    if (!endpoint) return
+    if (checked) {
+      enableWebhook.mutate(endpoint.id)
+    } else {
+      disableWebhook.mutate({ endpointId: endpoint.id, reason: 'Disabled via UI' })
     }
   }
 
@@ -211,21 +143,17 @@ export function TargetDetailsPage() {
     <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
       <Button variant="ghost" className="w-fit gap-2" onClick={() => navigate('/events')}>
         <ArrowLeft className="h-4 w-4" />
-        Back to Event Routing
+        Back to Webhooks
       </Button>
 
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold tracking-tight">{profileName}</h1>
-            <Badge variant={statusVariant}>
-              {statusLabel}
-            </Badge>
+            <Badge variant={statusVariant}>{statusLabel}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {isWebhook
-              ? 'Securely deliver events to this endpoint with signed payloads.'
-              : 'Inspect delivery history for the selected gRPC plugin.'}
+            Securely deliver events to this endpoint with signed payloads.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -236,7 +164,7 @@ export function TargetDetailsPage() {
           >
             <RefreshCcw className="h-4 w-4" />
           </Button>
-          {isWebhook && endpoint && (
+          {endpoint && (
             <>
               <WebhookEndpointForm
                 mode="edit"
@@ -265,16 +193,12 @@ export function TargetDetailsPage() {
           )}
           <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs text-muted-foreground">
             <span>Status</span>
-            <Switch
-              checked={!!isActive}
-              onCheckedChange={handleStatusChange}
-              disabled={toggleDisabled}
-            />
+            <Switch checked={!!isActive} onCheckedChange={handleStatusChange} disabled={toggleDisabled} />
           </div>
         </div>
       </div>
 
-      {isWebhook && (
+      {endpoint && (
         <Card>
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
             <div>
@@ -291,7 +215,7 @@ export function TargetDetailsPage() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setShowSecret((prev) => !prev)}
-                disabled={!endpoint?.signing_secret}
+                disabled={!endpoint.signing_secret}
               >
                 {showSecret ? <EyeOff /> : <Eye />}
               </Button>
@@ -299,14 +223,14 @@ export function TargetDetailsPage() {
                 variant="ghost"
                 size="icon"
                 onClick={handleCopySecret}
-                disabled={!endpoint?.signing_secret}
+                disabled={!endpoint.signing_secret}
               >
                 <Copy />
               </Button>
               <Button
                 variant="secondary"
                 onClick={handleRollSecret}
-                disabled={!endpoint?.signing_secret || rollSecret.isPending}
+                disabled={!endpoint.signing_secret || rollSecret.isPending}
               >
                 <RotateCcw className="h-4 w-4" />
                 Roll Secret

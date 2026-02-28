@@ -93,7 +93,7 @@ flowchart LR
 
 ## Key Files
 - Backend search aggregation:
-  - `crates/reauth_core/src/adapters/web/search_handler.rs`
+  - `src/adapters/web/search_handler.rs`
 - Frontend palette:
   - `ui/src/features/Search/components/OmniCommandPalette.tsx`
   - `ui/src/features/Search/components/PaletteInspector.tsx`
@@ -118,7 +118,6 @@ flowchart LR
 Add static items that deep-link into Event Routing tabs:
 - `Event Routing` → `/:realm/events?tab=webhooks`
 - `Event Routing — HTTP Webhooks` → `/:realm/events?tab=webhooks`
-- `Event Routing — gRPC Plugins` → `/:realm/events?tab=plugins`
 - `Create Webhook Endpoint` → `/:realm/events?tab=webhooks` (opens the page; user clicks “Add Webhook”)
 
 ### Add a Dynamic Entity Type
@@ -139,7 +138,6 @@ Example: Webhook Endpoints (DB-backed)
 4. Provide a `href` + `hash` for the corresponding page section.
 
 ## Future Enhancements
-- Plugin-based registration of palette entries.
 - Saved searches and pinned actions.
 - Cross-realm search for super admins.
 - Deeper inspector cards (last login, role summaries, audit links).

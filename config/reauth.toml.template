@@ -30,9 +30,6 @@
 # trace_retention_days = 7
 # cleanup_interval_secs = 3600 # 0 disables scheduled cleanup
 
-# [plugins]
-# handshake_timeout_secs = 5
-
 # [database]
 # url = "" # Leave empty to derive from database.data_dir
 # max_connections = 5

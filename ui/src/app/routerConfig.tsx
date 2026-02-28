@@ -6,7 +6,6 @@ import DashboardPage from '@/pages/DashboardPage'
 import { LoginPage } from '@/pages/LoginPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { PluginsPage } from '@/pages/PluginsPage.tsx'
 import { CachePage } from '@/pages/CachePage.tsx'
 import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
@@ -62,19 +61,13 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/plugins',
-    element: PluginsPage,
-    layout: AuthenticatedLayout,
-    isProtected: true,
-  },
-  {
     path: '/:realm/events',
     element: EventsDashboard,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
   {
-    path: '/:realm/events/:targetType/:targetId',
+    path: '/:realm/events/webhooks/:targetId',
     element: TargetDetailsPage,
     layout: AuthenticatedLayout,
     isProtected: true,

@@ -3,7 +3,6 @@
 ## Overview
 ReAuth uses a transactional outbox + background worker to deliver domain events to:
 - HTTP Webhooks (external systems)
-- gRPC Plugins (internal extensions)
 
 The system is designed to keep the request path fast while guaranteeing durable, at-least-once delivery.
 
@@ -12,7 +11,7 @@ The system is designed to keep the request path fast while guaranteeing durable,
 - **Event Envelope**: Standard payload wrapper for versioning and metadata.
 - **Transactional Outbox**: Events written in the same DB transaction as the state change.
 - **Outbox Worker**: Background job that fetches pending events and dispatches them.
-- **Unified Router**: Resolves destinations (webhooks + plugins) and fans out deliveries.
+- **Unified Router**: Resolves webhook destinations and fans out deliveries.
 - **Delivery Logs**: Every attempt is recorded with status, latency, and error chain.
 - **Retry + Circuit Breaker**: Backoff with jitter and auto-disable on repeated failures.
 
@@ -59,10 +58,8 @@ When a domain write happens:
 1. Worker polls pending outbox rows.
 2. Router resolves targets:
    - Webhook endpoints subscribed to the event.
-   - Active plugins whose manifest includes the event.
 3. Dispatchers deliver:
    - HTTP: signed request with HMAC-SHA256.
-   - gRPC: mapped to plugin-supported event version.
 4. Log every attempt into `delivery_logs`.
 5. Failed deliveries enqueue retry with jittered backoff.
 
@@ -107,7 +104,6 @@ sequenceDiagram
   participant Worker
   participant Router
   participant Webhook
-  participant Plugin
   participant Telemetry as reauth_telemetry.db
 
   Client->>API: Create User
@@ -118,7 +114,6 @@ sequenceDiagram
   Worker->>Outbox: Poll pending events
   Worker->>Router: Route user.created
   Router->>Webhook: POST/PUT signed payload
-  Router->>Plugin: gRPC EventRequest
   Router->>Telemetry: INSERT delivery_logs (attempt)
 ```
 

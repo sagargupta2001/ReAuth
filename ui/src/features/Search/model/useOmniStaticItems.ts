@@ -226,36 +226,6 @@ export function useOmniStaticItems() {
 
     items.push(
       {
-        id: 'nav.event-routing',
-        label: 'Event Routing',
-        description: 'Manage webhooks and plugin deliveries',
-        group: 'Navigation',
-        kind: 'link',
-        icon: Zap,
-        href: `/${realm}/events?tab=webhooks`,
-        keywords: ['events', 'webhooks', 'plugins', 'routing'],
-      },
-      {
-        id: 'nav.event-routing-webhooks',
-        label: 'Event Routing — HTTP Webhooks',
-        description: 'Manage webhook endpoints and subscriptions',
-        group: 'Navigation',
-        kind: 'link',
-        icon: Zap,
-        href: `/${realm}/events?tab=webhooks`,
-        keywords: ['events', 'webhooks', 'routing', 'http'],
-      },
-      {
-        id: 'nav.event-routing-plugins',
-        label: 'Event Routing — gRPC Plugins',
-        description: 'Manage plugin delivery targets',
-        group: 'Navigation',
-        kind: 'link',
-        icon: Activity,
-        href: `/${realm}/events?tab=plugins`,
-        keywords: ['events', 'plugins', 'routing', 'grpc'],
-      },
-      {
         id: 'observability.logs',
         label: 'Log Explorer',
         description: 'Inspect audit logs and events',

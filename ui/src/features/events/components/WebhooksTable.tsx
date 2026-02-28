@@ -64,6 +64,7 @@ export function WebhooksTable() {
         http_method: details.endpoint.http_method || 'POST',
         status: isFailing ? 'failing' : 'active',
         subscriptions: subscriptionSummary,
+        last_fired_at: details.endpoint.last_fired_at || null,
         updated_at: details.endpoint.updated_at,
       }
     })

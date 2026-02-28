@@ -19,7 +19,7 @@
 ### Backend (Rust)
 - **Small/Medium Suites**: Co-located `#[cfg(test)] mod tests` inside the source file.
 - **Large Suites**: Sibling `tests.rs` file within a folder module (e.g., `application/rbac_service/tests.rs`).
-- **Integration Tests**: `crates/reauth_core/tests/` for multi-module and infrastructure tests (SQLite, API).
+- **Integration Tests**: `/tests/` for multi-module and infrastructure tests (SQLite, API).
 - **Mocks**: Using `mockall` for trait-based dependency mocking.
 
 ### UI (React + TypeScript)

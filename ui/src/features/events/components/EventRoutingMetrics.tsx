@@ -1,4 +1,4 @@
-import { Activity, Gauge, Puzzle, ShieldCheck } from 'lucide-react'
+import { Activity, Gauge, ShieldCheck } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 
@@ -22,12 +22,11 @@ export function EventRoutingMetrics() {
 
   const totalRouted = data?.total_routed ?? 0
   const successRate = data?.success_rate ?? 0
-  const activePlugins = data?.active_plugins ?? 0
   const avgLatency = data?.avg_latency_ms ?? null
   const windowHours = data?.window_hours ?? 24
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-3">
       <Card className="border-sky-500/30 bg-sky-500/5">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm text-muted-foreground">
@@ -37,7 +36,7 @@ export function EventRoutingMetrics() {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-semibold">{totalRouted.toLocaleString()}</div>
-          <p className="text-xs text-muted-foreground">Across webhooks and plugins</p>
+          <p className="text-xs text-muted-foreground">Across webhook targets</p>
         </CardContent>
       </Card>
       <Card className="border-emerald-500/30 bg-emerald-500/5">
@@ -48,16 +47,6 @@ export function EventRoutingMetrics() {
         <CardContent>
           <div className="text-2xl font-semibold">{formatPercent(successRate)}</div>
           <p className="text-xs text-muted-foreground">Last {windowHours} hours</p>
-        </CardContent>
-      </Card>
-      <Card className="border-amber-500/30 bg-amber-500/5">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm text-muted-foreground">Active Plugins</CardTitle>
-          <Puzzle className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-semibold">{activePlugins}</div>
-          <p className="text-xs text-muted-foreground">gRPC delivery targets</p>
         </CardContent>
       </Card>
       <Card className="border-indigo-500/30 bg-indigo-500/5">

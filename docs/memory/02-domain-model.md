@@ -1,6 +1,6 @@
 # Domain Model
 
-This summarizes domain structs/enums in `reauth/crates/reauth_core/src/domain`.
+This summarizes domain structs/enums in `/src/domain`.
 
 ## Identity and tenancy
 - Realm: `id`, `name`, token TTLs, and flow bindings (`browser_flow_id`, `registration_flow_id`, `direct_grant_flow_id`, `reset_credentials_flow_id`).

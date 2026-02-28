@@ -5,7 +5,6 @@ import {
   KeyRound,
   LayoutDashboard,
   LucideClockFading,
-  Package,
   ScrollText,
   Settings,
   Users,
@@ -49,12 +48,7 @@ export const sidebarData: SidebarData = {
       icon: LucideClockFading,
     },
     {
-      title: 'Plugins',
-      url: '/plugins',
-      icon: Package,
-    },
-    {
-      title: 'Event Routing',
+      title: 'Webhooks',
       url: '/events',
       icon: Webhook,
     },

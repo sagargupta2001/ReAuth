@@ -24,8 +24,8 @@ A visual editor for auth flows using React Flow. The builder persists drafts, pu
 
 ## Node registry and palette
 - Backend node catalog comes from `NodeRegistryService` and `NodeProvider` definitions:
-  - Registry: `reauth/crates/reauth_core/src/application/node_registry.rs`
-  - Providers: `reauth/crates/reauth_core/src/domain/flow/nodes/*`
+  - Registry: `/src/application/node_registry.rs`
+  - Providers: `/src/domain/flow/nodes/*`
 - The palette uses `GET /flows/nodes` to populate available nodes and their config schemas.
 
 ## Draft persistence
@@ -44,8 +44,8 @@ A visual editor for auth flows using React Flow. The builder persists drafts, pu
 8. Delete draft after publish.
 
 Relevant code:
-- `reauth/crates/reauth_core/src/application/flow_manager/mod.rs`
-- `reauth/crates/reauth_core/src/domain/compiler/*`
+- `/src/application/flow_manager/mod.rs`
+- `/src/domain/compiler/*`
 
 ## Graph format expectations
 - Graph JSON must contain `nodes` and `edges` arrays.

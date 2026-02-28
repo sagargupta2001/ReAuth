@@ -20,7 +20,6 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 - `03-control-flow.md`
 - `04-oidc-sso-flows.md`
 - `05-flow-builder.md`
-- `06-plugin-system.md`
 - `07-data-model.md`
 - `08-dev-ops.md`
 - `09-roadmap.md`
@@ -36,4 +35,8 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 - `roadmaps/seeding.md`
 - `roadmaps/testing.md`
 - `roadmaps/omni-search.md`
+- `roadmaps/remove-plugin.md`
+- `roadmaps/theme-engine.md`
+- `roadmaps/embedded-scripting.md`
+- `roadmaps/oidc-future-enhancements.md`
 - `adr/README.md`

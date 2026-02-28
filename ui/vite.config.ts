@@ -15,10 +15,6 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
         },
-        '/plugins': {
-          target: proxyTarget,
-          changeOrigin: true,
-        },
       },
     },
     test: {

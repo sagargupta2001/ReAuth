@@ -9,6 +9,7 @@ export interface WebhookEndpoint {
   custom_headers: Record<string, string>
   description?: string | null
   consecutive_failures: number
+  last_fired_at?: string | null
   last_failure_at?: string | null
   disabled_at?: string | null
   disabled_reason?: string | null

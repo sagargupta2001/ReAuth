@@ -1,0 +1,50 @@
+use std::sync::Arc;
+
+use crate::application::delivery_replay_service::DeliveryReplayService;
+use crate::application::flow_executor::FlowExecutor;
+use crate::application::flow_manager::FlowManager;
+use crate::application::flow_service::FlowService;
+use crate::application::metrics_service::MetricsService;
+use crate::application::node_registry::NodeRegistryService;
+use crate::application::oidc_service::OidcService;
+use crate::application::webhook_service::WebhookService;
+use crate::application::{
+    audit_service::AuditService, auth_service::AuthService, rbac_service::RbacService,
+    realm_service::RealmService, telemetry_service::TelemetryService, user_service::UserService,
+};
+use crate::config::Settings;
+use crate::domain::log::LogSubscriber;
+use crate::ports::auth_session_repository::AuthSessionRepository;
+use crate::ports::cache_service::CacheService;
+use crate::ports::flow_store::FlowStore;
+use crate::ports::session_repository::SessionRepository;
+use tokio::sync::RwLock;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub settings: Arc<RwLock<Settings>>,
+
+    // Services
+    pub user_service: Arc<UserService>,
+    pub rbac_service: Arc<RbacService>,
+    pub auth_service: Arc<AuthService>,
+    pub audit_service: Arc<AuditService>,
+    pub telemetry_service: Arc<TelemetryService>,
+    pub delivery_replay_service: Arc<DeliveryReplayService>,
+    pub metrics_service: Arc<MetricsService>,
+    pub realm_service: Arc<RealmService>,
+    pub webhook_service: Arc<WebhookService>,
+    pub oidc_service: Arc<OidcService>,
+    pub flow_service: Arc<FlowService>,
+    pub flow_manager: Arc<FlowManager>,
+    pub node_registry: Arc<NodeRegistryService>,
+
+    // Infrastructure / Repositories
+    pub log_subscriber: Arc<dyn LogSubscriber>,
+    pub cache_service: Arc<dyn CacheService>,
+    pub auth_session_repo: Arc<dyn AuthSessionRepository>,
+    pub session_repo: Arc<dyn SessionRepository>,
+
+    pub flow_store: Arc<dyn FlowStore>,
+    pub flow_executor: Arc<FlowExecutor>,
+}
