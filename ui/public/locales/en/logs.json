@@ -1,6 +1,6 @@
 {
   "TITLE": "Logs and Analytics",
-  "DESCRIPTION": "Real-time system events and plugin logs.",
+  "DESCRIPTION": "Real-time system events.",
   "OBSERVABILITY": {
     "TITLE": "Observability",
     "DESCRIPTION": "Monitor logs, traces, and cache health across your realm.",

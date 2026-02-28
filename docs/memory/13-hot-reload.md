@@ -13,9 +13,9 @@ Enable safe, dev-friendly configuration updates without restarting the server. T
 - The new config is loaded via `Settings::new()` and replaces the in-memory settings inside `Arc<RwLock<Settings>>`.
 
 Relevant code:
-- `reauth/crates/reauth_core/src/bootstrap/initialize.rs` (watcher + reload loop)
-- `reauth/crates/reauth_core/src/config.rs` (`resolve_config_watch_path`)
-- `reauth/crates/reauth_core/src/bootstrap/app_state.rs` (shared `settings` storage)
+- `/src/bootstrap/initialize.rs` (watcher + reload loop)
+- `/src/config.rs` (`resolve_config_watch_path`)
+- `/src/bootstrap/app_state.rs` (shared `settings` storage)
 
 ## What reloads immediately
 Anything read through `state.settings.read().await` at request time, including:

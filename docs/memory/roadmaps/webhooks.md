@@ -4,7 +4,7 @@
 - Provide reliable, async delivery of domain events to HTTP webhooks without slowing the request path.
 
 ## Current state (code-aligned)
-- Domain events are a fixed enum in `crates/reauth_core/src/domain/events.rs` covering user, group, and role changes.
+- Domain events are a fixed enum in `src/domain/events.rs` covering user, group, and role changes.
 - The event bus is in-process only: `InMemoryEventBus` uses `tokio::sync::broadcast` with capacity 1024.
 - Events are published by application services like `UserService` and `RbacService`.
 - Subscribers registered at startup are `CacheInvalidator` (permission cache invalidation).

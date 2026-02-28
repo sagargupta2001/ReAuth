@@ -110,21 +110,21 @@ fmt:
 	cargo fmt --all
 
 clippy:
-	cargo clippy --workspace --all-targets --all-features -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
 
 test:
-	cargo test --workspace --all-features
+	cargo test --all-features
 
 test-docs:
-	cargo test -p reauth_core --doc
+	cargo test --doc
 
 coverage:
 	@mkdir -p $(COV_DIR)
-	cargo llvm-cov -p reauth_core --html --output-dir $(COV_DIR)
-	cargo llvm-cov -p reauth_core --json --summary-only --output-path $(COV_SUMMARY) --no-run
+	cargo llvm-cov --html --output-dir $(COV_DIR)
+	cargo llvm-cov --json --summary-only --output-path $(COV_SUMMARY) --no-run
 
 ui-build:
-	cd ui && npm run build
+	cd ui && npm install && npm run build
 
 ui-lint:
 	cd ui && npm run lint
@@ -136,14 +136,14 @@ ui-coverage:
 	cd ui && npm run coverage
 
 dev:
-	cargo run --package reauth_core --bin reauth_core
+	cargo run
 
 embed:
 	@if [ ! -d ui/dist ]; then \
 		echo "$(YELLOW)ui/dist missing. Building UI...$(RESET)"; \
 		$(MAKE) ui-build; \
 	fi
-	cargo run --package reauth_core --bin reauth_core --features embed-ui
+	cargo run --features embed-ui
 
 clean-tmp:
 	@rm -rf $(TMP_DIR)

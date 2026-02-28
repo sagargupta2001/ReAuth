@@ -3,10 +3,10 @@
 This file lists the known flow types and their current templates. All flows execute via the graph engine (FlowExecutor).
 
 ## Where flows are defined
-- Templates (graph JSON): `reauth/crates/reauth_core/src/application/flow_manager/templates.rs`
-- Flow metadata: `reauth/crates/reauth_core/src/domain/auth_flow.rs`
-- Flow bindings (realm slots): `reauth/crates/reauth_core/src/domain/realm.rs`
-- Publish/bind logic: `reauth/crates/reauth_core/src/application/flow_manager/mod.rs`
+- Templates (graph JSON): `/src/application/flow_manager/templates.rs`
+- Flow metadata: `/src/domain/auth_flow.rs`
+- Flow bindings (realm slots): `/src/domain/realm.rs`
+- Publish/bind logic: `/src/application/flow_manager/mod.rs`
 
 ## browser (default login)
 - Template: `FlowTemplates::browser_flow()`

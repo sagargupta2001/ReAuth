@@ -1,6 +1,6 @@
 /**
  * Represents the response from the Flow Engine (Executor).
- * Matches the JSON output from `crates/reauth_core/src/adapters/web/auth_handler.rs`.
+ * Matches the JSON output from `src/adapters/web/auth_handler.rs`.
  */
 export type AuthExecutionResponse =
   | {

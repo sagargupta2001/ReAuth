@@ -93,7 +93,7 @@ flowchart LR
 
 ## Key Files
 - Backend search aggregation:
-  - `crates/reauth_core/src/adapters/web/search_handler.rs`
+  - `src/adapters/web/search_handler.rs`
 - Frontend palette:
   - `ui/src/features/Search/components/OmniCommandPalette.tsx`
   - `ui/src/features/Search/components/PaletteInspector.tsx`

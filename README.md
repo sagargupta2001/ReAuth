@@ -84,7 +84,7 @@ Logging can be tuned via config (or `RUST_LOG` for advanced filtering):
 ```toml
 [logging]
 level = "info"
-filter = "reauth_core=info,sqlx=warn"
+filter = "reauth=info,sqlx=warn"
 ```
 
 You can also place a `reauth.toml` beside the executable or pass `--config /path/to/reauth.toml`.
@@ -101,7 +101,7 @@ curl -X POST http://localhost:3000/api/config/reload
 ---
 
 ## CLI Flags
-`reauth_core` supports a small set of flags:
+`reauth` supports a small set of flags:
 
 - `--help`, `-h`: show minimal help and exit (this list will expand as the CLI grows).
 - `--benchmark`: run initialization and migrations, then exit (used to validate startup).
@@ -117,13 +117,13 @@ Note for automation/LLMs: prefer `--help` and this section as the source of trut
 Examples:
 
 ```bash
-./reauth_core --print-config
-./reauth_core --init-config
-./reauth_core --check-config
-./reauth_core --config /path/to/reauth.toml --print-config
-./reauth_core --seed-only
-./reauth_core --seed-status
-./reauth_core --benchmark
+./reauth --print-config
+./reauth --init-config
+./reauth --check-config
+./reauth --config /path/to/reauth.toml --print-config
+./reauth --seed-only
+./reauth --seed-status
+./reauth --benchmark
 ```
 
 ---
@@ -132,7 +132,7 @@ Examples:
 Migrations are applied automatically on startup. To run migrations and exit:
 
 ```bash
-cargo run --package reauth_core --bin reauth_core -- --benchmark
+cargo run -- --benchmark
 ```
 
 Default DB: `sqlite:data/reauth.db`
@@ -142,7 +142,7 @@ Default DB: `sqlite:data/reauth.db`
 ## Project structure (high‑level)
 ```
 reauth/
-├─ crates/reauth_core/         # Rust backend
+├─ src/                        # Rust backend (reauth crate)
 ├─ ui/                         # React UI
 ├─ migrations/                 # SQLite schema
 └─ docs/memory/                # Architecture + flow docs

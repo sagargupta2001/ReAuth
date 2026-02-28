@@ -61,16 +61,16 @@ The seed history table is the source of truth for which seeders have run:
 
 See:
 - `reauth/migrations/20260218101500_seed_history.sql`
-- `reauth/crates/reauth_core/src/bootstrap/seed/history.rs`
+- `/src/bootstrap/seed/history.rs`
 
 ## Seed registry and context
 Key modules:
-- `reauth/crates/reauth_core/src/bootstrap/seed.rs` (orchestrator + registry)
-- `reauth/crates/reauth_core/src/bootstrap/seed/context.rs` (shared services + settings)
-- `reauth/crates/reauth_core/src/bootstrap/seed/realm.rs`
-- `reauth/crates/reauth_core/src/bootstrap/seed/flows.rs`
-- `reauth/crates/reauth_core/src/bootstrap/seed/admin.rs`
-- `reauth/crates/reauth_core/src/bootstrap/seed/oidc.rs`
+- `/src/bootstrap/seed.rs` (orchestrator + registry)
+- `/src/bootstrap/seed/context.rs` (shared services + settings)
+- `/src/bootstrap/seed/realm.rs`
+- `/src/bootstrap/seed/flows.rs`
+- `/src/bootstrap/seed/admin.rs`
+- `/src/bootstrap/seed/oidc.rs`
 
 The `SeedContext` provides:
 - Services (realm/user/flow/oidc/rbac)

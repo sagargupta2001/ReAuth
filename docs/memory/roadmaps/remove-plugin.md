@@ -7,7 +7,8 @@
 ## Current state
 - gRPC plugin POC has been entirely removed.
 - Event routing is now strictly for HTTP webhooks.
-- Workspace simplified to core application.
+- Project simplified to a single-crate structure (`reauth`).
+- All tests passing and documentation updated.
 
 ## Step-by-step plan (ordered)
 1. Inventory all plugin surfaces and dependencies across backend, UI, migrations, config, and docs.
@@ -31,7 +32,7 @@
 - [x] 6) Remove plugin data model artifacts (tables/columns, migrations, seed data, and any config settings).
 - [x] 7) Delete plugin assets and examples (`plugins/hello-world`) plus static asset serving paths.
 - [x] 8) Delete plugin crates (`crates/plugin/manager`, `crates/plugin/sdk`) and update workspace membership.
-- [ ] 9) Simplify the workspace to a single crate if feasible (move `crates/reauth_core` to `reauth/src`, update paths).
+- [x] 9) Simplify the workspace to a single crate if feasible (move `crates/reauth_core` to `reauth/src`, update paths).
 - [x] 10) Update documentation to remove plugin references and add the new internal extensibility direction.
 - [x] 11) Run verification (build, tests, UI navigation smoke) and confirm no plugin references remain.
 
