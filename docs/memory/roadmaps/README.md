@@ -16,6 +16,8 @@ Example paths:
 - `reauth/docs/memory/roadmaps/identity-brokering.md`
 - `reauth/docs/memory/roadmaps/advanced-iam.md`
 - `reauth/docs/memory/roadmaps/remove-plugin.md`
+- `reauth/docs/memory/roadmaps/theme-engine.md`
+- `reauth/docs/memory/roadmaps/embedded-scripting.md`
 
 ## Suggested template
 - Goal

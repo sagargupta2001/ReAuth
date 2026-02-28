@@ -40,4 +40,4 @@
 - None remaining.
 
 ## Open questions
-- When should the theme engine + embedded scripting roadmap be formalized and added to memory docs?
+- Which comes first: theme schema + resolver or the scripting engine abstraction?
