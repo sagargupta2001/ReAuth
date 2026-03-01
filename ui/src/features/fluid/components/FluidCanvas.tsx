@@ -19,6 +19,7 @@ interface FluidCanvasProps {
   assets: ThemeAsset[]
   selectedIndex: number | null
   isInspecting?: boolean
+  showChrome?: boolean
   onSelectBlock: (index: number) => void
 }
 
@@ -40,6 +41,7 @@ export function FluidCanvas({
   assets,
   selectedIndex,
   isInspecting = false,
+  showChrome = true,
   onSelectBlock,
 }: FluidCanvasProps) {
   const colors = getNestedRecord(tokens, 'colors')
@@ -227,25 +229,27 @@ export function FluidCanvas({
 
   return (
     <section className="flex h-full flex-1 flex-col">
-      <div className="bg-background flex items-center justify-between border-b px-4 py-2">
-        <Tabs defaultValue="desktop" className="w-auto">
-          <TabsList className="h-8">
-            <TabsTrigger value="desktop" className="gap-2 text-xs">
-              <Monitor className="h-3.5 w-3.5" /> Desktop
-            </TabsTrigger>
-            <TabsTrigger value="tablet" className="gap-2 text-xs">
-              <Tablet className="h-3.5 w-3.5" /> Tablet
-            </TabsTrigger>
-            <TabsTrigger value="mobile" className="gap-2 text-xs">
-              <Smartphone className="h-3.5 w-3.5" /> Mobile
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+      {showChrome && (
+        <div className="bg-background flex items-center justify-between border-b px-4 py-2">
+          <Tabs defaultValue="desktop" className="w-auto">
+            <TabsList className="h-8">
+              <TabsTrigger value="desktop" className="gap-2 text-xs">
+                <Monitor className="h-3.5 w-3.5" /> Desktop
+              </TabsTrigger>
+              <TabsTrigger value="tablet" className="gap-2 text-xs">
+                <Tablet className="h-3.5 w-3.5" /> Tablet
+              </TabsTrigger>
+              <TabsTrigger value="mobile" className="gap-2 text-xs">
+                <Smartphone className="h-3.5 w-3.5" /> Mobile
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-        <Button size="sm" variant="outline" disabled>
-          Reset Layout
-        </Button>
-      </div>
+          <Button size="sm" variant="outline" disabled>
+            Reset Layout
+          </Button>
+        </div>
+      )}
 
       <div className="bg-muted/5 relative flex flex-1 items-center justify-center overflow-auto p-10">
         {isInspecting && (
@@ -326,9 +330,11 @@ export function FluidCanvas({
               </div>
             </div>
 
-            <div className="mt-6 text-[10px] text-muted-foreground">
-              Click a block to inspect it. Use the + buttons to add blocks.
-            </div>
+            {showChrome && (
+              <div className="mt-6 text-[10px] text-muted-foreground">
+                Click a block to inspect it. Use the + buttons to add blocks.
+              </div>
+            )}
           </div>
         )}
       </div>

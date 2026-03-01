@@ -380,6 +380,10 @@ fn theme_admin_routes(state: AppState) -> Router<AppState> {
             get(theme_handler::preview_theme_handler),
         )
         .route(
+            "/{theme_id}/template-gaps",
+            get(theme_handler::list_theme_template_gaps_handler),
+        )
+        .route(
             "/{theme_id}/draft",
             get(theme_handler::get_theme_draft_handler)
                 .put(theme_handler::save_theme_draft_handler),

@@ -3,6 +3,8 @@ use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::domain::theme::ThemeDraft;
@@ -69,6 +71,11 @@ pub struct ThemeAssetSummary {
     pub created_at: String,
     pub updated_at: String,
     pub url: String,
+}
+
+#[derive(Serialize)]
+pub struct ThemeTemplateGapResponse {
+    pub missing: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -371,6 +378,47 @@ pub async fn preview_theme_handler(
     Ok((StatusCode::OK, Json(snapshot)))
 }
 
+pub async fn list_theme_template_gaps_handler(
+    State(state): State<AppState>,
+    Path((realm_name, theme_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let theme_uuid = Uuid::parse_str(&theme_id)
+        .map_err(|_| Error::Validation("Invalid theme id".to_string()))?;
+
+    let pages = state
+        .theme_service
+        .list_pages_for_theme(realm.id, theme_uuid)
+        .await?;
+    let page_keys: HashSet<String> = pages.into_iter().map(|page| page.key).collect();
+
+    let drafts = state.flow_manager.list_all_drafts(realm.id).await?;
+    let mut used_templates: HashSet<String> = HashSet::new();
+
+    for draft in drafts {
+        let graph: Value = match serde_json::from_str(&draft.graph_json) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        for key in extract_template_keys(&graph) {
+            used_templates.insert(key);
+        }
+    }
+
+    let mut missing: Vec<String> = used_templates
+        .into_iter()
+        .filter(|key| !page_keys.contains(key))
+        .collect();
+    missing.sort();
+
+    Ok((StatusCode::OK, Json(ThemeTemplateGapResponse { missing })))
+}
+
 pub async fn list_theme_assets_handler(
     State(state): State<AppState>,
     Path((realm_name, theme_id)): Path<(String, String)>,
@@ -503,6 +551,46 @@ pub async fn upload_theme_asset_handler(
     };
 
     Ok((StatusCode::CREATED, Json(response)))
+}
+
+fn extract_template_keys(graph: &Value) -> HashSet<String> {
+    let mut keys = HashSet::new();
+    let nodes = graph
+        .get("nodes")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    for node in nodes {
+        let node_type = node
+            .get("type")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+
+        let explicit = node
+            .get("data")
+            .and_then(|value| value.get("config"))
+            .and_then(|value| value.get("template_key"))
+            .and_then(|value| value.as_str());
+
+        let template = explicit
+            .map(|value| value.to_string())
+            .or_else(|| default_template_key(node_type).map(|value| value.to_string()));
+
+        if let Some(key) = template {
+            keys.insert(key);
+        }
+    }
+
+    keys
+}
+
+fn default_template_key(node_type: &str) -> Option<&'static str> {
+    match node_type {
+        "core.auth.password" => Some("login"),
+        "core.auth.otp" => Some("mfa"),
+        _ => None,
+    }
 }
 
 pub async fn get_theme_draft_handler(

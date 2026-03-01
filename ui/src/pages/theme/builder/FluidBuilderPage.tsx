@@ -16,12 +16,14 @@ import { useSaveThemeDraft } from '@/features/theme/api/useSaveThemeDraft'
 import { useThemeAssets } from '@/features/theme/api/useThemeAssets'
 import { useThemeDraft } from '@/features/theme/api/useThemeDraft'
 import { useUploadThemeAsset } from '@/features/theme/api/useUploadThemeAsset'
+import { useThemeTemplateGaps } from '@/features/theme/api/useThemeTemplateGaps'
 import { FluidBlocksPanel } from '@/features/fluid/components/FluidBlocksPanel'
 import { FluidBuilderHeader } from '@/features/fluid/components/FluidBuilderHeader'
 import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
 import { FluidInspector } from '@/features/fluid/components/FluidInspector'
 import { FluidPrimarySidebar } from '@/features/fluid/components/FluidPrimarySidebar'
 import { FluidThemeSettingsPanel } from '@/features/fluid/components/FluidThemeSettingsPanel'
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 
 const fallbackDraft: ThemeDraft = {
   tokens: {
@@ -105,6 +107,7 @@ export function FluidBuilderPage() {
     isLoading: isDraftLoading,
     isError: isDraftError,
   } = useThemeDraft(themeId)
+  const { data: templateGaps } = useThemeTemplateGaps(themeId)
 
   const [history, setHistory] = useState<DraftHistory>({
     past: [],
@@ -118,6 +121,8 @@ export function FluidBuilderPage() {
 
   const activeDraft = useMemo(() => draft ?? fallbackDraft, [draft])
   const draftState = history.present
+  const isActiveTheme = Boolean(data?.active_version_id)
+  const missingTemplates = isActiveTheme ? templateGaps?.missing ?? [] : []
 
   const availablePages = useMemo<ThemePageTemplate[]>(() => {
     const known = new Map(pages.map((page) => [page.key, page]))
@@ -449,6 +454,18 @@ export function FluidBuilderPage() {
         isSaving={isSaving}
         isPublishing={isPublishing}
       />
+      {missingTemplates.length > 0 && (
+        <div className="border-b px-6 py-2">
+          <Alert variant="destructive">
+            <AlertTitle>Missing templates in this theme</AlertTitle>
+            <AlertDescription className="text-xs">
+              Some flows reference templates that are not defined here:{' '}
+              {missingTemplates.join(', ')}. Users will fall back to system pages until you add
+              them.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       <div className="relative flex flex-1 overflow-hidden">
         <FluidPrimarySidebar activePanel={activePanel} onSelectPanel={setActivePanel} />

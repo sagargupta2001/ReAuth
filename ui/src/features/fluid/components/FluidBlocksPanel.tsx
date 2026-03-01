@@ -24,6 +24,27 @@ const BLOCK_LABELS: Map<string, string> = new Map(
   FLUID_BLOCKS.map((block) => [block.id, block.label]),
 )
 
+const LINK_PRESETS = [
+  {
+    id: 'forgot-password',
+    label: 'Forgot password',
+    description: 'Password reset entry point.',
+    props: { label: 'Forgot password?', href: '/forgot-password', target: '_self' },
+  },
+  {
+    id: 'terms',
+    label: 'Terms of service',
+    description: 'Link to legal terms.',
+    props: { label: 'Terms of Service', href: '/terms', target: '_blank' },
+  },
+  {
+    id: 'privacy',
+    label: 'Privacy policy',
+    description: 'Link to privacy policy.',
+    props: { label: 'Privacy Policy', href: '/privacy', target: '_blank' },
+  },
+] as const
+
 export function FluidBlocksPanel({
   blocks,
   selectedIndex,
@@ -70,6 +91,18 @@ export function FluidBlocksPanel({
       {
         block: definition.id,
         props: definition.props,
+        children: [],
+      },
+      insertIndex,
+    )
+    setOpenKey(null)
+  }
+
+  const handleSelectPreset = (preset: (typeof LINK_PRESETS)[number]) => {
+    onInsertBlock(
+      {
+        block: 'link',
+        props: preset.props,
         children: [],
       },
       insertIndex,
@@ -226,6 +259,31 @@ export function FluidBlocksPanel({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
+            </div>
+            <div className="mt-4 space-y-2">
+              <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
+                Quick Links
+              </span>
+              <div className="space-y-1">
+                {LINK_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onMouseEnter={() => setHoveredBlockId('link')}
+                    onFocus={() => setHoveredBlockId('link')}
+                    onClick={() => handleSelectPreset(preset)}
+                    className="hover:bg-muted/40 flex w-full items-center justify-between rounded-md px-2 py-2 text-left text-xs transition-colors"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-semibold">{preset.label}</span>
+                      <span className="text-muted-foreground text-[10px]">
+                        {preset.description}
+                      </span>
+                    </div>
+                    <Plus className="text-muted-foreground h-3.5 w-3.5" />
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="mt-4 max-h-[320px] space-y-4 overflow-y-auto pr-1">
               {groupedBlocks.map(([category, items]) => (

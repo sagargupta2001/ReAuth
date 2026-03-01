@@ -1,6 +1,8 @@
-import { LayoutTemplate, Palette, ShieldCheck } from 'lucide-react'
+import { LayoutTemplate, Loader2, Palette, ShieldCheck } from 'lucide-react'
 
 import type { Theme } from '@/entities/theme/model/types'
+import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
+import { useThemePreview } from '@/features/theme/api/useThemePreview'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 
 interface ThemeDetailsOverviewTabProps {
@@ -8,6 +10,22 @@ interface ThemeDetailsOverviewTabProps {
 }
 
 export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps) {
+  const { data: preview, isLoading } = useThemePreview(theme.id, { pageKey: 'login' })
+
+  const previewTokens = preview?.tokens ?? {
+    colors: {
+      primary: '#111827',
+      background: '#F8FAFC',
+      text: '#0F172A',
+    },
+    radius: {
+      base: 12,
+    },
+  }
+  const previewLayout = preview?.layout ?? { shell: 'CenteredCard' }
+  const previewBlocks = preview?.blocks ?? []
+  const previewAssets = preview?.assets ?? []
+
   return (
     <div className="grid gap-6 p-6 lg:grid-cols-[2fr_1fr]">
       <Card className="overflow-hidden">
@@ -18,29 +36,25 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-muted/10 flex min-h-[360px] items-center justify-center rounded-lg border p-8">
-            <div className="bg-background w-full max-w-sm space-y-4 rounded-xl border p-6 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
-                  <Palette className="text-primary h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">{theme.name}</p>
-                  <p className="text-muted-foreground text-xs">Universal Login</p>
-                </div>
+          <div className="bg-muted/10 flex min-h-[360px] items-center justify-center rounded-lg border">
+            {isLoading ? (
+              <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading preview...
               </div>
-
-              <div className="space-y-3">
-                <div className="bg-muted/40 h-9 rounded-md" />
-                <div className="bg-muted/40 h-9 rounded-md" />
-                <div className="bg-primary/90 h-9 rounded-md" />
+            ) : (
+              <div className="h-[360px] w-full">
+                <FluidCanvas
+                  tokens={previewTokens}
+                  layout={previewLayout}
+                  blocks={previewBlocks}
+                  assets={previewAssets}
+                  selectedIndex={null}
+                  isInspecting={false}
+                  showChrome={false}
+                  onSelectBlock={() => {}}
+                />
               </div>
-
-              <div className="text-muted-foreground flex items-center justify-between text-[10px]">
-                <span>Remember me</span>
-                <span>Forgot password?</span>
-              </div>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>
