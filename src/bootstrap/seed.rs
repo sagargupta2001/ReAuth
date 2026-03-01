@@ -6,12 +6,14 @@ mod flows;
 pub mod history;
 mod oidc;
 mod realm;
+mod theme;
 
 use crate::adapters::persistence::transaction::SqliteTransactionManager;
 use crate::application::flow_manager::FlowManager;
 use crate::application::oidc_service::OidcService;
 use crate::application::rbac_service::RbacService;
 use crate::application::realm_service::RealmService;
+use crate::application::theme_service::ThemeResolverService;
 use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::domain::realm::Realm;
@@ -35,6 +37,7 @@ pub async fn seed_database(
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
     rbac_service: &Arc<RbacService>,
+    theme_service: &Arc<ThemeResolverService>,
 ) -> anyhow::Result<()> {
     let ctx = SeedContext {
         realm_service,
@@ -45,12 +48,14 @@ pub async fn seed_database(
         settings,
         oidc_service,
         rbac_service,
+        theme_service,
     };
 
     let mut state = SeedState::default();
     let seeders: Vec<Box<dyn Seeder>> = vec![
         Box::new(RealmSeeder),
         Box::new(FlowsSeeder),
+        Box::new(ThemeSeeder),
         Box::new(AdminSeeder),
         Box::new(OidcSeeder),
     ];
@@ -143,6 +148,7 @@ trait Seeder: Send + Sync {
 
 struct RealmSeeder;
 struct FlowsSeeder;
+struct ThemeSeeder;
 struct AdminSeeder;
 struct OidcSeeder;
 
@@ -207,6 +213,36 @@ impl Seeder for FlowsSeeder {
         let mut realm = state.require_realm()?;
         flows::ensure_default_flows(ctx, &mut realm, tx).await?;
         state.set_realm(realm);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl Seeder for ThemeSeeder {
+    fn name(&self) -> &'static str {
+        "default_theme"
+    }
+
+    fn version(&self) -> i32 {
+        1
+    }
+
+    fn always_run(&self) -> bool {
+        true
+    }
+
+    fn checksum(&self, _ctx: &SeedContext<'_>) -> String {
+        "default_theme_v1".to_string()
+    }
+
+    async fn run(
+        &self,
+        ctx: &SeedContext<'_>,
+        state: &mut SeedState,
+        _tx: &mut Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()> {
+        let realm = state.require_realm()?;
+        theme::ensure_default_theme(ctx, realm.id).await?;
         Ok(())
     }
 }

@@ -1,4 +1,5 @@
 use crate::application::flow_service::FlowService;
+use crate::application::theme_service::ThemeResolverService;
 use crate::config::Settings;
 use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use crate::{
@@ -35,6 +36,7 @@ pub struct UpdateRealmPayload {
 pub struct RealmService {
     realm_repo: Arc<dyn RealmRepository>,
     flow_service: Arc<FlowService>,
+    theme_service: Arc<ThemeResolverService>,
     tx_manager: Arc<dyn TransactionManager>,
 }
 
@@ -42,11 +44,13 @@ impl RealmService {
     pub fn new(
         realm_repo: Arc<dyn RealmRepository>,
         flow_service: Arc<FlowService>,
+        theme_service: Arc<ThemeResolverService>,
         tx_manager: Arc<dyn TransactionManager>,
     ) -> Self {
         Self {
             realm_repo,
             flow_service,
+            theme_service,
             tx_manager,
         }
     }
@@ -98,6 +102,11 @@ impl RealmService {
 
             // D. Update Realm (Pass TX)
             self.realm_repo.update(&realm, Some(&mut *tx)).await?;
+
+            // E. Create default theme (Pass TX)
+            self.theme_service
+                .create_system_theme_in_tx(realm.id, &mut *tx)
+                .await?;
 
             Ok(realm)
         }

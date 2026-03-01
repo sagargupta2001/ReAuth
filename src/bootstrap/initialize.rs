@@ -121,6 +121,7 @@ async fn initialize_with_settings(
         &settings,
         &services.oidc_service,
         services.rbac_service.clone(),
+        services.theme_service.clone(),
     )
     .await?;
 
@@ -149,6 +150,7 @@ async fn initialize_with_settings(
         metrics_service,
         realm_service: services.realm_service,
         webhook_service: services.webhook_service,
+        theme_service: services.theme_service,
         log_subscriber: log_bus,
         cache_service: cache_service.clone(),
         auth_session_repo: repos.auth_session_repo,

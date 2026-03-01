@@ -1,10 +1,16 @@
 use super::{CreateRealmPayload, RealmService, UpdateRealmPayload};
 use crate::application::flow_service::FlowService;
+use crate::application::theme_service::ThemeResolverService;
 use crate::domain::auth_flow::AuthFlow;
 use crate::domain::realm::Realm;
+use crate::domain::theme::{
+    Theme, ThemeAsset, ThemeAssetMeta, ThemeBinding, ThemeLayout, ThemeNode, ThemeTokens,
+    ThemeVersion,
+};
 use crate::error::{Error, Result};
 use crate::ports::flow_repository::FlowRepository;
 use crate::ports::realm_repository::RealmRepository;
+use crate::ports::theme_repository::ThemeRepository;
 use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use async_trait::async_trait;
 use std::any::Any;
@@ -33,6 +39,182 @@ impl FlowRepository for TestFlowRepo {
 
     async fn list_flows_by_realm(&self, _realm_id: &Uuid) -> Result<Vec<AuthFlow>> {
         Ok(Vec::new())
+    }
+}
+
+#[derive(Default)]
+struct TestThemeRepo;
+
+#[async_trait]
+impl ThemeRepository for TestThemeRepo {
+    async fn create_theme(&self, _theme: &Theme, _tx: Option<&mut dyn Transaction>) -> Result<()> {
+        Ok(())
+    }
+
+    async fn update_theme(&self, _theme: &Theme, _tx: Option<&mut dyn Transaction>) -> Result<()> {
+        Ok(())
+    }
+
+    async fn set_theme_system(
+        &self,
+        _theme_id: &Uuid,
+        _is_system: bool,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn delete_theme(
+        &self,
+        _realm_id: &Uuid,
+        _theme_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn find_theme(&self, _realm_id: &Uuid, _theme_id: &Uuid) -> Result<Option<Theme>> {
+        Ok(None)
+    }
+
+    async fn list_themes(&self, _realm_id: &Uuid) -> Result<Vec<Theme>> {
+        Ok(Vec::new())
+    }
+
+    async fn upsert_tokens(
+        &self,
+        _tokens: &ThemeTokens,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_tokens(&self, _theme_id: &Uuid) -> Result<Option<ThemeTokens>> {
+        Ok(None)
+    }
+
+    async fn upsert_layout(
+        &self,
+        _layout: &ThemeLayout,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_layout(&self, _theme_id: &Uuid, _name: &str) -> Result<Option<ThemeLayout>> {
+        Ok(None)
+    }
+
+    async fn list_layouts(&self, _theme_id: &Uuid) -> Result<Vec<ThemeLayout>> {
+        Ok(Vec::new())
+    }
+
+    async fn upsert_node(
+        &self,
+        _node: &ThemeNode,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_node(&self, _theme_id: &Uuid, _node_key: &str) -> Result<Option<ThemeNode>> {
+        Ok(None)
+    }
+
+    async fn list_nodes(&self, _theme_id: &Uuid) -> Result<Vec<ThemeNode>> {
+        Ok(Vec::new())
+    }
+
+    async fn delete_node(
+        &self,
+        _theme_id: &Uuid,
+        _node_key: &str,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn create_asset(
+        &self,
+        _asset: &ThemeAsset,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_asset(&self, _theme_id: &Uuid, _asset_id: &Uuid) -> Result<Option<ThemeAsset>> {
+        Ok(None)
+    }
+
+    async fn list_assets(&self, _theme_id: &Uuid) -> Result<Vec<ThemeAssetMeta>> {
+        Ok(Vec::new())
+    }
+
+    async fn delete_asset(
+        &self,
+        _theme_id: &Uuid,
+        _asset_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn create_version(
+        &self,
+        _version: &ThemeVersion,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_version(
+        &self,
+        _theme_id: &Uuid,
+        _version_id: &Uuid,
+    ) -> Result<Option<ThemeVersion>> {
+        Ok(None)
+    }
+
+    async fn list_versions(&self, _theme_id: &Uuid) -> Result<Vec<ThemeVersion>> {
+        Ok(Vec::new())
+    }
+
+    async fn set_version_status(
+        &self,
+        _version_id: &Uuid,
+        _status: &str,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn upsert_binding(
+        &self,
+        _binding: &ThemeBinding,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_binding(
+        &self,
+        _realm_id: &Uuid,
+        _client_id: Option<&str>,
+    ) -> Result<Option<ThemeBinding>> {
+        Ok(None)
+    }
+
+    async fn list_bindings(&self, _realm_id: &Uuid) -> Result<Vec<ThemeBinding>> {
+        Ok(Vec::new())
+    }
+
+    async fn delete_binding(
+        &self,
+        _realm_id: &Uuid,
+        _client_id: Option<&str>,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
     }
 }
 
@@ -145,7 +327,9 @@ fn build_service(realm_repo: Arc<TestRealmRepo>) -> RealmService {
     let flow_repo = Arc::new(TestFlowRepo);
     let flow_service = Arc::new(FlowService::new(flow_repo));
     let tx_manager = Arc::new(TestTxManager::default());
-    RealmService::new(realm_repo, flow_service, tx_manager)
+    let theme_repo = Arc::new(TestThemeRepo);
+    let theme_service = Arc::new(ThemeResolverService::new(theme_repo, tx_manager.clone()));
+    RealmService::new(realm_repo, flow_service, theme_service, tx_manager)
 }
 
 fn base_realm() -> Realm {

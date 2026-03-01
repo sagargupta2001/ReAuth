@@ -13,6 +13,9 @@ import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
 import { FlowDetailsPage } from '@/pages/flow/FlowDetailsPage.tsx'
 import { FlowsIndexPage } from '@/pages/flow/FlowsIndexPage.tsx'
 import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
+import { ThemeDetailsPage } from '@/pages/theme/ThemeDetailsPage.tsx'
+import { ThemesIndexPage } from '@/pages/theme/ThemesIndexPage.tsx'
+import { FluidBuilderPage } from '@/pages/theme/builder/FluidBuilderPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { ObservabilitySettingsPage } from '@/pages/realm/settings/ObservabilitySettingsPage.tsx'
@@ -30,6 +33,7 @@ import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx'
 import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
 import { UsersPage } from '@/pages/user/listing/UsersPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
+import { FluidBuilderLayout } from '@/widgets/Layout/FluidBuilderLayout.tsx'
 import { FlowBuilderLayout } from '@/widgets/Layout/FlowBuilderLayout.tsx'
 import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
 import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx'
@@ -152,8 +156,20 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
+    path: '/:realm/themes',
+    element: ThemesIndexPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
     path: '/:realm/flows/:flowId',
     element: FlowDetailsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/themes/:themeId',
+    element: ThemeDetailsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
@@ -167,6 +183,12 @@ export const staticRoutes: RouteConfig[] = [
     path: '/:realm/flows/:flowId/builder',
     element: FlowBuilderPage,
     layout: FlowBuilderLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/themes/:themeId/fluid',
+    element: FluidBuilderPage,
+    layout: FluidBuilderLayout,
     isProtected: true,
   },
   {

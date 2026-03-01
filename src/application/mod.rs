@@ -12,5 +12,6 @@ pub mod rbac_service;
 pub mod realm_service;
 pub mod runtime_registry;
 pub mod telemetry_service;
+pub mod theme_service;
 pub mod user_service;
 pub mod webhook_service;

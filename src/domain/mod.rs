@@ -18,5 +18,7 @@ pub mod realm;
 pub mod role;
 pub mod session;
 pub mod telemetry;
+pub mod theme;
+pub mod theme_pages;
 pub mod user;
 pub mod webhook;

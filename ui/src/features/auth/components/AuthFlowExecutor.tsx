@@ -35,6 +35,11 @@ export function AuthFlowExecutor() {
     return searchParams.get('resume_token') || searchParams.get('action_token')
   }, [location.search])
 
+  const clientId = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('client_id') || undefined
+  }, [location.search])
+
   const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
@@ -198,6 +203,8 @@ export function AuthFlowExecutor() {
           isLoading={isLoading}
           error={globalError}
           context={context}
+          realm={realm}
+          clientId={clientId}
         />
       )
     }
@@ -221,6 +228,8 @@ export function AuthFlowExecutor() {
           isLoading={isLoading}
           error={globalError}
           context={context}
+          realm={realm}
+          clientId={clientId}
         />
       )
     }

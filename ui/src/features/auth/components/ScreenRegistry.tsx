@@ -3,15 +3,15 @@ import type { FunctionComponent } from 'react'
 import type { AuthScreenProps } from '@/entities/auth/model/screenTypes.ts'
 
 import { AwaitingActionScreen } from '@/features/auth/screens/AwaitingActionScreen'
-import { UsernamePasswordScreen } from '@/features/auth/screens/UsernamePasswordScreen'
+import { FluidLoginScreen } from '@/features/auth/screens/FluidLoginScreen'
 
 // Define the keys the backend sends (e.g., "core.auth.password")
 const SCREEN_MAP: Record<string, FunctionComponent<AuthScreenProps>> = {
   // Legacy support
-  FORM: UsernamePasswordScreen,
+  FORM: FluidLoginScreen,
 
   // New Node IDs
-  'core.auth.password': UsernamePasswordScreen,
+  'core.auth.password': FluidLoginScreen,
   'core.awaiting-action': AwaitingActionScreen,
   'awaiting-action': AwaitingActionScreen,
 
@@ -25,7 +25,7 @@ export const getScreenComponent = (screenId: string): FunctionComponent<AuthScre
   if (SCREEN_MAP[screenId]) return SCREEN_MAP[screenId]
 
   // 2. Fuzzy Match (Fallback for dynamic IDs like "password-form-1")
-  if (screenId.includes('password') || screenId.includes('login')) return UsernamePasswordScreen
+  if (screenId.includes('password') || screenId.includes('login')) return FluidLoginScreen
 
   return null
 }
