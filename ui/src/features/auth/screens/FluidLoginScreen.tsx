@@ -51,8 +51,11 @@ export function FluidLoginScreen({
   realm = 'master',
   clientId,
 }: AuthScreenProps) {
+  const templateKey =
+    typeof context?.template_key === 'string' ? (context.template_key as string) : 'login'
+
   const { data: snapshot, isLoading: isThemeLoading } = useThemeSnapshot(realm, {
-    pageKey: 'login',
+    pageKey: templateKey,
     clientId,
   })
   const [localError, setLocalError] = useState<string | null>(null)
@@ -285,6 +288,24 @@ export function FluidLoginScreen({
       }
       case 'divider':
         return wrap(<Separator />, options?.wrapperClass)
+      case 'link': {
+        const label = String(props.label || 'Link')
+        const href = String(props.href || '#')
+        const target = String(props.target || '_self')
+        const isExternal = target === '_blank'
+        return wrap(
+          <a
+            href={href}
+            target={target}
+            rel={isExternal ? 'noreferrer' : undefined}
+            className={cn('text-xs underline', alignClass)}
+            style={{ color: fontColor || primary }}
+          >
+            {label}
+          </a>,
+          options?.wrapperClass,
+        )
+      }
       default:
         return wrap(
           <div className="text-xs text-muted-foreground">Unknown block: {block.block}</div>,

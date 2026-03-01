@@ -40,6 +40,14 @@ export const FLUID_BLOCKS = [
     props: {},
   },
   {
+    id: 'link',
+    label: 'Link',
+    description: 'Inline navigation or legal links',
+    icon: Type,
+    category: 'Text',
+    props: { label: 'Forgot password?', href: '/forgot-password', target: '_self' },
+  },
+  {
     id: 'image',
     label: 'Image',
     description: 'Brand or hero image',

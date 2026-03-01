@@ -369,6 +369,7 @@ fn theme_admin_routes(state: AppState) -> Router<AppState> {
             "/",
             get(theme_handler::list_themes_handler).post(theme_handler::create_theme_handler),
         )
+        .route("/active", get(theme_handler::get_active_theme_handler))
         .route("/pages", get(theme_handler::list_theme_pages_handler))
         .route(
             "/{theme_id}",
@@ -399,6 +400,10 @@ fn theme_admin_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{theme_id}/versions/{version_id}/activate",
             post(theme_handler::activate_theme_version_handler),
+        )
+        .route(
+            "/{theme_id}/versions/{version_id}/draft",
+            post(theme_handler::start_theme_draft_from_version_handler),
         )
         .route_layer(middleware::from_fn_with_state(
             state,

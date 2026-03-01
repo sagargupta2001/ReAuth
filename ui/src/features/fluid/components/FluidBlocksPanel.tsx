@@ -335,6 +335,8 @@ function BlockPreview({ blockId }: { blockId: FluidBlockDefinition['id'] }) {
       )
     case 'divider':
       return <div className="h-px w-full bg-border" />
+    case 'link':
+      return <div className="text-primary text-xs underline">Forgot password?</div>
     case 'image':
       return (
         <div className="flex h-28 w-full items-center justify-center rounded-md border bg-muted/20 text-[10px] text-muted-foreground">

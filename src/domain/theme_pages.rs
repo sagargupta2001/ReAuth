@@ -148,6 +148,7 @@ fn default_login_blueprint() -> Value {
             { "block": "text", "props": { "text": "Welcome back" }, "children": [] },
             { "block": "input", "props": { "label": "Email or username", "name": "username", "input_type": "text" }, "children": [] },
             { "block": "input", "props": { "label": "Password", "name": "password", "input_type": "password" }, "children": [] },
+            { "block": "link", "props": { "label": "Forgot password?", "href": "/forgot-password", "target": "_self", "align": "right" }, "children": [] },
             { "block": "button", "props": { "label": "Continue", "variant": "primary" }, "children": [] }
         ]
     })

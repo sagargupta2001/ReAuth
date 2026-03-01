@@ -141,6 +141,48 @@ export function FluidInspector({
                   </>
                 )}
 
+                {selectedBlock.block === 'link' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="link-label">Label</Label>
+                      <Input
+                        id="link-label"
+                        value={String(selectedProps.label || '')}
+                        onChange={(event) =>
+                          onUpdateSelectedBlock({ label: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="link-href">Href</Label>
+                      <Input
+                        id="link-href"
+                        value={String(selectedProps.href || '')}
+                        onChange={(event) =>
+                          onUpdateSelectedBlock({ href: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Target</Label>
+                      <Select
+                        value={String(selectedProps.target || '_self')}
+                        onValueChange={(value) =>
+                          onUpdateSelectedBlock({ target: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select target" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_self">Same tab</SelectItem>
+                          <SelectItem value="_blank">New tab</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
                 {selectedBlock.block === 'image' && (
                   <>
                     <div className="space-y-2">

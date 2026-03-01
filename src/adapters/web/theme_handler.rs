@@ -41,6 +41,14 @@ pub struct ThemeDetailsResponse {
 }
 
 #[derive(Serialize)]
+pub struct ActiveThemeResponse {
+    pub theme: ThemeSummary,
+    pub active_version_id: Option<String>,
+    pub active_version_number: Option<i64>,
+    pub pages: Vec<crate::domain::theme_pages::ThemePageTemplate>,
+}
+
+#[derive(Serialize)]
 pub struct ThemeVersionSummary {
     pub id: String,
     pub theme_id: String,
@@ -240,6 +248,54 @@ pub async fn list_theme_pages_handler(
         state.theme_service.list_pages()
     };
     Ok((StatusCode::OK, Json(pages)))
+}
+
+pub async fn get_active_theme_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let binding = state
+        .theme_service
+        .resolve_binding(realm.id, None)
+        .await?
+        .ok_or_else(|| Error::NotFound("Active theme not found".to_string()))?;
+
+    let theme = state
+        .theme_service
+        .get_theme(realm.id, &binding.theme_id)
+        .await?
+        .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+
+    let pages = state
+        .theme_service
+        .list_pages_for_theme(realm.id, binding.theme_id)
+        .await?;
+
+    let response = ActiveThemeResponse {
+        theme: ThemeSummary {
+            id: theme.id.to_string(),
+            realm_id: theme.realm_id.to_string(),
+            name: theme.name,
+            description: theme.description,
+            is_system: theme.is_system,
+            created_at: theme.created_at,
+            updated_at: theme.updated_at,
+        },
+        active_version_id: Some(binding.active_version_id.to_string()),
+        active_version_number: state
+            .theme_service
+            .get_active_version_number(realm.id, &binding.theme_id)
+            .await?,
+        pages,
+    };
+
+    Ok((StatusCode::OK, Json(response)))
 }
 
 pub async fn get_theme_handler(
@@ -504,7 +560,7 @@ pub async fn publish_theme_handler(
 
     let version = state
         .theme_service
-        .publish_theme(realm.id, &realm.name, theme_uuid)
+        .publish_theme(realm.id, theme_uuid)
         .await?;
 
     let response = ThemeVersionSummary {
@@ -539,6 +595,29 @@ pub async fn activate_theme_version_handler(
         .await?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn start_theme_draft_from_version_handler(
+    State(state): State<AppState>,
+    Path((realm_name, theme_id, version_id)): Path<(String, String, String)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let theme_uuid = Uuid::parse_str(&theme_id)
+        .map_err(|_| Error::Validation("Invalid theme id".to_string()))?;
+    let version_uuid = Uuid::parse_str(&version_id)
+        .map_err(|_| Error::Validation("Invalid version id".to_string()))?;
+
+    let draft = state
+        .theme_service
+        .start_draft_from_version(realm.id, theme_uuid, version_uuid)
+        .await?;
+
+    Ok((StatusCode::OK, Json(draft)))
 }
 
 pub async fn list_theme_versions_handler(

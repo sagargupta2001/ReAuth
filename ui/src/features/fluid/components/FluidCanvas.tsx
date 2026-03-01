@@ -201,6 +201,13 @@ export function FluidCanvas({
       }
       case 'divider':
         return wrap(<Separator />, cn('py-2'))
+      case 'link': {
+        const label = String(props.label || 'Link')
+        return wrap(
+          <div className={cn('text-xs underline', alignClass)}>{label}</div>,
+          cn(widthClass),
+        )
+      }
       default:
         return wrap(
           <div className="text-xs text-muted-foreground">Unknown block: {block.block}</div>,

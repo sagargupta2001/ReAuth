@@ -5,6 +5,7 @@ import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Skeleton } from '@/components/skeleton'
 import { useActivateThemeVersion } from '@/features/theme/api/useActivateThemeVersion'
+import { useStartThemeDraftFromVersion } from '@/features/theme/api/useStartThemeDraftFromVersion'
 import { useThemeVersions } from '@/features/theme/api/useThemeVersions'
 
 interface ThemeHistoryTabProps {
@@ -15,6 +16,7 @@ interface ThemeHistoryTabProps {
 export function ThemeHistoryTab({ themeId, activeVersionId }: ThemeHistoryTabProps) {
   const { data: versions, isLoading, isFetching } = useThemeVersions(themeId)
   const { mutate: activateVersion, isPending } = useActivateThemeVersion(themeId)
+  const { mutate: startDraft, isPending: isStartingDraft } = useStartThemeDraftFromVersion(themeId)
 
   if (isLoading) {
     return (
@@ -93,7 +95,16 @@ export function ThemeHistoryTab({ themeId, activeVersionId }: ThemeHistoryTabPro
                     disabled={isActive || isPending}
                     onClick={() => activateVersion(version.id)}
                   >
-                    {isActive ? 'Active' : 'Set Active'}
+                    {isActive ? 'Active' : 'Rollback'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs"
+                    disabled={isPending || isStartingDraft}
+                    onClick={() => startDraft(version.id)}
+                  >
+                    Start draft from here
                   </Button>
                 </div>
               </div>

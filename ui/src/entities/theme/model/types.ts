@@ -69,3 +69,10 @@ export interface ThemeSnapshot {
   blocks: ThemeBlock[]
   assets: ThemeAsset[]
 }
+
+export interface ActiveThemeResponse {
+  theme: Theme
+  active_version_id?: string | null
+  active_version_number?: number | null
+  pages: ThemePageTemplate[]
+}

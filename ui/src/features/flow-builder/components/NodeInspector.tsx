@@ -5,6 +5,8 @@ import { Input } from '@/components/input'
 import { Label } from '@/components/label'
 import { Separator } from '@/components/separator'
 import { AutoForm } from '@/shared/ui/auto-form'
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { useActiveTheme } from '@/features/theme/api/useActiveTheme'
 
 import { useFlowBuilderStore } from '../store/flowBuilderStore'
 
@@ -14,14 +16,35 @@ export function NodeInspector() {
   const nodeTypes = useFlowBuilderStore((s) => s.nodeTypes) // Need to ensure this is exposed in store
   const selectNode = useFlowBuilderStore((s) => s.selectNode)
   const updateNodeData = useFlowBuilderStore((s) => s.updateNodeData)
+  const { data: activeTheme } = useActiveTheme()
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
 
   if (!selectedNode) return null
 
+  const nodeType = selectedNode.type ?? ''
+
   // 1. Lookup Schema based on Node Type (e.g., "core.auth.password")
-  const nodeDefinition = nodeTypes.find((t) => t.id === selectedNode.type)
+  const nodeDefinition = nodeType ? nodeTypes.find((t) => t.id === nodeType) : undefined
   const configSchema = nodeDefinition?.config_schema
+  const isAuthenticator = nodeDefinition?.category === 'Authenticator'
+
+  const currentConfig = (selectedNode.data.config as Record<string, unknown>) || {}
+  const currentTemplate =
+    typeof currentConfig.template_key === 'string'
+      ? currentConfig.template_key
+      : nodeType.includes('password')
+        ? 'login'
+        : nodeType.includes('otp')
+          ? 'mfa'
+          : undefined
+
+  const availablePages = activeTheme?.pages ?? []
+  const templateExists = !activeTheme
+    ? true
+    : currentTemplate
+      ? availablePages.some((page) => page.key === currentTemplate)
+      : true
 
   // 2. Handlers
   const handleLabelChange = (label: string) => {
@@ -32,9 +55,22 @@ export function NodeInspector() {
   }
 
   const handleConfigChange = (newConfig: Record<string, unknown>) => {
+    const templateKey = currentConfig.template_key
     updateNodeData(selectedNode.id, {
       ...selectedNode.data,
-      config: newConfig,
+      config: templateKey && !('template_key' in newConfig)
+        ? { ...newConfig, template_key: templateKey }
+        : newConfig,
+    })
+  }
+
+  const handleTemplateChange = (value: string) => {
+    updateNodeData(selectedNode.id, {
+      ...selectedNode.data,
+      config: {
+        ...currentConfig,
+        template_key: value,
+      },
     })
   }
 
@@ -45,7 +81,7 @@ export function NodeInspector() {
         <div className="flex flex-col">
           <h3 className="text-sm font-semibold">Configuration</h3>
           <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
-            {selectedNode.type}
+            {nodeType || 'unknown'}
           </span>
         </div>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => selectNode(null)}>
@@ -84,6 +120,53 @@ export function NodeInspector() {
         </div>
 
         <Separator />
+
+        {isAuthenticator && (
+          <>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <h4 className="text-muted-foreground text-xs font-bold tracking-wider uppercase">
+                  Template
+                </h4>
+              </div>
+
+              <div className="border-muted ml-0.5 space-y-3 border-l-2 pl-3.5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Page Template</Label>
+                  <Input
+                    className="bg-muted/30 h-8 text-xs"
+                    value={currentTemplate || ''}
+                    onChange={(event) => handleTemplateChange(event.target.value)}
+                    list="flow-template-keys"
+                    placeholder="e.g. login"
+                  />
+                  <datalist id="flow-template-keys">
+                    {availablePages.map((page) => (
+                      <option key={page.key} value={page.key}>
+                        {page.label}
+                      </option>
+                    ))}
+                  </datalist>
+                  <p className="text-muted-foreground text-[10px]">
+                    Assign a Fluid page key to this node.
+                  </p>
+                </div>
+                {!templateExists && currentTemplate && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Missing template</AlertTitle>
+                    <AlertDescription>
+                      The active theme does not define the page “{currentTemplate}”. Users will
+                      fall back to the system template.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+          </>
+        )}
 
         {/* Section 2: Dynamic Parameters */}
         <div className="space-y-4">

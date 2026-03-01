@@ -52,21 +52,33 @@ impl ThemeResolverService {
             .await?
             .ok_or_else(|| Error::NotFound("Theme version not found".to_string()))?;
 
-        let tokens = self
-            .repo
-            .get_tokens(&binding.theme_id)
-            .await?
-            .and_then(|t| parse_json(&t.tokens_json, "theme_tokens"));
-
         let requested_key = node_key.unwrap_or("login");
-        let (blocks, layout_hint) =
-            if let Some(node) = self.repo.get_node(&binding.theme_id, requested_key).await? {
-                parse_blueprint(&node.blueprint_json).unwrap_or_else(|| (Vec::new(), None))
-            } else {
-                default_page_blocks(requested_key)
-            };
+        let draft_payload = parse_version_payload(&version.snapshot_json);
 
-        let layout = resolve_layout(&self.repo, binding.theme_id, layout_hint).await?;
+        let (tokens, layout, blocks) = if let Some(payload) = draft_payload {
+            let (blocks, _) = payload
+                .nodes
+                .iter()
+                .find(|node| node.node_key == requested_key)
+                .and_then(|node| parse_blueprint_value(node.blueprint.clone()))
+                .unwrap_or_else(|| default_page_blocks(requested_key));
+            (payload.tokens, payload.layout, blocks)
+        } else {
+            let tokens = self
+                .repo
+                .get_tokens(&binding.theme_id)
+                .await?
+                .and_then(|t| parse_json(&t.tokens_json, "theme_tokens"))
+                .unwrap_or_else(default_tokens);
+            let (blocks, layout_hint) =
+                if let Some(node) = self.repo.get_node(&binding.theme_id, requested_key).await? {
+                    parse_blueprint(&node.blueprint_json).unwrap_or_else(|| (Vec::new(), None))
+                } else {
+                    default_page_blocks(requested_key)
+                };
+            let layout = resolve_layout(&self.repo, binding.theme_id, layout_hint).await?;
+            (tokens, layout, blocks)
+        };
 
         let assets = self
             .repo
@@ -89,7 +101,7 @@ impl ThemeResolverService {
         Ok(ThemeSnapshot {
             theme_id: binding.theme_id,
             version_id: version.id,
-            tokens: tokens.unwrap_or_else(default_tokens),
+            tokens,
             layout,
             blocks,
             assets,
@@ -378,12 +390,7 @@ impl ThemeResolverService {
         Ok(())
     }
 
-    pub async fn publish_theme(
-        &self,
-        realm_id: Uuid,
-        realm_ref: &str,
-        theme_id: Uuid,
-    ) -> Result<ThemeVersion> {
+    pub async fn publish_theme(&self, realm_id: Uuid, theme_id: Uuid) -> Result<ThemeVersion> {
         let theme = self
             .repo
             .find_theme(&realm_id, &theme_id)
@@ -398,12 +405,13 @@ impl ThemeResolverService {
             .unwrap_or(0)
             + 1;
 
-        let snapshot = self
-            .build_snapshot_for_theme(&theme.id, realm_ref, None)
-            .await?;
+        let draft = self.get_draft(realm_id, theme.id).await?;
 
         let binding = self.repo.get_binding(&realm_id, None).await?;
-        let should_activate = binding.is_none();
+        let should_activate = match binding.as_ref() {
+            Some(existing) => existing.theme_id == theme.id,
+            None => true,
+        };
         let status = if should_activate {
             "active"
         } else {
@@ -415,14 +423,23 @@ impl ThemeResolverService {
             theme_id: theme.id,
             version_number: next_version,
             status: status.to_string(),
-            snapshot_json: serde_json::to_string(&snapshot)
+            snapshot_json: serde_json::to_string(&draft)
                 .map_err(|err| Error::Unexpected(err.into()))?,
             created_at: "".to_string(),
         };
 
+        let previous_active = binding
+            .as_ref()
+            .filter(|existing| existing.theme_id == theme.id)
+            .map(|existing| existing.active_version_id);
+
         let binding = if should_activate {
+            let binding_id = binding
+                .as_ref()
+                .map(|existing| existing.id)
+                .unwrap_or_else(Uuid::new_v4);
             Some(ThemeBinding {
-                id: Uuid::new_v4(),
+                id: binding_id,
                 realm_id,
                 client_id: None,
                 theme_id: theme.id,
@@ -437,8 +454,20 @@ impl ThemeResolverService {
         let mut tx = self.tx_manager.begin().await?;
         let result = async {
             self.repo.create_version(&version, Some(&mut *tx)).await?;
-            if let Some(binding) = binding.as_ref() {
-                self.repo.upsert_binding(binding, Some(&mut *tx)).await?;
+            if should_activate {
+                if let Some(previous) = previous_active {
+                    if previous != version.id {
+                        self.repo
+                            .set_version_status(&previous, "published", Some(&mut *tx))
+                            .await?;
+                    }
+                }
+                self.repo
+                    .set_version_status(&version.id, "active", Some(&mut *tx))
+                    .await?;
+                if let Some(binding) = binding.as_ref() {
+                    self.repo.upsert_binding(binding, Some(&mut *tx)).await?;
+                }
             }
             Ok(())
         }
@@ -501,6 +530,33 @@ impl ThemeResolverService {
             layout,
             nodes,
         })
+    }
+
+    pub async fn start_draft_from_version(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+        version_id: Uuid,
+    ) -> Result<ThemeDraft> {
+        let theme = self
+            .repo
+            .find_theme(&realm_id, &theme_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+
+        let version = self
+            .repo
+            .get_version(&theme.id, &version_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme version not found".to_string()))?;
+
+        let draft = parse_version_payload(&version.snapshot_json).ok_or_else(|| {
+            Error::Validation("Theme version payload could not be restored".to_string())
+        })?;
+
+        self.save_draft(realm_id, theme_id, draft.clone()).await?;
+
+        Ok(draft)
     }
 
     pub async fn save_draft(
@@ -847,17 +903,27 @@ impl ThemeResolverService {
             Vec::new()
         };
 
+        let initial_nodes: Vec<ThemeDraftNode> = page_templates
+            .iter()
+            .map(|page| ThemeDraftNode {
+                node_key: page.key.clone(),
+                blueprint: page.blueprint.clone(),
+            })
+            .collect();
+
+        let version_payload = ThemeDraft {
+            tokens: tokens_value.clone(),
+            layout: layout_value.clone(),
+            nodes: initial_nodes,
+        };
+
         let version = ThemeVersion {
             id: Uuid::new_v4(),
             theme_id: theme.id,
             version_number: 1,
             status: "active".to_string(),
-            snapshot_json: serde_json::to_string(&json!({
-                "tokens": tokens_value,
-                "layout": layout_value,
-                "blocks": [],
-            }))
-            .map_err(|err| Error::Unexpected(err.into()))?,
+            snapshot_json: serde_json::to_string(&version_payload)
+                .map_err(|err| Error::Unexpected(err.into()))?,
             created_at: "".to_string(),
         };
 
@@ -1000,6 +1066,29 @@ fn parse_json(raw: &str, label: &str) -> Option<Value> {
 fn parse_required_json(raw: &str, label: &str) -> Result<Value> {
     serde_json::from_str::<Value>(raw)
         .map_err(|err| Error::Validation(format!("Invalid {} JSON: {}", label, err)))
+}
+
+fn parse_version_payload(raw: &str) -> Option<ThemeDraft> {
+    if let Ok(draft) = serde_json::from_str::<ThemeDraft>(raw) {
+        return Some(draft);
+    }
+
+    if let Ok(snapshot) = serde_json::from_str::<ThemeSnapshot>(raw) {
+        let blueprint = json!({
+            "layout": "default",
+            "blocks": snapshot.blocks,
+        });
+        return Some(ThemeDraft {
+            tokens: snapshot.tokens,
+            layout: snapshot.layout,
+            nodes: vec![ThemeDraftNode {
+                node_key: "login".to_string(),
+                blueprint,
+            }],
+        });
+    }
+
+    None
 }
 
 fn parse_blueprint(raw: &str) -> Option<(Vec<ThemeBlock>, Option<String>)> {
