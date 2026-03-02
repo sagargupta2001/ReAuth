@@ -14,9 +14,13 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
 
   const previewTokens = preview?.tokens ?? {
     colors: {
-      primary: '#111827',
-      background: '#F8FAFC',
-      text: '#0F172A',
+      primary: 'var(--primary)',
+      background: 'var(--background)',
+      text: 'var(--foreground)',
+      surface: 'var(--card)',
+    },
+    appearance: {
+      mode: 'auto',
     },
     radius: {
       base: 12,
@@ -42,7 +46,7 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading preview...
               </div>
             ) : (
-              <div className="h-[360px] w-full">
+              <div className="w-full">
                 <FluidCanvas
                   tokens={previewTokens}
                   layout={previewLayout}

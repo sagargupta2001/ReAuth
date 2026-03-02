@@ -28,9 +28,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 const fallbackDraft: ThemeDraft = {
   tokens: {
     colors: {
-      primary: '#111827',
-      background: '#F8FAFC',
-      text: '#0F172A',
+      primary: 'var(--primary)',
+      background: 'var(--background)',
+      text: 'var(--foreground)',
+      surface: 'var(--card)',
+    },
+    appearance: {
+      mode: 'auto',
     },
     typography: {
       font_family: 'system-ui',

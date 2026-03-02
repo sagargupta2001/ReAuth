@@ -1149,9 +1149,13 @@ async fn resolve_layout(
 fn default_tokens() -> Value {
     json!({
         "colors": {
-            "primary": "#1C64F2",
-            "background": "#FFFFFF",
-            "text": "#0F172A"
+            "primary": "var(--primary)",
+            "background": "var(--background)",
+            "text": "var(--foreground)",
+            "surface": "var(--card)"
+        },
+        "appearance": {
+            "mode": "auto"
         },
         "typography": {
             "font_family": "system-ui",

@@ -88,15 +88,15 @@ export function ThemeHistoryTab({ themeId, activeVersionId }: ThemeHistoryTabPro
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Button
+                  {!isActive && <Button
                     variant={isActive ? 'secondary' : 'outline'}
                     size="sm"
                     className="h-8 text-xs"
                     disabled={isActive || isPending}
                     onClick={() => activateVersion(version.id)}
                   >
-                    {isActive ? 'Active' : 'Rollback'}
-                  </Button>
+                    Rollback
+                  </Button>}
                   <Button
                     variant="ghost"
                     size="sm"

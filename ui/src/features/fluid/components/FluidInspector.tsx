@@ -12,6 +12,14 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 
+function normalizeColorValue(value: string) {
+  const hex = value.trim()
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) {
+    return hex
+  }
+  return '#111827'
+}
+
 interface FluidInspectorProps {
   assets: ThemeAsset[]
   selectedBlock: {
@@ -362,9 +370,15 @@ export function FluidInspector({
             <div className="space-y-2">
               <Label htmlFor="font-color">Color</Label>
               <div className="flex items-center gap-2">
-                <div
-                  className="h-8 w-8 rounded-md border"
-                  style={{ backgroundColor: String(selectedProps.color || '#111827') }}
+                <input
+                  type="color"
+                  aria-label="Font color"
+                  className="h-8 w-8 cursor-pointer rounded-md border bg-transparent p-0"
+                  value={normalizeColorValue(String(selectedProps.color || '#111827'))}
+                  disabled={!selectedBlock}
+                  onChange={(event) =>
+                    onUpdateSelectedBlock({ color: event.target.value })
+                  }
                 />
                 <Input
                   id="font-color"

@@ -36,6 +36,28 @@ function getNestedRecord(
   return {}
 }
 
+function resolveThemeColor(value: string, mode: string, fallback: string, legacy: string[]) {
+  const trimmed = value.trim()
+  if (!trimmed) return fallback
+  const hslVarMatch = trimmed.match(/^hsl\(\s*(var\(--[^)]+\))\s*\)$/i)
+  if (hslVarMatch) {
+    return hslVarMatch[1]
+  }
+  const normalized = trimmed.toLowerCase()
+  if (mode === 'dark' && legacy.includes(normalized)) {
+    return fallback
+  }
+  return trimmed
+}
+
+function resolveThemeMode(mode: string) {
+  if (mode !== 'auto') return mode
+  if (typeof window === 'undefined') return 'light'
+  if (document?.documentElement?.classList?.contains('dark')) return 'dark'
+  if (document?.documentElement?.classList?.contains('light')) return 'light'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
 function resolveInputType(props: Record<string, unknown>, name: string) {
   const explicit = String(props.input_type || '').trim()
   if (explicit) return explicit
@@ -83,15 +105,40 @@ export function FluidLoginScreen({
   const colors = getNestedRecord(tokens, 'colors')
   const typography = getNestedRecord(tokens, 'typography')
   const radius = getNestedRecord(tokens, 'radius')
+  const appearance = getNestedRecord(tokens, 'appearance')
 
-  const background = String(colors.background || '#F8FAFC')
-  const text = String(colors.text || '#0F172A')
-  const primary = String(colors.primary || '#1C64F2')
+  const rawBackground = String(colors.background || '')
+  const rawText = String(colors.text || '')
+  const rawPrimary = String(colors.primary || '')
+  const rawSurface = String(colors.surface || '')
   const radiusBase = Number.parseFloat(String(radius.base || '12')) || 12
   const fontFamily = String(typography.font_family || 'system-ui')
   const baseSize = Number.parseFloat(String(typography.base_size || '16')) || 16
   const shell = typeof layout.shell === 'string' ? layout.shell : 'CenteredCard'
   const assetMap = new Map(assets.map((asset) => [asset.id, asset]))
+  const themeMode = String(appearance.mode || 'auto')
+  const resolvedMode = resolveThemeMode(themeMode)
+  const themeClass = resolvedMode === 'dark' ? 'dark' : resolvedMode === 'light' ? 'light' : ''
+
+  const background = resolveThemeColor(
+    rawBackground,
+    resolvedMode,
+    'var(--background)',
+    ['#ffffff', '#fff', '#f8fafc'],
+  )
+  const text = resolveThemeColor(
+    rawText,
+    resolvedMode,
+    'var(--foreground)',
+    ['#0f172a', '#111827'],
+  )
+  const primary = rawPrimary.trim() || 'var(--primary)'
+  const surface = resolveThemeColor(
+    rawSurface,
+    resolvedMode,
+    'var(--card)',
+    ['#ffffff', '#fff'],
+  )
 
   const formBlocks = useMemo(
     () =>
@@ -342,10 +389,13 @@ export function FluidLoginScreen({
   }
 
   return (
-    <div className="min-h-svh w-full" style={containerStyle}>
+    <div className={cn('min-h-svh w-full', themeClass)} style={containerStyle}>
       <div className="flex min-h-svh w-full items-center justify-center p-8">
         {shell === 'SplitScreen' ? (
-          <div className="grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border bg-white shadow-lg md:grid-cols-2">
+          <div
+            className="grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border shadow-lg md:grid-cols-2"
+            style={{ backgroundColor: surface }}
+          >
             <div className="flex flex-col justify-between bg-slate-900 p-8 text-white">
               {brandBlocks.length === 0 ? (
                 <div className="space-y-2 text-xs text-white/60">
@@ -386,13 +436,12 @@ export function FluidLoginScreen({
         ) : (
           <div
             className={cn(
-              'w-full max-w-md p-8',
-              shell === 'Minimal' ? 'shadow-none' : 'shadow-lg',
+              'w-full max-w-md border p-8',
+              shell === 'Minimal' ? 'border-transparent shadow-none' : 'shadow-lg',
             )}
             style={{
               borderRadius: `${radiusBase}px`,
-              backgroundColor: shell === 'Minimal' ? 'transparent' : '#ffffff',
-              border: shell === 'Minimal' ? '1px solid transparent' : '1px solid #E2E8F0',
+              backgroundColor: shell === 'Minimal' ? 'transparent' : surface,
               color: text,
             }}
           >

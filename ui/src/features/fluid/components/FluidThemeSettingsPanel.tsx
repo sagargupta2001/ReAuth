@@ -4,6 +4,7 @@ import { useRef } from 'react'
 import { Droplet, Image, Sliders, Type, UploadCloud } from 'lucide-react'
 
 import { Input } from '@/components/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import type { ThemeAsset } from '@/entities/theme/model/types'
 import { FluidLayoutGallery } from '@/features/fluid/components/FluidLayoutGallery'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
@@ -30,6 +31,14 @@ function getNestedRecord(
   return {}
 }
 
+function normalizeColorValue(value: string) {
+  const hex = value.trim()
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) {
+    return hex
+  }
+  return '#111827'
+}
+
 export function FluidThemeSettingsPanel({
   tokens,
   onTokensChange,
@@ -41,9 +50,11 @@ export function FluidThemeSettingsPanel({
 }: FluidThemeSettingsPanelProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const colors = getNestedRecord(tokens, 'colors')
+  const appearance = getNestedRecord(tokens, 'appearance')
   const typography = getNestedRecord(tokens, 'typography')
   const radius = getNestedRecord(tokens, 'radius')
   const currentShell = typeof layout.shell === 'string' ? layout.shell : 'CenteredCard'
+  const themeMode = typeof appearance.mode === 'string' ? appearance.mode : 'auto'
 
   const updateTokens = (next: Record<string, unknown>) => {
     onTokensChange({
@@ -75,6 +86,36 @@ export function FluidThemeSettingsPanel({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Appearance</CardTitle>
+            <CardDescription>Choose how the theme handles light/dark mode.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Label className="text-xs">Theme Mode</Label>
+            <Select
+              value={themeMode}
+              onValueChange={(value) =>
+                updateTokens({
+                  appearance: {
+                    ...appearance,
+                    mode: value,
+                  },
+                })
+              }
+            >
+              <SelectTrigger className="bg-background h-8 text-xs">
+                <SelectValue placeholder="Select mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto (System)</SelectItem>
+                <SelectItem value="light">Light</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Layout</CardTitle>
@@ -153,9 +194,19 @@ export function FluidThemeSettingsPanel({
             <div className="space-y-2">
               <Label htmlFor="primary">Primary</Label>
               <div className="flex items-center gap-2">
-                <div
-                  className="h-8 w-8 rounded-md border"
-                  style={{ backgroundColor: String(colors.primary || '#111827') }}
+                <input
+                  type="color"
+                  aria-label="Primary color"
+                  className="h-8 w-8 cursor-pointer rounded-md border bg-transparent p-0"
+                  value={normalizeColorValue(String(colors.primary || '#111827'))}
+                  onChange={(event) =>
+                    updateTokens({
+                      colors: {
+                        ...colors,
+                        primary: event.target.value,
+                      },
+                    })
+                  }
                 />
                 <Input
                   id="primary"
@@ -174,9 +225,19 @@ export function FluidThemeSettingsPanel({
             <div className="space-y-2">
               <Label htmlFor="background">Background</Label>
               <div className="flex items-center gap-2">
-                <div
-                  className="h-8 w-8 rounded-md border"
-                  style={{ backgroundColor: String(colors.background || '#F8FAFC') }}
+                <input
+                  type="color"
+                  aria-label="Background color"
+                  className="h-8 w-8 cursor-pointer rounded-md border bg-transparent p-0"
+                  value={normalizeColorValue(String(colors.background || '#F8FAFC'))}
+                  onChange={(event) =>
+                    updateTokens({
+                      colors: {
+                        ...colors,
+                        background: event.target.value,
+                      },
+                    })
+                  }
                 />
                 <Input
                   id="background"
@@ -186,6 +247,68 @@ export function FluidThemeSettingsPanel({
                       colors: {
                         ...colors,
                         background: event.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="text">Text</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  aria-label="Text color"
+                  className="h-8 w-8 cursor-pointer rounded-md border bg-transparent p-0"
+                  value={normalizeColorValue(String(colors.text || '#111827'))}
+                  onChange={(event) =>
+                    updateTokens({
+                      colors: {
+                        ...colors,
+                        text: event.target.value,
+                      },
+                    })
+                  }
+                />
+                <Input
+                  id="text"
+                  value={String(colors.text || '')}
+                  onChange={(event) =>
+                    updateTokens({
+                      colors: {
+                        ...colors,
+                        text: event.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="surface">Surface</Label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  aria-label="Surface color"
+                  className="h-8 w-8 cursor-pointer rounded-md border bg-transparent p-0"
+                  value={normalizeColorValue(String(colors.surface || '#FFFFFF'))}
+                  onChange={(event) =>
+                    updateTokens({
+                      colors: {
+                        ...colors,
+                        surface: event.target.value,
+                      },
+                    })
+                  }
+                />
+                <Input
+                  id="surface"
+                  value={String(colors.surface || '')}
+                  onChange={(event) =>
+                    updateTokens({
+                      colors: {
+                        ...colors,
+                        surface: event.target.value,
                       },
                     })
                   }
