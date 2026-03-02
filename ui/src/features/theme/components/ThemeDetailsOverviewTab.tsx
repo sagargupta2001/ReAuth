@@ -1,16 +1,26 @@
 import { LayoutTemplate, Loader2, Palette, ShieldCheck } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
 import type { Theme } from '@/entities/theme/model/types'
 import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
+import { useThemePages } from '@/features/theme/api/useThemePages'
 import { useThemePreview } from '@/features/theme/api/useThemePreview'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 
 interface ThemeDetailsOverviewTabProps {
   theme: Theme
 }
 
 export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps) {
-  const { data: preview, isLoading } = useThemePreview(theme.id, { pageKey: 'login' })
+  const { data: pages = [] } = useThemePages(theme.id)
+  const pageOptions = useMemo(() => pages.map((page) => page.key), [pages])
+  const [selectedPage, setSelectedPage] = useState<string>('login')
+  const activePage = pageOptions.includes(selectedPage)
+    ? selectedPage
+    : pageOptions[0] || 'login'
+
+  const { data: preview, isLoading } = useThemePreview(theme.id, { pageKey: activePage })
 
   const previewTokens = preview?.tokens ?? {
     colors: {
@@ -31,22 +41,36 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
   const previewAssets = preview?.assets ?? []
 
   return (
-    <div className="grid gap-6 p-6 lg:grid-cols-[2fr_1fr]">
-      <Card className="overflow-hidden">
+    <div className="grid h-full gap-6 p-6 lg:grid-cols-[2fr_1fr] lg:items-stretch">
+      <Card className="flex h-full flex-col overflow-hidden">
         <CardHeader>
           <CardTitle>Preview</CardTitle>
           <CardDescription>
             A live preview of the login experience built with this theme.
           </CardDescription>
+          <div className="mt-3">
+            <Select value={activePage} onValueChange={setSelectedPage}>
+              <SelectTrigger className="bg-background h-8 text-xs">
+                <SelectValue placeholder="Select page" />
+              </SelectTrigger>
+              <SelectContent>
+                {pageOptions.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {key}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
-        <CardContent>
-          <div className="bg-muted/10 flex min-h-[360px] items-center justify-center rounded-lg border">
+        <CardContent className="flex-1">
+          <div className="bg-muted/10 flex h-full min-h-[520px] items-center justify-center rounded-lg border">
             {isLoading ? (
               <div className="text-muted-foreground flex items-center gap-2 text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading preview...
               </div>
             ) : (
-              <div className="w-full">
+              <div className="h-full w-full">
                 <FluidCanvas
                   tokens={previewTokens}
                   layout={previewLayout}
