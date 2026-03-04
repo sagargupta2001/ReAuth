@@ -5,10 +5,7 @@ import {
   CloudUpload,
   Loader2,
   Plus,
-  RotateCcw,
-  RotateCw,
   Save,
-  SquareDashedMousePointer,
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -42,12 +39,6 @@ interface FluidBuilderHeaderProps {
   activePageKey: string
   onSelectPage: (pageKey: string) => void
   onCreatePage?: (label: string) => void
-  isInspecting: boolean
-  onToggleInspect: () => void
-  onUndo: () => void
-  onRedo: () => void
-  canUndo: boolean
-  canRedo: boolean
   onSave: () => void
   onResetPage?: () => void
   onPublish: () => void
@@ -62,12 +53,6 @@ export function FluidBuilderHeader({
   activePageKey,
   onSelectPage,
   onCreatePage,
-  isInspecting,
-  onToggleInspect,
-  onUndo,
-  onRedo,
-  canUndo,
-  canRedo,
   onSave,
   onResetPage,
   onPublish,
@@ -169,29 +154,6 @@ export function FluidBuilderHeader({
       </div>
 
       <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onUndo}
-          disabled={!canUndo || isBusy}
-        >
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onRedo}
-          disabled={!canRedo || isBusy}
-        >
-          <RotateCw className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={isInspecting ? 'secondary' : 'outline'}
-          size="icon"
-          onClick={onToggleInspect}
-        >
-          <SquareDashedMousePointer className="h-4 w-4" />
-        </Button>
         {onResetPage && (
           <Button
             variant="outline"

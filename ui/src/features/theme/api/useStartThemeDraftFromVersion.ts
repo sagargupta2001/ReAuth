@@ -20,6 +20,7 @@ export function useStartThemeDraftFromVersion(themeId: string) {
       toast.success('Draft created from version')
       void queryClient.invalidateQueries({ queryKey: ['theme-draft', realm, themeId] })
       void queryClient.invalidateQueries({ queryKey: ['theme-pages', realm, themeId] })
+      void queryClient.invalidateQueries({ queryKey: ['theme-preview', realm, themeId] })
     },
     onError: () => {
       toast.error('Failed to start draft from version')

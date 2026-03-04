@@ -35,13 +35,34 @@ export interface ThemeAsset {
   url: string
 }
 
-export interface ThemeBlock {
-  block: string
-  props?: Record<string, unknown>
-  children?: ThemeBlock[]
+export type ThemeNodeType = 'Box' | 'Text' | 'Image' | 'Icon' | 'Input' | 'Component'
+
+export interface ThemeNodeLayout {
+  direction?: 'row' | 'column'
+  gap?: number
+  align?: 'start' | 'center' | 'end' | 'stretch'
+  padding?: [number, number, number, number]
 }
 
-export type ThemeBlueprint = ThemeBlock[] | { layout?: string; blocks?: ThemeBlock[] }
+export interface ThemeNodeSize {
+  width?: 'fixed' | 'hug' | 'fill'
+  height?: 'fixed' | 'hug' | 'fill'
+  width_value?: number | string
+  height_value?: number | string
+}
+
+export interface ThemeNode {
+  id: string
+  type: ThemeNodeType
+  component?: string
+  props?: Record<string, unknown>
+  layout?: ThemeNodeLayout
+  size?: ThemeNodeSize
+  children?: ThemeNode[]
+  slots?: Record<string, ThemeNode>
+}
+
+export type ThemeBlueprint = ThemeNode[] | { layout?: string; nodes?: ThemeNode[] }
 
 export interface ThemeDraftNode {
   node_key: string
@@ -66,7 +87,7 @@ export interface ThemeSnapshot {
   version_id: string
   tokens: Record<string, unknown>
   layout: Record<string, unknown>
-  blocks: ThemeBlock[]
+  nodes: ThemeNode[]
   assets: ThemeAsset[]
 }
 

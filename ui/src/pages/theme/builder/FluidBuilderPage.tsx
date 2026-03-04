@@ -2,13 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import type {
-  ThemeBlock,
+  ThemeNode,
   ThemeBlueprint,
   ThemeDraft,
   ThemePageTemplate,
 } from '@/entities/theme/model/types'
+import {
+  extractNodesFromBlueprint,
+  findNodeById,
+  removeNodeById,
+  updateNodeById,
+  updateBlueprintWithNodes,
+} from '@/features/fluid/lib/nodeUtils'
 import { useTheme } from '@/features/theme/api/useTheme'
 import { useThemePages } from '@/features/theme/api/useThemePages'
 import { usePublishTheme } from '@/features/theme/api/usePublishTheme'
@@ -20,9 +28,14 @@ import { useThemeTemplateGaps } from '@/features/theme/api/useThemeTemplateGaps'
 import { FluidBlocksPanel } from '@/features/fluid/components/FluidBlocksPanel'
 import { FluidBuilderHeader } from '@/features/fluid/components/FluidBuilderHeader'
 import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
+import { FluidFloatingActionBar } from '@/features/fluid/components/FluidFloatingActionBar'
 import { FluidInspector } from '@/features/fluid/components/FluidInspector'
 import { FluidPrimarySidebar } from '@/features/fluid/components/FluidPrimarySidebar'
 import { FluidThemeSettingsPanel } from '@/features/fluid/components/FluidThemeSettingsPanel'
+import {
+  type ThemeValidationError,
+  validateThemeDraft,
+} from '@/features/fluid/lib/themeValidation'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 
 const fallbackDraft: ThemeDraft = {
@@ -85,21 +98,19 @@ function slugifyPageKey(label: string) {
     .replace(/^-+|-+$/g, '')
 }
 
-function extractBlocks(blueprint?: ThemeBlueprint): ThemeBlock[] {
-  if (!blueprint) return []
-  if (Array.isArray(blueprint)) return blueprint
-  return blueprint.blocks ?? []
-}
-
-function updateBlueprint(blueprint: ThemeBlueprint | undefined, blocks: ThemeBlock[]): ThemeBlueprint {
-  if (!blueprint || Array.isArray(blueprint)) {
-    return { layout: 'default', blocks }
+function collectNodeIds(nodes: ThemeNode[]) {
+  const ids = new Set<string>()
+  const visit = (node: ThemeNode) => {
+    if (node.id) {
+      ids.add(node.id)
+    }
+    node.children?.forEach(visit)
+    if (node.slots) {
+      Object.values(node.slots).forEach(visit)
+    }
   }
-  return {
-    ...blueprint,
-    layout: blueprint.layout ?? 'default',
-    blocks,
-  }
+  nodes.forEach(visit)
+  return ids
 }
 
 export function FluidBuilderPage() {
@@ -118,7 +129,7 @@ export function FluidBuilderPage() {
     present: fallbackDraft,
     future: [],
   })
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [activePageKey, setActivePageKey] = useState('login')
   const [activePanel, setActivePanel] = useState<'sections' | 'settings'>('sections')
   const [isInspecting, setIsInspecting] = useState(false)
@@ -196,7 +207,7 @@ export function FluidBuilderPage() {
   useEffect(() => {
     if (activeDraft) {
       replaceDraft(activeDraft)
-      setSelectedIndex(null)
+      setSelectedNodeId(null)
     }
   }, [activeDraft])
 
@@ -212,19 +223,35 @@ export function FluidBuilderPage() {
   const { mutateAsync: publishTheme, isPending: isPublishing } = usePublishTheme(themeId || '')
   const { data: assets = [] } = useThemeAssets(themeId)
   const { mutateAsync: uploadAsset, isPending: isUploading } = useUploadThemeAsset(themeId || '')
+  const validationErrors = useMemo(
+    () => validateThemeDraft(draftState),
+    [draftState],
+  )
 
   const handleSave = async () => {
+    if (validationErrors.length > 0) {
+      toast.error(
+        `Theme draft has ${validationErrors.length} validation issue(s). First: ${validationErrors[0].message}`,
+      )
+      return
+    }
     await saveDraft(history.present)
   }
 
   const handlePublish = async () => {
+    if (validationErrors.length > 0) {
+      toast.error(
+        `Theme draft has ${validationErrors.length} validation issue(s). First: ${validationErrors[0].message}`,
+      )
+      return
+    }
     await saveDraft(history.present)
     await publishTheme()
   }
 
   const handleResetPage = () => {
     if (!activePageKey) return
-    setSelectedIndex(null)
+    setSelectedNodeId(null)
 
     if (data?.theme.is_system) {
       if (!activePageTemplate) return
@@ -273,11 +300,12 @@ export function FluidBuilderPage() {
     }
     const blueprint: ThemeBlueprint = {
       layout: 'default',
-      blocks: [
+      nodes: [
         {
-          block: 'text',
+          id: `title-${Date.now()}`,
+          type: 'Text',
+          size: { width: 'fill', height: 'hug' },
           props: { text: label },
-          children: [],
         },
       ],
     }
@@ -292,7 +320,7 @@ export function FluidBuilderPage() {
       ],
     }))
     setActivePageKey(key)
-    setSelectedIndex(null)
+    setSelectedNodeId(null)
   }
 
   const activePageTemplate = useMemo<ThemePageTemplate | undefined>(
@@ -311,28 +339,35 @@ export function FluidBuilderPage() {
     return undefined
   }, [activeNode, activePageTemplate])
 
-  const activeBlocks = useMemo(() => {
-    return extractBlocks(activeBlueprint)
+  const activeNodes = useMemo(() => {
+    return extractNodesFromBlueprint(activeBlueprint).nodes
   }, [activeBlueprint])
+  const activeValidationErrors = useMemo<ThemeValidationError[]>(() => {
+    if (validationErrors.length === 0) return []
+    const activeIds = collectNodeIds(activeNodes)
+    return validationErrors.filter(
+      (error) => error.nodeId && activeIds.has(error.nodeId),
+    )
+  }, [activeNodes, validationErrors])
 
   useEffect(() => {
-    if (selectedIndex !== null && selectedIndex >= activeBlocks.length) {
-      setSelectedIndex(null)
+    if (selectedNodeId && !findNodeById(activeNodes, selectedNodeId)) {
+      setSelectedNodeId(null)
     }
-  }, [activeBlocks.length, selectedIndex])
+  }, [activeNodes, selectedNodeId])
 
   useEffect(() => {
-    setSelectedIndex(null)
+    setSelectedNodeId(null)
   }, [activePageKey])
 
-  const setBlocks = (blocks: ThemeBlock[]) => {
+  const setNodes = (nextNodes: ThemeNode[]) => {
     commitDraft((prev) => {
       const index = prev.nodes.findIndex((node) => node.node_key === activePageKey)
       const hasNode = index >= 0
       const baseBlueprint = hasNode ? prev.nodes[index].blueprint : activeBlueprint
       const updatedNode = {
         node_key: activePageKey,
-        blueprint: updateBlueprint(baseBlueprint, blocks),
+        blueprint: updateBlueprintWithNodes(baseBlueprint, nextNodes),
       }
 
       if (!hasNode) {
@@ -342,74 +377,86 @@ export function FluidBuilderPage() {
         }
       }
 
-      const nodes = [...prev.nodes]
-      nodes[index] = {
-        ...nodes[index],
+      const updatedNodes = [...prev.nodes]
+      updatedNodes[index] = {
+        ...updatedNodes[index],
         ...updatedNode,
       }
 
       return {
         ...prev,
-        nodes,
+        nodes: updatedNodes,
       }
     })
   }
 
-  const handleInsertBlock = (block: ThemeBlock, index: number) => {
-    const nextBlocks = [...activeBlocks]
-    nextBlocks.splice(index, 0, block)
-    setBlocks(nextBlocks)
-    setSelectedIndex(index)
+  const handleInsertNode = (node: ThemeNode, index: number) => {
+    const nextNodes = [...activeNodes]
+    nextNodes.splice(index, 0, node)
+    setNodes(nextNodes)
+    setSelectedNodeId(node.id)
   }
 
-  const handleRemoveBlock = (index: number) => {
-    const nextBlocks = activeBlocks.filter((_, idx) => idx !== index)
-    setBlocks(nextBlocks)
-    if (selectedIndex === null) return
-    if (selectedIndex === index) {
-      setSelectedIndex(null)
-    } else if (selectedIndex > index) {
-      setSelectedIndex(selectedIndex - 1)
+  const handleRemoveNode = (nodeId: string) => {
+    const nextNodes = removeNodeById(activeNodes, nodeId)
+    setNodes(nextNodes)
+    if (selectedNodeId === nodeId) {
+      setSelectedNodeId(null)
     }
   }
 
-  const handleReorderBlocks = (fromIndex: number, toIndex: number) => {
-    const updated = [...activeBlocks]
+  const handleReorderNodes = (fromIndex: number, toIndex: number) => {
+    const updated = [...activeNodes]
     const [moved] = updated.splice(fromIndex, 1)
     updated.splice(toIndex, 0, moved)
-    setBlocks(updated)
-
-    if (selectedIndex === null) return
-    if (selectedIndex === fromIndex) {
-      setSelectedIndex(toIndex)
-      return
-    }
-    if (fromIndex < selectedIndex && toIndex >= selectedIndex) {
-      setSelectedIndex(selectedIndex - 1)
-      return
-    }
-    if (fromIndex > selectedIndex && toIndex <= selectedIndex) {
-      setSelectedIndex(selectedIndex + 1)
-    }
+    setNodes(updated)
   }
 
-  const handleUpdateSelectedBlock = (partial: Record<string, unknown>) => {
-    if (selectedIndex === null) return
-    const updated = activeBlocks.map((block, index) =>
-      index === selectedIndex
-        ? {
-            ...block,
-            props: {
-              ...(block.props ?? {}),
-              ...partial,
-            },
+  const handleUpdateSelectedNode = (partial: {
+    props?: Record<string, unknown>
+    layout?: Record<string, unknown>
+    size?: Record<string, unknown>
+    slots?: Record<string, ThemeNode | null>
+  }) => {
+    if (!selectedNodeId) return
+    const updated = updateNodeById(activeNodes, selectedNodeId, (node) => {
+      const nextSlots = { ...(node.slots ?? {}) }
+      if (partial.slots) {
+        Object.entries(partial.slots).forEach(([key, value]) => {
+          if (!value) {
+            delete nextSlots[key]
+          } else {
+            nextSlots[key] = value
           }
-        : block,
-    )
-    setBlocks(updated)
+        })
+      }
+      return {
+        ...node,
+        props: partial.props
+          ? {
+              ...(node.props ?? {}),
+              ...partial.props,
+            }
+          : node.props,
+        layout: partial.layout
+          ? {
+              ...(node.layout ?? {}),
+              ...partial.layout,
+            }
+          : node.layout,
+        size: partial.size
+          ? {
+              ...(node.size ?? {}),
+              ...partial.size,
+            }
+          : node.size,
+        slots: partial.slots ? nextSlots : node.slots,
+      }
+    })
+    setNodes(updated)
   }
 
-  const selectedBlock = selectedIndex === null ? null : activeBlocks[selectedIndex] ?? null
+  const selectedBlock = selectedNodeId ? findNodeById(activeNodes, selectedNodeId) : null
   const canUndo = history.past.length > 0
   const canRedo = history.future.length > 0
 
@@ -438,15 +485,9 @@ export function FluidBuilderPage() {
         activePageKey={activePageKey}
         onSelectPage={(pageKey) => {
           setActivePageKey(pageKey)
-          setSelectedIndex(null)
+          setSelectedNodeId(null)
         }}
         onCreatePage={handleCreatePage}
-        isInspecting={isInspecting}
-        onToggleInspect={() => setIsInspecting((prev) => !prev)}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        canUndo={canUndo}
-        canRedo={canRedo}
         onSave={() => void handleSave()}
         onResetPage={handleResetPage}
         canResetPage={
@@ -475,12 +516,13 @@ export function FluidBuilderPage() {
         <FluidPrimarySidebar activePanel={activePanel} onSelectPanel={setActivePanel} />
         {activePanel === 'sections' ? (
           <FluidBlocksPanel
-            blocks={activeBlocks}
-            selectedIndex={selectedIndex}
-            onSelectBlock={setSelectedIndex}
-            onInsertBlock={handleInsertBlock}
-            onRemoveBlock={handleRemoveBlock}
-            onReorderBlocks={handleReorderBlocks}
+            nodes={activeNodes}
+            selectedNodeId={selectedNodeId}
+            validationErrors={activeValidationErrors}
+            onSelectNode={setSelectedNodeId}
+            onInsertNode={handleInsertNode}
+            onRemoveNode={handleRemoveNode}
+            onReorderNodes={handleReorderNodes}
           />
         ) : (
           <FluidThemeSettingsPanel
@@ -506,18 +548,27 @@ export function FluidBuilderPage() {
         <FluidCanvas
           tokens={draftState.tokens}
           layout={draftState.layout}
-          blocks={activeBlocks}
+          blocks={activeNodes}
           assets={assets}
-          selectedIndex={selectedIndex}
+          selectedNodeId={selectedNodeId}
           isInspecting={isInspecting}
-          onSelectBlock={setSelectedIndex}
+          onSelectNode={setSelectedNodeId}
         />
         <FluidInspector
           assets={assets}
           selectedBlock={selectedBlock}
-          onUpdateSelectedBlock={handleUpdateSelectedBlock}
+          validationErrors={activeValidationErrors}
+          onUpdateSelectedBlock={handleUpdateSelectedNode}
         />
       </div>
+      <FluidFloatingActionBar
+        isInspecting={isInspecting}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        onToggleInspect={() => setIsInspecting((prev) => !prev)}
+      />
     </div>
   )
 }

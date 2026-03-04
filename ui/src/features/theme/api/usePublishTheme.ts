@@ -22,6 +22,7 @@ export function usePublishTheme(themeId: string) {
       void queryClient.invalidateQueries({ queryKey: ['themes', realm, themeId, 'versions'] })
       void queryClient.invalidateQueries({ queryKey: ['themes', realm, themeId] })
       void queryClient.invalidateQueries({ queryKey: ['themes', realm] })
+      void queryClient.invalidateQueries({ queryKey: ['theme-preview', realm, themeId] })
     },
     onError: (error: unknown) => {
       let msg = 'Failed to publish theme'

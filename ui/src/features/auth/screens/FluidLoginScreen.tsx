@@ -6,22 +6,17 @@ import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/button'
 import { Separator } from '@/components/separator'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/form'
-import { FormInput } from '@/shared/ui/form-input'
+import { Form, FormField } from '@/components/form'
+import { Input } from '@/components/input'
 import { PasswordInput } from '@/shared/ui/password-input'
 import { loginSchema } from '@/features/auth/schema/login.schema'
 import type { AuthScreenProps } from '@/entities/auth/model/screenTypes'
-import type { ThemeBlock } from '@/entities/theme/model/types'
+import type { ThemeNode } from '@/entities/theme/model/types'
 import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
 import { cn } from '@/lib/utils'
 import { UsernamePasswordScreen } from '@/features/auth/screens/UsernamePasswordScreen'
+import { renderIcon } from '@/shared/ui/icon-registry'
+import { expandComponentNode } from '@/features/fluid/lib/componentRegistry'
 import {
   getNestedRecord,
   resolveInputType,
@@ -65,7 +60,7 @@ export function FluidLoginScreen({
 
   const tokens = useMemo(() => snapshot?.tokens ?? {}, [snapshot])
   const layout = useMemo(() => snapshot?.layout ?? { shell: 'CenteredCard' }, [snapshot])
-  const blocks = useMemo(() => snapshot?.blocks ?? [], [snapshot])
+  const nodes = useMemo<ThemeNode[]>(() => snapshot?.nodes ?? [], [snapshot])
   const assets = useMemo(() => snapshot?.assets ?? [], [snapshot])
 
   const colors = getNestedRecord(tokens, 'colors')
@@ -108,24 +103,24 @@ export function FluidLoginScreen({
 
   const formBlocks = useMemo(
     () =>
-      blocks.filter(
-        (block) => !block.props || String(block.props.slot || 'form') === 'form',
+      nodes.filter(
+        (node) => !node.props || String(node.props.slot || 'form') === 'form',
       ),
-    [blocks],
+    [nodes],
   )
   const brandBlocks = useMemo(
     () =>
-      blocks.filter(
-        (block) => block.props && String(block.props.slot || '') === 'brand',
+      nodes.filter(
+        (node) => node.props && String(node.props.slot || '') === 'brand',
       ),
-    [blocks],
+    [nodes],
   )
   const nonSplitBlocks = useMemo(
     () =>
-      blocks.filter(
-        (block) => !block.props || String(block.props.slot || 'form') !== 'brand',
+      nodes.filter(
+        (node) => !node.props || String(node.props.slot || 'form') !== 'brand',
       ),
-    [blocks],
+    [nodes],
   )
 
   const handleSubmit = form.handleSubmit((values) => {
@@ -142,8 +137,22 @@ export function FluidLoginScreen({
     void onSubmit(normalized)
   })
 
-  const renderBlock = (block: ThemeBlock, index: number, options?: { wrapperClass?: string }) => {
-    const props = block.props ?? {}
+  const renderNode = (
+    node: ThemeNode,
+    index: number,
+    options?: { wrapperClass?: string },
+  ): ReactNode => {
+    const isVisible = (() => {
+      const value = node.props?.visible
+      if (value === undefined) return true
+      if (typeof value === 'boolean') return value
+      if (typeof value === 'string') return value.toLowerCase() !== 'false'
+      return true
+    })()
+    if (!isVisible) {
+      return null
+    }
+    const props = node.props ?? {}
     const align = String(props.align || 'left')
     const alignClass =
       align === 'center'
@@ -157,8 +166,10 @@ export function FluidLoginScreen({
     const marginTop = Number.parseFloat(String(props.margin_top || '0')) || 0
     const marginBottom = Number.parseFloat(String(props.margin_bottom || '0')) || 0
     const padding = Number.parseFloat(String(props.padding || '0')) || 0
-    const widthMode = String(props.width || 'full')
-    const widthValue = String(props.width_value || '')
+    const widthMode = String(node.size?.width || props.width || 'fill')
+    const widthValue = String(node.size?.width_value || props.width_value || '')
+    const heightMode = String(node.size?.height || props.height || 'hug')
+    const heightValue = String(node.size?.height_value || props.height_value || '')
     const size = String(props.size || 'md')
     const style: CSSProperties = {
       marginTop: `${marginTop}px`,
@@ -166,9 +177,25 @@ export function FluidLoginScreen({
       padding: `${padding}px`,
     }
     const widthClass =
-      widthMode === 'auto' ? 'w-auto' : widthMode === 'custom' ? '' : 'w-full'
-    if (widthMode === 'custom' && widthValue) {
+      widthMode === 'hug' || widthMode === 'auto'
+        ? 'w-auto'
+        : widthMode === 'fixed' || widthMode === 'custom'
+          ? ''
+          : 'w-full'
+    const heightClass =
+      heightMode === 'fill'
+        ? 'h-full'
+        : heightMode === 'fixed'
+          ? ''
+          : 'h-auto'
+    const fillHeightClass =
+      heightMode === 'fill' || heightMode === 'fixed' ? 'h-full' : ''
+    const fillWidthClass = widthMode === 'fill' ? 'w-full' : ''
+    if ((widthMode === 'fixed' || widthMode === 'custom') && widthValue) {
       style.width = widthValue
+    }
+    if (heightMode === 'fixed' && heightValue) {
+      style.height = heightValue
     }
 
     if (fontSize) {
@@ -185,101 +212,202 @@ export function FluidLoginScreen({
     const sizeClass =
       size === 'sm' ? 'h-8 text-xs' : size === 'lg' ? 'h-11 text-base' : 'h-9 text-sm'
 
+    const sizeClassName = cn(widthClass, heightClass)
     const wrap = (content: ReactNode, className?: string) => (
       <div
         key={`block-${index}`}
-        className={cn(widthClass, className)}
+        className={cn(sizeClassName, className)}
         style={style}
       >
         {content}
       </div>
     )
 
-    switch (block.block) {
-      case 'text':
+    switch (node.type) {
+      case 'Box': {
+        const layout = node.layout ?? {}
+        const direction = layout.direction === 'row' ? 'flex-row' : 'flex-col'
+        const gap = typeof layout.gap === 'number' ? `${layout.gap}px` : undefined
+        const alignItems =
+          layout.align === 'center'
+            ? 'center'
+            : layout.align === 'end'
+              ? 'flex-end'
+              : layout.align === 'start'
+                ? 'flex-start'
+                : 'stretch'
+        const paddingValue = Array.isArray(layout.padding)
+          ? layout.padding.map((value) => `${value}px`).join(' ')
+          : undefined
+        const borderColor = String(props.border_color || '')
+        const borderWidth = Number.parseFloat(String(props.border_width || ''))
+        const borderRadius = String(props.radius || '')
+        const background = String(props.background || '')
+        const boxStyle: CSSProperties = {
+          gap,
+          alignItems,
+          padding: paddingValue,
+          backgroundColor: background || undefined,
+          borderColor: borderColor || undefined,
+          borderWidth: Number.isNaN(borderWidth) ? undefined : `${borderWidth}px`,
+          borderStyle: borderColor || !Number.isNaN(borderWidth) ? 'solid' : undefined,
+          borderRadius: borderRadius || undefined,
+        }
+        return wrap(
+          <div className={cn('flex w-full', direction)} style={boxStyle}>
+            {(node.children ?? []).map((child, childIndex) =>
+              renderNode(child, childIndex),
+            )}
+          </div>,
+          undefined,
+        )
+      }
+      case 'Text':
         return wrap(
           <div className={cn('py-1', alignClass)}>
             <p className="text-lg font-semibold">{String(props.text || 'Headline')}</p>
           </div>,
           options?.wrapperClass,
         )
-      case 'input': {
+      case 'Icon': {
         const name = String(props.name || '')
-        if (!name) {
-          return wrap(
-            <div className="text-xs text-muted-foreground">Missing field name.</div>,
-            options?.wrapperClass,
-          )
-        }
-        const inputType = resolveInputType(props, name)
-        if (inputType === 'password') {
-          return wrap(
+        const color = String(props.color || '')
+        const sizeValue = Number.parseFloat(String(props.size || '16'))
+        const svgPath = String(props.svg_path || '').trim()
+        const svgViewBox = String(props.svg_viewbox || '').trim()
+        return wrap(
+          <span className="flex items-center justify-center">
+            {renderIcon(
+              name,
+              { size: Number.isNaN(sizeValue) ? 16 : sizeValue, color: color || undefined },
+              { svgPath, viewBox: svgViewBox || undefined },
+            ) ?? (
+              <span style={{ color: color || '#94a3b8', fontSize: `${sizeValue || 16}px` }}>
+                {name ? name.charAt(0).toUpperCase() : '•'}
+              </span>
+            )}
+          </span>,
+          cn('flex-0', options?.wrapperClass),
+        )
+      }
+      case 'Input': {
+        const name = String(props.name || '')
+        const inputType = resolveInputType(props, name || 'input')
+        const placeholder = String(props.placeholder || '')
+        const inputClass = cn(
+          sizeClass,
+          'flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0',
+          fillHeightClass,
+        )
+        return wrap(
+          name ? (
             <FormField
               control={form.control}
               name={name}
-              render={({ field }) => (
-                <FormItem className={cn('space-y-1', alignClass)}>
-                  <FormLabel className="text-xs text-muted-foreground">
-                    {String(props.label || 'Field')}
-                  </FormLabel>
-                  <FormControl>
-                    <PasswordInput {...field} className={cn(sizeClass)} disabled={isLoading} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />,
+              render={({ field }) =>
+                inputType === 'password' ? (
+                  <PasswordInput
+                    {...field}
+                    className={inputClass}
+                    placeholder={placeholder}
+                    disabled={isLoading}
+                  />
+                ) : (
+                  <Input
+                    {...field}
+                    className={inputClass}
+                    placeholder={placeholder}
+                    type={inputType}
+                    disabled={isLoading}
+                  />
+                )
+              }
+            />
+          ) : inputType === 'password' ? (
+            <PasswordInput className={inputClass} disabled={isLoading} />
+          ) : (
+            <Input
+              className={inputClass}
+              placeholder={placeholder}
+              type={inputType}
+              disabled={isLoading}
+            />
+          ),
+          cn('flex-1', options?.wrapperClass),
+        )
+      }
+      case 'Component': {
+        const expanded = expandComponentNode(node)
+        if (expanded) {
+          return wrap(renderNode(expanded, index), options?.wrapperClass)
+        }
+        const component = String(node.component || '')
+
+        if (component.toLowerCase() === 'button') {
+          const variant = String(props.variant || 'primary')
+          const buttonVariant =
+            variant === 'secondary' ? 'secondary' : variant === 'outline' ? 'outline' : 'default'
+          const buttonStyle: React.CSSProperties = {}
+          if (variant === 'primary') {
+            buttonStyle.backgroundColor = primary
+            buttonStyle.color = '#ffffff'
+          }
+          if (variant === 'outline') {
+            buttonStyle.borderColor = primary
+            buttonStyle.color = primary
+          }
+          return wrap(
+            <Button
+              type="submit"
+              variant={buttonVariant}
+              className={cn(alignClass, sizeClass, fillWidthClass, fillHeightClass)}
+              style={buttonStyle}
+              disabled={isLoading}
+            >
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              {String(props.label || 'Continue')}
+            </Button>,
             options?.wrapperClass,
           )
         }
 
+        if (component.toLowerCase() === 'link') {
+          const label = String(props.label || 'Link')
+          const href = String(props.href || '#')
+          const target = String(props.target || '_self')
+          const isExternal = target === '_blank'
+          return wrap(
+            <a
+              href={href}
+              target={target}
+              rel={isExternal ? 'noreferrer' : undefined}
+              className={cn('text-xs underline', alignClass)}
+              style={{ color: fontColor || primary }}
+            >
+              {label}
+            </a>,
+            options?.wrapperClass,
+          )
+        }
+
+        if (component.toLowerCase() === 'divider') {
+          return wrap(<Separator />, options?.wrapperClass)
+        }
+
         return wrap(
-          <FormInput
-            control={form.control}
-            name={name}
-            label={String(props.label || 'Field')}
-            placeholder={String(props.placeholder || '')}
-            type={inputType}
-            className={cn(sizeClass)}
-            disabled={isLoading}
-          />,
-          options?.wrapperClass,
+          <div className="text-xs text-muted-foreground">Unknown component: {component}</div>,
         )
       }
-      case 'button': {
-        const variant = String(props.variant || 'primary')
-        const buttonVariant =
-          variant === 'secondary' ? 'secondary' : variant === 'outline' ? 'outline' : 'default'
-        const buttonStyle: React.CSSProperties = {}
-        if (variant === 'primary') {
-          buttonStyle.backgroundColor = primary
-          buttonStyle.color = '#ffffff'
-        }
-        if (variant === 'outline') {
-          buttonStyle.borderColor = primary
-          buttonStyle.color = primary
-        }
-        return wrap(
-          <Button
-            type="submit"
-            variant={buttonVariant}
-            className={cn(widthClass, alignClass, sizeClass)}
-            style={buttonStyle}
-            disabled={isLoading}
-          >
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {String(props.label || 'Continue')}
-          </Button>,
-          options?.wrapperClass,
-        )
-      }
-      case 'image': {
+      case 'Image': {
         const assetId = String(props.asset_id || '')
         const asset = assetMap.get(assetId)
-        const heightValue = String(props.height_value || '')
         const height =
-          heightValue ||
-          (size === 'sm' ? '120px' : size === 'lg' ? '240px' : '180px')
+          heightMode === 'fixed' && heightValue
+            ? heightValue
+            : heightMode === 'fill'
+              ? '100%'
+              : heightValue ||
+                (size === 'sm' ? '120px' : size === 'lg' ? '240px' : '180px')
         return wrap(
           asset ? (
             <img
@@ -299,29 +427,9 @@ export function FluidLoginScreen({
           options?.wrapperClass,
         )
       }
-      case 'divider':
-        return wrap(<Separator />, options?.wrapperClass)
-      case 'link': {
-        const label = String(props.label || 'Link')
-        const href = String(props.href || '#')
-        const target = String(props.target || '_self')
-        const isExternal = target === '_blank'
-        return wrap(
-          <a
-            href={href}
-            target={target}
-            rel={isExternal ? 'noreferrer' : undefined}
-            className={cn('text-xs underline', alignClass)}
-            style={{ color: fontColor || primary }}
-          >
-            {label}
-          </a>,
-          options?.wrapperClass,
-        )
-      }
       default:
         return wrap(
-          <div className="text-xs text-muted-foreground">Unknown block: {block.block}</div>,
+          <div className="text-xs text-muted-foreground">Unknown node: {node.type}</div>,
         )
     }
   }
@@ -373,7 +481,7 @@ export function FluidLoginScreen({
                 <div className="space-y-3">
                   {brandBlocks.map((block, index) => (
                     <div key={`brand-${index}`} className="text-white">
-                      {renderBlock(block, index, { wrapperClass: 'text-white' })}
+                      {renderNode(block, index, { wrapperClass: 'text-white' })}
                     </div>
                   ))}
                 </div>
@@ -393,7 +501,7 @@ export function FluidLoginScreen({
                       Add blocks to build this page.
                     </div>
                   ) : (
-                    formBlocks.map((block, index) => renderBlock(block, index))
+                    formBlocks.map((block, index) => renderNode(block, index))
                   )}
                 </form>
               </Form>
@@ -423,7 +531,7 @@ export function FluidLoginScreen({
                     Add blocks to build this page.
                   </div>
                 ) : (
-                  nonSplitBlocks.map((block, index) => renderBlock(block, index))
+                  nonSplitBlocks.map((block, index) => renderNode(block, index))
                 )}
               </form>
             </Form>

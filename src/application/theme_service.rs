@@ -1,7 +1,7 @@
 use crate::constants::DEFAULT_THEME_NAME;
 use crate::domain::theme::{
-    Theme, ThemeAsset, ThemeAssetRef, ThemeBinding, ThemeBlock, ThemeDraft, ThemeDraftNode,
-    ThemeLayout, ThemeNode, ThemeSnapshot, ThemeTokens, ThemeVersion,
+    Theme, ThemeAsset, ThemeAssetRef, ThemeBinding, ThemeDraft, ThemeDraftNode, ThemeLayout,
+    ThemeNode, ThemeNodeInstance, ThemeSnapshot, ThemeTokens, ThemeVersion,
 };
 use crate::domain::theme_pages::{self, ThemePageTemplate};
 use crate::error::{Error, Result};
@@ -27,6 +27,8 @@ pub struct ThemeResolverService {
     repo: Arc<dyn ThemeRepository>,
     tx_manager: Arc<dyn TransactionManager>,
 }
+
+const ALLOW_LEGACY_BLUEPRINTS: bool = false;
 
 impl ThemeResolverService {
     pub fn new(repo: Arc<dyn ThemeRepository>, tx_manager: Arc<dyn TransactionManager>) -> Self {
@@ -55,14 +57,14 @@ impl ThemeResolverService {
         let requested_key = node_key.unwrap_or("login");
         let draft_payload = parse_version_payload(&version.snapshot_json);
 
-        let (tokens, layout, blocks) = if let Some(payload) = draft_payload {
-            let (blocks, _) = payload
+        let (tokens, layout, nodes) = if let Some(payload) = draft_payload {
+            let (nodes, _) = payload
                 .nodes
                 .iter()
                 .find(|node| node.node_key == requested_key)
                 .and_then(|node| parse_blueprint_value(node.blueprint.clone()))
-                .unwrap_or_else(|| default_page_blocks(requested_key));
-            (payload.tokens, payload.layout, blocks)
+                .unwrap_or_else(|| default_page_nodes(requested_key));
+            (payload.tokens, payload.layout, nodes)
         } else {
             let tokens = self
                 .repo
@@ -70,14 +72,14 @@ impl ThemeResolverService {
                 .await?
                 .and_then(|t| parse_json(&t.tokens_json, "theme_tokens"))
                 .unwrap_or_else(default_tokens);
-            let (blocks, layout_hint) =
+            let (nodes, layout_hint) =
                 if let Some(node) = self.repo.get_node(&binding.theme_id, requested_key).await? {
                     parse_blueprint(&node.blueprint_json).unwrap_or_else(|| (Vec::new(), None))
                 } else {
-                    default_page_blocks(requested_key)
+                    default_page_nodes(requested_key)
                 };
             let layout = resolve_layout(&self.repo, binding.theme_id, layout_hint).await?;
-            (tokens, layout, blocks)
+            (tokens, layout, nodes)
         };
 
         let assets = self
@@ -103,7 +105,7 @@ impl ThemeResolverService {
             version_id: version.id,
             tokens,
             layout,
-            blocks,
+            nodes,
             assets,
         })
     }
@@ -232,7 +234,7 @@ impl ThemeResolverService {
             snapshot_json: serde_json::to_string(&json!({
                 "tokens": tokens_value,
                 "layout": layout_value,
-                "blocks": [],
+                "nodes": [],
             }))
             .map_err(|err| Error::Unexpected(err.into()))?,
             created_at: "".to_string(),
@@ -571,6 +573,8 @@ impl ThemeResolverService {
             .await?
             .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
 
+        validate_theme_draft(&draft, ALLOW_LEGACY_BLUEPRINTS)?;
+
         let tokens_json = serde_json::to_string(&draft.tokens)
             .map_err(|err| Error::Validation(format!("Invalid theme tokens: {}", err)))?;
         let layout_json = serde_json::to_string(&draft.layout)
@@ -748,11 +752,11 @@ impl ThemeResolverService {
 
         let nodes = self.repo.list_nodes(theme_id).await?;
         let requested_key = node_key.unwrap_or("login");
-        let (blocks, layout_hint) = nodes
+        let (nodes, layout_hint) = nodes
             .iter()
             .find(|node| node.node_key == requested_key)
             .and_then(|node| parse_blueprint(&node.blueprint_json))
-            .unwrap_or_else(|| default_page_blocks(requested_key));
+            .unwrap_or_else(|| default_page_nodes(requested_key));
 
         let layout = if let Some(layout_name) = layout_hint {
             if let Some(layout) = self.repo.get_layout(theme_id, &layout_name).await? {
@@ -789,19 +793,19 @@ impl ThemeResolverService {
             version_id: Uuid::nil(),
             tokens,
             layout,
-            blocks,
+            nodes,
             assets,
         })
     }
 
     fn default_snapshot(&self) -> ThemeSnapshot {
-        let (blocks, _) = default_page_blocks("login");
+        let (nodes, _) = default_page_nodes("login");
         ThemeSnapshot {
             theme_id: Uuid::nil(),
             version_id: Uuid::nil(),
             tokens: default_tokens(),
             layout: default_layout(),
-            blocks,
+            nodes,
             assets: Vec::new(),
         }
     }
@@ -1076,7 +1080,7 @@ fn parse_version_payload(raw: &str) -> Option<ThemeDraft> {
     if let Ok(snapshot) = serde_json::from_str::<ThemeSnapshot>(raw) {
         let blueprint = json!({
             "layout": "default",
-            "blocks": snapshot.blocks,
+            "nodes": snapshot.nodes,
         });
         return Some(ThemeDraft {
             tokens: snapshot.tokens,
@@ -1091,26 +1095,29 @@ fn parse_version_payload(raw: &str) -> Option<ThemeDraft> {
     None
 }
 
-fn parse_blueprint(raw: &str) -> Option<(Vec<ThemeBlock>, Option<String>)> {
+fn parse_blueprint(raw: &str) -> Option<(Vec<ThemeNodeInstance>, Option<String>)> {
     let value: Value = serde_json::from_str(raw).ok()?;
     parse_blueprint_value(value)
 }
 
-fn parse_blueprint_value(value: Value) -> Option<(Vec<ThemeBlock>, Option<String>)> {
+fn parse_blueprint_value(value: Value) -> Option<(Vec<ThemeNodeInstance>, Option<String>)> {
     match value {
         Value::Array(items) => {
-            let blocks: Vec<ThemeBlock> = serde_json::from_value(Value::Array(items)).ok()?;
-            Some((blocks, None))
+            let nodes =
+                serde_json::from_value::<Vec<ThemeNodeInstance>>(Value::Array(items)).ok()?;
+            Some((normalize_nodes(nodes), None))
         }
         Value::Object(mut obj) => {
             let layout = obj
                 .remove("layout")
                 .and_then(|val| val.as_str().map(|s| s.to_string()));
-            let blocks = obj
-                .remove("blocks")
-                .and_then(|val| serde_json::from_value::<Vec<ThemeBlock>>(val).ok())
-                .unwrap_or_default();
-            Some((blocks, layout))
+
+            let nodes_value = obj.remove("nodes");
+            let nodes = match nodes_value {
+                Some(value) => serde_json::from_value::<Vec<ThemeNodeInstance>>(value).ok()?,
+                None => Vec::new(),
+            };
+            Some((normalize_nodes(nodes), layout))
         }
         _ => None,
     }
@@ -1174,10 +1181,148 @@ fn default_layout() -> Value {
     })
 }
 
-fn default_page_blocks(page_key: &str) -> (Vec<ThemeBlock>, Option<String>) {
+fn default_page_nodes(page_key: &str) -> (Vec<ThemeNodeInstance>, Option<String>) {
     theme_pages::default_page_blueprint(page_key)
         .and_then(parse_blueprint_value)
         .unwrap_or_else(|| (Vec::new(), None))
+}
+
+fn normalize_nodes(nodes: Vec<ThemeNodeInstance>) -> Vec<ThemeNodeInstance> {
+    nodes
+        .into_iter()
+        .map(|mut node| {
+            if node
+                .id
+                .as_ref()
+                .map(|value| value.trim().is_empty())
+                .unwrap_or(true)
+            {
+                node.id = Some(Uuid::new_v4().to_string());
+            }
+            node.children = normalize_nodes(node.children);
+            let mut normalized_slots = std::collections::HashMap::new();
+            for (key, slot_node) in node.slots.into_iter() {
+                let mut nodes = normalize_nodes(vec![slot_node]);
+                if let Some(normalized) = nodes.pop() {
+                    normalized_slots.insert(key, normalized);
+                }
+            }
+            node.slots = normalized_slots;
+            node
+        })
+        .collect()
+}
+
+fn validate_theme_draft(draft: &ThemeDraft, allow_legacy_blocks: bool) -> Result<()> {
+    for node in &draft.nodes {
+        validate_blueprint(&node.blueprint, allow_legacy_blocks)?
+    }
+    Ok(())
+}
+
+fn validate_blueprint(value: &Value, allow_legacy_blocks: bool) -> Result<()> {
+    match value {
+        Value::Array(nodes) => {
+            for node in nodes {
+                validate_node_value(node)?
+            }
+            Ok(())
+        }
+        Value::Object(map) => {
+            if let Some(nodes) = map.get("nodes") {
+                if let Value::Array(node_list) = nodes {
+                    for node in node_list {
+                        validate_node_value(node)?
+                    }
+                    return Ok(());
+                }
+                return Err(Error::Validation(
+                    "Theme blueprint nodes must be an array".to_string(),
+                ));
+            }
+            if allow_legacy_blocks && map.get("blocks").is_some() {
+                return Ok(());
+            }
+            Err(Error::Validation(
+                "Theme blueprint must contain a nodes array".to_string(),
+            ))
+        }
+        _ => Err(Error::Validation(
+            "Theme blueprint must be an array or object".to_string(),
+        )),
+    }
+}
+
+fn validate_node_value(value: &Value) -> Result<()> {
+    let obj = value
+        .as_object()
+        .ok_or_else(|| Error::Validation("Theme node must be an object".to_string()))?;
+    let node_type = obj
+        .get("type")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| Error::Validation("Theme node type is required".to_string()))?;
+
+    let allowed = ["Box", "Text", "Image", "Icon", "Input", "Component"];
+    if !allowed.contains(&node_type) {
+        return Err(Error::Validation(format!(
+            "Unsupported node type: {}",
+            node_type
+        )));
+    }
+
+    if node_type == "Component" {
+        let component = obj
+            .get("component")
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        if component.trim().is_empty() {
+            return Err(Error::Validation(
+                "Component nodes must define a component name".to_string(),
+            ));
+        }
+    }
+
+    if let Some(children) = obj.get("children") {
+        if let Value::Array(nodes) = children {
+            for node in nodes {
+                validate_node_value(node)?
+            }
+        } else {
+            return Err(Error::Validation(
+                "Theme node children must be an array".to_string(),
+            ));
+        }
+    }
+
+    if let Some(slots) = obj.get("slots") {
+        if let Value::Object(slots_map) = slots {
+            for node in slots_map.values() {
+                validate_node_value(node)?
+            }
+        } else {
+            return Err(Error::Validation(
+                "Theme node slots must be an object".to_string(),
+            ));
+        }
+    }
+
+    if let Some(layout) = obj.get("layout") {
+        if !layout.is_object() {
+            return Err(Error::Validation(
+                "Theme node layout must be an object".to_string(),
+            ));
+        }
+    }
+
+    if let Some(size) = obj.get("size") {
+        if !size.is_object() {
+            return Err(Error::Validation(
+                "Theme node size must be an object".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 fn build_theme_nodes(theme_id: Uuid, pages: &[ThemePageTemplate]) -> Result<Vec<ThemeNode>> {

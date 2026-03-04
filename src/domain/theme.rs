@@ -109,12 +109,22 @@ pub struct ThemeBinding {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThemeBlock {
-    pub block: String,
+pub struct ThemeNodeInstance {
+    pub id: Option<String>,
+    #[serde(rename = "type")]
+    pub node_type: String,
+    #[serde(default)]
+    pub component: Option<String>,
     #[serde(default)]
     pub props: serde_json::Value,
     #[serde(default)]
-    pub children: Vec<ThemeBlock>,
+    pub layout: Option<serde_json::Value>,
+    #[serde(default)]
+    pub size: Option<serde_json::Value>,
+    #[serde(default)]
+    pub children: Vec<ThemeNodeInstance>,
+    #[serde(default)]
+    pub slots: std::collections::HashMap<String, ThemeNodeInstance>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,7 +143,7 @@ pub struct ThemeSnapshot {
     pub version_id: Uuid,
     pub tokens: serde_json::Value,
     pub layout: serde_json::Value,
-    pub blocks: Vec<ThemeBlock>,
+    pub nodes: Vec<ThemeNodeInstance>,
     pub assets: Vec<ThemeAssetRef>,
 }
 

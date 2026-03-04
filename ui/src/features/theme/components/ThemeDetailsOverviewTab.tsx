@@ -1,12 +1,21 @@
-import { LayoutTemplate, Loader2, Palette, ShieldCheck } from 'lucide-react'
+import { Check, ChevronDown, LayoutTemplate, Loader2, Palette, ShieldCheck } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import type { Theme } from '@/entities/theme/model/types'
 import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
 import { useThemePages } from '@/features/theme/api/useThemePages'
 import { useThemePreview } from '@/features/theme/api/useThemePreview'
+import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/shared/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
 
 interface ThemeDetailsOverviewTabProps {
   theme: Theme
@@ -19,6 +28,7 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
   const activePage = pageOptions.includes(selectedPage)
     ? selectedPage
     : pageOptions[0] || 'login'
+  const [open, setOpen] = useState(false)
 
   const { data: preview, isLoading } = useThemePreview(theme.id, { pageKey: activePage })
 
@@ -37,7 +47,7 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
     },
   }
   const previewLayout = preview?.layout ?? { shell: 'CenteredCard' }
-  const previewBlocks = preview?.blocks ?? []
+  const previewNodes = useMemo(() => preview?.nodes ?? [], [preview])
   const previewAssets = preview?.assets ?? []
 
   return (
@@ -49,18 +59,38 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
             A live preview of the login experience built with this theme.
           </CardDescription>
           <div className="mt-3">
-            <Select value={activePage} onValueChange={setSelectedPage}>
-              <SelectTrigger className="bg-background h-8 text-xs">
-                <SelectValue placeholder="Select page" />
-              </SelectTrigger>
-              <SelectContent>
-                {pageOptions.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {key}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <span className="text-xs font-semibold">{activePage}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-64 p-0">
+                <Command>
+                  <CommandInput placeholder="Search pages..." />
+                  <CommandList>
+                    <CommandEmpty>No pages found.</CommandEmpty>
+                    <CommandGroup>
+                      {pageOptions.map((key) => (
+                        <CommandItem
+                          key={key}
+                          onSelect={() => {
+                            setSelectedPage(key)
+                            setOpen(false)
+                          }}
+                        >
+                          <span className="flex flex-1 text-xs">{key}</span>
+                          {key === activePage && (
+                            <Check className="h-3.5 w-3.5 text-primary" />
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent className="flex-1">
@@ -74,12 +104,12 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
                 <FluidCanvas
                   tokens={previewTokens}
                   layout={previewLayout}
-                  blocks={previewBlocks}
+                  blocks={previewNodes}
                   assets={previewAssets}
-                  selectedIndex={null}
+                  selectedNodeId={null}
                   isInspecting={false}
                   showChrome={false}
-                  onSelectBlock={() => {}}
+                  onSelectNode={() => {}}
                 />
               </div>
             )}

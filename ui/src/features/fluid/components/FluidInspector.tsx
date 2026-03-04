@@ -1,8 +1,16 @@
-import { Ruler, Type } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
+import { Ruler, Search, Type } from 'lucide-react'
+
+import { Button } from '@/components/button'
 import { Input } from '@/components/input'
-import type { ThemeAsset } from '@/entities/theme/model/types'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/popover'
+import { Textarea } from '@/components/textarea'
+import type { ThemeAsset, ThemeNode } from '@/entities/theme/model/types'
+import { createNodeFromDefinition } from '@/features/fluid/lib/nodeUtils'
+import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
+import { ICON_NAMES, renderIcon } from '@/shared/ui/icon-registry'
 import { Label } from '@/shared/ui/label'
 import {
   Select,
@@ -20,21 +28,130 @@ function normalizeColorValue(value: string) {
   return '#111827'
 }
 
+function IconPicker({
+  value,
+  color,
+  onSelect,
+}: {
+  value: string
+  color?: string
+  onSelect: (next: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const resolvedColor = color && color.trim() ? color : undefined
+  const filteredIcons = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return ICON_NAMES
+    return ICON_NAMES.filter((name) => name.includes(normalized))
+  }, [query])
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 gap-2 text-xs">
+          {renderIcon(value, { size: 14, color: resolvedColor }) ?? (
+            <Search className="h-3.5 w-3.5" />
+          )}
+          <span>{value || 'Browse'}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[340px] p-3" align="start">
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="text-muted-foreground/60 absolute left-2.5 top-2.5 h-4 w-4" />
+            <Input
+              placeholder="Search icons..."
+              className="h-8 pl-8 text-xs"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+          <div className="grid max-h-48 grid-cols-4 gap-2 overflow-y-auto pr-1">
+            {filteredIcons.length === 0 && (
+              <div className="text-muted-foreground col-span-4 text-xs">
+                No matching icons.
+              </div>
+            )}
+            {filteredIcons.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className="hover:bg-muted/40 flex flex-col items-center gap-1 rounded-md px-2 py-2 text-[10px]"
+                title={name}
+                onClick={() => {
+                  onSelect(name)
+                  setOpen(false)
+                }}
+              >
+                {renderIcon(name, { size: 16, color: resolvedColor }) ?? (
+                  <span className="text-muted-foreground text-[10px]">?</span>
+                )}
+                <span className="text-muted-foreground truncate">{name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 interface FluidInspectorProps {
   assets: ThemeAsset[]
-  selectedBlock: {
-    block: string
+  selectedBlock: ThemeNode | null
+  validationErrors?: ThemeValidationError[]
+  onUpdateSelectedBlock: (partial: {
     props?: Record<string, unknown>
-  } | null
-  onUpdateSelectedBlock: (partial: Record<string, unknown>) => void
+    layout?: Record<string, unknown>
+    size?: Record<string, unknown>
+    slots?: Record<string, ThemeNode | null>
+  }) => void
 }
 
 export function FluidInspector({
   assets,
   selectedBlock,
+  validationErrors = [],
   onUpdateSelectedBlock,
 }: FluidInspectorProps) {
   const selectedProps = selectedBlock?.props ?? {}
+  const selectedLayout = selectedBlock?.layout ?? {}
+  const selectedSize = selectedBlock?.size ?? {}
+  const selectedType = selectedBlock?.type ?? ''
+  const selectedComponent = selectedBlock?.component ?? ''
+  const displayType =
+    selectedType === 'Component' && selectedComponent ? selectedComponent : selectedType
+  const prefixSlot = selectedBlock?.slots?.prefix
+  const errorSlot = selectedBlock?.slots?.error
+  const selectedErrors = useMemo(
+    () =>
+      selectedBlock
+        ? validationErrors.filter((error) => error.nodeId === selectedBlock.id)
+        : [],
+    [selectedBlock, validationErrors],
+  )
+
+  const upsertSlot = (
+    key: string,
+    baseType: ThemeNode['type'],
+    props: Record<string, unknown>,
+  ) => {
+    const baseNode =
+      selectedBlock?.slots?.[key] ??
+      createNodeFromDefinition({
+        type: baseType,
+        props,
+      })
+    const updated = {
+      ...baseNode,
+      props: {
+        ...(baseNode.props ?? {}),
+        ...props,
+      },
+    }
+    onUpdateSelectedBlock({ slots: { [key]: updated } })
+  }
 
   return (
     <aside className="bg-muted/10 flex w-72 flex-col border-l">
@@ -55,25 +172,96 @@ export function FluidInspector({
               </p>
             ) : (
               <>
+                {selectedErrors.length > 0 && (
+                  <div className="border-destructive/40 bg-destructive/10 text-destructive rounded-md border p-2 text-[11px]">
+                    <div className="font-semibold">Validation</div>
+                    <div className="mt-1 space-y-1">
+                      {selectedErrors.map((error, index) => (
+                        <div key={`${error.path}-${index}`}>{error.message}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Block Type</Label>
-                  <Input value={selectedBlock.block} disabled />
+                  <Input value={displayType || 'Node'} disabled />
                 </div>
 
-                {selectedBlock.block === 'text' && (
+                {selectedType === 'Text' && (
                   <div className="space-y-2">
                     <Label htmlFor="text">Text</Label>
                     <Input
                       id="text"
                       value={String(selectedProps.text || '')}
                       onChange={(event) =>
-                        onUpdateSelectedBlock({ text: event.target.value })
+                        onUpdateSelectedBlock({ props: { text: event.target.value } })
                       }
                     />
                   </div>
                 )}
 
-                {selectedBlock.block === 'input' && (
+                {selectedType === 'Icon' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="icon-name">Icon Name</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="icon-name"
+                        value={String(selectedProps.name || '')}
+                        onChange={(event) =>
+                          onUpdateSelectedBlock({ props: { name: event.target.value } })
+                        }
+                      />
+                      <IconPicker
+                        value={String(selectedProps.name || '')}
+                        color={String(selectedProps.color || '')}
+                        onSelect={(name) => onUpdateSelectedBlock({ props: { name } })}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        value={String(selectedProps.size || '')}
+                        placeholder="Size"
+                        onChange={(event) =>
+                          onUpdateSelectedBlock({ props: { size: event.target.value } })
+                        }
+                      />
+                      <Input
+                        value={String(selectedProps.color || '')}
+                        placeholder="Color"
+                        onChange={(event) =>
+                          onUpdateSelectedBlock({ props: { color: event.target.value } })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Custom SVG</Label>
+                      <Textarea
+                        value={String(selectedProps.svg_path || '')}
+                        placeholder="SVG path (d attribute)"
+                        className="min-h-[80px] text-xs"
+                        onChange={(event) =>
+                          onUpdateSelectedBlock({
+                            props: { svg_path: event.target.value },
+                          })
+                        }
+                      />
+                      <Input
+                        value={String(selectedProps.svg_viewbox || '')}
+                        placeholder="ViewBox (e.g. 0 0 24 24)"
+                        onChange={(event) =>
+                          onUpdateSelectedBlock({
+                            props: { svg_viewbox: event.target.value },
+                          })
+                        }
+                      />
+                      <p className="text-muted-foreground text-[10px]">
+                        When SVG path is provided, it overrides the icon name.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {selectedType === 'Component' && selectedComponent === 'Input' && (
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="label">Label</Label>
@@ -81,7 +269,7 @@ export function FluidInspector({
                         id="label"
                         value={String(selectedProps.label || '')}
                         onChange={(event) =>
-                          onUpdateSelectedBlock({ label: event.target.value })
+                          onUpdateSelectedBlock({ props: { label: event.target.value } })
                         }
                       />
                     </div>
@@ -91,7 +279,7 @@ export function FluidInspector({
                         id="name"
                         value={String(selectedProps.name || '')}
                         onChange={(event) =>
-                          onUpdateSelectedBlock({ name: event.target.value })
+                          onUpdateSelectedBlock({ props: { name: event.target.value } })
                         }
                       />
                     </div>
@@ -100,7 +288,7 @@ export function FluidInspector({
                       <Select
                         value={String(selectedProps.input_type || 'text')}
                         onValueChange={(value) =>
-                          onUpdateSelectedBlock({ input_type: value })
+                          onUpdateSelectedBlock({ props: { input_type: value } })
                         }
                       >
                         <SelectTrigger>
@@ -113,10 +301,235 @@ export function FluidInspector({
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-2">
+                      <Label>Label Styling</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          value={String(selectedProps.label_size || '')}
+                          placeholder="Size (e.g. 12px)"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { label_size: event.target.value },
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(selectedProps.label_weight || '')}
+                          placeholder="Weight (e.g. 600)"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { label_weight: event.target.value },
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(selectedProps.label_color || '')}
+                          placeholder="Color"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { label_color: event.target.value },
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(selectedProps.label_spacing || '')}
+                          placeholder="Spacing (px)"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { label_spacing: event.target.value },
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Field Container</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          value={String(selectedProps.field_border_color || '')}
+                          placeholder="Border color"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { field_border_color: event.target.value },
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(selectedProps.field_border_width || '')}
+                          placeholder="Border width"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { field_border_width: event.target.value },
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(selectedProps.field_radius || '')}
+                          placeholder="Radius"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { field_radius: event.target.value },
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(selectedProps.field_background || '')}
+                          placeholder="Background"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { field_background: event.target.value },
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(selectedProps.field_padding || '')}
+                          placeholder="Padding"
+                          onChange={(event) =>
+                            onUpdateSelectedBlock({
+                              props: { field_padding: event.target.value },
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Prefix Icon</Label>
+                      <Select
+                        value={
+                          prefixSlot && (prefixSlot.props?.visible ?? true) !== false
+                            ? 'show'
+                            : 'hide'
+                        }
+                        onValueChange={(value) =>
+                          upsertSlot('prefix', 'Icon', { visible: value === 'show' })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Toggle prefix icon" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="show">Show</SelectItem>
+                          <SelectItem value="hide">Hide</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            value={String(prefixSlot?.props?.name || '')}
+                            placeholder="Icon name"
+                            onChange={(event) =>
+                              upsertSlot('prefix', 'Icon', {
+                                name: event.target.value,
+                                visible: true,
+                              })
+                            }
+                          />
+                          <IconPicker
+                            value={String(prefixSlot?.props?.name || '')}
+                            color={String(prefixSlot?.props?.color || '')}
+                            onSelect={(name) =>
+                              upsertSlot('prefix', 'Icon', {
+                                name,
+                                visible: true,
+                              })
+                            }
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            value={String(prefixSlot?.props?.size || '')}
+                            placeholder="Size"
+                            onChange={(event) =>
+                              upsertSlot('prefix', 'Icon', {
+                                size: event.target.value,
+                                visible: true,
+                              })
+                            }
+                          />
+                          <Input
+                            value={String(prefixSlot?.props?.color || '')}
+                            placeholder="Color"
+                            onChange={(event) =>
+                              upsertSlot('prefix', 'Icon', {
+                                color: event.target.value,
+                                visible: true,
+                              })
+                            }
+                          />
+                        </div>
+                        <Textarea
+                          value={String(prefixSlot?.props?.svg_path || '')}
+                          placeholder="SVG path (d attribute)"
+                          className="min-h-[80px] text-xs"
+                          onChange={(event) =>
+                            upsertSlot('prefix', 'Icon', {
+                              svg_path: event.target.value,
+                              visible: true,
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(prefixSlot?.props?.svg_viewbox || '')}
+                          placeholder="ViewBox (e.g. 0 0 24 24)"
+                          onChange={(event) =>
+                            upsertSlot('prefix', 'Icon', {
+                              svg_viewbox: event.target.value,
+                              visible: true,
+                            })
+                          }
+                        />
+                        <p className="text-muted-foreground text-[10px]">
+                          When SVG path is provided, it overrides the icon name.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Error Hint</Label>
+                      <Select
+                        value={
+                          errorSlot && (errorSlot.props?.visible ?? false)
+                            ? 'show'
+                            : 'hide'
+                        }
+                        onValueChange={(value) =>
+                          upsertSlot('error', 'Text', { visible: value === 'show' })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Toggle error hint" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="show">Show</SelectItem>
+                          <SelectItem value="hide">Hide</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          value={String(errorSlot?.props?.text || '')}
+                          placeholder="Error text"
+                          onChange={(event) =>
+                            upsertSlot('error', 'Text', {
+                              text: event.target.value,
+                              visible: true,
+                            })
+                          }
+                        />
+                        <Input
+                          value={String(errorSlot?.props?.color || '')}
+                          placeholder="Color"
+                          onChange={(event) =>
+                            upsertSlot('error', 'Text', {
+                              color: event.target.value,
+                              visible: true,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
                   </>
                 )}
 
-                {selectedBlock.block === 'button' && (
+                {selectedType === 'Component' && selectedComponent === 'Button' && (
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="button-label">Label</Label>
@@ -124,7 +537,7 @@ export function FluidInspector({
                         id="button-label"
                         value={String(selectedProps.label || '')}
                         onChange={(event) =>
-                          onUpdateSelectedBlock({ label: event.target.value })
+                          onUpdateSelectedBlock({ props: { label: event.target.value } })
                         }
                       />
                     </div>
@@ -133,7 +546,7 @@ export function FluidInspector({
                       <Select
                         value={String(selectedProps.variant || 'primary')}
                         onValueChange={(value) =>
-                          onUpdateSelectedBlock({ variant: value })
+                          onUpdateSelectedBlock({ props: { variant: value } })
                         }
                       >
                         <SelectTrigger>
@@ -149,7 +562,7 @@ export function FluidInspector({
                   </>
                 )}
 
-                {selectedBlock.block === 'link' && (
+                {selectedType === 'Component' && selectedComponent === 'Link' && (
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="link-label">Label</Label>
@@ -157,7 +570,7 @@ export function FluidInspector({
                         id="link-label"
                         value={String(selectedProps.label || '')}
                         onChange={(event) =>
-                          onUpdateSelectedBlock({ label: event.target.value })
+                          onUpdateSelectedBlock({ props: { label: event.target.value } })
                         }
                       />
                     </div>
@@ -167,7 +580,7 @@ export function FluidInspector({
                         id="link-href"
                         value={String(selectedProps.href || '')}
                         onChange={(event) =>
-                          onUpdateSelectedBlock({ href: event.target.value })
+                          onUpdateSelectedBlock({ props: { href: event.target.value } })
                         }
                       />
                     </div>
@@ -176,7 +589,7 @@ export function FluidInspector({
                       <Select
                         value={String(selectedProps.target || '_self')}
                         onValueChange={(value) =>
-                          onUpdateSelectedBlock({ target: value })
+                          onUpdateSelectedBlock({ props: { target: value } })
                         }
                       >
                         <SelectTrigger>
@@ -191,13 +604,15 @@ export function FluidInspector({
                   </>
                 )}
 
-                {selectedBlock.block === 'image' && (
+                {selectedType === 'Image' && (
                   <>
                     <div className="space-y-2">
                       <Label>Asset</Label>
                       <Select
                         value={String(selectedProps.asset_id || '')}
-                        onValueChange={(value) => onUpdateSelectedBlock({ asset_id: value })}
+                        onValueChange={(value) =>
+                          onUpdateSelectedBlock({ props: { asset_id: value } })
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select asset" />
@@ -223,24 +638,101 @@ export function FluidInspector({
                         id="alt"
                         value={String(selectedProps.alt || '')}
                         onChange={(event) =>
-                          onUpdateSelectedBlock({ alt: event.target.value })
+                          onUpdateSelectedBlock({ props: { alt: event.target.value } })
                         }
                       />
                     </div>
                   </>
                 )}
 
-                {selectedBlock.block === 'divider' && (
+                {selectedType === 'Component' && selectedComponent === 'Divider' && (
                   <p className="text-muted-foreground text-sm">
                     Divider blocks have no editable properties.
                   </p>
+                )}
+
+                {selectedType === 'Box' && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>Direction</Label>
+                      <Select
+                        value={String(selectedLayout.direction || 'column')}
+                        onValueChange={(value) =>
+                          onUpdateSelectedBlock({ layout: { direction: value } })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select direction" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="column">Column</SelectItem>
+                          <SelectItem value="row">Row</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Gap</Label>
+                      <Input
+                        value={String(selectedLayout.gap ?? '')}
+                        placeholder="e.g. 12"
+                        onChange={(event) =>
+                          onUpdateSelectedBlock({
+                            layout: { gap: Number.parseFloat(event.target.value) || 0 },
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Alignment</Label>
+                      <Select
+                        value={String(selectedLayout.align || 'stretch')}
+                        onValueChange={(value) =>
+                          onUpdateSelectedBlock({ layout: { align: value } })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select alignment" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="start">Start</SelectItem>
+                          <SelectItem value="center">Center</SelectItem>
+                          <SelectItem value="end">End</SelectItem>
+                          <SelectItem value="stretch">Stretch</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Padding (top right bottom left)</Label>
+                      <Input
+                        value={
+                          Array.isArray(selectedLayout.padding)
+                            ? selectedLayout.padding.join(', ')
+                            : ''
+                        }
+                        placeholder="e.g. 16, 16, 16, 16"
+                        onChange={(event) => {
+                          const parts = event.target.value
+                            .split(',')
+                            .map((part) => Number.parseFloat(part.trim()))
+                            .filter((value) => !Number.isNaN(value))
+                          if (parts.length === 4) {
+                            onUpdateSelectedBlock({
+                              layout: { padding: parts as [number, number, number, number] },
+                            })
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
                 )}
 
                 <div className="space-y-2 border-t pt-4">
                   <Label>Slot</Label>
                   <Select
                     value={String(selectedProps.slot || 'form')}
-                    onValueChange={(value) => onUpdateSelectedBlock({ slot: value })}
+                    onValueChange={(value) =>
+                      onUpdateSelectedBlock({ props: { slot: value } })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select slot" />
@@ -256,7 +748,9 @@ export function FluidInspector({
                   <Label>Alignment</Label>
                   <Select
                     value={String(selectedProps.align || 'left')}
-                    onValueChange={(value) => onUpdateSelectedBlock({ align: value })}
+                    onValueChange={(value) =>
+                      onUpdateSelectedBlock({ props: { align: value } })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select alignment" />
@@ -272,28 +766,57 @@ export function FluidInspector({
                 <div className="space-y-2">
                   <Label>Width</Label>
                   <Select
-                    value={String(selectedProps.width || 'full')}
-                    onValueChange={(value) => onUpdateSelectedBlock({ width: value })}
+                    value={String(selectedSize.width || 'fill')}
+                    onValueChange={(value) => onUpdateSelectedBlock({ size: { width: value } })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select width" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="full">Full</SelectItem>
-                      <SelectItem value="auto">Auto</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
+                      <SelectItem value="fill">Fill</SelectItem>
+                      <SelectItem value="hug">Hug</SelectItem>
+                      <SelectItem value="fixed">Fixed</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                {String(selectedProps.width || 'full') === 'custom' && (
+                {String(selectedSize.width || '') === 'fixed' && (
                   <div className="space-y-2">
                     <Label htmlFor="width-value">Custom Width</Label>
                     <Input
                       id="width-value"
-                      value={String(selectedProps.width_value || '')}
+                      value={String(selectedSize.width_value || '')}
                       placeholder="e.g. 240px"
                       onChange={(event) =>
-                        onUpdateSelectedBlock({ width_value: event.target.value })
+                        onUpdateSelectedBlock({ size: { width_value: event.target.value } })
+                      }
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Height</Label>
+                  <Select
+                    value={String(selectedSize.height || 'hug')}
+                    onValueChange={(value) => onUpdateSelectedBlock({ size: { height: value } })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select height" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hug">Hug</SelectItem>
+                      <SelectItem value="fill">Fill</SelectItem>
+                      <SelectItem value="fixed">Fixed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {String(selectedSize.height || '') === 'fixed' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="height-value">Custom Height</Label>
+                    <Input
+                      id="height-value"
+                      value={String(selectedSize.height_value || '')}
+                      placeholder="e.g. 240px"
+                      onChange={(event) =>
+                        onUpdateSelectedBlock({ size: { height_value: event.target.value } })
                       }
                     />
                   </div>
@@ -303,7 +826,9 @@ export function FluidInspector({
                   <Label>Size</Label>
                   <Select
                     value={String(selectedProps.size || 'md')}
-                    onValueChange={(value) => onUpdateSelectedBlock({ size: value })}
+                    onValueChange={(value) =>
+                      onUpdateSelectedBlock({ props: { size: value } })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select size" />
@@ -315,19 +840,6 @@ export function FluidInspector({
                     </SelectContent>
                   </Select>
                 </div>
-                {selectedBlock.block === 'image' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="height-value">Custom Height</Label>
-                    <Input
-                      id="height-value"
-                      value={String(selectedProps.height_value || '')}
-                      placeholder="e.g. 200px"
-                      onChange={(event) =>
-                        onUpdateSelectedBlock({ height_value: event.target.value })
-                      }
-                    />
-                  </div>
-                )}
               </>
             )}
           </CardContent>
@@ -345,27 +857,27 @@ export function FluidInspector({
             </div>
             <div className="space-y-2">
               <Label htmlFor="font-size">Font Size</Label>
-              <Input
-                id="font-size"
-                value={String(selectedProps.font_size || '')}
-                placeholder="e.g. 16px"
-                disabled={!selectedBlock}
-                onChange={(event) =>
-                  onUpdateSelectedBlock({ font_size: event.target.value })
-                }
-              />
+                <Input
+                  id="font-size"
+                  value={String(selectedProps.font_size || '')}
+                  placeholder="e.g. 16px"
+                  disabled={!selectedBlock}
+                  onChange={(event) =>
+                  onUpdateSelectedBlock({ props: { font_size: event.target.value } })
+                  }
+                />
             </div>
             <div className="space-y-2">
               <Label htmlFor="font-weight">Font Weight</Label>
-              <Input
-                id="font-weight"
-                value={String(selectedProps.font_weight || '')}
-                placeholder="e.g. 600 or bold"
-                disabled={!selectedBlock}
-                onChange={(event) =>
-                  onUpdateSelectedBlock({ font_weight: event.target.value })
-                }
-              />
+                <Input
+                  id="font-weight"
+                  value={String(selectedProps.font_weight || '')}
+                  placeholder="e.g. 600 or bold"
+                  disabled={!selectedBlock}
+                  onChange={(event) =>
+                  onUpdateSelectedBlock({ props: { font_weight: event.target.value } })
+                  }
+                />
             </div>
             <div className="space-y-2">
               <Label htmlFor="font-color">Color</Label>
@@ -377,7 +889,7 @@ export function FluidInspector({
                   value={normalizeColorValue(String(selectedProps.color || '#111827'))}
                   disabled={!selectedBlock}
                   onChange={(event) =>
-                    onUpdateSelectedBlock({ color: event.target.value })
+                  onUpdateSelectedBlock({ props: { color: event.target.value } })
                   }
                 />
                 <Input
@@ -386,7 +898,7 @@ export function FluidInspector({
                   placeholder="#111827"
                   disabled={!selectedBlock}
                   onChange={(event) =>
-                    onUpdateSelectedBlock({ color: event.target.value })
+                  onUpdateSelectedBlock({ props: { color: event.target.value } })
                   }
                 />
               </div>
@@ -408,7 +920,7 @@ export function FluidInspector({
               value={String(selectedProps.padding || '')}
               disabled={!selectedBlock}
               onChange={(event) =>
-                onUpdateSelectedBlock({ padding: event.target.value })
+                onUpdateSelectedBlock({ props: { padding: event.target.value } })
               }
             />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -419,7 +931,7 @@ export function FluidInspector({
               value={String(selectedProps.margin_top || '')}
               disabled={!selectedBlock}
               onChange={(event) =>
-                onUpdateSelectedBlock({ margin_top: event.target.value })
+                onUpdateSelectedBlock({ props: { margin_top: event.target.value } })
               }
             />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -430,7 +942,7 @@ export function FluidInspector({
               value={String(selectedProps.margin_bottom || '')}
               disabled={!selectedBlock}
               onChange={(event) =>
-                onUpdateSelectedBlock({ margin_bottom: event.target.value })
+                onUpdateSelectedBlock({ props: { margin_bottom: event.target.value } })
               }
             />
           </CardContent>

@@ -17,6 +17,7 @@ export function useSaveThemeDraft(themeId: string) {
     onSuccess: () => {
       toast.success('Theme draft saved')
       void queryClient.invalidateQueries({ queryKey: ['themes', realm, themeId, 'draft'] })
+      void queryClient.invalidateQueries({ queryKey: ['theme-preview', realm, themeId] })
     },
     onError: (error: unknown) => {
       let msg = 'Failed to save theme draft'

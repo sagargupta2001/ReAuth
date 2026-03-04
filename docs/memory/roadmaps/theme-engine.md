@@ -45,9 +45,10 @@ Page resolution:
 2. Else → use the system default page template.
 
 ### Rendering contract (frontend)
-- `GET /api/realms/{realm}/theme/resolve` returns `{ tokens, layout, blocks, assets }`.
-- UI maps `{ block: "Input", props: {...} }` to dumb components.
-- No engine‑specific logic leaks into UI; only stable block registry IDs.
+- `GET /api/realms/{realm}/theme/resolve` returns `{ tokens, layout, nodes, assets }`.
+- UI renders **primitives** (`Box`, `Text`, `Image`, `Icon`) and **components** (`Input`, etc).
+- Components are resolved via a stable registry and expand to primitives + slots at render/compile time.
+- No engine‑specific logic leaks into UI; only stable node/component registry IDs.
 - Runtime login page renders from the resolved snapshot (not hardcoded UI).
 
 Theme Snapshot schema (draft):
@@ -60,12 +61,81 @@ Theme Snapshot schema (draft):
     "typography": { "font_family": "Inter", "base_size": 16 }
   },
   "layout": { "shell": "CenteredCard", "slots": ["main", "aside"] },
-  "blocks": [
-    { "block": "Text", "props": { "text": "Sign in" }, "children": [] },
-    { "block": "Input", "props": { "name": "email", "label": "Email" }, "children": [] }
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "Box",
+      "props": {},
+      "layout": { "direction": "column", "gap": 12, "align": "stretch", "padding": [16, 16, 16, 16] },
+      "size": { "width": "fill", "height": "hug" },
+      "children": [
+        {
+          "id": "n2",
+          "type": "Text",
+          "props": { "text": "Sign in" },
+          "size": { "width": "hug", "height": "hug" }
+        },
+        {
+          "id": "n3",
+          "type": "Component",
+          "component": "Input",
+          "props": { "name": "email", "label": "Email" },
+          "slots": {
+            "prefix": {
+              "id": "n4",
+              "type": "Icon",
+              "props": { "name": "mail" }
+            }
+          }
+        }
+      ]
+    }
   ],
   "assets": [
     { "id": "uuid", "filename": "hero.png", "mime_type": "image/png", "url": "/api/realms/{realm}/theme/{theme_id}/assets/{asset_id}" }
+  ]
+}
+```
+
+Schema sketch (nodes + slots)
+```json
+{
+  "$id": "theme.snapshot.node",
+  "type": "object",
+  "required": ["id", "type"],
+  "properties": {
+    "id": { "type": "string" },
+    "type": { "enum": ["Box", "Text", "Image", "Icon", "Component"] },
+    "component": { "type": "string" },
+    "props": { "type": "object" },
+    "layout": {
+      "type": "object",
+      "properties": {
+        "direction": { "enum": ["row", "column"] },
+        "gap": { "type": "number" },
+        "align": { "enum": ["start", "center", "end", "stretch"] },
+        "padding": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "size": {
+      "type": "object",
+      "properties": {
+        "width": { "enum": ["fixed", "hug", "fill"] },
+        "height": { "enum": ["fixed", "hug", "fill"] },
+        "width_value": { "type": "number" },
+        "height_value": { "type": "number" }
+      }
+    },
+    "children": { "type": "array", "items": { "$ref": "theme.snapshot.node" } },
+    "slots": { "type": "object", "additionalProperties": { "$ref": "theme.snapshot.node" } }
+  },
+  "allOf": [
+    { "if": { "properties": { "type": { "const": "Component" } } }, "then": { "required": ["component"] } }
   ]
 }
 ```
@@ -82,6 +152,31 @@ Theme Snapshot schema (draft):
 - **Layout gallery**: choose shells with thumbnail previews.
 - **Block library**: Inputs, Buttons, Social, Checkbox, Text, Divider, Legal.
 - **Block layover**: omni-style picker with preview panel.
+
+## Current focus (Phase 2‑D: Box Model + Componentization)
+- Move from flat blocks to a **Box Model**: containers control layout, primitives render content.
+- Introduce **Nested Blocks / Slots** so complex blocks are composed from primitives.
+- Ship **system Components** (starting with `Input`) that expose only curated properties.
+- Add **Auto‑Layout** controls to the inspector (direction, gap, alignment, padding).
+- Add **Sizing** controls (Fixed / Hug / Fill) aligned with Figma semantics.
+
+## Block Model v2 (Box Model)
+- **Atomic primitives**: `Box`, `Text`, `Image`, `Icon`.
+- **Containers** define layout (flex direction, alignment, gap, padding).
+- **Components** are templates of primitives + slots with an exposed prop surface.
+- **Nested trees** are first‑class; complex blocks expand into sub‑trees at render/compile time.
+
+## Migration notes (legacy flat blocks)
+Legacy blocks will be wrapped into the Box Model during draft load or publish.
+1. `Text` block becomes a `Text` primitive node with `size` set to `hug`.
+2. `Input` block becomes a `Component` node with `component = "Input"` and legacy props mapped to component props.
+3. `Button` block becomes a `Component` node with `component = "Button"` and legacy `variant` mapped to component props.
+4. `Link` block becomes a `Component` node with `component = "Link"` and legacy `href/target` preserved.
+5. `Divider` block becomes a `Component` node with `component = "Divider"`.
+6. `Image` block becomes an `Image` primitive node with `asset_id/alt` props retained.
+7. Blocks with spacing props are wrapped in a parent `Box` that applies `padding` and `gap`.
+8. Blocks using `slot = "brand"` remain tagged via `props.slot` until slots are promoted to first‑class container slots.
+9. Layout-only wrappers (if any) become `Box` nodes with `children` preserved.
 
 ## Now (Phase 2‑A: Foundation)
 - Define the **Theme Schema** + JSON validation (versioned).
@@ -129,6 +224,8 @@ Theme Snapshot schema (draft):
 - [x] Add block-level typography controls (font size/weight/color).
 - [x] Add slot-aware previews for non-SplitScreen layouts (brand slot ignored).
 - [x] Add per-block width/size controls (button/input/image).
+- [x] Add Box primitive with flex layout props (direction, gap, alignment, padding).
+- [x] Add sizing model for blocks (Fixed / Hug / Fill) and persist in draft snapshots.
 - [x] Add asset selection for image blocks (use uploaded assets).
 - [x] Add block reordering in the Fluid tree view.
 - [x] Add Fluid page selector + per-page overrides (default vs customized).
@@ -148,6 +245,19 @@ Theme Snapshot schema (draft):
 - [x] Pass `client_id` to theme resolution for contextual branding on login.
 - [x] Allow custom pages (`custom.*`) in theme drafts + list them in Fluid.
 - [x] Add “Create new page” action in Fluid page selector.
+- [x] Add Box primitive with flex layout props (direction, gap, alignment, padding).
+- [x] Add sizing model for blocks (Fixed / Hug / Fill) and persist in draft snapshots.
+- [x] Update schema + validator to support nested blocks and named slots.
+- [x] Introduce Component definitions with exposed props (system + future custom).
+- [x] Convert `Input` to a system Component with internal tree (Label Text, FieldContainer Box, PrefixIcon Icon, ActualInput Primitive, ErrorHint Text).
+- [x] Expose Label typography + padding-bottom via Input component props.
+- [x] Expose FieldContainer border/background/padding via Input component props.
+- [x] Add PrefixIcon slot to the Input component.
+- [x] Add ActualInput primitive node inside Input component.
+- [x] Add ErrorHint text with conditional visibility in the Input component.
+- [x] Add inspector Auto‑Layout panel (direction, gap, alignment, padding).
+- [x] Update renderer to expand Components into primitives + containers at render/compile time.
+- [x] Update tree view to show component parts or expose named slots for editing.
 
 ## Upcoming integration (Flow Builder ↔ Fluid)
 - Add a **Template Selector** per Flow Node (bind node → page key).

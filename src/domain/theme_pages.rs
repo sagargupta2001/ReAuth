@@ -131,11 +131,11 @@ pub fn default_page_blueprint_fallback() -> Value {
 fn default_fallback_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
+        "nodes": [
             {
-                "block": "text",
-                "props": { "text": "Page content" },
-                "children": []
+                "type": "Text",
+                "size": { "width": "fill", "height": "hug" },
+                "props": { "text": "Page content" }
             }
         ]
     })
@@ -144,12 +144,12 @@ fn default_fallback_blueprint() -> Value {
 fn default_login_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
-            { "block": "text", "props": { "text": "Welcome back" }, "children": [] },
-            { "block": "input", "props": { "label": "Email or username", "name": "username", "input_type": "text" }, "children": [] },
-            { "block": "input", "props": { "label": "Password", "name": "password", "input_type": "password" }, "children": [] },
-            { "block": "link", "props": { "label": "Forgot password?", "href": "/forgot-password", "target": "_self", "align": "right" }, "children": [] },
-            { "block": "button", "props": { "label": "Continue", "variant": "primary" }, "children": [] }
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Welcome back" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username", "name": "username", "input_type": "text" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
+            { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Forgot password?", "href": "/forgot-password", "target": "_self", "align": "right" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } }
         ]
     })
 }
@@ -157,11 +157,11 @@ fn default_login_blueprint() -> Value {
 fn default_register_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
-            { "block": "text", "props": { "text": "Create your account" }, "children": [] },
-            { "block": "input", "props": { "label": "Email", "name": "email", "input_type": "email" }, "children": [] },
-            { "block": "input", "props": { "label": "Password", "name": "password", "input_type": "password" }, "children": [] },
-            { "block": "button", "props": { "label": "Sign up", "variant": "primary" }, "children": [] }
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Create your account" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email", "name": "email", "input_type": "email" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Sign up", "variant": "primary" } }
         ]
     })
 }
@@ -169,10 +169,10 @@ fn default_register_blueprint() -> Value {
 fn default_forgot_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
-            { "block": "text", "props": { "text": "Reset your password" }, "children": [] },
-            { "block": "input", "props": { "label": "Email", "name": "email", "input_type": "email" }, "children": [] },
-            { "block": "button", "props": { "label": "Send reset link", "variant": "primary" }, "children": [] }
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Reset your password" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email", "name": "email", "input_type": "email" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Send reset link", "variant": "primary" } }
         ]
     })
 }
@@ -180,9 +180,9 @@ fn default_forgot_blueprint() -> Value {
 fn default_verify_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
-            { "block": "text", "props": { "text": "Check your inbox to verify your email." }, "children": [] },
-            { "block": "button", "props": { "label": "Resend email", "variant": "secondary" }, "children": [] }
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Check your inbox to verify your email." } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Resend email", "variant": "secondary" } }
         ]
     })
 }
@@ -190,10 +190,10 @@ fn default_verify_blueprint() -> Value {
 fn default_mfa_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
-            { "block": "text", "props": { "text": "Enter your verification code" }, "children": [] },
-            { "block": "input", "props": { "label": "Code", "name": "otp" }, "children": [] },
-            { "block": "button", "props": { "label": "Verify", "variant": "primary" }, "children": [] }
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Enter your verification code" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Code", "name": "otp" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Verify", "variant": "primary" } }
         ]
     })
 }
@@ -201,10 +201,10 @@ fn default_mfa_blueprint() -> Value {
 fn default_consent_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
-            { "block": "text", "props": { "text": "Approve access to your account" }, "children": [] },
-            { "block": "button", "props": { "label": "Allow", "variant": "primary" }, "children": [] },
-            { "block": "button", "props": { "label": "Deny", "variant": "outline" }, "children": [] }
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Approve access to your account" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Allow", "variant": "primary" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Deny", "variant": "outline" } }
         ]
     })
 }
@@ -212,9 +212,9 @@ fn default_consent_blueprint() -> Value {
 fn default_magic_link_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
-            { "block": "text", "props": { "text": "We sent a magic link to your inbox." }, "children": [] },
-            { "block": "button", "props": { "label": "Resend link", "variant": "secondary" }, "children": [] }
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "We sent a magic link to your inbox." } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Resend link", "variant": "secondary" } }
         ]
     })
 }
@@ -222,9 +222,9 @@ fn default_magic_link_blueprint() -> Value {
 fn default_error_blueprint() -> Value {
     json!({
         "layout": "default",
-        "blocks": [
-            { "block": "text", "props": { "text": "Something went wrong." }, "children": [] },
-            { "block": "button", "props": { "label": "Try again", "variant": "primary" }, "children": [] }
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Something went wrong." } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Try again", "variant": "primary" } }
         ]
     })
 }
