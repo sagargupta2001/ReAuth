@@ -6,6 +6,7 @@ use crate::adapters::persistence::sqlite_flow_store::SqliteFlowStore;
 use crate::adapters::persistence::sqlite_login_attempt_repository::SqliteLoginAttemptRepository;
 use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
 use crate::adapters::persistence::sqlite_outbox_repository::SqliteOutboxRepository;
+use crate::adapters::persistence::sqlite_theme_repository::SqliteThemeRepository;
 use crate::adapters::persistence::sqlite_webhook_repository::SqliteWebhookRepository;
 use crate::ports::audit_repository::AuditRepository;
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
@@ -13,6 +14,7 @@ use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::oidc_repository::OidcRepository;
 use crate::ports::outbox_repository::OutboxRepository;
+use crate::ports::theme_repository::ThemeRepository;
 use crate::ports::webhook_repository::WebhookRepository;
 use crate::{
     adapters::persistence::{
@@ -48,6 +50,7 @@ pub struct Repositories {
     pub audit_repo: Arc<dyn AuditRepository>,
     pub outbox_repo: Arc<dyn OutboxRepository>,
     pub webhook_repo: Arc<dyn WebhookRepository>,
+    pub theme_repo: Arc<dyn ThemeRepository>,
 }
 
 pub fn initialize_repositories(db_pool: &Database) -> Repositories {
@@ -67,6 +70,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let audit_repo = Arc::new(SqliteAuditRepository::new(db_pool.clone()));
     let outbox_repo = Arc::new(SqliteOutboxRepository::new(db_pool.clone()));
     let webhook_repo = Arc::new(SqliteWebhookRepository::new(db_pool.clone()));
+    let theme_repo = Arc::new(SqliteThemeRepository::new(db_pool.clone()));
 
     Repositories {
         user_repo,
@@ -82,5 +86,6 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         audit_repo,
         outbox_repo,
         webhook_repo,
+        theme_repo,
     }
 }

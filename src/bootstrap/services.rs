@@ -7,6 +7,7 @@ use crate::application::flow_service::FlowService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::application::theme_service::ThemeResolverService;
 use crate::application::webhook_service::WebhookService;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::{
@@ -30,6 +31,7 @@ pub struct Services {
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
     pub webhook_service: Arc<WebhookService>,
+    pub theme_service: Arc<ThemeResolverService>,
     // Removed Legacy FlowEngine
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
@@ -73,6 +75,10 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         tx_manager.clone(),
         telemetry_db.clone(),
     ));
+    let theme_service = Arc::new(ThemeResolverService::new(
+        repos.theme_repo.clone(),
+        tx_manager.clone(),
+    ));
     let rbac_service = Arc::new(RbacService::new(
         repos.rbac_repo.clone(),
         cache.clone(),
@@ -85,6 +91,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     let realm_service = Arc::new(RealmService::new(
         repos.realm_repo.clone(),
         flow_service.clone(),
+        theme_service.clone(),
         tx_manager.clone(),
     ));
 
@@ -150,6 +157,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         auth_service,
         audit_service,
         webhook_service,
+        theme_service,
         oidc_service,
         flow_service,
         flow_manager,

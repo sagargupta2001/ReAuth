@@ -1,4 +1,5 @@
 import { FlowsSidebar } from '@/features/flow/components/FlowSidebar.tsx'
+import { ThemesSidebar } from '@/features/theme/components/ThemesSidebar.tsx'
 import { StaticMenuSidebar } from '@/widgets/Sidebar/components/StaticMenuSidebar.tsx'
 
 import type { PrimaryNavItem } from './model/types'
@@ -14,6 +15,8 @@ export function SecondarySidebar({ activeItem }: SecondarySidebarProps) {
   switch (activeItem.segment) {
     case 'flows':
       return <FlowsSidebar />
+    case 'themes':
+      return <ThemesSidebar />
 
     // Future cases:
     // case 'users': return <UsersSidebar />;

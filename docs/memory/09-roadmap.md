@@ -14,8 +14,8 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 - Roadmap: `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
 - Goal: bring protocol compliance and the engine to production-grade security.
 
-### Phase 2: Native Extensibility (Theme + Scripting)
-- Status: Planned
+### Phase 2: Native Extensibility (Fluid + Scripting)
+- Status: In Progress
 - Roadmap: `reauth/docs/memory/roadmaps/theme-engine.md`
 - Roadmap: `reauth/docs/memory/roadmaps/embedded-scripting.md`
 - Goal: deliver a theme engine + embedded scripting runtime that replaces plugin extensibility.

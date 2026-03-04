@@ -7,6 +7,7 @@ use crate::application::flow_service::FlowService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::theme_service::ThemeResolverService;
 use crate::application::webhook_service::WebhookService;
 use crate::application::{
     audit_service::AuditService, auth_service::AuthService, rbac_service::RbacService,
@@ -34,6 +35,7 @@ pub struct AppState {
     pub metrics_service: Arc<MetricsService>,
     pub realm_service: Arc<RealmService>,
     pub webhook_service: Arc<WebhookService>,
+    pub theme_service: Arc<ThemeResolverService>,
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
     pub flow_manager: Arc<FlowManager>,

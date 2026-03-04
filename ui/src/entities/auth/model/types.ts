@@ -36,4 +36,6 @@ export interface AuthScreenProps {
   error: string | null
   context: Record<string, unknown>
   onSubmit: (data: Record<string, unknown>) => void
+  realm?: string
+  clientId?: string
 }

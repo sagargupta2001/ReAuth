@@ -15,6 +15,7 @@ pub mod router;
 pub mod search_handler;
 pub mod server;
 mod session_handler;
+pub mod theme_handler;
 pub mod user_handler;
 pub mod validation;
 pub mod webhook_handler;

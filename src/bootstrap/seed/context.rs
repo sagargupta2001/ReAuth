@@ -2,6 +2,7 @@ use crate::application::flow_manager::FlowManager;
 use crate::application::oidc_service::OidcService;
 use crate::application::rbac_service::RbacService;
 use crate::application::realm_service::RealmService;
+use crate::application::theme_service::ThemeResolverService;
 use crate::application::user_service::UserService;
 use crate::config::Settings;
 use crate::ports::flow_repository::FlowRepository;
@@ -17,4 +18,5 @@ pub struct SeedContext<'a> {
     pub settings: &'a Settings,
     pub oidc_service: &'a Arc<OidcService>,
     pub rbac_service: &'a Arc<RbacService>,
+    pub theme_service: &'a Arc<ThemeResolverService>,
 }

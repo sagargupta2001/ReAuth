@@ -9,7 +9,7 @@ default = []       # default: dev mode (proxy)
 embed-ui = []      # prod mode (embed UI)
 
 [dependencies]
-axum = { version = "0.8.8", default-features = false, features = ["http1", "http2", "json", "matched-path", "ws", "query", "form", "original-uri"] }
+axum = { version = "0.8.8", default-features = false, features = ["http1", "http2", "json", "matched-path", "ws", "query", "form", "original-uri", "multipart"] }
 axum-extra = { version = "0.12.5", features = ["typed-header", "cookie"] }
 http = "1.1.0"
 http-body-util = "0.1.2"

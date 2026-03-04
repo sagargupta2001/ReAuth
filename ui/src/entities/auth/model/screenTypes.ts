@@ -8,4 +8,10 @@ export interface AuthScreenProps {
   /** UI State passed down from the executor */
   isLoading: boolean
   error: string | null
+
+  /** Realm name resolved by the executor */
+  realm?: string
+
+  /** Optional client_id used for theme resolution */
+  clientId?: string
 }

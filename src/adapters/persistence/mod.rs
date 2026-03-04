@@ -11,6 +11,7 @@ pub mod sqlite_outbox_repository;
 pub mod sqlite_rbac_repository;
 pub mod sqlite_realm_repository;
 pub mod sqlite_session_repository;
+pub mod sqlite_theme_repository;
 pub mod sqlite_user_repository;
 pub mod sqlite_webhook_repository;
 pub mod transaction;

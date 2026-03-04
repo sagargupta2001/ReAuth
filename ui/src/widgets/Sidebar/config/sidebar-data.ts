@@ -5,6 +5,7 @@ import {
   KeyRound,
   LayoutDashboard,
   LucideClockFading,
+  Palette,
   ScrollText,
   Settings,
   Users,
@@ -72,6 +73,12 @@ export const sidebarData: SidebarData = {
       url: '/flows',
       icon: Workflow,
       segment: 'flows',
+    },
+    {
+      title: 'Theme',
+      url: '/themes',
+      icon: Palette,
+      segment: 'themes',
     },
     {
       title: 'Settings',

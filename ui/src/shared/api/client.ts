@@ -3,6 +3,7 @@ import { useSessionStore } from '@/entities/session/model/sessionStore'
 // Extend the config to track retries
 type RequestConfig = RequestInit & {
   _isRetry?: boolean // Internal flag to prevent infinite loops
+  skipContentType?: boolean
 }
 
 // Singleton Promise to handle "Thundering Herd" (multiple 401s at once)
@@ -76,7 +77,7 @@ async function request<T>(endpoint: string, config: RequestConfig = {}): Promise
     headers.set('Authorization', `Bearer ${token}`)
   }
 
-  if (!headers.has('Content-Type')) {
+  if (!headers.has('Content-Type') && !config.skipContentType) {
     headers.set('Content-Type', 'application/json')
   }
 
@@ -149,6 +150,9 @@ export const apiClient = {
 
   put: <T>(url: string, body: unknown, config?: RequestConfig) =>
     request<T>(url, { ...config, method: 'PUT', body: JSON.stringify(body) }),
+
+  postForm: <T>(url: string, body: FormData, config?: RequestConfig) =>
+    request<T>(url, { ...config, method: 'POST', body, skipContentType: true }),
 
   delete: <T>(url: string, config?: RequestConfig) =>
     request<T>(url, { ...config, method: 'DELETE' }),

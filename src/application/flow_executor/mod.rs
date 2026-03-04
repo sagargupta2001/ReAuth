@@ -145,6 +145,11 @@ impl FlowExecutor {
                         );
                         let ui_outcome = worker.execute(&mut session).instrument(exec_span).await?;
                         if let NodeOutcome::SuspendForUI { screen, context } = ui_outcome {
+                            let template_key = current_node_def
+                                .config
+                                .get("template_key")
+                                .and_then(|value| value.as_str());
+                            let context = attach_template_key(context, template_key);
                             return Ok(ExecutionResult::Challenge {
                                 screen_id: screen,
                                 context,
@@ -161,6 +166,11 @@ impl FlowExecutor {
                         screen,
                         context,
                     } => {
+                        let template_key = current_node_def
+                            .config
+                            .get("template_key")
+                            .and_then(|value| value.as_str());
+                        let context = attach_template_key(context, template_key);
                         let result = self
                             .handle_async_suspend(
                                 &mut session,
@@ -243,6 +253,11 @@ impl FlowExecutor {
                     }
                     NodeOutcome::SuspendForUI { screen, context } => {
                         self.session_repo.update(&session).await?;
+                        let template_key = node_def
+                            .config
+                            .get("template_key")
+                            .and_then(|value| value.as_str());
+                        let context = attach_template_key(context, template_key);
                         return Ok(ExecutionResult::Challenge {
                             screen_id: screen,
                             context,
@@ -257,6 +272,11 @@ impl FlowExecutor {
                         screen,
                         context,
                     } => {
+                        let template_key = node_def
+                            .config
+                            .get("template_key")
+                            .and_then(|value| value.as_str());
+                        let context = attach_template_key(context, template_key);
                         let result = self
                             .handle_async_suspend(
                                 &mut session,
@@ -399,6 +419,23 @@ impl FlowExecutor {
 
         self.session_repo.update(session).await?;
         Ok(())
+    }
+}
+
+fn attach_template_key(mut context: Value, template_key: Option<&str>) -> Value {
+    let Some(key) = template_key else {
+        return context;
+    };
+
+    match context {
+        Value::Object(ref mut map) => {
+            map.insert("template_key".to_string(), Value::String(key.to_string()));
+            context
+        }
+        other => serde_json::json!({
+            "template_key": key,
+            "payload": other,
+        }),
     }
 }
 

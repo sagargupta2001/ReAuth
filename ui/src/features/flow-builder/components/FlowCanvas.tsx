@@ -45,6 +45,11 @@ export function FlowCanvas() {
       })
 
       // 2. Create Node
+      const templateDefaults: Record<string, string> = {
+        'core.auth.password': 'login',
+        'core.auth.otp': 'mfa',
+      }
+
       const newNode = {
         id: crypto.randomUUID(),
         // Matches the backend registry key (e.g. "core.auth.password")
@@ -52,7 +57,9 @@ export function FlowCanvas() {
         position,
         data: {
           label: droppedId,
-          config: {},
+          config: templateDefaults[droppedId]
+            ? { template_key: templateDefaults[droppedId] }
+            : {},
           category: droppedCategory,
           outputs: outputs,
         },

@@ -1,7 +1,8 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
     log_stream_handler, observability_handler, oidc_handler, rbac_handler, realm_handler,
-    search_handler, server::ui_handler, session_handler, user_handler, webhook_handler,
+    search_handler, server::ui_handler, session_handler, theme_handler, user_handler,
+    webhook_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
@@ -22,6 +23,7 @@ pub fn create_router(app_state: AppState) -> Router {
         .nest("/execution", execution_routes())
         .nest("/realms/{realm}/auth", auth_routes())
         .nest("/realms/{realm}/oidc", oidc_routes())
+        .nest("/realms/{realm}/theme", theme_routes())
         .nest("/realms/{realm}/users", public_user_routes());
 
     // 2. Protected Routes (Require Login)
@@ -37,6 +39,10 @@ pub fn create_router(app_state: AppState) -> Router {
             protected_user_routes(app_state.clone()),
         )
         .nest("/realms/{realm}/flows", flow_routes(app_state.clone()))
+        .nest(
+            "/realms/{realm}/themes",
+            theme_admin_routes(app_state.clone()),
+        )
         .nest(
             "/realms/{realm}/webhooks",
             webhook_routes(app_state.clone()),
@@ -339,6 +345,94 @@ fn webhook_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{id}/deliveries",
             get(webhook_handler::list_webhook_deliveries_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::REALM_WRITE)
+            },
+        ))
+}
+
+fn theme_routes() -> Router<AppState> {
+    Router::new()
+        .route("/resolve", get(theme_handler::resolve_theme_handler))
+        .route(
+            "/{theme_id}/assets/{asset_id}",
+            get(theme_handler::get_theme_asset_handler),
+        )
+}
+
+fn theme_admin_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        .route(
+            "/",
+            get(theme_handler::list_themes_handler).post(theme_handler::create_theme_handler),
+        )
+        .route("/active", get(theme_handler::get_active_theme_handler))
+        .route("/pages", get(theme_handler::list_theme_pages_handler))
+        .route(
+            "/{theme_id}",
+            get(theme_handler::get_theme_handler).put(theme_handler::update_theme_handler),
+        )
+        .route(
+            "/{theme_id}/preview",
+            get(theme_handler::preview_theme_handler),
+        )
+        .route(
+            "/{theme_id}/template-gaps",
+            get(theme_handler::list_theme_template_gaps_handler),
+        )
+        .route(
+            "/{theme_id}/bindings",
+            get(theme_handler::list_theme_bindings_handler),
+        )
+        .route(
+            "/client-bindings/{client_id}",
+            get(theme_handler::get_theme_binding_handler),
+        )
+        .route(
+            "/{theme_id}/bindings/{client_id}",
+            put(theme_handler::upsert_theme_binding_handler)
+                .delete(theme_handler::delete_theme_binding_handler),
+        )
+        .route(
+            "/{theme_id}/draft",
+            get(theme_handler::get_theme_draft_handler)
+                .put(theme_handler::save_theme_draft_handler),
+        )
+        .route(
+            "/{theme_id}/assets",
+            get(theme_handler::list_theme_assets_handler)
+                .post(theme_handler::upload_theme_asset_handler),
+        )
+        .route(
+            "/{theme_id}/versions",
+            get(theme_handler::list_theme_versions_handler),
+        )
+        .route(
+            "/{theme_id}/publish",
+            post(theme_handler::publish_theme_handler),
+        )
+        .route(
+            "/{theme_id}/versions/{version_id}/activate",
+            post(theme_handler::activate_theme_version_handler),
+        )
+        .route(
+            "/{theme_id}/versions/{version_id}/draft",
+            post(theme_handler::start_theme_draft_from_version_handler),
+        )
+        .route(
+            "/{theme_id}/versions/{version_id}/snapshot",
+            get(theme_handler::get_theme_version_snapshot_handler),
+        )
+        .route(
+            "/{theme_id}/export",
+            get(theme_handler::export_theme_bundle_handler),
+        )
+        .route(
+            "/{theme_id}/import",
+            post(theme_handler::import_theme_bundle_handler),
         )
         .route_layer(middleware::from_fn_with_state(
             state,
