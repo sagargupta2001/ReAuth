@@ -1031,6 +1031,107 @@ impl ThemeResolverService {
         self.repo.list_versions(theme_id).await
     }
 
+    pub async fn get_binding_for_client(
+        &self,
+        realm_id: Uuid,
+        client_id: &str,
+    ) -> Result<Option<ThemeBinding>> {
+        self.repo.get_binding(&realm_id, Some(client_id)).await
+    }
+
+    pub async fn list_bindings_for_theme(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+    ) -> Result<Vec<ThemeBinding>> {
+        let bindings = self.repo.list_bindings(&realm_id).await?;
+        Ok(bindings
+            .into_iter()
+            .filter(|binding| binding.client_id.is_some() && binding.theme_id == theme_id)
+            .collect())
+    }
+
+    pub async fn get_version_meta(
+        &self,
+        theme_id: &Uuid,
+        version_id: &Uuid,
+    ) -> Result<Option<ThemeVersion>> {
+        self.repo.get_version(theme_id, version_id).await
+    }
+
+    pub async fn upsert_client_binding(
+        &self,
+        realm_id: Uuid,
+        client_id: String,
+        theme_id: Uuid,
+        version_id: Uuid,
+    ) -> Result<ThemeBinding> {
+        let theme = self
+            .repo
+            .find_theme(&realm_id, &theme_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+
+        let version = self
+            .repo
+            .get_version(&theme.id, &version_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme version not found".to_string()))?;
+
+        let existing = self.repo.get_binding(&realm_id, Some(&client_id)).await?;
+        let binding_id = existing
+            .map(|binding| binding.id)
+            .unwrap_or_else(Uuid::new_v4);
+
+        let binding = ThemeBinding {
+            id: binding_id,
+            realm_id,
+            client_id: Some(client_id.clone()),
+            theme_id: theme.id,
+            active_version_id: version.id,
+            created_at: "".to_string(),
+            updated_at: "".to_string(),
+        };
+
+        self.repo.upsert_binding(&binding, None).await?;
+
+        self.repo
+            .get_binding(&realm_id, Some(&client_id))
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme binding not found".to_string()))
+    }
+
+    pub async fn delete_client_binding(&self, realm_id: Uuid, client_id: &str) -> Result<()> {
+        self.repo
+            .delete_binding(&realm_id, Some(client_id), None)
+            .await
+    }
+
+    pub async fn get_version_snapshot(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+        version_id: Uuid,
+    ) -> Result<(ThemeVersion, ThemeDraft)> {
+        let theme = self
+            .repo
+            .find_theme(&realm_id, &theme_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+
+        let version = self
+            .repo
+            .get_version(&theme.id, &version_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme version not found".to_string()))?;
+
+        let snapshot = parse_version_payload(&version.snapshot_json).ok_or_else(|| {
+            Error::Validation("Theme version payload could not be restored".to_string())
+        })?;
+
+        Ok((version, snapshot))
+    }
+
     pub async fn get_active_version_id(
         &self,
         realm_id: Uuid,

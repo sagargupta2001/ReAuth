@@ -384,6 +384,19 @@ fn theme_admin_routes(state: AppState) -> Router<AppState> {
             get(theme_handler::list_theme_template_gaps_handler),
         )
         .route(
+            "/{theme_id}/bindings",
+            get(theme_handler::list_theme_bindings_handler),
+        )
+        .route(
+            "/client-bindings/{client_id}",
+            get(theme_handler::get_theme_binding_handler),
+        )
+        .route(
+            "/{theme_id}/bindings/{client_id}",
+            put(theme_handler::upsert_theme_binding_handler)
+                .delete(theme_handler::delete_theme_binding_handler),
+        )
+        .route(
             "/{theme_id}/draft",
             get(theme_handler::get_theme_draft_handler)
                 .put(theme_handler::save_theme_draft_handler),
@@ -408,6 +421,18 @@ fn theme_admin_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{theme_id}/versions/{version_id}/draft",
             post(theme_handler::start_theme_draft_from_version_handler),
+        )
+        .route(
+            "/{theme_id}/versions/{version_id}/snapshot",
+            get(theme_handler::get_theme_version_snapshot_handler),
+        )
+        .route(
+            "/{theme_id}/export",
+            get(theme_handler::export_theme_bundle_handler),
+        )
+        .route(
+            "/{theme_id}/import",
+            post(theme_handler::import_theme_bundle_handler),
         )
         .route_layer(middleware::from_fn_with_state(
             state,

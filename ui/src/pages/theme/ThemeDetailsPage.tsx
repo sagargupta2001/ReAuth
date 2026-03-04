@@ -73,7 +73,7 @@ export function ThemeDetailsPage() {
           <ThemeHistoryTab themeId={data.theme.id} activeVersionId={data.active_version_id} />
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-0 flex-1">
+        <TabsContent value="settings" className="mt-0 flex-1 overflow-auto">
           <ThemeDetailsSettingsTab theme={data.theme} />
         </TabsContent>
       </Tabs>

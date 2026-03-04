@@ -147,7 +147,8 @@ Schema sketch (nodes + slots)
   - Center canvas: live rendering with inspect mode.
   - Right sidebar: contextual inspector.
 - **Device toggles**: Desktop / Tablet / Mobile previews.
-- **Header**: Page selector dropdown + icon-only Undo/Redo + Inspect toggle.
+- **Header**: Page selector dropdown + draft/publish actions.
+- **Floating action bar**: Undo / Redo / Inspect toggle.
 - **Top bar actions**: Draft status, Publish, Save.
 - **Layout gallery**: choose shells with thumbnail previews.
 - **Block library**: Inputs, Buttons, Social, Checkbox, Text, Divider, Legal.
@@ -258,6 +259,18 @@ Legacy blocks will be wrapped into the Box Model during draft load or publish.
 - [x] Add inspector Auto‑Layout panel (direction, gap, alignment, padding).
 - [x] Update renderer to expand Components into primitives + containers at render/compile time.
 - [x] Update tree view to show component parts or expose named slots for editing.
+- [x] Move Undo/Redo/Inspect controls into the floating action bar.
+- [x] Refresh theme preview queries after save/publish/activate/rollback/draft-create.
+- [ ] Externalize default theme tokens/layout/page blueprints into JSON seed assets.
+- [ ] Allow default theme seed to be sourced from an exported Fluid theme bundle (configurable path/env).
+- [x] Implement theme bundle import/export (JSON + assets) for the Fluid editor.
+- [x] Add per‑client override editor (inheritance + preview).
+- [x] Add basic contrast warnings in the inspector (text vs theme background).
+- [x] Add theme version snapshot viewer in history (JSON payload).
+- [x] Add theme diffing + rollback UI in theme history (snapshot diff vs active).
+- [x] Add Flow Builder ↔ Fluid template binding UI (node → page selector).
+- [x] Persist flow node → page bindings in flow config.
+- [x] Validate flow bindings on theme switch and show warnings + fallback behavior.
 
 ## Upcoming integration (Flow Builder ↔ Fluid)
 - Add a **Template Selector** per Flow Node (bind node → page key).

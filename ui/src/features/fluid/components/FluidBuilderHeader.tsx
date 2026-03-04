@@ -7,7 +7,8 @@ import {
   Plus,
   Save,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -42,8 +43,12 @@ interface FluidBuilderHeaderProps {
   onSave: () => void
   onResetPage?: () => void
   onPublish: () => void
+  onExport?: () => void
+  onImport?: (payload: unknown) => void
   isSaving?: boolean
   isPublishing?: boolean
+  isExporting?: boolean
+  isImporting?: boolean
   canResetPage?: boolean
 }
 
@@ -56,16 +61,21 @@ export function FluidBuilderHeader({
   onSave,
   onResetPage,
   onPublish,
+  onExport,
+  onImport,
   isSaving,
   isPublishing,
+  isExporting,
+  isImporting,
   canResetPage = false,
 }: FluidBuilderHeaderProps) {
   const navigate = useRealmNavigate()
-  const isBusy = Boolean(isSaving || isPublishing)
+  const isBusy = Boolean(isSaving || isPublishing || isExporting || isImporting)
   const activePage = pages.find((page) => page.key === activePageKey)
   const [isPageOpen, setIsPageOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [newPageName, setNewPageName] = useState('')
+  const importRef = useRef<HTMLInputElement | null>(null)
 
   const handleCreate = () => {
     const trimmed = newPageName.trim()
@@ -73,6 +83,21 @@ export function FluidBuilderHeader({
     onCreatePage(trimmed)
     setNewPageName('')
     setIsCreateOpen(false)
+  }
+
+  const handleImportFile = async (file: File | null) => {
+    if (!file || !onImport) return
+    try {
+      const text = await file.text()
+      const payload = JSON.parse(text)
+      onImport(payload)
+    } catch {
+      toast.error('Invalid theme bundle JSON.')
+    } finally {
+      if (importRef.current) {
+        importRef.current.value = ''
+      }
+    }
   }
 
   return (
@@ -154,6 +179,35 @@ export function FluidBuilderHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        {onImport && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => importRef.current?.click()}
+              disabled={isBusy || isImporting}
+            >
+              Import
+            </Button>
+            <input
+              ref={importRef}
+              type="file"
+              accept="application/json"
+              className="hidden"
+              onChange={(event) => handleImportFile(event.target.files?.[0] ?? null)}
+            />
+          </>
+        )}
+        {onExport && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onExport}
+            disabled={isBusy || isExporting}
+          >
+            Export
+          </Button>
+        )}
         {onResetPage && (
           <Button
             variant="outline"

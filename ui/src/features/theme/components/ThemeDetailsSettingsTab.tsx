@@ -3,8 +3,8 @@ import { useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 
-import type { Theme } from '@/entities/theme/model/types'
 import { useUpdateTheme } from '@/features/theme/api/useUpdateTheme'
+import type { Theme } from '@/entities/theme/model/types'
 import {
   type ThemeSettingsSchema,
   themeSettingsSchema,
@@ -44,6 +44,7 @@ export function ThemeDetailsSettingsTab({ theme }: ThemeDetailsSettingsTabProps)
       description: theme.description || '',
     })
   }, [theme, form])
+
 
   const onSubmit = (values: ThemeSettingsSchema) => {
     updateMutation.mutate(values, {
@@ -119,6 +120,7 @@ export function ThemeDetailsSettingsTab({ theme }: ThemeDetailsSettingsTabProps)
           </div>
         </CardContent>
       </Card>
+
     </div>
   )
 }

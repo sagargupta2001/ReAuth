@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { useQueryClient } from '@tanstack/react-query'
 
 import type {
   ThemeNode,
@@ -37,6 +38,8 @@ import {
   validateThemeDraft,
 } from '@/features/fluid/lib/themeValidation'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { apiClient } from '@/shared/api/client'
 
 const fallbackDraft: ThemeDraft = {
   tokens: {
@@ -115,6 +118,11 @@ function collectNodeIds(nodes: ThemeNode[]) {
 
 export function FluidBuilderPage() {
   const { themeId } = useParams()
+  const realm = useActiveRealm()
+  const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
+  const requestedPage = searchParams.get('page')?.trim() || null
+  const appliedPageParam = useRef(false)
   const { data, isLoading, isError } = useTheme(themeId)
   const { data: pages = [] } = useThemePages(themeId)
   const {
@@ -133,6 +141,8 @@ export function FluidBuilderPage() {
   const [activePageKey, setActivePageKey] = useState('login')
   const [activePanel, setActivePanel] = useState<'sections' | 'settings'>('sections')
   const [isInspecting, setIsInspecting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
 
   const activeDraft = useMemo(() => draft ?? fallbackDraft, [draft])
   const draftState = history.present
@@ -219,6 +229,15 @@ export function FluidBuilderPage() {
     }
   }, [activePageKey, availablePages])
 
+  useEffect(() => {
+    if (!requestedPage || appliedPageParam.current) return
+    const exists = availablePages.some((page) => page.key === requestedPage)
+    if (exists) {
+      setActivePageKey(requestedPage)
+      appliedPageParam.current = true
+    }
+  }, [availablePages, requestedPage])
+
   const { mutateAsync: saveDraft, isPending: isSaving } = useSaveThemeDraft(themeId || '')
   const { mutateAsync: publishTheme, isPending: isPublishing } = usePublishTheme(themeId || '')
   const { data: assets = [] } = useThemeAssets(themeId)
@@ -247,6 +266,47 @@ export function FluidBuilderPage() {
     }
     await saveDraft(history.present)
     await publishTheme()
+  }
+
+  const handleExport = async () => {
+    if (!themeId || !realm) return
+    setIsExporting(true)
+    try {
+      const bundle = await apiClient.get(
+        `/api/realms/${realm}/themes/${themeId}/export`,
+      )
+      const json = JSON.stringify(bundle, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${data?.theme.name || 'theme'}-bundle.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      toast.success('Theme bundle exported')
+    } catch {
+      toast.error('Failed to export theme bundle')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleImport = async (payload: unknown) => {
+    if (!themeId || !realm) return
+    setIsImporting(true)
+    try {
+      await apiClient.post(`/api/realms/${realm}/themes/${themeId}/import`, payload)
+      toast.success('Theme bundle imported')
+      void queryClient.invalidateQueries({ queryKey: ['themes', realm, themeId, 'draft'] })
+      void queryClient.invalidateQueries({ queryKey: ['themes', realm, themeId, 'assets'] })
+      void queryClient.invalidateQueries({ queryKey: ['theme-preview', realm, themeId] })
+    } catch {
+      toast.error('Failed to import theme bundle')
+    } finally {
+      setIsImporting(false)
+    }
   }
 
   const handleResetPage = () => {
@@ -496,8 +556,12 @@ export function FluidBuilderPage() {
             : Boolean(activeNode)
         }
         onPublish={() => void handlePublish()}
+        onExport={() => void handleExport()}
+        onImport={(payload) => void handleImport(payload)}
         isSaving={isSaving}
         isPublishing={isPublishing}
+        isExporting={isExporting}
+        isImporting={isImporting}
       />
       {missingTemplates.length > 0 && (
         <div className="border-b px-6 py-2">
@@ -556,6 +620,7 @@ export function FluidBuilderPage() {
         />
         <FluidInspector
           assets={assets}
+          tokens={draftState.tokens}
           selectedBlock={selectedBlock}
           validationErrors={activeValidationErrors}
           onUpdateSelectedBlock={handleUpdateSelectedNode}

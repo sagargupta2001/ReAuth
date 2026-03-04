@@ -9,6 +9,7 @@ import { Textarea } from '@/components/textarea'
 import type { ThemeAsset, ThemeNode } from '@/entities/theme/model/types'
 import { createNodeFromDefinition } from '@/features/fluid/lib/nodeUtils'
 import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { ICON_NAMES, renderIcon } from '@/shared/ui/icon-registry'
 import { Label } from '@/shared/ui/label'
@@ -26,6 +27,62 @@ function normalizeColorValue(value: string) {
     return hex
   }
   return '#111827'
+}
+
+type Rgb = { r: number; g: number; b: number }
+
+function parseColor(value: string): Rgb | null {
+  const input = value.trim()
+  const hexMatch = input.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hexMatch) {
+    const hex = hexMatch[1]
+    const expanded =
+      hex.length === 3
+        ? hex
+            .split('')
+            .map((char) => `${char}${char}`)
+            .join('')
+        : hex
+    const r = Number.parseInt(expanded.slice(0, 2), 16)
+    const g = Number.parseInt(expanded.slice(2, 4), 16)
+    const b = Number.parseInt(expanded.slice(4, 6), 16)
+    return { r, g, b }
+  }
+  const rgbMatch = input.match(
+    /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+)?\s*\)$/i,
+  )
+  if (rgbMatch) {
+    return {
+      r: Number.parseInt(rgbMatch[1], 10),
+      g: Number.parseInt(rgbMatch[2], 10),
+      b: Number.parseInt(rgbMatch[3], 10),
+    }
+  }
+  return null
+}
+
+function relativeLuminance({ r, g, b }: Rgb) {
+  const toLinear = (channel: number) => {
+    const normalized = channel / 255
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : Math.pow((normalized + 0.055) / 1.055, 2.4)
+  }
+  const rLin = toLinear(r)
+  const gLin = toLinear(g)
+  const bLin = toLinear(b)
+  return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const fg = parseColor(foreground)
+  const bg = parseColor(background)
+  if (!fg || !bg) return null
+  const l1 = relativeLuminance(fg)
+  const l2 = relativeLuminance(bg)
+  const lighter = Math.max(l1, l2)
+  const darker = Math.min(l1, l2)
+  return (lighter + 0.05) / (darker + 0.05)
 }
 
 function IconPicker({
@@ -99,6 +156,7 @@ function IconPicker({
 
 interface FluidInspectorProps {
   assets: ThemeAsset[]
+  tokens: Record<string, unknown>
   selectedBlock: ThemeNode | null
   validationErrors?: ThemeValidationError[]
   onUpdateSelectedBlock: (partial: {
@@ -111,6 +169,7 @@ interface FluidInspectorProps {
 
 export function FluidInspector({
   assets,
+  tokens,
   selectedBlock,
   validationErrors = [],
   onUpdateSelectedBlock,
@@ -124,6 +183,20 @@ export function FluidInspector({
     selectedType === 'Component' && selectedComponent ? selectedComponent : selectedType
   const prefixSlot = selectedBlock?.slots?.prefix
   const errorSlot = selectedBlock?.slots?.error
+  const colorTokens = useMemo(() => {
+    const raw = tokens?.colors
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      return raw as Record<string, unknown>
+    }
+    return {}
+  }, [tokens])
+  const baseBackground = String(colorTokens.background || colorTokens.surface || '#ffffff')
+  const baseText = String(colorTokens.text || '#111827')
+  const textColor = String(selectedProps.color || baseText)
+  const textContrast = useMemo(
+    () => contrastRatio(textColor, baseBackground),
+    [textColor, baseBackground],
+  )
   const selectedErrors = useMemo(
     () =>
       selectedBlock
@@ -905,6 +978,34 @@ export function FluidInspector({
             </div>
           </CardContent>
         </Card>
+
+        {selectedType === 'Text' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Accessibility</CardTitle>
+              <CardDescription>Basic contrast check for text color.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Contrast ratio</span>
+                <span className="font-semibold">
+                  {textContrast ? `${textContrast.toFixed(2)}:1` : 'Unavailable'}
+                </span>
+              </div>
+              <p className="text-muted-foreground">
+                AA guidance for normal text is 4.5:1 or higher.
+              </p>
+              {textContrast !== null && textContrast < 4.5 && (
+                <Alert variant="destructive">
+                  <AlertTitle>Low contrast</AlertTitle>
+                  <AlertDescription>
+                    Increase text color contrast or adjust the background color.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

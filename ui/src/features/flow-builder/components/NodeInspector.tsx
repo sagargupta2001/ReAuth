@@ -1,8 +1,18 @@
-import { X } from 'lucide-react'
+import { Check, ChevronDown, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
 import { Button } from '@/components/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/command'
 import { Input } from '@/components/input'
 import { Label } from '@/components/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/popover'
 import { Separator } from '@/components/separator'
 import { AutoForm } from '@/shared/ui/auto-form'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
@@ -19,32 +29,36 @@ export function NodeInspector() {
   const { data: activeTheme } = useActiveTheme()
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
-
-  if (!selectedNode) return null
-
-  const nodeType = selectedNode.type ?? ''
+  const nodeType = selectedNode?.type ?? ''
 
   // 1. Lookup Schema based on Node Type (e.g., "core.auth.password")
   const nodeDefinition = nodeType ? nodeTypes.find((t) => t.id === nodeType) : undefined
   const configSchema = nodeDefinition?.config_schema
   const isAuthenticator = nodeDefinition?.category === 'Authenticator'
 
-  const currentConfig = (selectedNode.data.config as Record<string, unknown>) || {}
-  const currentTemplate =
-    typeof currentConfig.template_key === 'string'
-      ? currentConfig.template_key
-      : nodeType.includes('password')
-        ? 'login'
-        : nodeType.includes('otp')
-          ? 'mfa'
-          : undefined
+  const currentConfig = (selectedNode?.data?.config as Record<string, unknown>) || {}
+  const fallbackTemplate = nodeType.includes('password')
+    ? 'login'
+    : nodeType.includes('otp')
+      ? 'mfa'
+      : undefined
+  const explicitTemplate =
+    typeof currentConfig.template_key === 'string' ? currentConfig.template_key : undefined
+  const currentTemplate = explicitTemplate ?? fallbackTemplate
 
-  const availablePages = activeTheme?.pages ?? []
+  const availablePages = useMemo(() => activeTheme?.pages ?? [], [activeTheme?.pages])
+  const [isTemplateOpen, setIsTemplateOpen] = useState(false)
+  const selectedPage = useMemo(
+    () => availablePages.find((page) => page.key === currentTemplate),
+    [availablePages, currentTemplate],
+  )
   const templateExists = !activeTheme
     ? true
     : currentTemplate
       ? availablePages.some((page) => page.key === currentTemplate)
       : true
+
+  if (!selectedNode) return null
 
   // 2. Handlers
   const handleLabelChange = (label: string) => {
@@ -64,12 +78,17 @@ export function NodeInspector() {
     })
   }
 
-  const handleTemplateChange = (value: string) => {
+  const handleTemplateChange = (value?: string) => {
+    const nextConfig = { ...currentConfig }
+    if (!value) {
+      delete nextConfig.template_key
+    } else {
+      nextConfig.template_key = value
+    }
     updateNodeData(selectedNode.id, {
       ...selectedNode.data,
       config: {
-        ...currentConfig,
-        template_key: value,
+        ...nextConfig,
       },
     })
   }
@@ -134,20 +153,71 @@ export function NodeInspector() {
               <div className="border-muted ml-0.5 space-y-3 border-l-2 pl-3.5">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium">Page Template</Label>
+                  <Popover open={isTemplateOpen} onOpenChange={setIsTemplateOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 w-full justify-between">
+                        <span className="text-xs font-semibold">
+                          {selectedPage?.label || currentTemplate || 'Select template'}
+                        </span>
+                        <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-72 p-0">
+                      <Command>
+                        <CommandInput placeholder="Search templates..." />
+                        <CommandList>
+                          <CommandEmpty>No templates found.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              onSelect={() => {
+                                handleTemplateChange(undefined)
+                                setIsTemplateOpen(false)
+                              }}
+                            >
+                              <span className="flex flex-1 flex-col">
+                                <span className="text-xs font-medium">Use default</span>
+                                <span className="text-muted-foreground text-[10px]">
+                                  {fallbackTemplate
+                                    ? `Default template: ${fallbackTemplate}`
+                                    : 'Clear explicit binding'}
+                                </span>
+                              </span>
+                              {!explicitTemplate && (
+                                <Check className="h-3.5 w-3.5 text-primary" />
+                              )}
+                            </CommandItem>
+                          </CommandGroup>
+                          <CommandGroup>
+                            {availablePages.map((page) => (
+                              <CommandItem
+                                key={page.key}
+                                onSelect={() => {
+                                  handleTemplateChange(page.key)
+                                  setIsTemplateOpen(false)
+                                }}
+                              >
+                                <span className="flex flex-1 flex-col">
+                                  <span className="text-xs font-medium">{page.label}</span>
+                                  <span className="text-muted-foreground text-[10px]">
+                                    {page.description}
+                                  </span>
+                                </span>
+                                {page.key === currentTemplate && (
+                                  <Check className="h-3.5 w-3.5 text-primary" />
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <Input
                     className="bg-muted/30 h-8 text-xs"
-                    value={currentTemplate || ''}
+                    value={explicitTemplate || ''}
                     onChange={(event) => handleTemplateChange(event.target.value)}
-                    list="flow-template-keys"
-                    placeholder="e.g. login"
+                    placeholder="Custom template key"
                   />
-                  <datalist id="flow-template-keys">
-                    {availablePages.map((page) => (
-                      <option key={page.key} value={page.key}>
-                        {page.label}
-                      </option>
-                    ))}
-                  </datalist>
                   <p className="text-muted-foreground text-[10px]">
                     Assign a Fluid page key to this node.
                   </p>

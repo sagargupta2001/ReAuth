@@ -23,14 +23,16 @@ interface ThemeDetailsOverviewTabProps {
 
 export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps) {
   const { data: pages = [] } = useThemePages(theme.id)
-  const pageOptions = useMemo(() => pages.map((page) => page.key), [pages])
   const [selectedPage, setSelectedPage] = useState<string>('login')
-  const activePage = pageOptions.includes(selectedPage)
-    ? selectedPage
-    : pageOptions[0] || 'login'
+  const activePage = useMemo(() => {
+    if (pages.length === 0) return undefined
+    const direct = pages.find((page) => page.key === selectedPage)
+    return direct ?? pages[0]
+  }, [pages, selectedPage])
+  const activePageKey = activePage?.key ?? selectedPage ?? 'login'
   const [open, setOpen] = useState(false)
 
-  const { data: preview, isLoading } = useThemePreview(theme.id, { pageKey: activePage })
+  const { data: preview, isLoading } = useThemePreview(theme.id, { pageKey: activePageKey })
 
   const previewTokens = preview?.tokens ?? {
     colors: {
@@ -62,7 +64,9 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
             <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
-                  <span className="text-xs font-semibold">{activePage}</span>
+                  <span className="text-xs font-semibold">
+                    {activePage?.label ?? activePageKey}
+                  </span>
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </Button>
               </PopoverTrigger>
@@ -72,16 +76,21 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
                   <CommandList>
                     <CommandEmpty>No pages found.</CommandEmpty>
                     <CommandGroup>
-                      {pageOptions.map((key) => (
+                      {pages.map((page) => (
                         <CommandItem
-                          key={key}
+                          key={page.key}
                           onSelect={() => {
-                            setSelectedPage(key)
+                            setSelectedPage(page.key)
                             setOpen(false)
                           }}
                         >
-                          <span className="flex flex-1 text-xs">{key}</span>
-                          {key === activePage && (
+                          <span className="flex flex-1 flex-col">
+                            <span className="text-xs font-medium">{page.label}</span>
+                            <span className="text-muted-foreground text-[10px]">
+                              {page.description}
+                            </span>
+                          </span>
+                          {page.key === activePageKey && (
                             <Check className="h-3.5 w-3.5 text-primary" />
                           )}
                         </CommandItem>
@@ -94,7 +103,7 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
           </div>
         </CardHeader>
         <CardContent className="flex-1">
-          <div className="bg-muted/10 flex h-full min-h-[520px] items-center justify-center rounded-lg border">
+          <div className="bg-muted/10 flex h-full  items-center justify-center rounded-lg border">
             {isLoading ? (
               <div className="text-muted-foreground flex items-center gap-2 text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading preview...

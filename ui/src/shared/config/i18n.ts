@@ -14,6 +14,9 @@ void i18n
   .init({
     // The default language to fall back to
     fallbackLng: 'en',
+    supportedLngs: ['en'],
+    load: 'languageOnly',
+    nonExplicitSupportedLngs: true,
 
     // Define the "namespaces" (translation files) your app will use.
     // 'common' is a good default for shared text (like "Save", "Cancel").
