@@ -19,6 +19,7 @@ Example paths:
 - `reauth/docs/memory/roadmaps/remove-plugin.md`
 - `reauth/docs/memory/roadmaps/theme-engine.md`
 - `reauth/docs/memory/roadmaps/embedded-scripting.md`
+- `reauth/docs/memory/roadmaps/harbor.md`
 
 ## Suggested template
 - Goal
