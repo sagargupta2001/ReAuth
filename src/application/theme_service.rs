@@ -120,6 +120,17 @@ impl ThemeResolverService {
             .await
     }
 
+    pub async fn create_theme_with_tx(
+        &self,
+        realm_id: Uuid,
+        name: String,
+        description: Option<String>,
+        tx: &mut dyn Transaction,
+    ) -> Result<Theme> {
+        self.create_theme_in_tx(realm_id, name, description, false, tx)
+            .await
+    }
+
     pub async fn create_system_theme_in_tx(
         &self,
         realm_id: Uuid,
@@ -328,15 +339,71 @@ impl ThemeResolverService {
             .ok_or_else(|| Error::NotFound("Theme not found after update".to_string()))
     }
 
+    #[allow(clippy::needless_option_as_deref)]
+    pub async fn update_theme_with_tx(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+        name: Option<String>,
+        description: Option<String>,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<Theme> {
+        if name.is_none() && description.is_none() {
+            return Err(Error::Validation(
+                "At least one field must be updated".to_string(),
+            ));
+        }
+
+        let mut theme = self
+            .repo
+            .find_theme_with_tx(&realm_id, &theme_id, tx.as_deref_mut())
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+
+        if let Some(name) = name {
+            let trimmed = name.trim().to_string();
+            if trimmed.is_empty() {
+                return Err(Error::Validation("Theme name is required".to_string()));
+            }
+            theme.name = trimmed;
+        }
+
+        if let Some(description) = description {
+            let trimmed = description.trim().to_string();
+            theme.description = if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            };
+        }
+
+        self.repo.update_theme(&theme, tx.as_deref_mut()).await?;
+        self.repo
+            .find_theme_with_tx(&realm_id, &theme_id, tx.as_deref_mut())
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found after update".to_string()))
+    }
+
     pub async fn activate_version(
         &self,
         realm_id: Uuid,
         theme_id: Uuid,
         version_id: Uuid,
     ) -> Result<()> {
+        self.activate_version_with_tx(realm_id, theme_id, version_id, None)
+            .await
+    }
+
+    pub async fn activate_version_with_tx(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+        version_id: Uuid,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         let theme = self
             .repo
-            .find_theme(&realm_id, &theme_id)
+            .find_theme_with_tx(&realm_id, &theme_id, tx.as_deref_mut())
             .await?
             .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
 
@@ -363,39 +430,58 @@ impl ThemeResolverService {
             updated_at: "".to_string(),
         };
 
-        let mut tx = self.tx_manager.begin().await?;
+        let mut owned_tx = None;
+        if tx.is_none() {
+            owned_tx = Some(self.tx_manager.begin().await?);
+            tx = owned_tx.as_deref_mut();
+        }
         let result = async {
             if let Some(previous) = previous_active {
                 if previous != version.id {
                     self.repo
-                        .set_version_status(&previous, "published", Some(&mut *tx))
+                        .set_version_status(&previous, "published", tx.as_deref_mut())
                         .await?;
                 }
             }
 
             self.repo
-                .set_version_status(&version.id, "active", Some(&mut *tx))
+                .set_version_status(&version.id, "active", tx.as_deref_mut())
                 .await?;
-            self.repo.upsert_binding(&binding, Some(&mut *tx)).await?;
+            self.repo
+                .upsert_binding(&binding, tx.as_deref_mut())
+                .await?;
             Ok(())
         }
         .await;
 
-        match result {
-            Ok(()) => self.tx_manager.commit(tx).await?,
-            Err(err) => {
-                self.tx_manager.rollback(tx).await?;
-                return Err(err);
+        if let Some(tx) = owned_tx {
+            match result {
+                Ok(()) => self.tx_manager.commit(tx).await?,
+                Err(err) => {
+                    self.tx_manager.rollback(tx).await?;
+                    return Err(err);
+                }
             }
+        } else {
+            result?;
         }
 
         Ok(())
     }
 
     pub async fn publish_theme(&self, realm_id: Uuid, theme_id: Uuid) -> Result<ThemeVersion> {
+        self.publish_theme_with_tx(realm_id, theme_id, None).await
+    }
+
+    pub async fn publish_theme_with_tx(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<ThemeVersion> {
         let theme = self
             .repo
-            .find_theme(&realm_id, &theme_id)
+            .find_theme_with_tx(&realm_id, &theme_id, tx.as_deref_mut())
             .await?
             .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
 
@@ -453,34 +539,44 @@ impl ThemeResolverService {
             None
         };
 
-        let mut tx = self.tx_manager.begin().await?;
+        let mut owned_tx = None;
+        if tx.is_none() {
+            owned_tx = Some(self.tx_manager.begin().await?);
+            tx = owned_tx.as_deref_mut();
+        }
         let result = async {
-            self.repo.create_version(&version, Some(&mut *tx)).await?;
+            self.repo
+                .create_version(&version, tx.as_deref_mut())
+                .await?;
             if should_activate {
                 if let Some(previous) = previous_active {
                     if previous != version.id {
                         self.repo
-                            .set_version_status(&previous, "published", Some(&mut *tx))
+                            .set_version_status(&previous, "published", tx.as_deref_mut())
                             .await?;
                     }
                 }
                 self.repo
-                    .set_version_status(&version.id, "active", Some(&mut *tx))
+                    .set_version_status(&version.id, "active", tx.as_deref_mut())
                     .await?;
                 if let Some(binding) = binding.as_ref() {
-                    self.repo.upsert_binding(binding, Some(&mut *tx)).await?;
+                    self.repo.upsert_binding(binding, tx.as_deref_mut()).await?;
                 }
             }
             Ok(())
         }
         .await;
 
-        match result {
-            Ok(()) => self.tx_manager.commit(tx).await?,
-            Err(err) => {
-                self.tx_manager.rollback(tx).await?;
-                return Err(err);
+        if let Some(tx) = owned_tx {
+            match result {
+                Ok(()) => self.tx_manager.commit(tx).await?,
+                Err(err) => {
+                    self.tx_manager.rollback(tx).await?;
+                    return Err(err);
+                }
             }
+        } else {
+            result?;
         }
 
         self.repo
@@ -567,9 +663,20 @@ impl ThemeResolverService {
         theme_id: Uuid,
         draft: ThemeDraft,
     ) -> Result<()> {
+        self.save_draft_with_tx(realm_id, theme_id, draft, None)
+            .await
+    }
+
+    pub async fn save_draft_with_tx(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+        draft: ThemeDraft,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
         let theme = self
             .repo
-            .find_theme(&realm_id, &theme_id)
+            .find_theme_with_tx(&realm_id, &theme_id, tx.as_deref_mut())
             .await?
             .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
 
@@ -611,10 +718,14 @@ impl ThemeResolverService {
             })
             .collect();
 
-        let mut tx = self.tx_manager.begin().await?;
+        let mut owned_tx = None;
+        if tx.is_none() {
+            owned_tx = Some(self.tx_manager.begin().await?);
+            tx = owned_tx.as_deref_mut();
+        }
         let result = async {
-            self.repo.upsert_tokens(&tokens, Some(&mut *tx)).await?;
-            self.repo.upsert_layout(&layout, Some(&mut *tx)).await?;
+            self.repo.upsert_tokens(&tokens, tx.as_deref_mut()).await?;
+            self.repo.upsert_layout(&layout, tx.as_deref_mut()).await?;
             let existing_nodes = self.repo.list_nodes(&theme.id).await?;
             let mut draft_keys = std::collections::HashSet::new();
             for node in &nodes {
@@ -629,27 +740,34 @@ impl ThemeResolverService {
                     )));
                 }
                 draft_keys.insert(key.to_string());
-                self.repo.upsert_node(node, Some(&mut *tx)).await?;
+                self.repo.upsert_node(node, tx.as_deref_mut()).await?;
             }
             if !theme.is_system {
                 for existing in existing_nodes {
                     if !draft_keys.contains(&existing.node_key) {
                         self.repo
-                            .delete_node(&theme.id, &existing.node_key, Some(&mut *tx))
+                            .delete_node(&theme.id, &existing.node_key, tx.as_deref_mut())
                             .await?;
                     }
                 }
             }
+            self.repo
+                .set_draft_exists(&theme.id, true, tx.as_deref_mut())
+                .await?;
             Ok(())
         }
         .await;
 
-        match result {
-            Ok(()) => self.tx_manager.commit(tx).await?,
-            Err(err) => {
-                self.tx_manager.rollback(tx).await?;
-                return Err(err);
+        if let Some(tx) = owned_tx {
+            match result {
+                Ok(()) => self.tx_manager.commit(tx).await?,
+                Err(err) => {
+                    self.tx_manager.rollback(tx).await?;
+                    return Err(err);
+                }
             }
+        } else {
+            result?;
         }
 
         Ok(())
@@ -669,6 +787,45 @@ impl ThemeResolverService {
         self.repo.list_assets(&theme.id).await
     }
 
+    pub async fn has_assets(&self, realm_id: Uuid, theme_id: Uuid) -> Result<bool> {
+        Ok(!self.list_assets(realm_id, theme_id).await?.is_empty())
+    }
+
+    pub async fn has_nodes(&self, realm_id: Uuid, theme_id: Uuid) -> Result<bool> {
+        let theme = self
+            .repo
+            .find_theme(&realm_id, &theme_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+        Ok(!self.repo.list_nodes(&theme.id).await?.is_empty())
+    }
+
+    pub async fn draft_exists(&self, realm_id: Uuid, theme_id: Uuid) -> Result<bool> {
+        let theme = self
+            .repo
+            .find_theme(&realm_id, &theme_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+        self.repo.get_draft_exists(&theme.id).await
+    }
+
+    #[allow(clippy::needless_option_as_deref)]
+    pub async fn draft_exists_with_tx(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<bool> {
+        let theme = self
+            .repo
+            .find_theme_with_tx(&realm_id, &theme_id, tx.as_deref_mut())
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+        self.repo
+            .get_draft_exists_with_tx(&theme.id, tx.as_deref_mut())
+            .await
+    }
+
     pub async fn create_asset(
         &self,
         realm_id: Uuid,
@@ -678,9 +835,26 @@ impl ThemeResolverService {
         mime_type: String,
         data: Vec<u8>,
     ) -> Result<crate::domain::theme::ThemeAssetMeta> {
+        self.create_asset_with_tx(
+            realm_id, theme_id, asset_type, filename, mime_type, data, None,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_asset_with_tx(
+        &self,
+        realm_id: Uuid,
+        theme_id: Uuid,
+        asset_type: String,
+        filename: String,
+        mime_type: String,
+        data: Vec<u8>,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<crate::domain::theme::ThemeAssetMeta> {
         let theme = self
             .repo
-            .find_theme(&realm_id, &theme_id)
+            .find_theme_with_tx(&realm_id, &theme_id, tx.as_deref_mut())
             .await?
             .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
 
@@ -704,7 +878,7 @@ impl ThemeResolverService {
             updated_at: "".to_string(),
         };
 
-        self.repo.create_asset(&asset, None).await?;
+        self.repo.create_asset(&asset, tx).await?;
 
         Ok(crate::domain::theme::ThemeAssetMeta {
             id: asset.id,
@@ -966,6 +1140,9 @@ impl ThemeResolverService {
         for node in bundle.nodes {
             self.repo.upsert_node(node, Some(tx)).await?;
         }
+        self.repo
+            .set_draft_exists(&bundle.theme.id, true, Some(tx))
+            .await?;
         self.repo.create_version(bundle.version, Some(tx)).await?;
         if let Some(binding) = bundle.binding {
             self.repo.upsert_binding(binding, Some(tx)).await?;
@@ -1012,12 +1189,41 @@ impl ThemeResolverService {
         })
     }
 
+    pub async fn resolve_binding_with_tx(
+        &self,
+        realm_id: Uuid,
+        client_id: Option<&str>,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<crate::domain::theme::ThemeBinding>> {
+        let binding = if let Some(client_id) = client_id {
+            self.repo
+                .get_binding_with_tx(&realm_id, Some(client_id), tx.as_deref_mut())
+                .await?
+        } else {
+            None
+        };
+
+        Ok(match binding {
+            Some(binding) => Some(binding),
+            None => self.repo.get_binding_with_tx(&realm_id, None, tx).await?,
+        })
+    }
+
     pub async fn get_asset(&self, theme_id: &Uuid, asset_id: &Uuid) -> Result<Option<ThemeAsset>> {
         self.repo.get_asset(theme_id, asset_id).await
     }
 
     pub async fn get_theme(&self, realm_id: Uuid, theme_id: &Uuid) -> Result<Option<Theme>> {
         self.repo.find_theme(&realm_id, theme_id).await
+    }
+
+    pub async fn get_theme_with_tx(
+        &self,
+        realm_id: Uuid,
+        theme_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<Theme>> {
+        self.repo.find_theme_with_tx(&realm_id, theme_id, tx).await
     }
 
     pub async fn list_themes(&self, realm_id: Uuid) -> Result<Vec<Theme>> {
@@ -1037,6 +1243,17 @@ impl ThemeResolverService {
         client_id: &str,
     ) -> Result<Option<ThemeBinding>> {
         self.repo.get_binding(&realm_id, Some(client_id)).await
+    }
+
+    pub async fn get_binding_for_client_with_tx(
+        &self,
+        realm_id: Uuid,
+        client_id: &str,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<ThemeBinding>> {
+        self.repo
+            .get_binding_with_tx(&realm_id, Some(client_id), tx)
+            .await
     }
 
     pub async fn list_bindings_for_theme(
@@ -1066,9 +1283,21 @@ impl ThemeResolverService {
         theme_id: Uuid,
         version_id: Uuid,
     ) -> Result<ThemeBinding> {
+        self.upsert_client_binding_with_tx(realm_id, client_id, theme_id, version_id, None)
+            .await
+    }
+
+    pub async fn upsert_client_binding_with_tx(
+        &self,
+        realm_id: Uuid,
+        client_id: String,
+        theme_id: Uuid,
+        version_id: Uuid,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<ThemeBinding> {
         let theme = self
             .repo
-            .find_theme(&realm_id, &theme_id)
+            .find_theme_with_tx(&realm_id, &theme_id, tx.as_deref_mut())
             .await?
             .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
 
@@ -1093,7 +1322,7 @@ impl ThemeResolverService {
             updated_at: "".to_string(),
         };
 
-        self.repo.upsert_binding(&binding, None).await?;
+        self.repo.upsert_binding(&binding, tx).await?;
 
         self.repo
             .get_binding(&realm_id, Some(&client_id))

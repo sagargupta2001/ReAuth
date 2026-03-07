@@ -159,6 +159,19 @@ impl ThemeRepository for TestThemeRepo {
         Ok(())
     }
 
+    async fn set_draft_exists(
+        &self,
+        _theme_id: &Uuid,
+        _exists: bool,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    async fn get_draft_exists(&self, _theme_id: &Uuid) -> Result<bool> {
+        Ok(false)
+    }
+
     async fn create_version(
         &self,
         _version: &ThemeVersion,

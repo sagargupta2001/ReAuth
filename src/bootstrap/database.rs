@@ -1,6 +1,7 @@
 use crate::adapters::persistence::connection::Database;
 use crate::adapters::{init_db, run_migrations};
 use crate::application::flow_manager::FlowManager;
+use crate::application::harbor::HarborService;
 use crate::application::oidc_service::OidcService;
 use crate::application::rbac_service::RbacService;
 use crate::application::realm_service::RealmService;
@@ -58,6 +59,7 @@ pub async fn run_migrations_and_seed(
     oidc_service: &Arc<OidcService>,
     rbac_service: Arc<RbacService>,
     theme_service: Arc<ThemeResolverService>,
+    harbor_service: Arc<HarborService>,
 ) -> anyhow::Result<()> {
     if let Err(e) = run_migrations(db_pool).await {
         warn!("Migration warning: {}", e);
@@ -80,6 +82,7 @@ pub async fn run_migrations_and_seed(
         oidc_service,
         &rbac_service,
         &theme_service,
+        &harbor_service,
     )
     .await?;
 

@@ -32,6 +32,7 @@ import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx'
 import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx'
 import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
 import { UsersPage } from '@/pages/user/listing/UsersPage.tsx'
+import HarborDashboardPage from '@/pages/harbor/HarborDashboardPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 import { FluidBuilderLayout } from '@/widgets/Layout/FluidBuilderLayout.tsx'
 import { FlowBuilderLayout } from '@/widgets/Layout/FlowBuilderLayout.tsx'
@@ -85,6 +86,12 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/cache',
     element: CachePage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/harbor',
+    element: HarborDashboardPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

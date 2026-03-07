@@ -4,6 +4,12 @@ use crate::application::audit_service::AuditService;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
+use crate::application::harbor::client_provider::ClientHarborProvider;
+use crate::application::harbor::flow_provider::FlowHarborProvider;
+use crate::application::harbor::provider::HarborRegistry;
+use crate::application::harbor::runner::TokioHarborJobRunner;
+use crate::application::harbor::service::HarborService;
+use crate::application::harbor::theme_provider::ThemeHarborProvider;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
 use crate::application::runtime_registry::RuntimeRegistry;
@@ -32,6 +38,7 @@ pub struct Services {
     pub audit_service: Arc<AuditService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,
+    pub harbor_service: Arc<HarborService>,
     // Removed Legacy FlowEngine
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
@@ -150,6 +157,22 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
 
     let node_registry = Arc::new(NodeRegistryService::new());
 
+    let mut harbor_registry = HarborRegistry::new();
+    harbor_registry.register(Arc::new(ThemeHarborProvider::new(theme_service.clone())));
+    harbor_registry.register(Arc::new(ClientHarborProvider::new(oidc_service.clone())));
+    harbor_registry.register(Arc::new(FlowHarborProvider::new(flow_manager.clone())));
+    let harbor_job_runner = Arc::new(TokioHarborJobRunner);
+    let harbor_service = Arc::new(HarborService::new(
+        harbor_registry,
+        theme_service.clone(),
+        oidc_service.clone(),
+        flow_manager.clone(),
+        tx_manager.clone(),
+        repos.harbor_job_repo.clone(),
+        repos.harbor_job_conflict_repo.clone(),
+        harbor_job_runner,
+    ));
+
     Services {
         user_service,
         rbac_service,
@@ -158,6 +181,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         audit_service,
         webhook_service,
         theme_service,
+        harbor_service,
         oidc_service,
         flow_service,
         flow_manager,

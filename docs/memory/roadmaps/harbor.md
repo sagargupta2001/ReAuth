@@ -4,73 +4,92 @@
 - Build a scalable, enterprise-ready import/export system for ReAuth that supports both **atomic portability** (single theme/client/flow) and **system-wide snapshots** (full realm backups/migrations).
 
 ## Current state
-- Theme import/export exists at a feature level (`/api/realms/:realm/themes/:theme_id/export` and `/import`), but there is no unified, versioned bundle format or shared import pipeline.
-- Seeding is code-driven (`/src/bootstrap/seed.rs`) and not yet powered by a reusable import/export service.
+- Harbor now provides a unified, versioned import/export pipeline with `.reauth` archives, provider-based resource orchestration, schema validation, dry-run support, async jobs, artifact retention, and conflict logging.
+- Full realm import/export covers themes, clients, and flows, including theme metadata, assets, and bindings.
+- The Harbor Management Hub UI exists with export/import workspaces, live job polling, and a job details sheet for conflicts and export downloads.
+- Seeding is now Harbor-backed via bundle import on first boot.
 
 ## Now
-- Define the Harbor bundle format and manifest:
-  - `.reauth` bundle (zip or tar.gz).
-  - `manifest.json` with `version`, `exported_at`, `source_realm`, `type`.
-  - `data/` (JSON) and `assets/` (binary) split.
-- Add schema validation for bundles (versioned JSON schema).
-- Implement `HarborService` in `/src/application` as an orchestrator with a **Resource Provider Registry**:
-  - Each domain registers a provider that implements a Harbor trait (e.g., `ThemeProvider`, `ClientProvider`, `FlowProvider`).
-  - Providers implement `export_json()` and `import_json()` and are wired at startup.
-- Add a transaction-based import pipeline with:
-  - Pre-validate JSON + schema.
-  - Optional dry-run using a temporary transaction.
-  - Asset extraction + ID remapping (theme assets and node references).
-- Start with atomic portability: theme, client, flow.
-- Add contextual UI export/import actions in Themes, Clients, Flows.
-- Implement **ExportPolicy**:
-  - Default `REDACT` secrets in exports (`"${REDACTED}"` placeholder).
-  - `INCLUDE_SECRETS` gated by a “Full Backup” permission.
+- Keep Harbor stable while the surrounding execution and configuration layers catch up:
+  - Harbor backend and UI capabilities are implemented enough to begin integrating them into the rest of the admin product.
+  - Remaining effort is mainly contextual UI wiring, richer job UX, and cleanup of the unrelated compile breakages that now sit outside Harbor.
 
 ## Next
 - Implement system-wide snapshots with selection checklist:
   - Clients, Users, Themes, Flows, RBAC, OIDC clients.
   - Conflict policy: `skip | overwrite | rename`.
-- Add Import/Export Management Hub under Realm Settings:
-  - Two-column layout: Export Workspace + Import Workspace.
-  - Export checklist + “Include Secrets” toggle + “Generate .reauth Bundle”.
-  - Import drag-and-drop + manifest preview + conflict policy + dry-run toggle.
-  - Recent Harbor Jobs table (status, items processed, date).
-- Add import/export job tracking:
-  - `import_jobs`, `export_jobs`, `import_conflicts`, `import_logs` tables.
-  - Progress and failure reporting for long-running imports.
-- Unify seeding:
-  - `seed.rs` delegates to Harbor using a local bundle (e.g., `config/seed/default-theme.reauth`).
-  - First-run bootstrapping via `system-init.json` (full realm export).
+- Add contextual UI actions in Themes, Clients, Flows:
+  - Export current resource directly from its detail/builder screen.
+  - Import replacement bundle from the resource-level workflow where it makes sense.
+- Surface async progress more explicitly in Harbor:
+  - Progress bars / percentages for active jobs.
+  - Better empty/error/loading states around polling.
+- Expand job tracking:
+  - Add per-item conflict logs + error detail tables for Harbor jobs.
+  - Surface conflict metadata in job detail views.
 - Add **semantic deduplication** for uniqueness collisions:
   - Lookup existing items (e.g., client_id) and apply conflict policy.
   - If renamed, remap references across related objects (flows, bindings).
 
 ## Later
-- Deterministic export ordering for Git-friendly diffs.
 - Optional bundle encryption/signing.
 - Schema compatibility policy with **N-2 support**:
   - Manifest `schema_version` + up-converters (`v1_to_v2`, `v2_to_v3`) before import.
 - Observability integration (audit events + metrics for imports/exports).
 - Cross-realm merge tools and diff previews.
+- Integrate Harbor jobs with the Current execution engine (shared task runner + global job view).
 
 ## Implementation checklist
-- [ ] Define `.reauth` bundle layout (`manifest.json`, `data/`, `assets/`) and document the spec.
-- [ ] Add versioned JSON schemas for bundle types (theme/client/flow/full realm).
-- [ ] Implement Harbor Resource Provider trait (`export_json`, `import_json`) and registry wiring.
-- [ ] Build `HarborService` orchestrator with `export_*`, `import_*`, `dry_run_*`.
-- [ ] Add ExportPolicy with `REDACT` default and `INCLUDE_SECRETS` permission gate.
-- [ ] Implement transactional dry-run that reports create/update counts without writes.
-- [ ] Implement asset extraction and ID remapping (themes + references).
+- [x] Define `.reauth` bundle layout (`manifest.json`, `data/`, `assets/`) and document the spec.
+- [x] Add versioned JSON schemas for bundle types (theme/client/flow/full realm).
+- [x] Implement Harbor Resource Provider trait (`export_json`, `import_json`) and registry wiring.
+- [x] Build `HarborService` orchestrator with `export_*`, `import_*`, `dry_run_*`.
+- [x] Add ExportPolicy with `REDACT` default and `INCLUDE_SECRETS` permission gate.
+- [x] Implement transactional dry-run that reports create/update counts without writes.
+- [x] Implement asset extraction and ID remapping (themes + references).
+- [x] Add conflict policy handling for theme/client/flow imports.
+- [x] Use explicit draft metadata for theme conflict checks.
+- [x] Add client/flow schema validation (shape checks).
+- [x] Add formal bundle-level schema validation.
+- [x] Add import summary counts for create/update.
+- [x] Add rename handling + basic reference remap for flow/client scope.
+- [x] Add cross-resource remap for `client_id` references in flow graphs during full imports.
+- [x] Extend full realm import to include themes (new theme creation + bindings).
+- [x] Add manifest validation for `exported_at` RFC3339 format and non-empty `source_realm`.
+- [x] Remap `client_id` references in additional resources (theme bindings).
+- [x] Implement full realm export with selection + theme metadata/bindings.
+- [x] Add semantic deduplication for theme name conflicts (draft match before rename).
 - [ ] Add semantic deduplication (lookup, apply conflict policy, remap references).
-- [ ] Add unified Harbor endpoints (backend) with scope parameters.
+- [x] Add unified Harbor endpoints (backend) with scope parameters.
+- [x] Add client and flow Harbor providers.
 - [ ] Add contextual UI actions in Themes/Clients/Flows for export/import.
-- [ ] Build Harbor Management Hub UI (Export/Import workspaces + Jobs table).
-- [ ] Add job tracking tables (`import_jobs`, `export_jobs`, `import_conflicts`, `import_logs`).
-- [ ] Add import/export progress reporting and failure details.
-- [ ] Add up-converters for N-2 schema compatibility.
-- [ ] Make exports deterministic (stable ordering + normalized JSON).
-- [ ] Update seeding to run via Harbor bundle on first boot.
-- [ ] Add tests for schema validation, remapping, conflicts, and dry-run.
+- [x] Build Harbor Management Hub UI (Export/Import workspaces + Jobs table).
+- [x] Wire Export/Import actions to Harbor endpoints (bundle upload, dry_run, conflict_policy).
+- [x] Add job tracking table (`harbor_jobs`) + job list endpoints.
+- [x] Add import/export progress reporting and failure details.
+- [x] Add async job execution for full realm imports (202 + `job_id`).
+- [x] Add UI polling strategy for async Harbor jobs.
+- [x] Add async export support with persisted bundles + download endpoint.
+- [x] Add Harbor job runner abstraction (Current-ready).
+- [x] Add async thresholds + `?async=` override parameters.
+- [x] Add retention cleanup for Harbor export artifacts.
+- [x] Clear artifact metadata when retention deletes files.
+- [x] Allow forced async JSON export that returns download link.
+- [x] Add conflict logs table + API for job conflicts.
+- [x] Add bundle validation and up-converter scaffolding.
+- [x] Make exports deterministic (stable ordering + normalized JSON).
+- [x] Update seeding to run via Harbor bundle on first boot.
+- [x] Add tests for archive I/O and dry-run import.
+- [x] Add tests for schema validation, remapping, and conflicts.
+
+## UI implementation checklist
+- [x] Add Harbor nav entry with Lucide icon and page routing.
+- [x] Build Harbor Management Hub layout (Export + Import cards, Recent Jobs table).
+- [x] Wire Export/Import actions to Harbor API endpoints (archive upload, dry_run, conflict_policy).
+- [x] Connect Recent Harbor Jobs table to live data with polling.
+- [x] Add job detail view with conflicts and download link.
+- [x] Add async export/download state + progress polling.
+- [ ] Add contextual export/import actions in Themes, Clients, Flows.
 
 ## Risks / dependencies
 - Import consistency depends on strict schema validation and correct ID remapping.

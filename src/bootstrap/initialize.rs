@@ -20,6 +20,7 @@ use crate::AppState;
 use chrono::{Duration, Utc};
 use notify::{RecursiveMode, Watcher};
 use std::sync::Arc;
+use std::time::SystemTime;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -31,6 +32,7 @@ struct InitializeOptions {
     enable_telemetry_cleanup: bool,
     enable_outbox_worker: bool,
     enable_refresh_cleanup: bool,
+    enable_harbor_cleanup: bool,
 }
 
 pub async fn initialize() -> anyhow::Result<AppState> {
@@ -44,6 +46,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
             enable_telemetry_cleanup: true,
             enable_outbox_worker: true,
             enable_refresh_cleanup: true,
+            enable_harbor_cleanup: true,
         },
     )
     .await
@@ -60,6 +63,7 @@ pub async fn initialize_for_tests() -> anyhow::Result<AppState> {
             enable_telemetry_cleanup: false,
             enable_outbox_worker: false,
             enable_refresh_cleanup: false,
+            enable_harbor_cleanup: false,
         },
     )
     .await
@@ -122,6 +126,7 @@ async fn initialize_with_settings(
         &services.oidc_service,
         services.rbac_service.clone(),
         services.theme_service.clone(),
+        services.harbor_service.clone(),
     )
     .await?;
 
@@ -138,6 +143,9 @@ async fn initialize_with_settings(
     if options.enable_refresh_cleanup {
         spawn_refresh_token_cleanup(settings_shared.clone(), db_pool.clone());
     }
+    if options.enable_harbor_cleanup {
+        spawn_harbor_cleanup(settings_shared.clone(), db_pool.clone());
+    }
 
     Ok(AppState {
         settings: settings_shared,
@@ -151,6 +159,7 @@ async fn initialize_with_settings(
         realm_service: services.realm_service,
         webhook_service: services.webhook_service,
         theme_service: services.theme_service,
+        harbor_service: services.harbor_service,
         log_subscriber: log_bus,
         cache_service: cache_service.clone(),
         auth_session_repo: repos.auth_session_repo,
@@ -362,6 +371,99 @@ fn spawn_refresh_token_cleanup(settings: Arc<RwLock<Settings>>, db_pool: Databas
             }
         }
     });
+}
+
+fn spawn_harbor_cleanup(settings: Arc<RwLock<Settings>>, db_pool: Database) {
+    tokio::spawn(async move {
+        loop {
+            let interval_secs = { settings.read().await.harbor.cleanup_interval_secs };
+            if interval_secs == 0 {
+                info!("Harbor cleanup disabled (harbor.cleanup_interval_secs=0).");
+                return;
+            }
+
+            tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
+
+            let (storage_dir, retention_hours) = {
+                let guard = settings.read().await;
+                (
+                    guard.harbor.storage_dir.clone(),
+                    guard.harbor.artifact_retention_hours,
+                )
+            };
+
+            if retention_hours == 0 {
+                continue;
+            }
+
+            match cleanup_harbor_artifacts(&storage_dir, retention_hours, &db_pool).await {
+                Ok(removed) => {
+                    if removed > 0 {
+                        info!(
+                            "Harbor cleanup removed {} artifact(s) older than {} hours.",
+                            removed, retention_hours
+                        );
+                    }
+                }
+                Err(err) => {
+                    warn!("Failed to cleanup Harbor artifacts: {}", err);
+                }
+            }
+        }
+    });
+}
+
+async fn cleanup_harbor_artifacts(
+    storage_dir: &str,
+    retention_hours: u64,
+    db_pool: &Database,
+) -> anyhow::Result<u64> {
+    if storage_dir.trim().is_empty() {
+        return Ok(0);
+    }
+
+    let cutoff = SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(retention_hours * 3600))
+        .unwrap_or(SystemTime::UNIX_EPOCH);
+
+    let mut removed = 0u64;
+    let mut entries = match tokio::fs::read_dir(storage_dir).await {
+        Ok(entries) => entries,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(err) => return Err(anyhow::anyhow!(err)),
+    };
+
+    let mut removed_paths = Vec::new();
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        let metadata = entry.metadata().await?;
+        if !metadata.is_file() {
+            continue;
+        }
+
+        let modified = metadata.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        if modified < cutoff && tokio::fs::remove_file(&path).await.is_ok() {
+            removed += 1;
+            removed_paths.push(path);
+        }
+    }
+
+    for path in removed_paths {
+        let _ = sqlx::query(
+            "UPDATE harbor_jobs
+             SET artifact_path = NULL,
+                 artifact_filename = NULL,
+                 artifact_content_type = NULL,
+                 status = 'expired',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE artifact_path = ? AND status = 'completed'",
+        )
+        .bind(path.to_string_lossy().to_string())
+        .execute(&**db_pool)
+        .await;
+    }
+
+    Ok(removed)
 }
 
 pub(crate) async fn apply_settings_update(

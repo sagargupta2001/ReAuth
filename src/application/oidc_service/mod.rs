@@ -12,7 +12,7 @@ use crate::{
     ports::{
         auth_session_repository::AuthSessionRepository, flow_store::FlowStore,
         oidc_repository::OidcRepository, realm_repository::RealmRepository,
-        user_repository::UserRepository,
+        transaction_manager::Transaction, user_repository::UserRepository,
     },
 };
 use chrono::{Duration, Utc};
@@ -292,6 +292,20 @@ impl OidcService {
         self.oidc_repo.create_client(client).await
     }
 
+    pub async fn register_client_with_tx(
+        &self,
+        client: &mut OidcClient,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        if client.client_secret.is_none() {
+            let secret: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
+
+            client.client_secret = Some(secret);
+        }
+
+        self.oidc_repo.create_client_with_tx(client, tx).await
+    }
+
     pub async fn find_client_by_client_id(
         &self,
         realm_id: &Uuid,
@@ -302,6 +316,14 @@ impl OidcService {
 
     pub async fn update_client_record(&self, client: &OidcClient) -> Result<()> {
         self.oidc_repo.update_client(client).await
+    }
+
+    pub async fn update_client_record_with_tx(
+        &self,
+        client: &OidcClient,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        self.oidc_repo.update_client_with_tx(client, tx).await
     }
 
     pub async fn list_clients(

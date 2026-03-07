@@ -4,6 +4,7 @@ use crate::application::delivery_replay_service::DeliveryReplayService;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
+use crate::application::harbor::HarborService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
@@ -36,6 +37,7 @@ pub struct AppState {
     pub realm_service: Arc<RealmService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,
+    pub harbor_service: Arc<HarborService>,
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
     pub flow_manager: Arc<FlowManager>,

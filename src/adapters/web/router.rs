@@ -1,8 +1,8 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
-    log_stream_handler, observability_handler, oidc_handler, rbac_handler, realm_handler,
-    search_handler, server::ui_handler, session_handler, theme_handler, user_handler,
-    webhook_handler,
+    harbor_handler, log_stream_handler, observability_handler, oidc_handler, rbac_handler,
+    realm_handler, search_handler, server::ui_handler, session_handler, theme_handler,
+    user_handler, webhook_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
@@ -39,6 +39,7 @@ pub fn create_router(app_state: AppState) -> Router {
             protected_user_routes(app_state.clone()),
         )
         .nest("/realms/{realm}/flows", flow_routes(app_state.clone()))
+        .nest("/realms/{realm}/harbor", harbor_routes(app_state.clone()))
         .nest(
             "/realms/{realm}/themes",
             theme_admin_routes(app_state.clone()),
@@ -536,6 +537,49 @@ fn flow_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{id}/restore-draft",
             post(flow_handler::restore_draft_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::REALM_WRITE)
+            },
+        ))
+}
+
+fn harbor_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        .route(
+            "/export",
+            post(harbor_handler::export_harbor_bundle_handler),
+        )
+        .route(
+            "/export/archive",
+            post(harbor_handler::export_harbor_archive_handler),
+        )
+        .route(
+            "/import",
+            post(harbor_handler::import_harbor_bundle_handler),
+        )
+        .route(
+            "/import/archive",
+            post(harbor_handler::import_harbor_archive_handler),
+        )
+        .route("/jobs", get(harbor_handler::list_harbor_jobs_handler))
+        .route(
+            "/jobs/{job_id}/conflicts",
+            get(harbor_handler::list_harbor_job_conflicts_handler),
+        )
+        .route(
+            "/jobs/{job_id}",
+            get(harbor_handler::get_harbor_job_handler),
+        )
+        .route(
+            "/jobs/{job_id}/details",
+            get(harbor_handler::get_harbor_job_details_handler),
+        )
+        .route(
+            "/jobs/{job_id}/download",
+            get(harbor_handler::download_harbor_job_handler),
         )
         .route_layer(middleware::from_fn_with_state(
             state,
