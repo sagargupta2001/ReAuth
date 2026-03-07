@@ -36,6 +36,26 @@ impl ClientHarborProvider {
     }
 }
 
+fn parse_client_scopes(scopes: &str) -> Result<Vec<String>> {
+    match serde_json::from_str(scopes) {
+        Ok(scopes) => Ok(scopes),
+        Err(_) => {
+            let legacy_scopes = scopes
+                .split_whitespace()
+                .map(str::trim)
+                .filter(|scope| !scope.is_empty())
+                .map(ToString::to_string)
+                .collect::<Vec<_>>();
+
+            if legacy_scopes.is_empty() && !scopes.trim().is_empty() {
+                return Err(Error::Validation("Invalid scopes payload".to_string()));
+            }
+
+            Ok(legacy_scopes)
+        }
+    }
+}
+
 #[async_trait]
 impl HarborProvider for ClientHarborProvider {
     fn key(&self) -> &'static str {
@@ -82,8 +102,7 @@ impl HarborProvider for ClientHarborProvider {
 
         let redirect_uris: Vec<String> = serde_json::from_str(&client.redirect_uris)
             .map_err(|_| Error::Validation("Invalid redirect_uris payload".to_string()))?;
-        let scopes: Vec<String> = serde_json::from_str(&client.scopes)
-            .map_err(|_| Error::Validation("Invalid scopes payload".to_string()))?;
+        let scopes = parse_client_scopes(&client.scopes)?;
         let web_origins: Vec<String> = serde_json::from_str(&client.web_origins)
             .map_err(|_| Error::Validation("Invalid web_origins payload".to_string()))?;
 
@@ -317,4 +336,22 @@ async fn import_new_client(
         original_id: Some(payload.client_id),
         renamed_to: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_client_scopes;
+
+    #[test]
+    fn parse_client_scopes_accepts_json_array() {
+        let scopes = parse_client_scopes("[\"openid\",\"profile\"]").expect("json scopes");
+        assert_eq!(scopes, vec!["openid", "profile"]);
+    }
+
+    #[test]
+    fn parse_client_scopes_accepts_legacy_space_delimited_values() {
+        let scopes =
+            parse_client_scopes("openid profile email").expect("legacy space-delimited scopes");
+        assert_eq!(scopes, vec!["openid", "profile", "email"]);
+    }
 }
