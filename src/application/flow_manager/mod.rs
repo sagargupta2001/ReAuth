@@ -4,6 +4,7 @@ pub mod templates;
 
 use crate::application::flow_manager::templates::FlowTemplates;
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::domain::auth_flow::AuthFlow;
 use crate::domain::compiler::flow_compiler::FlowCompiler;
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::ports::flow_repository::FlowRepository;
@@ -335,6 +336,10 @@ impl FlowManager {
     pub async fn is_flow_built_in(&self, flow_id: &Uuid) -> Result<bool> {
         let meta = self.flow_repo.find_flow_by_id(flow_id).await?;
         Ok(meta.map(|f| f.built_in).unwrap_or(false))
+    }
+
+    pub async fn find_flow(&self, flow_id: Uuid) -> Result<Option<AuthFlow>> {
+        self.flow_repo.find_flow_by_id(&flow_id).await
     }
 
     pub async fn list_flow_versions(

@@ -11,6 +11,7 @@ export function useHarborExportArchive() {
   return useMutation({
     mutationFn: async (params: {
       scope: string
+      id?: string
       selection?: string[]
       includeSecrets?: boolean
       archiveFormat?: string

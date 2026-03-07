@@ -176,6 +176,14 @@ fn realm_routes(state: AppState) -> Router<AppState> {
 
     let write_routes = Router::new()
         .route("/", post(realm_handler::create_realm_handler))
+        .route(
+            "/bootstrap/import",
+            post(harbor_handler::bootstrap_import_harbor_bundle_handler),
+        )
+        .route(
+            "/bootstrap/import/archive",
+            post(harbor_handler::bootstrap_import_harbor_archive_handler),
+        )
         .route("/{id}", put(realm_handler::update_realm_handler))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

@@ -1,10 +1,12 @@
 mod support;
 
+use reauth::application::flow_manager::{CreateDraftRequest, UpdateDraftRequest};
 use reauth::application::harbor::{
-    ConflictPolicy, HarborBundle, HarborExportType, HarborManifest, HarborResourceBundle,
-    HarborScope,
+    bootstrap_import_bundle, ConflictPolicy, ExportPolicy, HarborBundle, HarborExportType,
+    HarborManifest, HarborResourceBundle, HarborScope,
 };
-use reauth::application::realm_service::CreateRealmPayload;
+use reauth::application::rbac_service::CreateRolePayload;
+use reauth::application::realm_service::{CreateRealmPayload, UpdateRealmPayload};
 use reauth::domain::oidc::OidcClient;
 use reauth::error::Error;
 use serde_json::{json, Value};
@@ -474,4 +476,400 @@ fn collect_client_ids(value: &Value, out: &mut Vec<String>) {
         }
         _ => {}
     }
+}
+
+#[tokio::test]
+async fn harbor_full_realm_imports_roles_and_remaps_client_roles() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let realm = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "roles-remap".to_string(),
+        })
+        .await
+        .expect("create realm");
+
+    let mut existing = OidcClient {
+        id: Uuid::new_v4(),
+        realm_id: realm.id,
+        client_id: "portal-app".to_string(),
+        client_secret: Some("secret".to_string()),
+        redirect_uris: "[]".to_string(),
+        scopes: "[]".to_string(),
+        web_origins: "[]".to_string(),
+        managed_by_config: false,
+    };
+    ctx.app_state
+        .oidc_service
+        .register_client(&mut existing)
+        .await
+        .expect("register client");
+
+    let bundle = HarborBundle {
+        manifest: HarborManifest {
+            version: "1.0".to_string(),
+            schema_version: 1,
+            exported_at: "2026-03-04T10:00:00Z".to_string(),
+            source_realm: "acme".to_string(),
+            export_type: HarborExportType::FullRealm,
+            selection: Some(vec!["client".to_string(), "role".to_string()]),
+        },
+        resources: vec![
+            HarborResourceBundle {
+                key: "client".to_string(),
+                data: json!({
+                    "client_id": "portal-app",
+                    "client_secret": null,
+                    "redirect_uris": [],
+                    "scopes": [],
+                    "web_origins": []
+                }),
+                assets: Vec::new(),
+                meta: None,
+            },
+            HarborResourceBundle {
+                key: "role".to_string(),
+                data: json!({
+                    "role_id": Uuid::new_v4().to_string(),
+                    "name": "manage-portal",
+                    "description": "Portal role",
+                    "client_id": "portal-app",
+                    "permissions": ["client:read", "client:update"]
+                }),
+                assets: Vec::new(),
+                meta: None,
+            },
+        ],
+    };
+
+    let result = ctx
+        .app_state
+        .harbor_service
+        .import_bundle(
+            realm.id,
+            HarborScope::FullRealm,
+            bundle,
+            false,
+            ConflictPolicy::Rename,
+        )
+        .await
+        .expect("import bundle");
+
+    assert!(result
+        .resources
+        .iter()
+        .any(|resource| resource.key == "role"));
+
+    let renamed_client = ctx
+        .app_state
+        .oidc_service
+        .find_client_by_client_id(&realm.id, "portal-app-1")
+        .await
+        .expect("find renamed client")
+        .expect("renamed client exists");
+
+    let client_roles = ctx
+        .app_state
+        .rbac_service
+        .list_client_roles(
+            realm.id,
+            renamed_client.id,
+            reauth::domain::pagination::PageRequest::default(),
+        )
+        .await
+        .expect("list client roles");
+
+    let role = client_roles
+        .data
+        .into_iter()
+        .find(|role| role.name == "manage-portal")
+        .expect("client role exists");
+
+    let permissions = ctx
+        .app_state
+        .rbac_service
+        .get_role(realm.id, role.id)
+        .await
+        .expect("get role");
+    assert_eq!(permissions.name, "manage-portal");
+}
+
+#[tokio::test]
+async fn harbor_full_realm_exports_roles_when_selected() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let realm = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "roles-export".to_string(),
+        })
+        .await
+        .expect("create realm");
+
+    ctx.app_state
+        .rbac_service
+        .create_role(
+            realm.id,
+            CreateRolePayload {
+                name: "realm-admin".to_string(),
+                description: Some("Admin role".to_string()),
+                client_id: None,
+            },
+        )
+        .await
+        .expect("create role");
+
+    let bundle = ctx
+        .app_state
+        .harbor_service
+        .export_bundle(
+            realm.id,
+            "roles-export",
+            HarborScope::FullRealm,
+            reauth::application::harbor::ExportPolicy::Redact,
+            Some(vec!["role".to_string()]),
+        )
+        .await
+        .expect("export bundle");
+
+    assert_eq!(bundle.manifest.selection, Some(vec!["role".to_string()]));
+    assert!(bundle
+        .resources
+        .iter()
+        .any(|resource| resource.key == "role"));
+}
+
+#[tokio::test]
+async fn harbor_bootstrap_import_creates_new_realm_from_full_bundle() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let source = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "source-bootstrap".to_string(),
+        })
+        .await
+        .expect("create source realm");
+
+    let mut client = OidcClient {
+        id: Uuid::new_v4(),
+        realm_id: source.id,
+        client_id: "portal-app".to_string(),
+        client_secret: Some("secret".to_string()),
+        redirect_uris: "[\"https://example.com/callback\"]".to_string(),
+        scopes: "[\"openid\"]".to_string(),
+        web_origins: "[]".to_string(),
+        managed_by_config: false,
+    };
+    ctx.app_state
+        .oidc_service
+        .register_client(&mut client)
+        .await
+        .expect("register source client");
+
+    let bundle = ctx
+        .app_state
+        .harbor_service
+        .export_bundle(
+            source.id,
+            &source.name,
+            HarborScope::FullRealm,
+            ExportPolicy::Redact,
+            Some(vec!["client".to_string()]),
+        )
+        .await
+        .expect("export full realm bundle");
+
+    let (target, result) = bootstrap_import_bundle(
+        &ctx.app_state.realm_service,
+        &ctx.app_state.harbor_service,
+        Some("target-bootstrap".to_string()),
+        bundle,
+        ConflictPolicy::Overwrite,
+    )
+    .await
+    .expect("bootstrap import");
+
+    assert_eq!(target.name, "target-bootstrap");
+    assert!(result
+        .resources
+        .iter()
+        .any(|resource| resource.key == "client"));
+
+    let imported = ctx
+        .app_state
+        .oidc_service
+        .find_client_by_client_id(&target.id, "portal-app")
+        .await
+        .expect("find imported client");
+
+    assert!(imported.is_some());
+}
+
+#[tokio::test]
+async fn harbor_bootstrap_import_uses_manifest_source_realm_name_when_missing() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let source = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "manifest-source".to_string(),
+        })
+        .await
+        .expect("create source realm");
+
+    let bundle = ctx
+        .app_state
+        .harbor_service
+        .export_bundle(
+            source.id,
+            "manifest-bootstrap-target",
+            HarborScope::FullRealm,
+            ExportPolicy::Redact,
+            Some(vec!["theme".to_string()]),
+        )
+        .await
+        .expect("export full realm bundle");
+
+    let (target, _) = bootstrap_import_bundle(
+        &ctx.app_state.realm_service,
+        &ctx.app_state.harbor_service,
+        None,
+        bundle,
+        ConflictPolicy::Overwrite,
+    )
+    .await
+    .expect("bootstrap import");
+
+    assert_eq!(target.name, "manifest-bootstrap-target");
+}
+
+#[tokio::test]
+async fn harbor_bootstrap_import_restores_realm_settings_and_flow_bindings() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let source = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "realm-settings-source".to_string(),
+        })
+        .await
+        .expect("create source realm");
+
+    let browser_draft = ctx
+        .app_state
+        .flow_manager
+        .create_draft(
+            source.id,
+            CreateDraftRequest {
+                name: "custom-browser".to_string(),
+                description: Some("Custom browser flow".to_string()),
+                flow_type: "browser".to_string(),
+            },
+        )
+        .await
+        .expect("create draft");
+
+    ctx.app_state
+        .flow_manager
+        .update_draft(
+            browser_draft.id,
+            UpdateDraftRequest {
+                name: None,
+                description: None,
+                graph_json: Some(json!({
+                    "nodes": [
+                        {"id": "start", "type": "core.start"},
+                        {"id": "end", "type": "core.terminal.allow"}
+                    ],
+                    "edges": [
+                        {"source": "start", "target": "end"}
+                    ]
+                })),
+            },
+        )
+        .await
+        .expect("update draft graph");
+
+    ctx.app_state
+        .flow_manager
+        .publish_flow(source.id, browser_draft.id)
+        .await
+        .expect("publish flow");
+
+    ctx.app_state
+        .realm_service
+        .update_realm(
+            source.id,
+            UpdateRealmPayload {
+                name: None,
+                access_token_ttl_secs: Some(1800),
+                refresh_token_ttl_secs: Some(14400),
+                pkce_required_public_clients: Some(false),
+                lockout_threshold: Some(7),
+                lockout_duration_secs: Some(1200),
+                browser_flow_id: Some(Some(browser_draft.id)),
+                registration_flow_id: Some(None),
+                direct_grant_flow_id: Some(None),
+                reset_credentials_flow_id: Some(None),
+            },
+        )
+        .await
+        .expect("update source realm");
+
+    let bundle = ctx
+        .app_state
+        .harbor_service
+        .export_bundle(
+            source.id,
+            &source.name,
+            HarborScope::FullRealm,
+            ExportPolicy::Redact,
+            Some(vec!["realm".to_string(), "flow".to_string()]),
+        )
+        .await
+        .expect("export realm bundle");
+
+    let (target, _) = bootstrap_import_bundle(
+        &ctx.app_state.realm_service,
+        &ctx.app_state.harbor_service,
+        Some("realm-settings-target".to_string()),
+        bundle,
+        ConflictPolicy::Overwrite,
+    )
+    .await
+    .expect("bootstrap import");
+
+    let imported_realm = ctx
+        .app_state
+        .realm_service
+        .find_by_id(target.id)
+        .await
+        .expect("lookup target realm")
+        .expect("target realm exists");
+
+    assert_eq!(imported_realm.access_token_ttl_secs, 1800);
+    assert_eq!(imported_realm.refresh_token_ttl_secs, 14400);
+    assert!(!imported_realm.pkce_required_public_clients);
+    assert_eq!(imported_realm.lockout_threshold, 7);
+    assert_eq!(imported_realm.lockout_duration_secs, 1200);
+    let imported_browser_flow_id = imported_realm
+        .browser_flow_id
+        .clone()
+        .expect("browser flow binding restored");
+    assert_ne!(
+        imported_browser_flow_id,
+        source.browser_flow_id.unwrap_or_default()
+    );
+
+    let imported_flows = ctx
+        .app_state
+        .flow_service
+        .list_flows(target.id)
+        .await
+        .expect("list target flows");
+    assert!(imported_flows
+        .iter()
+        .any(|flow| flow.id.to_string() == imported_browser_flow_id));
 }

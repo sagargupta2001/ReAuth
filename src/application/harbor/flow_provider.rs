@@ -122,6 +122,36 @@ impl HarborProvider for FlowHarborProvider {
         }
 
         let draft_exists = self.flow_manager.draft_exists(flow_id).await?;
+        let runtime_collision = self
+            .flow_manager
+            .find_flow(flow_id)
+            .await?
+            .map(|flow| flow.realm_id != realm_id)
+            .unwrap_or(false);
+
+        if runtime_collision {
+            let new_flow_id = Uuid::new_v4();
+            let mut payload = payload;
+            let mut graph_json = payload.graph_json;
+            let mut map = std::collections::HashMap::new();
+            map.insert(flow_id.to_string(), new_flow_id.to_string());
+            rewrite_reference_ids(&mut graph_json, "flow_id", &map);
+            payload.graph_json = graph_json;
+            let mut result = create_flow_draft(
+                &self.flow_manager,
+                realm_id,
+                new_flow_id,
+                payload,
+                true,
+                dry_run,
+                tx.as_deref_mut(),
+            )
+            .await?;
+            result.original_id = Some(flow_id.to_string());
+            result.renamed_to = Some(new_flow_id.to_string());
+            return Ok(result);
+        }
+
         if draft_exists {
             match conflict_policy {
                 ConflictPolicy::Skip => {

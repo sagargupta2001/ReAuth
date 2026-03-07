@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   AlertTriangle,
@@ -10,6 +10,7 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSearchParams } from 'react-router-dom'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/alert'
 import { Badge } from '@/components/badge'
@@ -33,13 +34,21 @@ import { HarborJobDetailsSheet } from '@/features/harbor/components/HarborJobDet
 import { cn, formatRelativeTime } from '@/lib/utils'
 import { Main } from '@/widgets/Layout/Main'
 
-const RESOURCE_OPTIONS = [
+const RESOURCE_OPTIONS: Array<{
+  id: string
+  label: string
+  disabled?: boolean
+  badge?: string
+}> = [
   { id: 'all_settings', label: 'All Settings' },
+  { id: 'realm', label: 'Realm Settings' },
   { id: 'themes', label: 'Themes' },
   { id: 'clients', label: 'Clients' },
   { id: 'flows', label: 'Auth Flows' },
-  { id: 'roles', label: 'Roles', disabled: true, badge: 'Soon' },
+  { id: 'roles', label: 'Roles' },
 ]
+
+const EMPTY_JOBS: HarborJob[] = []
 
 function getJobBadge(job: HarborJob) {
   const status = job.status.toLowerCase()
@@ -64,7 +73,58 @@ function formatItemsProcessed(job: HarborJob) {
   return `${job.processed_resources} / ${total}`
 }
 
+function jobOutcomeBadges(job: HarborJob) {
+  const badges: Array<{ label: string; variant: 'success' | 'secondary' | 'warning' | 'info' }> = []
+
+  if (job.created_count > 0) {
+    badges.push({ label: `${job.created_count} created`, variant: 'success' })
+  }
+  if (job.updated_count > 0) {
+    badges.push({ label: `${job.updated_count} updated`, variant: 'info' })
+  }
+  if (job.dry_run) {
+    badges.push({ label: 'Validation only', variant: 'secondary' })
+  }
+  if (job.status.toLowerCase() === 'completed' && job.created_count === 0 && job.updated_count === 0 && !job.dry_run) {
+    badges.push({ label: 'No writes', variant: 'secondary' })
+  }
+
+  return badges
+}
+
+function jobStatusHint(job: HarborJob) {
+  if (job.error_message) {
+    return job.error_message
+  }
+  if (job.status.toLowerCase() === 'completed') {
+    if (job.dry_run) return 'Validation completed successfully'
+    if (job.created_count > 0 || job.updated_count > 0) return 'Changes applied successfully'
+    return 'Completed without resource changes'
+  }
+  if (isHarborJobActive(job)) {
+    return 'Harbor is still processing this job'
+  }
+  return null
+}
+
+function progressPercentage(job: HarborJob) {
+  if (job.total_resources <= 0) return 0
+  return Math.max(0, Math.min(100, Math.round((job.processed_resources / job.total_resources) * 100)))
+}
+
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="bg-muted h-2 w-full overflow-hidden rounded-full">
+      <div
+        className="bg-primary h-full rounded-full transition-[width] duration-300"
+        style={{ width: `${value}%` }}
+      />
+    </div>
+  )
+}
+
 export function HarborDashboardPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [includeSecrets, setIncludeSecrets] = useState(false)
   const [dryRun, setDryRun] = useState(true)
   const [conflictPolicy, setConflictPolicy] = useState('skip')
@@ -77,15 +137,18 @@ export function HarborDashboardPage() {
   } | null>(null)
   const [resourceSelection, setResourceSelection] = useState<Record<string, boolean>>({
     all_settings: false,
+    realm: true,
     themes: true,
     clients: true,
     flows: true,
-    roles: false,
+    roles: true,
   })
 
   const exportMutation = useHarborExportArchive()
   const importMutation = useHarborImportBundle()
   const jobsQuery = useHarborJobs(20)
+  const requestedJobId = searchParams.get('job')
+  const source = searchParams.get('source')
 
   const manifest = manifestPreview
     ? manifestPreview
@@ -98,27 +161,51 @@ export function HarborDashboardPage() {
       : null
 
   const exportSelection = resourceSelection.all_settings
-    ? ['theme', 'client', 'flow']
-    : (['themes', 'clients', 'flows'] as const)
+    ? ['realm', 'theme', 'client', 'flow', 'role']
+    : (['realm', 'themes', 'clients', 'flows', 'roles'] as const)
         .filter((key) => resourceSelection[key])
-        .map((key) => (key === 'themes' ? 'theme' : key === 'clients' ? 'client' : 'flow'))
+        .map((key) =>
+          key === 'realm'
+            ? 'realm'
+            : key === 'themes'
+              ? 'theme'
+              : key === 'clients'
+                ? 'client'
+                : key === 'roles'
+                  ? 'role'
+                  : 'flow',
+        )
 
-  const liveJobs = jobsQuery.data ?? []
+  const liveJobs = jobsQuery.data ?? EMPTY_JOBS
   const activeJobs = liveJobs.filter((job) => isHarborJobActive(job))
+  const openedFromContextualAction = source === 'contextual'
+
+  useEffect(() => {
+    if (requestedJobId) {
+      setSelectedJobId(requestedJobId)
+    }
+  }, [requestedJobId])
+
+  const contextualJob = useMemo(
+    () => liveJobs.find((job) => job.id === requestedJobId),
+    [liveJobs, requestedJobId],
+  )
 
   const onToggleResource = (id: string, checked: boolean | 'indeterminate') => {
     setResourceSelection((prev) => {
       const next = { ...prev, [id]: checked === true }
       if (id === 'all_settings') {
+        next.realm = checked === true
         next.themes = checked === true
         next.clients = checked === true
         next.flows = checked === true
+        next.roles = checked === true
       }
-      if (['themes', 'clients', 'flows'].includes(id) && !checked) {
+      if (['realm', 'themes', 'clients', 'flows', 'roles'].includes(id) && !checked) {
         next.all_settings = false
       }
-      if (['themes', 'clients', 'flows'].includes(id) && checked) {
-        next.all_settings = next.themes && next.clients && next.flows
+      if (['realm', 'themes', 'clients', 'flows', 'roles'].includes(id) && checked) {
+        next.all_settings = next.realm && next.themes && next.clients && next.flows && next.roles
       }
       return next
     })
@@ -439,28 +526,60 @@ export function HarborDashboardPage() {
               <Badge variant={activeJobs.length > 0 ? 'warning' : 'muted'}>
                 {activeJobs.length} active
               </Badge>
+              <Badge variant={activeJobs.length > 0 ? 'info' : 'muted'}>
+                {activeJobs.length > 0 ? 'Polling every 2s' : 'Polling every 10s'}
+              </Badge>
             </div>
+
+            {openedFromContextualAction ? (
+              <Alert className="mb-4">
+                <Eye className="h-4 w-4" />
+                <AlertTitle>Opened from contextual Harbor action</AlertTitle>
+                <AlertDescription>
+                  {contextualJob
+                    ? `Viewing job ${contextualJob.id.slice(0, 8)} for ${formatJobType(contextualJob)}.`
+                    : requestedJobId
+                      ? `Viewing Harbor job ${requestedJobId.slice(0, 8)}.`
+                      : 'Viewing a Harbor job from a contextual action.'}
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Job Type</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Outcome</TableHead>
                   <TableHead>Items Processed</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {liveJobs.length === 0 ? (
+                {jobsQuery.isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground h-24 text-center">
+                    <TableCell colSpan={6} className="h-24">
+                      <div className="flex items-center justify-center gap-3 text-sm">
+                        <RefreshCcw className="text-muted-foreground h-4 w-4 animate-spin" />
+                        <span className="text-muted-foreground">
+                          Loading Harbor jobs and live progress…
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : liveJobs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-muted-foreground h-24 text-center">
                       No Harbor jobs yet. Imports and async exports will appear here.
                     </TableCell>
                   </TableRow>
                 ) : (
                   liveJobs.map((job) => {
                     const badge = getJobBadge(job)
+                    const outcome = jobOutcomeBadges(job)
+                    const hint = jobStatusHint(job)
+                    const progress = progressPercentage(job)
                     return (
                       <TableRow key={job.id}>
                         <TableCell>
@@ -472,7 +591,27 @@ export function HarborDashboardPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                          <div className="space-y-1">
+                            <Badge variant={badge.variant}>{badge.label}</Badge>
+                            {hint ? (
+                              <div className="text-muted-foreground max-w-xs text-xs">
+                                {hint}
+                              </div>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex max-w-xs flex-wrap gap-2">
+                            {outcome.length > 0 ? (
+                              outcome.map((entry) => (
+                                <Badge key={entry.label} variant={entry.variant}>
+                                  {entry.label}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge variant="muted">Pending outcome</Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
@@ -480,6 +619,15 @@ export function HarborDashboardPage() {
                             <div className="text-muted-foreground text-xs">
                               {job.created_count} created · {job.updated_count} updated
                             </div>
+                            {isHarborJobActive(job) ? (
+                              <div className="pt-1">
+                                <div className="mb-1 flex items-center justify-between text-[11px]">
+                                  <span className="text-muted-foreground">Progress</span>
+                                  <span className="font-medium">{progress}%</span>
+                                </div>
+                                <ProgressBar value={progress} />
+                              </div>
+                            ) : null}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -515,7 +663,15 @@ export function HarborDashboardPage() {
       <HarborJobDetailsSheet
         jobId={selectedJobId}
         onOpenChange={(open) => {
-          if (!open) setSelectedJobId(null)
+          if (!open) {
+            setSelectedJobId(null)
+            if (searchParams.has('job') || searchParams.has('source')) {
+              const next = new URLSearchParams(searchParams)
+              next.delete('job')
+              next.delete('source')
+              setSearchParams(next, { replace: true })
+            }
+          }
         }}
       />
     </>

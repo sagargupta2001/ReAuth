@@ -7,6 +7,8 @@ use crate::application::flow_service::FlowService;
 use crate::application::harbor::client_provider::ClientHarborProvider;
 use crate::application::harbor::flow_provider::FlowHarborProvider;
 use crate::application::harbor::provider::HarborRegistry;
+use crate::application::harbor::realm_provider::RealmHarborProvider;
+use crate::application::harbor::role_provider::RoleHarborProvider;
 use crate::application::harbor::runner::TokioHarborJobRunner;
 use crate::application::harbor::service::HarborService;
 use crate::application::harbor::theme_provider::ThemeHarborProvider;
@@ -161,12 +163,22 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     harbor_registry.register(Arc::new(ThemeHarborProvider::new(theme_service.clone())));
     harbor_registry.register(Arc::new(ClientHarborProvider::new(oidc_service.clone())));
     harbor_registry.register(Arc::new(FlowHarborProvider::new(flow_manager.clone())));
+    harbor_registry.register(Arc::new(RealmHarborProvider::new(
+        realm_service.clone(),
+        flow_manager.clone(),
+    )));
+    harbor_registry.register(Arc::new(RoleHarborProvider::new(
+        repos.rbac_repo.clone(),
+        oidc_service.clone(),
+    )));
     let harbor_job_runner = Arc::new(TokioHarborJobRunner);
     let harbor_service = Arc::new(HarborService::new(
         harbor_registry,
         theme_service.clone(),
         oidc_service.clone(),
+        flow_service.clone(),
         flow_manager.clone(),
+        rbac_service.clone(),
         tx_manager.clone(),
         repos.harbor_job_repo.clone(),
         repos.harbor_job_conflict_repo.clone(),

@@ -35,6 +35,22 @@ static FLOW_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
     JSONSchema::compile(&schema).expect("compile flow schema")
 });
 
+static ROLE_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+    let schema: Value = serde_json::from_str(include_str!(
+        "../../../docs/schemas/harbor/resource-role.schema.json"
+    ))
+    .expect("role schema");
+    JSONSchema::compile(&schema).expect("compile role schema")
+});
+
+static REALM_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+    let schema: Value = serde_json::from_str(include_str!(
+        "../../../docs/schemas/harbor/resource-realm.schema.json"
+    ))
+    .expect("realm schema");
+    JSONSchema::compile(&schema).expect("compile realm schema")
+});
+
 pub fn validate_bundle_schema(value: &Value) -> Result<()> {
     validate_with_schema(&BUNDLE_SCHEMA, value, "bundle")
 }
@@ -44,6 +60,8 @@ pub fn validate_resource_schema(key: &str, value: &Value) -> Result<()> {
         "theme" => validate_with_schema(&THEME_RESOURCE_SCHEMA, value, "theme resource"),
         "client" => validate_with_schema(&CLIENT_RESOURCE_SCHEMA, value, "client resource"),
         "flow" => validate_with_schema(&FLOW_RESOURCE_SCHEMA, value, "flow resource"),
+        "role" => validate_with_schema(&ROLE_RESOURCE_SCHEMA, value, "role resource"),
+        "realm" => validate_with_schema(&REALM_RESOURCE_SCHEMA, value, "realm resource"),
         _ => Ok(()),
     }
 }

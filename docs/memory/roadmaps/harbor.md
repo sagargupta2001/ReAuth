@@ -5,36 +5,39 @@
 
 ## Current state
 - Harbor now provides a unified, versioned import/export pipeline with `.reauth` archives, provider-based resource orchestration, schema validation, dry-run support, async jobs, artifact retention, and conflict logging.
-- Full realm import/export covers themes, clients, and flows, including theme metadata, assets, and bindings.
+- Full realm import/export covers realm settings, themes, clients, flows, and roles, including theme metadata, assets, bindings, client-role namespace remapping, and realm flow-binding restoration during import.
 - The Harbor Management Hub UI exists with export/import workspaces, live job polling, and a job details sheet for conflicts and export downloads.
+- Themes, Clients, and Flows now expose contextual Harbor import/export actions in their detail screens; Theme and Flow builders use the same Harbor pipeline.
+- Harbor job views now surface clearer outcome summaries in the dashboard and job details sheet, including rename/skip/overwrite signals, live progress bars, and direct async navigation from contextual actions.
 - Seeding is now Harbor-backed via bundle import on first boot.
 - OIDC client uniqueness is now realm-scoped in SQLite (`UNIQUE (realm_id, client_id)`), which aligns Harbor import/export with cross-realm portability.
 - Theme rename imports now use explicit duplicate semantics: `rename` always creates a suffixed theme and records a warning instead of silently reusing an existing matching draft.
+- Harbor now supports bootstrap import into a brand-new realm via dedicated endpoints that create the target realm and then run the existing full-realm Harbor import pipeline.
+- Full realm bundles now include a `realm` resource/provider so bootstrap imports can restore realm settings and flow bindings, with imported flow IDs remapped when cross-realm runtime IDs collide.
+- Snapshot coverage is still intentionally partial at the system level: users and credential material are not yet part of Harbor bundles.
 
 ## Now
 - Keep Harbor stable while the surrounding execution and configuration layers catch up:
   - Harbor backend and UI capabilities are implemented enough to begin integrating them into the rest of the admin product.
-  - Remaining effort is mainly contextual UI wiring, richer job UX, and cleanup of the unrelated compile breakages that now sit outside Harbor.
+  - Remaining effort is mainly richer job UX, broader snapshot coverage, and integration with the eventual Current execution layer.
 
 ## Next
-- Implement system-wide snapshots with selection checklist:
-  - Clients, Users, Themes, Flows, RBAC, OIDC clients.
-  - Conflict policy: `skip | overwrite | rename`.
-- Add contextual UI actions in Themes, Clients, Flows:
-  - Export current resource directly from its detail/builder screen.
-  - Import replacement bundle from the resource-level workflow where it makes sense.
-- Improve Harbor result transparency in the UI:
-  - Distinguish created vs updated vs renamed resources in job details.
-  - Surface rename warnings and conflict outcomes more prominently in the dashboard.
-- Surface async progress more explicitly in Harbor:
-  - Progress bars / percentages for active jobs.
-  - Better empty/error/loading states around polling.
-- Expand job tracking:
-  - Add per-item conflict logs + error detail tables for Harbor jobs.
-  - Surface conflict metadata in job detail views.
-- Add **semantic deduplication** for uniqueness collisions:
-  - Lookup existing items (e.g., client_id) and apply conflict policy.
-  - If renamed, remap references across related objects (flows, bindings).
+- Expand system-wide snapshot coverage beyond the current set:
+  - Users and explicit credential/secret portability rules.
+  - Additional RBAC/system resources beyond roles where needed.
+- Refine job tracking presentation:
+  - Add richer completed-job summaries and filters.
+  - Prepare Harbor job DTOs/UI state for eventual Current-backed execution views.
+- Add **targeted semantic deduplication** where it improves portability without violating explicit rename semantics:
+  - Lookup existing items and reuse only when policy and resource semantics allow it.
+  - Keep cross-resource remapping correct when rename policy is applied.
+- Add more Harbor UX around long-running jobs:
+  - better first-use empty states
+  - better failure recovery/retry guidance
+  - optional download/open shortcuts from contextual workflows
+- Decide how far Harbor should go on realm-level config portability beyond the current set:
+  - additional realm settings if new fields are added later
+  - whether non-Harbor runtime/system settings belong in the realm snapshot contract
 
 ## Later
 - Optional bundle encryption/signing.
@@ -60,14 +63,20 @@
 - [x] Add rename handling + basic reference remap for flow/client scope.
 - [x] Add cross-resource remap for `client_id` references in flow graphs during full imports.
 - [x] Extend full realm import to include themes (new theme creation + bindings).
+- [x] Extend full realm import/export to include roles (realm roles + client roles).
+- [x] Add a realm resource/provider for realm settings and flow bindings.
 - [x] Add manifest validation for `exported_at` RFC3339 format and non-empty `source_realm`.
 - [x] Remap `client_id` references in additional resources (theme bindings).
+- [x] Remap `client_id` references for imported client-role namespaces.
+- [x] Remap imported flow IDs for realm flow bindings when cross-realm runtime flow IDs collide.
 - [x] Implement full realm export with selection + theme metadata/bindings.
+- [x] Implement full realm export selection support for roles in Harbor UI/API.
+- [x] Implement full realm export selection support for realm settings in Harbor UI/API.
 - [x] Make theme rename semantics explicit: `rename` always creates a suffixed duplicate theme.
 - [ ] Add semantic deduplication (lookup, apply conflict policy, remap references).
 - [x] Add unified Harbor endpoints (backend) with scope parameters.
 - [x] Add client and flow Harbor providers.
-- [ ] Add contextual UI actions in Themes/Clients/Flows for export/import.
+- [x] Add contextual UI actions in Themes/Clients/Flows for export/import.
 - [x] Build Harbor Management Hub UI (Export/Import workspaces + Jobs table).
 - [x] Wire Export/Import actions to Harbor endpoints (bundle upload, dry_run, conflict_policy).
 - [x] Add job tracking table (`harbor_jobs`) + job list endpoints.
@@ -84,11 +93,15 @@
 - [x] Add bundle validation and up-converter scaffolding.
 - [x] Make exports deterministic (stable ordering + normalized JSON).
 - [x] Update seeding to run via Harbor bundle on first boot.
+- [x] Add true bootstrap import flow for full-realm bundles that creates a new realm before import.
 - [x] Add tests for archive I/O and dry-run import.
 - [x] Add tests for schema validation, remapping, and conflicts.
 - [x] Make OIDC client uniqueness realm-scoped in SQLite for cross-realm Harbor import/export.
 - [x] Add regression coverage for importing the same `client_id` into a different realm.
 - [x] Add regression coverage for same-realm theme imports with `rename`.
+- [x] Add regression coverage for full-realm role export/import and client-role remapping.
+- [x] Add regression coverage for bootstrap import into a newly created realm.
+- [x] Add regression coverage for bootstrap restoration of realm settings and flow bindings.
 
 ## UI implementation checklist
 - [x] Add Harbor nav entry with Lucide icon and page routing.
@@ -97,12 +110,19 @@
 - [x] Connect Recent Harbor Jobs table to live data with polling.
 - [x] Add job detail view with conflicts and download link.
 - [x] Add async export/download state + progress polling.
-- [ ] Add contextual export/import actions in Themes, Clients, Flows.
+- [x] Add contextual export/import actions in Themes, Clients, Flows.
+- [x] Improve Harbor job UI transparency with clearer outcome summaries and conflict signals.
+- [x] Add progress bars / percentages for active Harbor jobs in the dashboard and details sheet.
+- [x] Add direct async navigation from contextual resource actions into Harbor job details.
+- [x] Improve Harbor polling/loading feedback (loading rows, cadence hint, live refresh indicator).
+- [x] Enable role selection in the Harbor export workspace.
+- [x] Enable realm settings selection in the Harbor export workspace.
 
 ## Risks / dependencies
 - Import consistency depends on strict schema validation and correct ID remapping.
 - SQLite write contention for large imports; may require chunked transactions.
 - Full realm imports must respect realm isolation and avoid cross-resource remap mistakes when rename policy is applied.
+- User export/import needs a clear credential portability policy before it should be added to full snapshots.
 
 ## Open questions
 - None (resolved):

@@ -161,6 +161,7 @@ function extractFilename(response: Response, fallback: string) {
 export async function exportHarborArchive(params: {
   realm: string
   scope: string
+  id?: string
   selection?: string[]
   includeSecrets?: boolean
   archiveFormat?: string
@@ -171,6 +172,7 @@ export async function exportHarborArchive(params: {
     method: 'POST',
     body: JSON.stringify({
       scope: params.scope,
+      id: params.id,
       include_secrets: params.includeSecrets ?? false,
       selection: params.selection,
       archive_format: params.archiveFormat ?? 'zip',

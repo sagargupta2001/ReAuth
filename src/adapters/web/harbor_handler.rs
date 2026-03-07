@@ -8,8 +8,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::application::harbor::{
-    read_bundle_from_path, write_bundle_to_path, ConflictPolicy, ExportPolicy, HarborBundle,
-    HarborImportResult, HarborScope,
+    bootstrap_import_bundle, read_bundle_from_path, resolve_bootstrap_realm_name,
+    write_bundle_to_path, ConflictPolicy, ExportPolicy, HarborBundle, HarborImportResult,
+    HarborScope,
 };
 use crate::domain::harbor_job::HarborJob;
 use crate::domain::permissions;
@@ -37,6 +38,14 @@ pub struct HarborImportRequest {
     #[serde(default)]
     pub conflict_policy: ConflictPolicy,
     pub dry_run: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct HarborBootstrapImportRequest {
+    pub realm_name: Option<String>,
+    pub bundle: HarborBundle,
+    #[serde(default = "bootstrap_conflict_policy_default")]
+    pub conflict_policy: ConflictPolicy,
 }
 
 #[derive(Deserialize)]
@@ -77,6 +86,18 @@ pub struct HarborAsyncResponse {
     pub job_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub download_url: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct HarborBootstrapImportResponse {
+    pub realm: Realm,
+    pub import: HarborImportResult,
+}
+
+#[derive(Serialize)]
+pub struct HarborBootstrapAsyncResponse {
+    pub realm: Realm,
+    pub job_id: String,
 }
 
 pub async fn export_harbor_bundle_handler(
@@ -314,6 +335,102 @@ pub async fn import_harbor_bundle_handler(
         .await?;
 
     Ok((StatusCode::OK, Json(result)).into_response())
+}
+
+pub async fn bootstrap_import_harbor_bundle_handler(
+    State(state): State<AppState>,
+    Query(query): Query<HarborImportQuery>,
+    Json(payload): Json<HarborBootstrapImportRequest>,
+) -> Result<impl IntoResponse> {
+    let bundle = payload.bundle;
+    state
+        .harbor_service
+        .validate_bundle_for_scope(&bundle, &HarborScope::FullRealm)?;
+
+    let dry_run = query.dry_run.unwrap_or(false);
+    let realm_name = resolve_bootstrap_realm_name(payload.realm_name, &bundle)?;
+    if dry_run {
+        ensure_bootstrap_target_available(&state, &realm_name).await?;
+        return Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "dry_run": true,
+                "realm_name": realm_name,
+                "validated": true,
+            })),
+        )
+            .into_response());
+    }
+
+    let async_override = query.async_mode;
+    let threshold = state
+        .settings
+        .read()
+        .await
+        .harbor
+        .async_import_threshold_resources;
+    let async_job = match async_override {
+        Some(value) => value,
+        None => bundle.resources.len() >= threshold,
+    };
+
+    if async_job {
+        let realm = create_bootstrap_realm(&state, &realm_name).await?;
+        let total_resources = bundle.resources.len() as i64;
+        let job_id = state
+            .harbor_service
+            .create_job(
+                realm.id,
+                "import",
+                &HarborScope::FullRealm,
+                total_resources,
+                false,
+                Some(payload.conflict_policy),
+            )
+            .await?;
+
+        let harbor = state.harbor_service.clone();
+        let runner = state.harbor_service.clone();
+        runner.spawn_job(Box::pin(async move {
+            if let Err(err) = harbor
+                .import_bundle_with_job(
+                    realm.id,
+                    HarborScope::FullRealm,
+                    bundle,
+                    false,
+                    payload.conflict_policy,
+                    job_id,
+                )
+                .await
+            {
+                error!("Harbor bootstrap async import failed: {}", err);
+            }
+        }));
+
+        return Ok((
+            StatusCode::ACCEPTED,
+            Json(HarborBootstrapAsyncResponse {
+                realm,
+                job_id: job_id.to_string(),
+            }),
+        )
+            .into_response());
+    }
+
+    let (realm, import) = bootstrap_import_bundle(
+        &state.realm_service,
+        &state.harbor_service,
+        Some(realm_name),
+        bundle,
+        payload.conflict_policy,
+    )
+    .await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(HarborBootstrapImportResponse { realm, import }),
+    )
+        .into_response())
 }
 
 pub async fn list_harbor_jobs_handler(
@@ -698,8 +815,175 @@ pub async fn import_harbor_archive_handler(
     Ok((StatusCode::OK, Json(result)).into_response())
 }
 
+pub async fn bootstrap_import_harbor_archive_handler(
+    State(state): State<AppState>,
+    Query(query): Query<HarborImportQuery>,
+    mut multipart: Multipart,
+) -> Result<impl IntoResponse> {
+    let mut realm_name: Option<String> = None;
+    let mut conflict_policy: Option<ConflictPolicy> = None;
+    let mut file_bytes: Option<Vec<u8>> = None;
+    let mut file_name: Option<String> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| Error::Validation(e.to_string()))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        if name == "bundle" || name == "file" {
+            file_name = field.file_name().map(|s| s.to_string());
+            let bytes = field
+                .bytes()
+                .await
+                .map_err(|e| Error::Validation(e.to_string()))?;
+            file_bytes = Some(bytes.to_vec());
+            continue;
+        }
+
+        let text = field
+            .text()
+            .await
+            .map_err(|e| Error::Validation(e.to_string()))?;
+        match name.as_str() {
+            "realm_name" => realm_name = Some(text),
+            "conflict_policy" => conflict_policy = Some(parse_conflict_policy(&text)?),
+            _ => {}
+        }
+    }
+
+    let Some(bytes) = file_bytes else {
+        return Err(Error::Validation(
+            "Multipart bundle file is required".to_string(),
+        ));
+    };
+
+    let tmp_path = build_import_temp_path(file_name.as_deref())?;
+    std::fs::write(&tmp_path, &bytes).map_err(|e| Error::Unexpected(e.into()))?;
+
+    let bundle = read_bundle_from_path(&tmp_path)?;
+    let _ = std::fs::remove_file(&tmp_path);
+
+    state
+        .harbor_service
+        .validate_bundle_for_scope(&bundle, &HarborScope::FullRealm)?;
+
+    let dry_run = query.dry_run.unwrap_or(false);
+    let realm_name = resolve_bootstrap_realm_name(realm_name, &bundle)?;
+    let conflict_policy = conflict_policy.unwrap_or_else(bootstrap_conflict_policy_default);
+
+    if dry_run {
+        ensure_bootstrap_target_available(&state, &realm_name).await?;
+        return Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "dry_run": true,
+                "realm_name": realm_name,
+                "validated": true,
+            })),
+        )
+            .into_response());
+    }
+
+    let async_override = query.async_mode;
+    let threshold = state
+        .settings
+        .read()
+        .await
+        .harbor
+        .async_import_threshold_resources;
+    let async_job = match async_override {
+        Some(value) => value,
+        None => bundle.resources.len() >= threshold,
+    };
+
+    if async_job {
+        let realm = create_bootstrap_realm(&state, &realm_name).await?;
+        let total_resources = bundle.resources.len() as i64;
+        let job_id = state
+            .harbor_service
+            .create_job(
+                realm.id,
+                "import",
+                &HarborScope::FullRealm,
+                total_resources,
+                false,
+                Some(conflict_policy),
+            )
+            .await?;
+
+        let harbor = state.harbor_service.clone();
+        let runner = state.harbor_service.clone();
+        runner.spawn_job(Box::pin(async move {
+            if let Err(err) = harbor
+                .import_bundle_with_job(
+                    realm.id,
+                    HarborScope::FullRealm,
+                    bundle,
+                    false,
+                    conflict_policy,
+                    job_id,
+                )
+                .await
+            {
+                error!("Harbor bootstrap async import failed: {}", err);
+            }
+        }));
+
+        return Ok((
+            StatusCode::ACCEPTED,
+            Json(HarborBootstrapAsyncResponse {
+                realm,
+                job_id: job_id.to_string(),
+            }),
+        )
+            .into_response());
+    }
+
+    let (realm, import) = bootstrap_import_bundle(
+        &state.realm_service,
+        &state.harbor_service,
+        Some(realm_name),
+        bundle,
+        conflict_policy,
+    )
+    .await?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(HarborBootstrapImportResponse { realm, import }),
+    )
+        .into_response())
+}
+
 fn parse_scope(payload: &HarborExportRequest) -> Result<HarborScope> {
     parse_scope_fields(Some(payload.scope.as_str()), payload.id.clone())
+}
+
+fn bootstrap_conflict_policy_default() -> ConflictPolicy {
+    ConflictPolicy::Overwrite
+}
+
+async fn ensure_bootstrap_target_available(state: &AppState, realm_name: &str) -> Result<()> {
+    if state
+        .realm_service
+        .find_by_name(realm_name)
+        .await?
+        .is_some()
+    {
+        return Err(Error::RealmAlreadyExists);
+    }
+    Ok(())
+}
+
+async fn create_bootstrap_realm(state: &AppState, realm_name: &str) -> Result<Realm> {
+    ensure_bootstrap_target_available(state, realm_name).await?;
+    state
+        .realm_service
+        .create_realm(crate::application::realm_service::CreateRealmPayload {
+            name: realm_name.to_string(),
+        })
+        .await
 }
 
 fn parse_scope_fields(scope: Option<&str>, id: Option<String>) -> Result<HarborScope> {
@@ -726,6 +1010,12 @@ fn parse_scope_fields(scope: Option<&str>, id: Option<String>) -> Result<HarborS
             let flow_id = Uuid::parse_str(&id)
                 .map_err(|_| Error::Validation("Invalid flow id".to_string()))?;
             Ok(HarborScope::Flow { flow_id })
+        }
+        "role" => {
+            let id = id.ok_or_else(|| Error::Validation("Role scope requires id".to_string()))?;
+            let role_id = Uuid::parse_str(&id)
+                .map_err(|_| Error::Validation("Invalid role id".to_string()))?;
+            Ok(HarborScope::Role { role_id })
         }
         "full_realm" => Ok(HarborScope::FullRealm),
         _ => Err(Error::Validation("Unsupported harbor scope".to_string())),

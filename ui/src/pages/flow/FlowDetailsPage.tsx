@@ -6,7 +6,9 @@ import { useParams } from 'react-router-dom'
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useFlowDraft } from '@/features/flow-builder/api/useFlowDraft'
+import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { FlowDetailsOverviewTab } from '@/features/flow/components/FlowDetailsOverviewTab.tsx'
 // Helper component for Overview to keep it clean (you can put this in a separate file too)
 import { FlowDetailsSettingsTab } from '@/features/flow/components/FlowDetailsSettingsTab.tsx'
@@ -15,6 +17,7 @@ import { FlowHistoryTab } from '@/features/flow/components/FlowHistoryTab.tsx'
 
 export function FlowDetailsPage() {
   const { flowId } = useParams()
+  const realm = useActiveRealm()
   const navigate = useRealmNavigate()
   const [activeTab, setActiveTab] = useState('overview')
 
@@ -42,7 +45,24 @@ export function FlowDetailsPage() {
 
   return (
     <div className="bg-background flex h-full w-full flex-col">
-      <FlowHeader draft={draft} />
+      <FlowHeader
+        draft={draft}
+        actions={
+          flowId && realm ? (
+            <HarborResourceActions
+              scope="flow"
+              id={flowId}
+              resourceLabel={draft.name}
+              invalidateKeys={[
+                ['flows', realm],
+                ['flow-draft', realm, flowId],
+                ['flow-drafts', realm],
+                ['flow-versions', flowId],
+              ]}
+            />
+          ) : null
+        }
+      />
 
       <Tabs
         value={activeTab}

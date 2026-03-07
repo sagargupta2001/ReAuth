@@ -4,17 +4,20 @@ import { type Edge, type Node, ReactFlowProvider } from '@xyflow/react'
 import { Loader2 } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useFlowDraft } from '@/features/flow-builder/api/useFlowDraft'
 import { BuilderHeader } from '@/features/flow-builder/components/BuilderHeader'
 import { FlowCanvas } from '@/features/flow-builder/components/FlowCanvas'
 import { NodeInspector } from '@/features/flow-builder/components/NodeInspector'
 import { NodePalette } from '@/features/flow-builder/components/NodePalette'
 import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderStore'
+import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { useActiveTheme } from '@/features/theme/api/useActiveTheme'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 
 export function FlowBuilderPage() {
   const { flowId } = useParams()
+  const realm = useActiveRealm()
   // Ensure we have a string, though the router guarantees this param exists
   const draftId = flowId!
 
@@ -86,6 +89,21 @@ export function FlowBuilderPage() {
           flowName={draft?.name || 'Untitled Flow'}
           flowId={draftId}
           activeVersion={draft?.active_version}
+          actions={
+            flowId && realm ? (
+              <HarborResourceActions
+                scope="flow"
+                id={flowId}
+                resourceLabel={draft?.name || 'Flow'}
+                invalidateKeys={[
+                  ['flows', realm],
+                  ['flow-draft', realm, flowId],
+                  ['flow-drafts', realm],
+                  ['flow-versions', flowId],
+                ]}
+              />
+            ) : null
+          }
         />
 
         {missingTemplates.length > 0 && (

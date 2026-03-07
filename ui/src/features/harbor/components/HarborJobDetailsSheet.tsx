@@ -1,6 +1,14 @@
 import { useState } from 'react'
 
-import { AlertTriangle, Download, RefreshCcw, ShieldAlert } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  RefreshCcw,
+  ShieldAlert,
+  Shuffle,
+  SkipForward,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/alert'
@@ -65,6 +73,74 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+function orderedConflictEntries(summary: Record<string, number>) {
+  const order = ['rename', 'skip', 'overwrite', 'linked', 'validated']
+  return Object.entries(summary).sort(([left], [right]) => {
+    const leftIndex = order.indexOf(left)
+    const rightIndex = order.indexOf(right)
+    const normalizedLeft = leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex
+    const normalizedRight = rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex
+    return normalizedLeft - normalizedRight || left.localeCompare(right)
+  })
+}
+
+function actionBadgeVariant(action: string) {
+  switch (action.toLowerCase()) {
+    case 'rename':
+      return 'warning' as const
+    case 'skip':
+      return 'secondary' as const
+    case 'overwrite':
+      return 'info' as const
+    default:
+      return 'outline' as const
+  }
+}
+
+function actionLabel(action: string) {
+  switch (action.toLowerCase()) {
+    case 'rename':
+      return 'Renamed'
+    case 'skip':
+      return 'Skipped'
+    case 'overwrite':
+      return 'Overwritten'
+    case 'linked':
+      return 'Linked'
+    case 'validated':
+      return 'Validated'
+    default:
+      return action
+  }
+}
+
+function actionIcon(action: string) {
+  switch (action.toLowerCase()) {
+    case 'rename':
+      return <Shuffle className="h-4 w-4" />
+    case 'skip':
+      return <SkipForward className="h-4 w-4" />
+    default:
+      return <ShieldAlert className="h-4 w-4" />
+  }
+}
+
+function progressPercentage(job: HarborJob) {
+  if (job.total_resources <= 0) return 0
+  return Math.max(0, Math.min(100, Math.round((job.processed_resources / job.total_resources) * 100)))
+}
+
+function ProgressBar({ value }: { value: number }) {
+  return (
+    <div className="bg-muted h-2 w-full overflow-hidden rounded-full">
+      <div
+        className="bg-primary h-full rounded-full transition-[width] duration-300"
+        style={{ width: `${value}%` }}
+      />
+    </div>
+  )
+}
+
 export function HarborJobDetailsSheet({ jobId, onOpenChange }: Props) {
   const realm = useActiveRealm()
   const [isDownloading, setIsDownloading] = useState(false)
@@ -88,6 +164,8 @@ export function HarborJobDetailsSheet({ jobId, onOpenChange }: Props) {
   const conflicts = data?.conflicts ?? []
   const badge = job ? statusBadge(job) : null
   const summary = conflictSummary(conflicts)
+  const summaryEntries = orderedConflictEntries(summary)
+  const progress = job ? progressPercentage(job) : 0
 
   return (
     <Sheet open={!!jobId} onOpenChange={onOpenChange}>
@@ -102,6 +180,13 @@ export function HarborJobDetailsSheet({ jobId, onOpenChange }: Props) {
         <div className="mt-6 space-y-6">
           {isLoading ? (
             <div className="text-muted-foreground text-sm">Loading Harbor job details...</div>
+          ) : null}
+
+          {!isLoading && isFetching && job ? (
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
+              <RefreshCcw className="h-4 w-4 animate-spin" />
+              Refreshing live Harbor progress…
+            </div>
           ) : null}
 
           {!isLoading && !job ? (
@@ -149,7 +234,13 @@ export function HarborJobDetailsSheet({ jobId, onOpenChange }: Props) {
                   <p className="mt-2 text-2xl font-semibold">
                     {job.processed_resources} / {job.total_resources}
                   </p>
-                  <p className="text-muted-foreground mt-1 text-xs">Processed resources</p>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Processed resources</span>
+                      <span className="font-medium">{progress}%</span>
+                    </div>
+                    <ProgressBar value={progress} />
+                  </div>
                 </div>
                 <div className="rounded-lg border p-4">
                   <p className="text-muted-foreground text-xs font-medium uppercase tracking-wide">
@@ -164,6 +255,34 @@ export function HarborJobDetailsSheet({ jobId, onOpenChange }: Props) {
                 </div>
               </div>
 
+              {job.status.toLowerCase() === 'completed' && !job.error_message ? (
+                conflicts.length > 0 ? (
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {summaryEntries.map(([action, value]) => (
+                      <div key={action} className="rounded-lg border p-4">
+                        <div className="text-muted-foreground flex items-center gap-2 text-xs font-medium uppercase tracking-wide">
+                          {actionIcon(action)}
+                          {actionLabel(action)}
+                        </div>
+                        <p className="mt-2 text-2xl font-semibold">{value}</p>
+                        <p className="text-muted-foreground mt-1 text-xs">
+                          Conflict decisions recorded
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <Alert>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <AlertTitle>Completed without conflicts</AlertTitle>
+                    <AlertDescription>
+                      Harbor finished this job without any recorded rename, skip, or overwrite
+                      decisions.
+                    </AlertDescription>
+                  </Alert>
+                )
+              ) : null}
+
               {job.error_message ? (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
@@ -177,6 +296,7 @@ export function HarborJobDetailsSheet({ jobId, onOpenChange }: Props) {
                   <InfoBlock label="Job ID" value={job.id} mono />
                   <InfoBlock label="Conflict Policy" value={job.conflict_policy ?? 'Default'} />
                   <InfoBlock label="Dry Run" value={job.dry_run ? 'Yes' : 'No'} />
+                  <InfoBlock label="Artifact" value={data?.download_url ? 'Available' : '—'} />
                   <InfoBlock
                     label="Completed At"
                     value={job.completed_at ? new Date(job.completed_at).toLocaleString() : '—'}
@@ -191,13 +311,13 @@ export function HarborJobDetailsSheet({ jobId, onOpenChange }: Props) {
                   <div>
                     <h4 className="text-sm font-semibold">Conflict Log</h4>
                     <p className="text-muted-foreground text-xs">
-                      Resource-level rename, skip, and overwrite decisions captured during import.
+                      Resource-level decisions captured during import and remap handling.
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {Object.entries(summary).map(([key, value]) => (
-                      <Badge key={key} variant="outline">
-                        {key}: {value}
+                    {summaryEntries.map(([key, value]) => (
+                      <Badge key={key} variant={actionBadgeVariant(key)}>
+                        {actionLabel(key)}: {value}
                       </Badge>
                     ))}
                   </div>
@@ -221,8 +341,8 @@ export function HarborJobDetailsSheet({ jobId, onOpenChange }: Props) {
                               {new Date(conflict.created_at).toLocaleString()}
                             </p>
                           </div>
-                          <Badge variant="outline">
-                            {conflict.action} · {conflict.policy}
+                          <Badge variant={actionBadgeVariant(conflict.action)}>
+                            {actionLabel(conflict.action)} · {conflict.policy}
                           </Badge>
                         </div>
 

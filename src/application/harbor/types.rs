@@ -15,6 +15,7 @@ pub enum HarborExportType {
     Theme,
     Client,
     Flow,
+    Role,
     FullRealm,
 }
 
@@ -32,6 +33,7 @@ pub enum HarborScope {
     Theme { theme_id: Uuid },
     Client { client_id: String },
     Flow { flow_id: Uuid },
+    Role { role_id: Uuid },
     FullRealm,
 }
 
@@ -41,6 +43,7 @@ impl HarborScope {
             HarborScope::Theme { .. } => HarborExportType::Theme,
             HarborScope::Client { .. } => HarborExportType::Client,
             HarborScope::Flow { .. } => HarborExportType::Flow,
+            HarborScope::Role { .. } => HarborExportType::Role,
             HarborScope::FullRealm => HarborExportType::FullRealm,
         }
     }
@@ -50,6 +53,7 @@ impl HarborScope {
             HarborScope::Theme { .. } => Some("theme"),
             HarborScope::Client { .. } => Some("client"),
             HarborScope::Flow { .. } => Some("flow"),
+            HarborScope::Role { .. } => Some("role"),
             HarborScope::FullRealm => None,
         }
     }
