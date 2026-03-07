@@ -288,6 +288,175 @@ async fn harbor_full_realm_remaps_client_ids_in_flows_and_bindings() {
     assert!(old_binding.is_none());
 }
 
+#[tokio::test]
+async fn harbor_import_allows_same_client_id_in_different_realms() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let source_realm = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "harbor-source".to_string(),
+        })
+        .await
+        .expect("create source realm");
+    let target_realm = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "harbor-target".to_string(),
+        })
+        .await
+        .expect("create target realm");
+
+    let mut source_client = OidcClient {
+        id: Uuid::new_v4(),
+        realm_id: source_realm.id,
+        client_id: "shared-client".to_string(),
+        client_secret: Some("secret".to_string()),
+        redirect_uris: "[\"https://example.com/callback\"]".to_string(),
+        scopes: "[\"openid\"]".to_string(),
+        web_origins: "[]".to_string(),
+        managed_by_config: false,
+    };
+    ctx.app_state
+        .oidc_service
+        .register_client(&mut source_client)
+        .await
+        .expect("register source client");
+
+    let bundle = ctx
+        .app_state
+        .harbor_service
+        .export_bundle(
+            source_realm.id,
+            "harbor-source",
+            HarborScope::Client {
+                client_id: "shared-client".to_string(),
+            },
+            reauth::application::harbor::ExportPolicy::Redact,
+            None,
+        )
+        .await
+        .expect("export client bundle");
+
+    ctx.app_state
+        .harbor_service
+        .import_bundle(
+            target_realm.id,
+            HarborScope::Client {
+                client_id: "shared-client".to_string(),
+            },
+            bundle,
+            false,
+            ConflictPolicy::Overwrite,
+        )
+        .await
+        .expect("import into target realm");
+
+    let imported = ctx
+        .app_state
+        .oidc_service
+        .find_client_by_client_id(&target_realm.id, "shared-client")
+        .await
+        .expect("find target client");
+
+    assert!(imported.is_some());
+}
+
+#[tokio::test]
+async fn harbor_full_realm_theme_rename_creates_duplicate_theme() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let realm = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "theme-rename".to_string(),
+        })
+        .await
+        .expect("create realm");
+
+    let existing = ctx
+        .app_state
+        .theme_service
+        .create_theme(realm.id, "Portal".to_string(), Some("Existing".to_string()))
+        .await
+        .expect("create theme");
+
+    ctx.app_state
+        .theme_service
+        .save_draft(
+            realm.id,
+            existing.id,
+            serde_json::from_value(json!({
+                "tokens": {},
+                "layout": {},
+                "nodes": [{"node_key": "login", "blueprint": {"nodes": []}}]
+            }))
+            .expect("draft"),
+        )
+        .await
+        .expect("save draft");
+
+    let bundle = HarborBundle {
+        manifest: HarborManifest {
+            version: "1.0".to_string(),
+            schema_version: 1,
+            exported_at: "2026-03-04T10:00:00Z".to_string(),
+            source_realm: "acme".to_string(),
+            export_type: HarborExportType::FullRealm,
+            selection: Some(vec!["theme".to_string()]),
+        },
+        resources: vec![HarborResourceBundle {
+            key: "theme".to_string(),
+            data: json!({
+                "tokens": {},
+                "layout": {},
+                "nodes": [{"node_key": "login", "blueprint": {"nodes": []}}]
+            }),
+            assets: Vec::new(),
+            meta: Some(json!({
+                "draft_exists": true,
+                "theme": {"name": "Portal", "description": "Imported", "is_system": false},
+                "bindings": {"default": false, "clients": []}
+            })),
+        }],
+    };
+
+    let result = ctx
+        .app_state
+        .harbor_service
+        .import_bundle(
+            realm.id,
+            HarborScope::FullRealm,
+            bundle,
+            false,
+            ConflictPolicy::Rename,
+        )
+        .await
+        .expect("import bundle");
+
+    assert_eq!(result.resources.len(), 1);
+    assert_eq!(result.resources[0].key, "theme");
+
+    let themes = ctx
+        .app_state
+        .theme_service
+        .list_themes(realm.id)
+        .await
+        .expect("list themes");
+    let theme_names = themes
+        .into_iter()
+        .map(|theme| theme.name)
+        .collect::<Vec<_>>();
+
+    assert!(theme_names.contains(&"Portal".to_string()));
+    assert!(theme_names.contains(&"Portal-1".to_string()));
+    assert!(result
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("renamed to 'Portal-1'")));
+}
+
 fn collect_client_ids(value: &Value, out: &mut Vec<String>) {
     match value {
         Value::Object(map) => {

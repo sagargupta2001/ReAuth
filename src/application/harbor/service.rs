@@ -791,24 +791,13 @@ impl HarborService {
                         }
                     }
                     ConflictPolicy::Rename => {
-                        if theme_semantically_matches(
-                            &self.theme_service,
-                            realm_id,
-                            existing.id,
-                            &resource.data,
-                        )
-                        .await?
-                        {
-                            theme_id = Some(existing.id);
-                            warnings.push(format!(
-                                "Theme '{}' matched existing draft; reusing existing theme",
-                                theme_info.name
-                            ));
-                        } else {
-                            theme_name =
-                                resolve_available_theme_name(&theme_ids_by_name, &theme_info.name)?;
-                            theme_created = true;
-                        }
+                        theme_name =
+                            resolve_available_theme_name(&theme_ids_by_name, &theme_info.name)?;
+                        theme_created = true;
+                        warnings.push(format!(
+                            "Theme '{}' renamed to '{}' during import",
+                            theme_info.name, theme_name
+                        ));
                     }
                 }
             } else {
@@ -1407,37 +1396,5 @@ fn conflict_policy_label(policy: ConflictPolicy) -> &'static str {
         ConflictPolicy::Skip => "skip",
         ConflictPolicy::Overwrite => "overwrite",
         ConflictPolicy::Rename => "rename",
-    }
-}
-
-async fn theme_semantically_matches(
-    theme_service: &ThemeResolverService,
-    realm_id: Uuid,
-    theme_id: Uuid,
-    incoming: &serde_json::Value,
-) -> Result<bool> {
-    let existing_draft = theme_service.get_draft(realm_id, theme_id).await?;
-    let mut existing_value = serde_json::to_value(existing_draft)
-        .map_err(|err| Error::System(format!("Failed to serialize theme draft: {}", err)))?;
-    let mut incoming_value = incoming.clone();
-
-    normalize_asset_ids(&mut existing_value);
-    normalize_asset_ids(&mut incoming_value);
-
-    Ok(existing_value == incoming_value)
-}
-
-fn normalize_asset_ids(value: &mut serde_json::Value) {
-    if let Some(obj) = value.as_object_mut() {
-        if let Some(asset) = obj.get_mut("asset_id") {
-            *asset = serde_json::Value::String("__asset__".to_string());
-        }
-        for child in obj.values_mut() {
-            normalize_asset_ids(child);
-        }
-    } else if let Some(arr) = value.as_array_mut() {
-        for entry in arr {
-            normalize_asset_ids(entry);
-        }
     }
 }

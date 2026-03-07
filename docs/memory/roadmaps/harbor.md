@@ -8,6 +8,8 @@
 - Full realm import/export covers themes, clients, and flows, including theme metadata, assets, and bindings.
 - The Harbor Management Hub UI exists with export/import workspaces, live job polling, and a job details sheet for conflicts and export downloads.
 - Seeding is now Harbor-backed via bundle import on first boot.
+- OIDC client uniqueness is now realm-scoped in SQLite (`UNIQUE (realm_id, client_id)`), which aligns Harbor import/export with cross-realm portability.
+- Theme rename imports now use explicit duplicate semantics: `rename` always creates a suffixed theme and records a warning instead of silently reusing an existing matching draft.
 
 ## Now
 - Keep Harbor stable while the surrounding execution and configuration layers catch up:
@@ -21,6 +23,9 @@
 - Add contextual UI actions in Themes, Clients, Flows:
   - Export current resource directly from its detail/builder screen.
   - Import replacement bundle from the resource-level workflow where it makes sense.
+- Improve Harbor result transparency in the UI:
+  - Distinguish created vs updated vs renamed resources in job details.
+  - Surface rename warnings and conflict outcomes more prominently in the dashboard.
 - Surface async progress more explicitly in Harbor:
   - Progress bars / percentages for active jobs.
   - Better empty/error/loading states around polling.
@@ -58,7 +63,7 @@
 - [x] Add manifest validation for `exported_at` RFC3339 format and non-empty `source_realm`.
 - [x] Remap `client_id` references in additional resources (theme bindings).
 - [x] Implement full realm export with selection + theme metadata/bindings.
-- [x] Add semantic deduplication for theme name conflicts (draft match before rename).
+- [x] Make theme rename semantics explicit: `rename` always creates a suffixed duplicate theme.
 - [ ] Add semantic deduplication (lookup, apply conflict policy, remap references).
 - [x] Add unified Harbor endpoints (backend) with scope parameters.
 - [x] Add client and flow Harbor providers.
@@ -81,6 +86,9 @@
 - [x] Update seeding to run via Harbor bundle on first boot.
 - [x] Add tests for archive I/O and dry-run import.
 - [x] Add tests for schema validation, remapping, and conflicts.
+- [x] Make OIDC client uniqueness realm-scoped in SQLite for cross-realm Harbor import/export.
+- [x] Add regression coverage for importing the same `client_id` into a different realm.
+- [x] Add regression coverage for same-realm theme imports with `rename`.
 
 ## UI implementation checklist
 - [x] Add Harbor nav entry with Lucide icon and page routing.
@@ -94,7 +102,7 @@
 ## Risks / dependencies
 - Import consistency depends on strict schema validation and correct ID remapping.
 - SQLite write contention for large imports; may require chunked transactions.
-- Full realm imports must respect realm isolation and avoid client_id/global uniqueness collisions (mitigated via semantic deduplication + remapping).
+- Full realm imports must respect realm isolation and avoid cross-resource remap mistakes when rename policy is applied.
 
 ## Open questions
 - None (resolved):
