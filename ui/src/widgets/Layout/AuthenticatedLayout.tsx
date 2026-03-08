@@ -30,18 +30,18 @@ function LayoutContent({ children }: { children: ReactNode }) {
   const primaryWidth = state === 'collapsed' ? 'var(--sidebar-width-icon)' : 'var(--sidebar-width)'
 
   return (
-    <div className="bg-background flex min-h-screen w-full pt-14">
+    <div className="bg-background flex h-screen w-full overflow-hidden pt-14">
       <AppHeader />
       <AppSidebar />
       <div
-        className="flex flex-1 flex-col transition-[padding] duration-200 ease-linear"
+        className="flex min-h-0 flex-1 flex-col transition-[padding] duration-200 ease-linear"
         style={{
           paddingLeft: showSecondary
             ? `calc(${primaryWidth} + var(--sidebar-width-secondary))`
             : primaryWidth,
         }}
       >
-        <main className="flex h-[calc(100vh-64px)] min-h-0 flex-1 flex-col overflow-x-hidden">
+        <main className="flex min-h-0 flex-1 flex-col overflow-x-hidden">
           <div key={location.pathname} className="flex h-full min-h-0 flex-1 flex-col">
             {children ?? <Outlet />}
           </div>

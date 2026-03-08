@@ -45,6 +45,7 @@ const RESOURCE_OPTIONS: Array<{
   { id: 'themes', label: 'Themes' },
   { id: 'clients', label: 'Clients' },
   { id: 'flows', label: 'Auth Flows' },
+  { id: 'users', label: 'Users' },
   { id: 'roles', label: 'Roles' },
 ]
 
@@ -141,6 +142,7 @@ export function HarborDashboardPage() {
     themes: true,
     clients: true,
     flows: true,
+    users: false,
     roles: true,
   })
 
@@ -161,16 +163,18 @@ export function HarborDashboardPage() {
       : null
 
   const exportSelection = resourceSelection.all_settings
-    ? ['realm', 'theme', 'client', 'flow', 'role']
-    : (['realm', 'themes', 'clients', 'flows', 'roles'] as const)
+    ? ['realm', 'theme', 'client', 'flow', 'user', 'role']
+    : (['realm', 'themes', 'clients', 'flows', 'users', 'roles'] as const)
         .filter((key) => resourceSelection[key])
         .map((key) =>
           key === 'realm'
             ? 'realm'
             : key === 'themes'
               ? 'theme'
-              : key === 'clients'
-                ? 'client'
+            : key === 'clients'
+              ? 'client'
+            : key === 'users'
+              ? 'user'
                 : key === 'roles'
                   ? 'role'
                   : 'flow',
@@ -199,13 +203,15 @@ export function HarborDashboardPage() {
         next.themes = checked === true
         next.clients = checked === true
         next.flows = checked === true
+        next.users = checked === true
         next.roles = checked === true
       }
-      if (['realm', 'themes', 'clients', 'flows', 'roles'].includes(id) && !checked) {
+      if (['realm', 'themes', 'clients', 'flows', 'users', 'roles'].includes(id) && !checked) {
         next.all_settings = false
       }
-      if (['realm', 'themes', 'clients', 'flows', 'roles'].includes(id) && checked) {
-        next.all_settings = next.realm && next.themes && next.clients && next.flows && next.roles
+      if (['realm', 'themes', 'clients', 'flows', 'users', 'roles'].includes(id) && checked) {
+        next.all_settings =
+          next.realm && next.themes && next.clients && next.flows && next.users && next.roles
       }
       return next
     })

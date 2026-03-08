@@ -873,3 +873,131 @@ async fn harbor_bootstrap_import_restores_realm_settings_and_flow_bindings() {
         .iter()
         .any(|flow| flow.id.to_string() == imported_browser_flow_id));
 }
+
+#[tokio::test]
+async fn harbor_full_realm_bootstrap_imports_users_with_credentials_and_roles() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let source = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "user-source".to_string(),
+        })
+        .await
+        .expect("create source realm");
+
+    let role = ctx
+        .app_state
+        .rbac_service
+        .create_role(
+            source.id,
+            CreateRolePayload {
+                name: "admin".to_string(),
+                ..CreateRolePayload::default()
+            },
+        )
+        .await
+        .expect("create role");
+
+    let user = ctx
+        .app_state
+        .user_service
+        .create_user(source.id, "alice", "password-123")
+        .await
+        .expect("create user");
+
+    ctx.app_state
+        .rbac_service
+        .assign_role_to_user(source.id, user.id, role.id)
+        .await
+        .expect("assign role");
+
+    let bundle = ctx
+        .app_state
+        .harbor_service
+        .export_bundle(
+            source.id,
+            &source.name,
+            HarborScope::FullRealm,
+            ExportPolicy::IncludeSecrets,
+            Some(vec!["role".to_string(), "user".to_string()]),
+        )
+        .await
+        .expect("export bundle");
+
+    let (target, _) = bootstrap_import_bundle(
+        &ctx.app_state.realm_service,
+        &ctx.app_state.harbor_service,
+        Some("user-target".to_string()),
+        bundle,
+        ConflictPolicy::Overwrite,
+    )
+    .await
+    .expect("bootstrap import");
+
+    let imported_user = ctx
+        .app_state
+        .user_service
+        .find_by_username(&target.id, "alice")
+        .await
+        .expect("find user")
+        .expect("user exists");
+    assert_eq!(imported_user.hashed_password, user.hashed_password);
+
+    let direct_role_ids = ctx
+        .app_state
+        .rbac_service
+        .get_direct_role_ids_for_user(target.id, imported_user.id)
+        .await
+        .expect("list direct roles");
+    assert_eq!(direct_role_ids.len(), 1);
+}
+
+#[tokio::test]
+async fn harbor_bootstrap_rejects_new_user_creation_when_credentials_are_redacted() {
+    let ctx = TestContext::new_with_seed(false).await;
+    let source = ctx
+        .app_state
+        .realm_service
+        .create_realm(CreateRealmPayload {
+            name: "redacted-user-source".to_string(),
+        })
+        .await
+        .expect("create source realm");
+
+    ctx.app_state
+        .user_service
+        .create_user(source.id, "alice", "password-123")
+        .await
+        .expect("create user");
+
+    let bundle = ctx
+        .app_state
+        .harbor_service
+        .export_bundle(
+            source.id,
+            &source.name,
+            HarborScope::FullRealm,
+            ExportPolicy::Redact,
+            Some(vec!["user".to_string()]),
+        )
+        .await
+        .expect("export bundle");
+
+    let err = bootstrap_import_bundle(
+        &ctx.app_state.realm_service,
+        &ctx.app_state.harbor_service,
+        Some("redacted-user-target".to_string()),
+        bundle,
+        ConflictPolicy::Overwrite,
+    )
+    .await
+    .expect_err("expected redacted credential import failure");
+
+    match err {
+        Error::Validation(message) => {
+            assert!(message.contains("credentials are redacted"));
+        }
+        other => panic!("expected validation error, got: {:?}", other),
+    }
+}

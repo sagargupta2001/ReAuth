@@ -12,6 +12,7 @@ use crate::application::harbor::role_provider::RoleHarborProvider;
 use crate::application::harbor::runner::TokioHarborJobRunner;
 use crate::application::harbor::service::HarborService;
 use crate::application::harbor::theme_provider::ThemeHarborProvider;
+use crate::application::harbor::user_provider::UserHarborProvider;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
 use crate::application::runtime_registry::RuntimeRegistry;
@@ -167,6 +168,11 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         realm_service.clone(),
         flow_manager.clone(),
     )));
+    harbor_registry.register(Arc::new(UserHarborProvider::new(
+        repos.user_repo.clone(),
+        repos.rbac_repo.clone(),
+        oidc_service.clone(),
+    )));
     harbor_registry.register(Arc::new(RoleHarborProvider::new(
         repos.rbac_repo.clone(),
         oidc_service.clone(),
@@ -179,6 +185,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         flow_service.clone(),
         flow_manager.clone(),
         rbac_service.clone(),
+        user_service.clone(),
         tx_manager.clone(),
         repos.harbor_job_repo.clone(),
         repos.harbor_job_conflict_repo.clone(),

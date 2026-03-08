@@ -53,7 +53,7 @@ export function EditClientPage() {
 
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-12">
+    <div className="bg-background flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden p-6">
       <div className="shrink-0">
         <ClientHeader
           client={client}
@@ -77,7 +77,7 @@ export function EditClientPage() {
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
-        className="flex flex-1 flex-col overflow-hidden"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">
           <TabsList className="gap-6 bg-transparent p-0">
@@ -95,7 +95,7 @@ export function EditClientPage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto">
+        <div className="bg-muted/5 min-h-0 flex-1 overflow-y-auto">
           <TabsContent value="settings" className="mt-0 h-full w-full">
             <ClientSettingsTab client={client} />
           </TabsContent>

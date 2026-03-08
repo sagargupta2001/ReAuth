@@ -10,11 +10,13 @@ use crate::application::harbor::types::{
 use crate::application::oidc_service::OidcService;
 use crate::application::rbac_service::RbacService;
 use crate::application::theme_service::ThemeResolverService;
+use crate::application::user_service::UserService;
 use crate::domain::flow::models::FlowDraft;
 use crate::domain::harbor_job::HarborJob;
 use crate::domain::harbor_job_conflict::HarborJobConflict;
 use crate::domain::pagination::PageRequest;
 use crate::domain::role::Role;
+use crate::domain::user::User;
 use crate::error::{Error, Result};
 use crate::ports::harbor_job_conflict_repository::HarborJobConflictRepository;
 use crate::ports::harbor_job_repository::HarborJobRepository;
@@ -45,6 +47,7 @@ pub struct HarborService {
     flow_service: Arc<FlowService>,
     flow_manager: Arc<FlowManager>,
     rbac_service: Arc<RbacService>,
+    user_service: Arc<UserService>,
     tx_manager: Arc<dyn TransactionManager>,
     job_repo: Arc<dyn HarborJobRepository>,
     conflict_repo: Arc<dyn HarborJobConflictRepository>,
@@ -60,6 +63,7 @@ impl HarborService {
         flow_service: Arc<FlowService>,
         flow_manager: Arc<FlowManager>,
         rbac_service: Arc<RbacService>,
+        user_service: Arc<UserService>,
         tx_manager: Arc<dyn TransactionManager>,
         job_repo: Arc<dyn HarborJobRepository>,
         conflict_repo: Arc<dyn HarborJobConflictRepository>,
@@ -72,6 +76,7 @@ impl HarborService {
             flow_service,
             flow_manager,
             rbac_service,
+            user_service,
             tx_manager,
             job_repo,
             conflict_repo,
@@ -384,6 +389,12 @@ impl HarborService {
             total += roles.len();
         }
 
+        let mut users = Vec::new();
+        if selection.iter().any(|key| key == "user") {
+            users = self.list_all_users(realm_id).await?;
+            total += users.len();
+        }
+
         let mut flow_ids = Vec::new();
         if selection.iter().any(|key| key == "flow") {
             flow_ids = self.list_all_flow_ids_for_export(realm_id).await?;
@@ -441,6 +452,22 @@ impl HarborService {
                 .ok_or_else(|| Error::Validation("Role provider not registered".to_string()))?;
             for role in roles {
                 let scope = HarborScope::Role { role_id: role.id };
+                let resource = provider.export(realm_id, &scope, policy).await?;
+                resources.push(resource);
+                processed += 1;
+                if let Some(job_id) = job_id {
+                    self.try_update_job_progress(job_id, processed, 0, 0).await;
+                }
+            }
+        }
+
+        if selection.iter().any(|key| key == "user") {
+            let provider = self
+                .registry
+                .get("user")
+                .ok_or_else(|| Error::Validation("User provider not registered".to_string()))?;
+            for user in users {
+                let scope = HarborScope::User { user_id: user.id };
                 let resource = provider.export(realm_id, &scope, policy).await?;
                 resources.push(resource);
                 processed += 1;
@@ -617,6 +644,30 @@ impl HarborService {
 
         Ok(roles)
     }
+
+    async fn list_all_users(&self, realm_id: Uuid) -> Result<Vec<User>> {
+        let mut users = Vec::new();
+        let mut page = 1;
+        loop {
+            let response = self
+                .user_service
+                .list_users(
+                    realm_id,
+                    PageRequest {
+                        page,
+                        per_page: 200,
+                        ..PageRequest::default()
+                    },
+                )
+                .await?;
+            users.extend(response.data);
+            if response.meta.page >= response.meta.total_pages {
+                break;
+            }
+            page += 1;
+        }
+        Ok(users)
+    }
 }
 
 impl HarborService {
@@ -638,6 +689,9 @@ impl HarborService {
                 }
                 if selection.iter().any(|key| key == "role") {
                     total += self.list_all_roles(realm_id).await?.len() as i64;
+                }
+                if selection.iter().any(|key| key == "user") {
+                    total += self.list_all_users(realm_id).await?.len() as i64;
                 }
                 if selection.iter().any(|key| key == "flow") {
                     total += self.list_all_flow_ids_for_export(realm_id).await?.len() as i64;
@@ -740,6 +794,7 @@ impl HarborService {
         let mut warnings = Vec::new();
         let mut client_id_map = std::collections::HashMap::new();
         let mut flow_id_map = std::collections::HashMap::new();
+        let mut role_ref_map = std::collections::HashMap::new();
         let mut progress = ImportProgress {
             processed: 0,
             created_total: 0,
@@ -766,6 +821,14 @@ impl HarborService {
             Some(provider) => Some(provider),
             None => {
                 warnings.push("Role provider not registered".to_string());
+                None
+            }
+        };
+
+        let user_provider = match self.registry.get("user") {
+            Some(provider) => Some(provider),
+            None => {
+                warnings.push("User provider not registered".to_string());
                 None
             }
         };
@@ -857,6 +920,69 @@ impl HarborService {
 
             let scope = HarborScope::Role { role_id };
 
+            let result = provider
+                .import(
+                    realm_id,
+                    &scope,
+                    &resource,
+                    conflict_policy,
+                    false,
+                    tx.as_deref_mut(),
+                )
+                .await?;
+
+            let role_name = resource
+                .data
+                .get("name")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let role_client_id = resource
+                .data
+                .get("client_id")
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let role_ref = encode_role_ref(&role_name, role_client_id.as_deref());
+
+            if let Some(renamed) = result.renamed_to.clone() {
+                role_ref_map.insert(
+                    role_ref,
+                    encode_role_ref(&renamed, role_client_id.as_deref()),
+                );
+            }
+
+            self.record_import_progress(
+                job_id,
+                persist_job_updates,
+                &mut progress,
+                &result,
+                conflict_policy,
+            )
+            .await;
+            results.push(result);
+        }
+
+        for resource in bundle.resources.iter().filter(|r| r.key == "user") {
+            let Some(provider) = user_provider.as_ref() else {
+                continue;
+            };
+
+            let mut resource = resource.clone();
+            if !client_id_map.is_empty() {
+                rewrite_user_role_client_ids(&mut resource.data, &client_id_map);
+            }
+            if !role_ref_map.is_empty() {
+                rewrite_user_role_refs(&mut resource.data, &role_ref_map);
+            }
+
+            let user_id = resource
+                .data
+                .get("user_id")
+                .and_then(|value| value.as_str())
+                .and_then(|value| Uuid::parse_str(value).ok())
+                .unwrap_or_else(Uuid::new_v4);
+
+            let scope = HarborScope::User { user_id };
             let result = provider
                 .import(
                     realm_id,
@@ -1453,6 +1579,82 @@ fn rewrite_realm_flow_bindings(
     }
 }
 
+fn rewrite_user_role_client_ids(
+    value: &mut serde_json::Value,
+    map: &std::collections::HashMap<String, String>,
+) {
+    let Some(direct_roles) = value
+        .get_mut("direct_roles")
+        .and_then(|entry| entry.as_array_mut())
+    else {
+        return;
+    };
+
+    for role in direct_roles {
+        let Some(obj) = role.as_object_mut() else {
+            continue;
+        };
+        let Some(field) = obj.get_mut("client_id") else {
+            continue;
+        };
+        let Some(value_str) = field.as_str() else {
+            continue;
+        };
+        if let Some(replacement) = map.get(value_str) {
+            *field = serde_json::Value::String(replacement.clone());
+        }
+    }
+}
+
+fn rewrite_user_role_refs(
+    value: &mut serde_json::Value,
+    map: &std::collections::HashMap<String, String>,
+) {
+    let Some(direct_roles) = value
+        .get_mut("direct_roles")
+        .and_then(|entry| entry.as_array_mut())
+    else {
+        return;
+    };
+
+    for role in direct_roles {
+        let Some(obj) = role.as_object_mut() else {
+            continue;
+        };
+        let Some(name) = obj.get("name").and_then(|entry| entry.as_str()) else {
+            continue;
+        };
+        let client_id = obj.get("client_id").and_then(|entry| entry.as_str());
+        let encoded = encode_role_ref(name, client_id);
+        let Some(replacement) = map.get(&encoded) else {
+            continue;
+        };
+        let (replacement_name, replacement_client_id) = decode_role_ref(replacement);
+        obj.insert(
+            "name".to_string(),
+            serde_json::Value::String(replacement_name.to_string()),
+        );
+        obj.insert(
+            "client_id".to_string(),
+            replacement_client_id
+                .map(|value| serde_json::Value::String(value.to_string()))
+                .unwrap_or(serde_json::Value::Null),
+        );
+    }
+}
+
+fn encode_role_ref(name: &str, client_id: Option<&str>) -> String {
+    format!("{}::{}", client_id.unwrap_or(""), name)
+}
+
+fn decode_role_ref(value: &str) -> (&str, Option<&str>) {
+    match value.split_once("::") {
+        Some(("", name)) => (name, None),
+        Some((client_id, name)) => (name, Some(client_id)),
+        None => (value, None),
+    }
+}
+
 fn parse_theme_meta(resource: &HarborResourceBundle) -> Result<HarborThemeMeta> {
     let meta_value = resource
         .meta
@@ -1513,6 +1715,7 @@ fn normalize_export_selection(selection: Option<Vec<String>>) -> Result<Vec<Stri
             "realm" | "realms" | "settings" => "realm",
             "role" | "roles" | "rbac" => "role",
             "theme" | "themes" => "theme",
+            "user" | "users" => "user",
             _ => {
                 return Err(Error::Validation(format!(
                     "Unsupported export selection: {}",
@@ -1647,6 +1850,7 @@ fn scope_label(scope: &HarborScope) -> &'static str {
         HarborScope::Theme { .. } => "theme",
         HarborScope::Client { .. } => "client",
         HarborScope::Flow { .. } => "flow",
+        HarborScope::User { .. } => "user",
         HarborScope::Role { .. } => "role",
         HarborScope::FullRealm => "full_realm",
     }

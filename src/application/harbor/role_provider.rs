@@ -390,12 +390,19 @@ async fn import_new_role(
         });
     }
 
+    let candidate_id = payload
+        .role_id
+        .as_deref()
+        .and_then(|value| Uuid::parse_str(value).ok())
+        .unwrap_or(fallback_role_id);
+    let role_id = match repo.find_role_by_id(&candidate_id).await? {
+        Some(existing) if existing.realm_id != realm_id => Uuid::new_v4(),
+        Some(_) => candidate_id,
+        None => candidate_id,
+    };
+
     let role = Role {
-        id: payload
-            .role_id
-            .as_deref()
-            .and_then(|value| Uuid::parse_str(value).ok())
-            .unwrap_or(fallback_role_id),
+        id: role_id,
         realm_id,
         client_id,
         name: payload.name.clone(),

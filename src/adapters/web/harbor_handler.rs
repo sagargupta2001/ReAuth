@@ -1011,6 +1011,12 @@ fn parse_scope_fields(scope: Option<&str>, id: Option<String>) -> Result<HarborS
                 .map_err(|_| Error::Validation("Invalid flow id".to_string()))?;
             Ok(HarborScope::Flow { flow_id })
         }
+        "user" => {
+            let id = id.ok_or_else(|| Error::Validation("User scope requires id".to_string()))?;
+            let user_id = Uuid::parse_str(&id)
+                .map_err(|_| Error::Validation("Invalid user id".to_string()))?;
+            Ok(HarborScope::User { user_id })
+        }
         "role" => {
             let id = id.ok_or_else(|| Error::Validation("Role scope requires id".to_string()))?;
             let role_id = Uuid::parse_str(&id)

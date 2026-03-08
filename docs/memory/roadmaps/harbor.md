@@ -14,17 +14,18 @@
 - Theme rename imports now use explicit duplicate semantics: `rename` always creates a suffixed theme and records a warning instead of silently reusing an existing matching draft.
 - Harbor now supports bootstrap import into a brand-new realm via dedicated endpoints that create the target realm and then run the existing full-realm Harbor import pipeline.
 - Full realm bundles now include a `realm` resource/provider so bootstrap imports can restore realm settings and flow bindings, with imported flow IDs remapped when cross-realm runtime IDs collide.
-- Snapshot coverage is still intentionally partial at the system level: users and credential material are not yet part of Harbor bundles.
+- Harbor now supports user snapshot export/import with an explicit credential portability policy:
+  - `include_secrets=true` exports/imports password hashes for true user portability.
+  - Redacted exports preserve existing credentials on overwrite, but cannot create new users in a target realm.
+- Snapshot coverage is still intentionally partial at the system level: groups, group membership, and any future realm settings outside the current Harbor contract are not yet bundled.
 
 ## Now
 - Keep Harbor stable while the surrounding execution and configuration layers catch up:
+  - Harbor MVP is implemented end-to-end for current in-scope resources.
   - Harbor backend and UI capabilities are implemented enough to begin integrating them into the rest of the admin product.
-  - Remaining effort is mainly richer job UX, broader snapshot coverage, and integration with the eventual Current execution layer.
+  - Remaining effort is mainly broader identity snapshot coverage, tighter job UX/polish, and integration with the eventual Current execution layer.
 
 ## Next
-- Expand system-wide snapshot coverage beyond the current set:
-  - Users and explicit credential/secret portability rules.
-  - Additional RBAC/system resources beyond roles where needed.
 - Refine job tracking presentation:
   - Add richer completed-job summaries and filters.
   - Prepare Harbor job DTOs/UI state for eventual Current-backed execution views.
@@ -35,11 +36,18 @@
   - better first-use empty states
   - better failure recovery/retry guidance
   - optional download/open shortcuts from contextual workflows
-- Decide how far Harbor should go on realm-level config portability beyond the current set:
-  - additional realm settings if new fields are added later
-  - whether non-Harbor runtime/system settings belong in the realm snapshot contract
 
-## Later
+## Future
+- Expand system-wide snapshot coverage beyond the current set:
+  - Add group and group-membership providers.
+  - Add additional RBAC/system resources beyond roles where needed.
+- Add a bootstrap policy for redacted user imports instead of hard failure:
+  - define reset/invite/bootstrap flows for importing users without portable credential material
+  - allow bootstrap/user import flows to complete without exported hashes when policy permits
+- Surface the credential portability policy clearly in Harbor UI, then decide whether users should join `All Settings` by default.
+- Continue expanding realm portability only through explicit Harbor versioned coverage:
+  - add new realm settings to the `realm` resource only when versioned and test-covered
+  - decide whether non-Harbor runtime/system settings belong in the realm snapshot contract
 - Optional bundle encryption/signing.
 - Schema compatibility policy with **N-2 support**:
   - Manifest `schema_version` + up-converters (`v1_to_v2`, `v2_to_v3`) before import.
@@ -65,6 +73,9 @@
 - [x] Extend full realm import to include themes (new theme creation + bindings).
 - [x] Extend full realm import/export to include roles (realm roles + client roles).
 - [x] Add a realm resource/provider for realm settings and flow bindings.
+- [x] Extend full realm import/export to include users.
+- [x] Add explicit user credential portability rules (`include_secrets` for hashes; redacted imports cannot create new users).
+- [x] Remap imported role references for user direct-role assignments.
 - [x] Add manifest validation for `exported_at` RFC3339 format and non-empty `source_realm`.
 - [x] Remap `client_id` references in additional resources (theme bindings).
 - [x] Remap `client_id` references for imported client-role namespaces.
@@ -102,6 +113,10 @@
 - [x] Add regression coverage for full-realm role export/import and client-role remapping.
 - [x] Add regression coverage for bootstrap import into a newly created realm.
 - [x] Add regression coverage for bootstrap restoration of realm settings and flow bindings.
+- [x] Add regression coverage for bootstrap user import with credentials and direct roles.
+- [x] Add regression coverage for rejecting new-user creation from redacted bundles.
+- [ ] Add group/group-membership providers and remapping coverage.
+- [ ] Add bootstrap policy for redacted user imports (reset/invite flow instead of hard failure).
 
 ## UI implementation checklist
 - [x] Add Harbor nav entry with Lucide icon and page routing.
@@ -117,12 +132,16 @@
 - [x] Improve Harbor polling/loading feedback (loading rows, cadence hint, live refresh indicator).
 - [x] Enable role selection in the Harbor export workspace.
 - [x] Enable realm settings selection in the Harbor export workspace.
+- [x] Enable user selection in the Harbor export workspace.
+- [ ] Surface the credential portability policy inline in Harbor export/import UI before enabling users in `All Settings` by default.
+- [x] Fix client detail page double-scroll regression after Harbor actions were added.
 
 ## Risks / dependencies
 - Import consistency depends on strict schema validation and correct ID remapping.
 - SQLite write contention for large imports; may require chunked transactions.
 - Full realm imports must respect realm isolation and avoid cross-resource remap mistakes when rename policy is applied.
-- User export/import needs a clear credential portability policy before it should be added to full snapshots.
+- Redacted user bundles are intentionally incomplete for greenfield bootstrap; a reset/invite/bootstrap mechanism is still required if Harbor should create users without exported hashes.
+- Realm portability will drift if new realm settings are added outside the Harbor `realm` resource contract and not explicitly versioned into export/import.
 
 ## Open questions
 - None (resolved):

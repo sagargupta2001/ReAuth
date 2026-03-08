@@ -12,11 +12,15 @@
     }
 
     html {
-        @apply overflow-x-hidden;
+        @apply h-full overflow-hidden;
     }
 
     body {
-        @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full;
+        @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar h-full min-h-0 w-full overflow-hidden;
+    }
+
+    #root {
+        @apply h-full min-h-0 overflow-hidden;
     }
 
     /* Override Radix scroll locking for sticky headers */

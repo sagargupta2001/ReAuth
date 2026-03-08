@@ -10,6 +10,7 @@ pub mod schema;
 pub mod service;
 pub mod theme_provider;
 pub mod types;
+pub mod user_provider;
 
 pub use archive::{read_bundle_from_path, write_bundle_to_path};
 pub use bootstrap::{bootstrap_import_bundle, resolve_bootstrap_realm_name};

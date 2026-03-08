@@ -28,6 +28,9 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 - `13-hot-reload.md`
 - `14-seed.md`
 - `15-observability.md`
+- `18-fluid-theme-builder.md`
+- `19-harbor.md`
+- `harbor-bundle.md`
 - `roadmaps/README.md`
 - `roadmaps/rbac.md`
 - `roadmaps/configuration.md`

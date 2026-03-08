@@ -13,7 +13,7 @@
         "source_realm": { "type": "string", "minLength": 1 },
         "type": {
           "type": "string",
-          "enum": ["theme", "client", "flow", "role", "full_realm"]
+          "enum": ["theme", "client", "flow", "user", "role", "full_realm"]
         },
         "selection": {
           "type": "array",
