@@ -62,6 +62,20 @@ pub struct DatabaseConfig {
     pub data_dir: String,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct HarborConfig {
+    #[serde(default = "default_harbor_async_import_threshold")]
+    pub async_import_threshold_resources: usize,
+    #[serde(default = "default_harbor_async_export_threshold")]
+    pub async_export_threshold_resources: usize,
+    #[serde(default = "default_harbor_cleanup_interval_secs")]
+    pub cleanup_interval_secs: u64,
+    #[serde(default = "default_harbor_artifact_retention_hours")]
+    pub artifact_retention_hours: u64,
+    #[serde(default)]
+    pub storage_dir: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct AuthConfig {
     pub jwt_secret: String,
@@ -110,6 +124,8 @@ pub struct Settings {
     pub auth: AuthConfig,
     pub default_admin: DefaultAdminConfig,
     pub default_oidc_client: DefaultOidcClientConfig,
+    #[serde(default)]
+    pub harbor: HarborConfig,
 }
 
 impl Settings {
@@ -175,6 +191,7 @@ impl Settings {
 
         self.apply_database_defaults();
         self.apply_observability_defaults();
+        self.apply_harbor_defaults();
     }
 
     fn apply_database_defaults(&mut self) {
@@ -202,6 +219,22 @@ impl Settings {
 
         let path = Path::new(base_dir).join("reauth_telemetry.db");
         self.observability.telemetry_db_path = path.to_string_lossy().to_string();
+    }
+
+    fn apply_harbor_defaults(&mut self) {
+        if !self.harbor.storage_dir.trim().is_empty() {
+            return;
+        }
+
+        let data_dir = self.database.data_dir.trim();
+        let base_dir = if data_dir.is_empty() {
+            "./data"
+        } else {
+            data_dir
+        };
+
+        let path = Path::new(base_dir).join("harbor");
+        self.harbor.storage_dir = path.to_string_lossy().to_string();
     }
 
     fn validate(&self) -> Result<(), config::ConfigError> {
@@ -316,6 +349,22 @@ fn default_trace_retention_days() -> i64 {
 
 fn default_cleanup_interval_secs() -> u64 {
     3600
+}
+
+fn default_harbor_async_import_threshold() -> usize {
+    25
+}
+
+fn default_harbor_async_export_threshold() -> usize {
+    50
+}
+
+fn default_harbor_cleanup_interval_secs() -> u64 {
+    3600
+}
+
+fn default_harbor_artifact_retention_hours() -> u64 {
+    168
 }
 
 fn default_pkce_required_public_clients() -> bool {

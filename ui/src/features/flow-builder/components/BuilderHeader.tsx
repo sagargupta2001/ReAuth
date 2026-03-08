@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { ArrowLeft, CloudUpload, Loader2, Play, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -13,9 +14,10 @@ interface BuilderHeaderProps {
   flowName: string
   flowId: string
   activeVersion?: number | null
+  actions?: ReactNode
 }
 
-export function BuilderHeader({ flowName, flowId, activeVersion }: BuilderHeaderProps) {
+export function BuilderHeader({ flowName, flowId, activeVersion, actions }: BuilderHeaderProps) {
   const navigate = useRealmNavigate()
   const { toObject } = useReactFlow()
 
@@ -77,6 +79,8 @@ export function BuilderHeader({ flowName, flowId, activeVersion }: BuilderHeader
       </div>
 
       <div className="flex items-center gap-2">
+        {actions}
+
         <Button variant="outline" size="sm">
           <Play className="mr-2 h-3.5 w-3.5" /> Simulate
         </Button>

@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { MoreVertical, Palette, Sparkles } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
@@ -14,9 +16,10 @@ import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 interface ThemeHeaderProps {
   theme: Theme
   activeVersionNumber?: number | null
+  actions?: ReactNode
 }
 
-export function ThemeHeader({ theme, activeVersionNumber }: ThemeHeaderProps) {
+export function ThemeHeader({ theme, activeVersionNumber, actions }: ThemeHeaderProps) {
   const navigate = useRealmNavigate()
   const hasActiveVersion = typeof activeVersionNumber === 'number'
 
@@ -67,6 +70,8 @@ export function ThemeHeader({ theme, activeVersionNumber }: ThemeHeaderProps) {
             </>
           )}
         </div>
+
+        {actions}
 
         <Button
           onClick={() => navigate(`/themes/${theme.id}/fluid`)}

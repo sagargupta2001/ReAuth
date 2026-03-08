@@ -1,4 +1,5 @@
 use crate::application::flow_manager::FlowManager;
+use crate::application::harbor::HarborService;
 use crate::application::oidc_service::OidcService;
 use crate::application::rbac_service::RbacService;
 use crate::application::realm_service::RealmService;
@@ -19,4 +20,5 @@ pub struct SeedContext<'a> {
     pub oidc_service: &'a Arc<OidcService>,
     pub rbac_service: &'a Arc<RbacService>,
     pub theme_service: &'a Arc<ThemeResolverService>,
+    pub harbor_service: &'a Arc<HarborService>,
 }

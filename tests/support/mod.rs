@@ -9,15 +9,19 @@ use reauth::config::DatabaseConfig;
 use reauth::initialize_for_tests;
 use reauth::AppState;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tempfile::TempDir;
+use tokio::sync::Mutex;
 use tower::ServiceExt;
+
+static TEST_ENV_LOCK: once_cell::sync::Lazy<Arc<Mutex<()>>> =
+    once_cell::sync::Lazy::new(|| Arc::new(Mutex::new(())));
 
 #[allow(dead_code)]
 pub struct TestContext {
     pub app_state: AppState,
     pub router: Router,
     _temp_dir: TempDir,
-    _env_guard: EnvGuard,
 }
 
 #[allow(dead_code)]
@@ -32,6 +36,7 @@ impl TestContext {
     }
 
     async fn new_internal(seed: bool) -> Self {
+        let env_lock = TEST_ENV_LOCK.clone().lock_owned().await;
         let temp_dir = tempfile::tempdir().expect("temp dir");
         let db_path = temp_dir.path().join("reauth-test.db");
         let db_url = format!("sqlite:{}", db_path.to_string_lossy());
@@ -49,11 +54,15 @@ impl TestContext {
             env_vars.push(("REAUTH_TEST_SKIP_SEED", "1".to_string()));
         }
 
-        let env_guard = EnvGuard::set_all(env_vars);
-
-        let app_state = initialize_for_tests()
-            .await
-            .expect("failed to initialize app state");
+        let app_state = {
+            let env_guard = EnvGuard::set_all(env_vars);
+            let app_state = initialize_for_tests()
+                .await
+                .expect("failed to initialize app state");
+            drop(env_guard);
+            app_state
+        };
+        drop(env_lock);
 
         let router = create_router(app_state.clone());
 
@@ -61,7 +70,6 @@ impl TestContext {
             app_state,
             router,
             _temp_dir: temp_dir,
-            _env_guard: env_guard,
         }
     }
 

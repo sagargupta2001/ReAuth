@@ -173,6 +173,41 @@ impl ThemeRepository for SqliteThemeRepository {
         skip_all,
         fields(telemetry = "span", db_table = "themes", db_op = "select")
     )]
+    async fn find_theme_with_tx(
+        &self,
+        realm_id: &Uuid,
+        theme_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<Theme>> {
+        let query = sqlx::query(
+            "SELECT id, realm_id, name, description, is_system, created_at, updated_at FROM themes WHERE id = ? AND realm_id = ?",
+        )
+        .bind(theme_id.to_string())
+        .bind(realm_id.to_string());
+
+        let row = if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.fetch_optional(&mut **sql_tx).await
+        } else {
+            query.fetch_optional(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(row.map(|row| Theme {
+            id: Self::parse_uuid(row.get::<String, _>("id").as_str(), theme_id),
+            realm_id: Self::parse_uuid(row.get::<String, _>("realm_id").as_str(), realm_id),
+            name: row.get("name"),
+            description: row.get("description"),
+            is_system: row.get("is_system"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        }))
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "themes", db_op = "select")
+    )]
     async fn list_themes(&self, realm_id: &Uuid) -> Result<Vec<Theme>> {
         let rows = sqlx::query(
             "SELECT id, realm_id, name, description, is_system, created_at, updated_at FROM themes WHERE realm_id = ? ORDER BY created_at DESC",
@@ -580,6 +615,69 @@ impl ThemeRepository for SqliteThemeRepository {
         Ok(())
     }
 
+    async fn set_draft_exists(
+        &self,
+        theme_id: &Uuid,
+        exists: bool,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "INSERT INTO theme_draft_meta (theme_id, draft_exists) VALUES (?, ?)
+             ON CONFLICT(theme_id) DO UPDATE SET draft_exists = excluded.draft_exists, updated_at = CURRENT_TIMESTAMP",
+        )
+        .bind(theme_id.to_string())
+        .bind(exists);
+
+        if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX type");
+            query
+                .execute(&mut **sql_tx)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+        } else {
+            query
+                .execute(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+        }
+        Ok(())
+    }
+
+    async fn get_draft_exists(&self, theme_id: &Uuid) -> Result<bool> {
+        let row = sqlx::query("SELECT draft_exists FROM theme_draft_meta WHERE theme_id = ?")
+            .bind(theme_id.to_string())
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(row
+            .and_then(|row| row.try_get::<i64, _>("draft_exists").ok())
+            .map(|value| value != 0)
+            .unwrap_or(false))
+    }
+
+    async fn get_draft_exists_with_tx(
+        &self,
+        theme_id: &Uuid,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<bool> {
+        let query = sqlx::query("SELECT draft_exists FROM theme_draft_meta WHERE theme_id = ?")
+            .bind(theme_id.to_string());
+
+        let row = if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.fetch_optional(&mut **sql_tx).await
+        } else {
+            query.fetch_optional(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(row
+            .and_then(|row| row.try_get::<i64, _>("draft_exists").ok())
+            .map(|value| value != 0)
+            .unwrap_or(false))
+    }
+
     #[instrument(
         skip_all,
         fields(telemetry = "span", db_table = "theme_versions", db_op = "insert")
@@ -815,6 +913,61 @@ impl ThemeRepository for SqliteThemeRepository {
             .bind(realm_id.to_string())
             .fetch_optional(&*self.pool)
             .await
+            .map_err(|e| Error::Unexpected(e.into()))?
+        };
+
+        Ok(row.map(|row| ThemeBinding {
+            id: Uuid::parse_str(row.get::<String, _>("id").as_str())
+                .unwrap_or_else(|_| Uuid::new_v4()),
+            realm_id: *realm_id,
+            client_id: row.get("client_id"),
+            theme_id: Uuid::parse_str(row.get::<String, _>("theme_id").as_str())
+                .unwrap_or_else(|_| Uuid::new_v4()),
+            active_version_id: Uuid::parse_str(row.get::<String, _>("active_version_id").as_str())
+                .unwrap_or_else(|_| Uuid::new_v4()),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        }))
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "theme_bindings", db_op = "select")
+    )]
+    async fn get_binding_with_tx(
+        &self,
+        realm_id: &Uuid,
+        client_id: Option<&str>,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<ThemeBinding>> {
+        let row = if let Some(client_id) = client_id {
+            let query = sqlx::query(
+                "SELECT id, realm_id, client_id, theme_id, active_version_id, created_at, updated_at
+                 FROM theme_bindings WHERE realm_id = ? AND client_id = ?",
+            )
+            .bind(realm_id.to_string())
+            .bind(client_id);
+
+            if let Some(tx) = tx {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query.fetch_optional(&mut **sql_tx).await
+            } else {
+                query.fetch_optional(&*self.pool).await
+            }
+            .map_err(|e| Error::Unexpected(e.into()))?
+        } else {
+            let query = sqlx::query(
+                "SELECT id, realm_id, client_id, theme_id, active_version_id, created_at, updated_at
+                 FROM theme_bindings WHERE realm_id = ? AND client_id IS NULL",
+            )
+            .bind(realm_id.to_string());
+
+            if let Some(tx) = tx {
+                let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+                query.fetch_optional(&mut **sql_tx).await
+            } else {
+                query.fetch_optional(&*self.pool).await
+            }
             .map_err(|e| Error::Unexpected(e.into()))?
         };
 

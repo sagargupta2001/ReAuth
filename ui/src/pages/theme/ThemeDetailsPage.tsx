@@ -6,6 +6,8 @@ import { useParams } from 'react-router-dom'
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { ThemeDetailsOverviewTab } from '@/features/theme/components/ThemeDetailsOverviewTab'
 import { ThemeDetailsSettingsTab } from '@/features/theme/components/ThemeDetailsSettingsTab'
 import { ThemeHeader } from '@/features/theme/components/ThemeHeader'
@@ -14,6 +16,7 @@ import { useTheme } from '@/features/theme/api/useTheme'
 
 export function ThemeDetailsPage() {
   const { themeId } = useParams()
+  const realm = useActiveRealm()
   const navigate = useRealmNavigate()
   const [activeTab, setActiveTab] = useState('overview')
 
@@ -44,6 +47,24 @@ export function ThemeDetailsPage() {
       <ThemeHeader
         theme={data.theme}
         activeVersionNumber={data.active_version_number ?? null}
+        actions={
+          themeId && realm ? (
+            <HarborResourceActions
+              scope="theme"
+              id={themeId}
+              resourceLabel={data.theme.name}
+              invalidateKeys={[
+                ['themes', realm],
+                ['themes', realm, themeId],
+                ['themes', realm, themeId, 'draft'],
+                ['themes', realm, themeId, 'assets'],
+                ['themes', realm, themeId, 'versions'],
+                ['theme-bindings', realm, themeId],
+                ['theme-preview', realm, themeId],
+              ]}
+            />
+          ) : null
+        }
       />
 
       <Tabs

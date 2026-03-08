@@ -1,9 +1,11 @@
 use crate::adapters::persistence::connection::Database;
+use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::{
     domain::oidc::{AuthCode, OidcClient},
     error::{Error, Result},
     ports::oidc_repository::OidcRepository,
+    ports::transaction_manager::Transaction,
 };
 use async_trait::async_trait;
 use chrono::Utc;
@@ -85,6 +87,38 @@ impl OidcRepository for SqliteOidcRepository {
             .execute(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "insert")
+    )]
+    async fn create_client_with_tx(
+        &self,
+        client: &OidcClient,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "INSERT INTO oidc_clients (id, realm_id, client_id, client_secret, redirect_uris, scopes, web_origins, managed_by_config)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(client.id.to_string())
+        .bind(client.realm_id.to_string())
+        .bind(&client.client_id)
+        .bind(&client.client_secret)
+        .bind(&client.redirect_uris)
+        .bind(&client.scopes)
+        .bind(&client.web_origins)
+        .bind(client.managed_by_config);
+
+        if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }
 
@@ -178,6 +212,35 @@ impl OidcRepository for SqliteOidcRepository {
         .bind(client.id.to_string())
         .execute(&*self.pool)
         .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "update")
+    )]
+    async fn update_client_with_tx(
+        &self,
+        client: &OidcClient,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()> {
+        let query = sqlx::query(
+            "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ?, web_origins = ?, managed_by_config = ? WHERE id = ?",
+        )
+        .bind(&client.client_id)
+        .bind(&client.redirect_uris)
+        .bind(&client.scopes)
+        .bind(&client.web_origins)
+        .bind(client.managed_by_config)
+        .bind(client.id.to_string());
+
+        if let Some(tx) = tx {
+            let sql_tx = SqliteTransaction::from_trait(tx).expect("Invalid TX");
+            query.execute(&mut **sql_tx).await
+        } else {
+            query.execute(&*self.pool).await
+        }
         .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(())
     }

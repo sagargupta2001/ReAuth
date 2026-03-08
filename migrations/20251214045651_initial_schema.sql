@@ -128,12 +128,13 @@ CREATE TABLE IF NOT EXISTS oidc_clients
 (
     id            TEXT PRIMARY KEY NOT NULL,
     realm_id      TEXT             NOT NULL,
-    client_id     TEXT             NOT NULL UNIQUE,
+    client_id     TEXT             NOT NULL,
     client_secret TEXT,
     redirect_uris TEXT             NOT NULL,
     web_origins   TEXT             NOT NULL DEFAULT '[]',
     scopes        TEXT             NOT NULL,
-    FOREIGN KEY (realm_id) REFERENCES realms (id) ON DELETE CASCADE
+    FOREIGN KEY (realm_id) REFERENCES realms (id) ON DELETE CASCADE,
+    UNIQUE (realm_id, client_id)
 );
 
 -- 7. AUTHENTICATION FLOWS & CONFIG

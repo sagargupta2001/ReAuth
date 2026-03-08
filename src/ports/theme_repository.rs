@@ -24,6 +24,14 @@ pub trait ThemeRepository: Send + Sync {
         tx: Option<&mut dyn Transaction>,
     ) -> Result<()>;
     async fn find_theme(&self, realm_id: &Uuid, theme_id: &Uuid) -> Result<Option<Theme>>;
+    async fn find_theme_with_tx(
+        &self,
+        realm_id: &Uuid,
+        theme_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<Theme>> {
+        self.find_theme(realm_id, theme_id).await
+    }
     async fn list_themes(&self, realm_id: &Uuid) -> Result<Vec<Theme>>;
 
     async fn upsert_tokens(
@@ -65,6 +73,21 @@ pub trait ThemeRepository: Send + Sync {
         tx: Option<&mut dyn Transaction>,
     ) -> Result<()>;
 
+    async fn set_draft_exists(
+        &self,
+        theme_id: &Uuid,
+        exists: bool,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<()>;
+    async fn get_draft_exists(&self, theme_id: &Uuid) -> Result<bool>;
+    async fn get_draft_exists_with_tx(
+        &self,
+        theme_id: &Uuid,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<bool> {
+        self.get_draft_exists(theme_id).await
+    }
+
     async fn create_version(
         &self,
         version: &ThemeVersion,
@@ -90,6 +113,14 @@ pub trait ThemeRepository: Send + Sync {
         realm_id: &Uuid,
         client_id: Option<&str>,
     ) -> Result<Option<ThemeBinding>>;
+    async fn get_binding_with_tx(
+        &self,
+        realm_id: &Uuid,
+        client_id: Option<&str>,
+        _tx: Option<&mut dyn Transaction>,
+    ) -> Result<Option<ThemeBinding>> {
+        self.get_binding(realm_id, client_id).await
+    }
     async fn list_bindings(&self, realm_id: &Uuid) -> Result<Vec<ThemeBinding>>;
     async fn delete_binding(
         &self,

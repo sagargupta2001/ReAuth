@@ -1,4 +1,5 @@
 import {
+  Anchor,
   AppWindow,
   Database,
   Group,
@@ -62,6 +63,11 @@ export const sidebarData: SidebarData = {
       title: 'Cache',
       url: '/cache',
       icon: Database,
+    },
+    {
+      title: 'Harbor',
+      url: '/harbor',
+      icon: Anchor,
     },
     {
       title: 'Clients',

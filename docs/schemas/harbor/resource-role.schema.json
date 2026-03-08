@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["key", "data"],
+  "properties": {
+    "key": { "const": "role" },
+    "data": {
+      "type": "object",
+      "required": ["name", "permissions"],
+      "properties": {
+        "role_id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "client_id": { "type": ["string", "null"] },
+        "permissions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "assets": { "type": "array", "maxItems": 0 },
+    "meta": { "type": "object" }
+  },
+  "additionalProperties": true
+}

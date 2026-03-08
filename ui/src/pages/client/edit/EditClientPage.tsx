@@ -6,13 +6,16 @@ import { useParams } from 'react-router-dom'
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useClient } from '@/features/client/api/useClient'
+import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { ClientHeader } from '@/features/client/components/ClientHeader.tsx'
 import { ClientRolesTab } from '@/features/client/components/ClientRolesTab.tsx'
 import { ClientSettingsTab } from '@/features/client/components/ClientSettingsTab.tsx'
 
 export function EditClientPage() {
   const { clientId, tab } = useParams<{ clientId: string; tab?: string }>()
+  const realm = useActiveRealm()
   const navigate = useRealmNavigate()
   const validTabs = ['settings', 'roles', 'advanced']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
@@ -50,15 +53,31 @@ export function EditClientPage() {
 
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-12">
+    <div className="bg-background flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden p-6">
       <div className="shrink-0">
-        <ClientHeader client={client} />
+        <ClientHeader
+          client={client}
+          actions={
+            realm ? (
+              <HarborResourceActions
+                scope="client"
+                id={client.client_id}
+                resourceLabel={client.client_id}
+                allowedConflictPolicies={['overwrite', 'skip']}
+                invalidateKeys={[
+                  ['client', realm, clientId],
+                  ['clients', realm],
+                ]}
+              />
+            ) : null
+          }
+        />
       </div>
 
       <Tabs
         value={activeTab}
         onValueChange={handleTabChange}
-        className="flex flex-1 flex-col overflow-hidden"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">
           <TabsList className="gap-6 bg-transparent p-0">
@@ -76,7 +95,7 @@ export function EditClientPage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto">
+        <div className="bg-muted/5 min-h-0 flex-1 overflow-y-auto">
           <TabsContent value="settings" className="mt-0 h-full w-full">
             <ClientSettingsTab client={client} />
           </TabsContent>

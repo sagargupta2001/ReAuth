@@ -52,3 +52,10 @@ password = "admin"
 client_id = "reauth-admin"
 redirect_uris = [] # Leave empty to derive from server.public_url + ui.dev_url
 web_origins = [] # Leave empty to derive from server.public_url + ui.dev_url
+
+[harbor]
+async_import_threshold_resources = 25
+async_export_threshold_resources = 50
+cleanup_interval_secs = 3600
+artifact_retention_hours = 168
+storage_dir = "" # Defaults to database.data_dir/harbor

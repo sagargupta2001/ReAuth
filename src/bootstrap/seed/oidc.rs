@@ -8,6 +8,7 @@ pub async fn seed_default_oidc_client(ctx: &SeedContext<'_>, realm_id: Uuid) -> 
     let client_id = ctx.settings.default_oidc_client.client_id.clone();
     let desired_redirect_uris =
         serde_json::to_string(&ctx.settings.default_oidc_client.redirect_uris)?;
+    let desired_scopes = serde_json::to_string(&vec!["openid", "profile", "email"])?;
     let desired_web_origins = serde_json::to_string(&ctx.settings.default_oidc_client.web_origins)?;
 
     match ctx
@@ -33,6 +34,11 @@ pub async fn seed_default_oidc_client(ctx: &SeedContext<'_>, realm_id: Uuid) -> 
                     client.web_origins = desired_web_origins.clone();
                     needs_update = true;
                 }
+
+                if client.scopes != desired_scopes {
+                    client.scopes = desired_scopes.clone();
+                    needs_update = true;
+                }
             }
 
             if needs_update {
@@ -51,7 +57,7 @@ pub async fn seed_default_oidc_client(ctx: &SeedContext<'_>, realm_id: Uuid) -> 
                 client_id: client_id.to_string(),
                 client_secret: Some(secret),
                 redirect_uris: desired_redirect_uris,
-                scopes: "openid profile email".to_string(),
+                scopes: desired_scopes,
                 web_origins: desired_web_origins,
                 managed_by_config: true,
             };

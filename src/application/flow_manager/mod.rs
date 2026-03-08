@@ -4,6 +4,7 @@ pub mod templates;
 
 use crate::application::flow_manager::templates::FlowTemplates;
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::domain::auth_flow::AuthFlow;
 use crate::domain::compiler::flow_compiler::FlowCompiler;
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::ports::flow_repository::FlowRepository;
@@ -155,6 +156,56 @@ impl FlowManager {
         Ok(draft)
     }
 
+    pub async fn update_draft_with_tx(
+        &self,
+        id: Uuid,
+        req: UpdateDraftRequest,
+        mut tx: Option<&mut dyn Transaction>,
+    ) -> Result<FlowDraft> {
+        let mut draft = if tx.is_some() {
+            let tx_ref = tx.as_deref_mut();
+            self.flow_store
+                .get_draft_by_id_with_tx(&id, tx_ref)
+                .await?
+                .ok_or(Error::FlowNotFound(id.to_string()))?
+        } else {
+            self.get_draft(id).await?
+        };
+
+        if let Some(n) = req.name {
+            draft.name = n;
+        }
+        if let Some(d) = req.description {
+            draft.description = Some(d);
+        }
+        if let Some(json) = req.graph_json {
+            draft.graph_json = json.to_string();
+        }
+        draft.updated_at = Utc::now();
+
+        let tx_ref = tx.as_deref_mut();
+        self.flow_store.update_draft_with_tx(&draft, tx_ref).await?;
+        Ok(draft)
+    }
+
+    pub async fn create_draft_with_id(&self, draft: FlowDraft) -> Result<FlowDraft> {
+        self.flow_store.create_draft(&draft).await?;
+        Ok(draft)
+    }
+
+    pub async fn create_draft_with_id_with_tx(
+        &self,
+        draft: FlowDraft,
+        tx: Option<&mut dyn Transaction>,
+    ) -> Result<FlowDraft> {
+        self.flow_store.create_draft_with_tx(&draft, tx).await?;
+        Ok(draft)
+    }
+
+    pub async fn draft_exists(&self, id: Uuid) -> Result<bool> {
+        Ok(self.flow_store.get_draft_by_id(&id).await?.is_some())
+    }
+
     pub async fn list_all_drafts(&self, realm_id: Uuid) -> Result<Vec<FlowDraft>> {
         self.flow_store.list_all_drafts(&realm_id).await
     }
@@ -285,6 +336,10 @@ impl FlowManager {
     pub async fn is_flow_built_in(&self, flow_id: &Uuid) -> Result<bool> {
         let meta = self.flow_repo.find_flow_by_id(flow_id).await?;
         Ok(meta.map(|f| f.built_in).unwrap_or(false))
+    }
+
+    pub async fn find_flow(&self, flow_id: Uuid) -> Result<Option<AuthFlow>> {
+        self.flow_repo.find_flow_by_id(&flow_id).await
     }
 
     pub async fn list_flow_versions(

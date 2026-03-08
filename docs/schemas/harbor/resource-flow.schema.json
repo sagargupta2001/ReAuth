@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["key", "data"],
+  "properties": {
+    "key": { "const": "flow" },
+    "data": {
+      "type": "object",
+      "required": ["name", "flow_type", "graph_json"],
+      "properties": {
+        "flow_id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "flow_type": { "type": "string" },
+        "graph_json": {
+          "type": "object",
+          "required": ["nodes", "edges"],
+          "properties": {
+            "nodes": { "type": "array" },
+            "edges": { "type": "array" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "assets": { "type": "array", "maxItems": 0 },
+    "meta": { "type": "object" }
+  },
+  "additionalProperties": true
+}

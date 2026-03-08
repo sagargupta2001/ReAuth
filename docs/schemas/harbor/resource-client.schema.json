@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["key", "data"],
+  "properties": {
+    "key": { "const": "client" },
+    "data": {
+      "type": "object",
+      "required": ["client_id", "redirect_uris", "scopes", "web_origins"],
+      "properties": {
+        "client_id": { "type": "string" },
+        "client_secret": { "type": ["string", "null"] },
+        "redirect_uris": { "type": "array", "items": { "type": "string" } },
+        "scopes": { "type": "array", "items": { "type": "string" } },
+        "web_origins": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "assets": { "type": "array", "maxItems": 0 },
+    "meta": { "type": "object" }
+  },
+  "additionalProperties": true
+}

@@ -8,6 +8,8 @@ pub mod events;
 pub mod execution;
 pub mod flow;
 pub mod group;
+pub mod harbor_job;
+pub mod harbor_job_conflict;
 pub mod log;
 pub mod login_attempt;
 pub mod oidc;

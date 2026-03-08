@@ -269,6 +269,8 @@ pub async fn create_client_handler(
     // Serialize Web Origins
     let web_origins_json = serde_json::to_string(&payload.web_origins.unwrap_or_default())
         .map_err(|e| Error::Unexpected(e.into()))?;
+    let scopes_json = serde_json::to_string(&vec!["openid", "profile", "email"])
+        .map_err(|e| Error::Unexpected(e.into()))?;
 
     // Create Domain Entity
     let mut client = OidcClient {
@@ -278,7 +280,7 @@ pub async fn create_client_handler(
         client_secret: None, // Public client for now
         redirect_uris: redirect_uris_json,
         web_origins: web_origins_json,
-        scopes: "openid profile email".to_string(), // Default scopes
+        scopes: scopes_json,
         managed_by_config: false,
     };
 

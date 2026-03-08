@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { GitBranch, Lock, MoreVertical, Pencil } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
@@ -13,9 +15,10 @@ import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 
 interface FlowHeaderProps {
   draft: FlowDraft
+  actions?: ReactNode
 }
 
-export function FlowHeader({ draft }: FlowHeaderProps) {
+export function FlowHeader({ draft, actions }: FlowHeaderProps) {
   const navigate = useRealmNavigate()
   const isSystemFlow = draft.built_in
 
@@ -69,6 +72,8 @@ export function FlowHeader({ draft }: FlowHeaderProps) {
             </>
           )}
         </div>
+
+        {actions}
 
         <Button onClick={() => navigate(`/flows/${draft.id}/builder`)} className="gap-2">
           <Pencil className="h-3.5 w-3.5" />

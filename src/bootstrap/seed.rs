@@ -10,9 +10,14 @@ mod theme;
 
 use crate::adapters::persistence::transaction::SqliteTransactionManager;
 use crate::application::flow_manager::FlowManager;
+use crate::application::harbor::HarborService;
+use crate::application::harbor::{
+    read_bundle_from_path, ConflictPolicy, HarborBundle, HarborExportType, HarborScope,
+};
 use crate::application::oidc_service::OidcService;
 use crate::application::rbac_service::RbacService;
 use crate::application::realm_service::RealmService;
+use crate::application::realm_service::UpdateRealmPayload;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::user_service::UserService;
 use crate::config::Settings;
@@ -23,8 +28,12 @@ use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use async_trait::async_trait;
 use context::SeedContext;
 use history::SeedHistory;
+use serde::Deserialize;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::info;
+use uuid::Uuid;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn seed_database(
@@ -38,6 +47,7 @@ pub async fn seed_database(
     oidc_service: &Arc<OidcService>,
     rbac_service: &Arc<RbacService>,
     theme_service: &Arc<ThemeResolverService>,
+    harbor_service: &Arc<HarborService>,
 ) -> anyhow::Result<()> {
     let ctx = SeedContext {
         realm_service,
@@ -49,11 +59,13 @@ pub async fn seed_database(
         oidc_service,
         rbac_service,
         theme_service,
+        harbor_service,
     };
 
     let mut state = SeedState::default();
     let seeders: Vec<Box<dyn Seeder>> = vec![
         Box::new(RealmSeeder),
+        Box::new(HarborBundleSeeder),
         Box::new(FlowsSeeder),
         Box::new(ThemeSeeder),
         Box::new(AdminSeeder),
@@ -111,6 +123,7 @@ pub async fn seed_database(
 #[derive(Default)]
 struct SeedState {
     default_realm: Option<Realm>,
+    harbor_seeded: bool,
 }
 
 impl SeedState {
@@ -122,6 +135,14 @@ impl SeedState {
         self.default_realm
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Default realm must be seeded before this step"))
+    }
+
+    fn mark_harbor_seeded(&mut self) {
+        self.harbor_seeded = true;
+    }
+
+    fn is_harbor_seeded(&self) -> bool {
+        self.harbor_seeded
     }
 }
 
@@ -147,6 +168,7 @@ trait Seeder: Send + Sync {
 }
 
 struct RealmSeeder;
+struct HarborBundleSeeder;
 struct FlowsSeeder;
 struct ThemeSeeder;
 struct AdminSeeder;
@@ -182,6 +204,72 @@ impl Seeder for RealmSeeder {
     }
 }
 
+#[derive(Deserialize)]
+struct SeedFlowPayload {
+    pub flow_type: String,
+    #[serde(default)]
+    pub flow_id: Option<String>,
+}
+
+#[async_trait]
+impl Seeder for HarborBundleSeeder {
+    fn name(&self) -> &'static str {
+        "harbor_bundle"
+    }
+
+    fn version(&self) -> i32 {
+        1
+    }
+
+    fn transactional(&self) -> bool {
+        false
+    }
+
+    fn checksum(&self, _ctx: &SeedContext<'_>) -> String {
+        resolve_seed_bundle_path()
+            .map(|path| format!("{}", path.display()))
+            .unwrap_or_default()
+    }
+
+    async fn run(
+        &self,
+        ctx: &SeedContext<'_>,
+        state: &mut SeedState,
+        _tx: &mut Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()> {
+        let Some(path) = resolve_seed_bundle_path() else {
+            return Ok(());
+        };
+
+        let realm = state.require_realm()?;
+        info!("Seeding Harbor bundle from {}", path.display());
+
+        let bundle = read_bundle_from_path(&path)?;
+        if bundle.manifest.export_type != HarborExportType::FullRealm {
+            return Err(anyhow::anyhow!("Seed bundle must be a full realm export"));
+        }
+
+        let flow_ids = extract_flow_ids(&bundle);
+        ctx.harbor_service
+            .import_bundle(
+                realm.id,
+                HarborScope::FullRealm,
+                bundle,
+                false,
+                ConflictPolicy::Overwrite,
+            )
+            .await?;
+
+        if !flow_ids.is_empty() {
+            let payload = build_realm_flow_payload(&flow_ids);
+            ctx.realm_service.update_realm(realm.id, payload).await?;
+        }
+
+        state.mark_harbor_seeded();
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl Seeder for FlowsSeeder {
     fn name(&self) -> &'static str {
@@ -210,6 +298,9 @@ impl Seeder for FlowsSeeder {
         state: &mut SeedState,
         tx: &mut Option<&mut dyn Transaction>,
     ) -> anyhow::Result<()> {
+        if state.is_harbor_seeded() {
+            return Ok(());
+        }
         let mut realm = state.require_realm()?;
         flows::ensure_default_flows(ctx, &mut realm, tx).await?;
         state.set_realm(realm);
@@ -241,6 +332,9 @@ impl Seeder for ThemeSeeder {
         state: &mut SeedState,
         _tx: &mut Option<&mut dyn Transaction>,
     ) -> anyhow::Result<()> {
+        if state.is_harbor_seeded() {
+            return Ok(());
+        }
         let realm = state.require_realm()?;
         theme::ensure_default_theme(ctx, realm.id).await?;
         Ok(())
@@ -309,5 +403,76 @@ impl Seeder for OidcSeeder {
         let realm = state.require_realm()?;
         oidc::seed_default_oidc_client(ctx, realm.id).await?;
         Ok(())
+    }
+}
+
+fn resolve_seed_bundle_path() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("REAUTH_SEED_BUNDLE_PATH") {
+        let path = PathBuf::from(path);
+        if path.exists() {
+            return Some(path);
+        }
+    }
+
+    let candidates = [
+        "config/seed/system-init.reauth",
+        "config/seed/system-init.zip",
+        "config/seed/system-init.tar.gz",
+        "config/seed/system-init.tgz",
+        "config/seed/default.reauth",
+    ];
+
+    for candidate in candidates {
+        let path = Path::new(candidate);
+        if path.exists() {
+            return Some(path.to_path_buf());
+        }
+    }
+
+    None
+}
+
+fn extract_flow_ids(bundle: &HarborBundle) -> HashMap<String, Uuid> {
+    let mut map = HashMap::new();
+    for resource in bundle.resources.iter().filter(|r| r.key == "flow") {
+        let payload: SeedFlowPayload = match serde_json::from_value(resource.data.clone()) {
+            Ok(payload) => payload,
+            Err(_) => continue,
+        };
+        let Some(flow_id) = payload
+            .flow_id
+            .as_deref()
+            .and_then(|value| Uuid::parse_str(value).ok())
+        else {
+            continue;
+        };
+        map.entry(payload.flow_type).or_insert(flow_id);
+    }
+    map
+}
+
+fn build_realm_flow_payload(flow_ids: &HashMap<String, Uuid>) -> UpdateRealmPayload {
+    let browser = flow_ids.get("browser").copied();
+    let registration = flow_ids.get("registration").copied();
+    let direct = flow_ids
+        .get("direct")
+        .or_else(|| flow_ids.get("direct_grant"))
+        .copied();
+    let reset = flow_ids
+        .get("reset")
+        .or_else(|| flow_ids.get("reset_credentials"))
+        .copied();
+
+    UpdateRealmPayload {
+        name: None,
+        access_token_ttl_secs: None,
+        refresh_token_ttl_secs: None,
+        pkce_required_public_clients: None,
+        lockout_threshold: None,
+        lockout_duration_secs: None,
+        browser_flow_id: browser.map(Some),
+        registration_flow_id: registration.map(Some),
+        direct_grant_flow_id: direct.map(Some),
+        reset_credentials_flow_id: reset.map(Some),
     }
 }

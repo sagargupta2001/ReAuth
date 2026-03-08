@@ -4,6 +4,7 @@ use serde::Serialize;
 pub const REALM_READ: &str = "realm:read";
 pub const REALM_WRITE: &str = "realm:write";
 pub const REALM_DELETE: &str = "realm:delete";
+pub const REALM_BACKUP: &str = "realm:backup";
 
 pub const CLIENT_READ: &str = "client:read";
 pub const CLIENT_CREATE: &str = "client:create";
@@ -66,6 +67,11 @@ pub fn get_system_permissions() -> Vec<ResourceGroup> {
                     REALM_DELETE,
                     "Delete Realm",
                     "Critical access to destroy the realm.",
+                ),
+                p(
+                    REALM_BACKUP,
+                    "Full Backup",
+                    "Export or import realm data with secrets included.",
                 ),
             ],
         },

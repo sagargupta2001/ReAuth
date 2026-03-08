@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { AppWindow, Copy, MoreVertical, Shield, ShieldAlert, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -14,9 +16,10 @@ import type { OidcClient } from '@/entities/oidc/model/types.ts'
 
 interface ClientHeaderProps {
   client: OidcClient
+  actions?: ReactNode
 }
 
-export function ClientHeader({ client }: ClientHeaderProps) {
+export function ClientHeader({ client, actions }: ClientHeaderProps) {
   const navigate = useRealmNavigate()
 
   // Logic to determine badge status
@@ -80,6 +83,8 @@ export function ClientHeader({ client }: ClientHeaderProps) {
 
       {/* Right Side Actions */}
       <div className="flex items-center gap-3">
+        {actions}
+
         <Button variant="outline" onClick={() => navigate('/clients')} size="sm">
           Back
         </Button>
