@@ -154,11 +154,8 @@ impl FlowExecutor {
                         );
                         let ui_outcome = worker.execute(&mut session).instrument(exec_span).await?;
                         if let NodeOutcome::SuspendForUI { screen, context } = ui_outcome {
-                            let template_key = current_node_def
-                                .config
-                                .get("template_key")
-                                .and_then(|value| value.as_str());
-                            let context = attach_template_key(context, template_key);
+                            let template_key = resolve_template_key(&current_node_def.config);
+                            let context = attach_template_key(context, template_key.as_deref());
                             return Ok(ExecutionResult::Challenge {
                                 screen_id: screen,
                                 context,
@@ -175,11 +172,8 @@ impl FlowExecutor {
                         screen,
                         context,
                     } => {
-                        let template_key = current_node_def
-                            .config
-                            .get("template_key")
-                            .and_then(|value| value.as_str());
-                        let context = attach_template_key(context, template_key);
+                        let template_key = resolve_template_key(&current_node_def.config);
+                        let context = attach_template_key(context, template_key.as_deref());
                         let result = self
                             .handle_async_suspend(
                                 &mut session,
@@ -262,11 +256,8 @@ impl FlowExecutor {
                     }
                     NodeOutcome::SuspendForUI { screen, context } => {
                         self.session_repo.update(&session).await?;
-                        let template_key = node_def
-                            .config
-                            .get("template_key")
-                            .and_then(|value| value.as_str());
-                        let context = attach_template_key(context, template_key);
+                        let template_key = resolve_template_key(&node_def.config);
+                        let context = attach_template_key(context, template_key.as_deref());
                         return Ok(ExecutionResult::Challenge {
                             screen_id: screen,
                             context,
@@ -281,11 +272,8 @@ impl FlowExecutor {
                         screen,
                         context,
                     } => {
-                        let template_key = node_def
-                            .config
-                            .get("template_key")
-                            .and_then(|value| value.as_str());
-                        let context = attach_template_key(context, template_key);
+                        let template_key = resolve_template_key(&node_def.config);
+                        let context = attach_template_key(context, template_key.as_deref());
                         let result = self
                             .handle_async_suspend(
                                 &mut session,
@@ -473,6 +461,26 @@ fn attach_template_key(mut context: Value, template_key: Option<&str>) -> Value 
             "template_key": key,
             "payload": other,
         }),
+    }
+}
+
+fn resolve_template_key(config: &Value) -> Option<String> {
+    let explicit = config
+        .get("template_key")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string());
+    if explicit.is_some() {
+        return explicit;
+    }
+
+    let auth_type = config.get("auth_type").and_then(|value| value.as_str());
+    match auth_type {
+        Some("core.auth.password") => Some("login".to_string()),
+        Some("core.auth.register") => Some("register".to_string()),
+        Some("core.auth.forgot_credentials") => Some("forgot_credentials".to_string()),
+        Some("core.auth.reset_password") => Some("reset_password".to_string()),
+        Some("core.auth.otp") => Some("mfa".to_string()),
+        _ => None,
     }
 }
 

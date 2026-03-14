@@ -1,4 +1,5 @@
 import { useSessionStore } from '@/entities/session/model/sessionStore'
+import { resolveRealmFromLocation } from '@/shared/lib/realm'
 
 // Extend the config to track retries
 type RequestConfig = RequestInit & {
@@ -17,23 +18,7 @@ let refreshPromise: Promise<string> | null = null
  * - Defaults to 'master'
  */
 function getRealmFromUrl(): string {
-  try {
-    // 1. Check Hash Router (e.g., http://localhost:3000/#/page?realm=customer)
-    if (window.location.hash.includes('?')) {
-      const queryPart = window.location.hash.split('?')[1]
-      const params = new URLSearchParams(queryPart)
-      if (params.get('realm')) return params.get('realm')!
-    }
-
-    // 2. Check Standard Search (e.g., http://localhost:3000/?realm=customer)
-    const searchParams = new URLSearchParams(window.location.search)
-    if (searchParams.get('realm')) return searchParams.get('realm')!
-  } catch {
-    // ignore parsing errors
-  }
-
-  // 3. Fallback to master
-  return 'master'
+  return resolveRealmFromLocation('master')
 }
 
 /**

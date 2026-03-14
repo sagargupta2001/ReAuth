@@ -1,11 +1,8 @@
-use super::condition_node::ConditionNode;
 use super::cookie_node::CookieNodeProvider;
 use super::forgot_credentials_node::ForgotCredentialsNodeProvider;
-use super::otp_node::OtpNode;
 use super::password_node::PasswordNodeProvider;
 use super::registration_node::RegistrationNodeProvider;
 use super::reset_password_node::ResetPasswordNodeProvider;
-use super::script_node::ScriptNode;
 use super::start_node::StartNode;
 use super::terminal_node::{AllowNode, DenyNode};
 use crate::domain::flow::provider::NodeProvider;
@@ -25,25 +22,6 @@ fn start_node_metadata_is_consistent() {
     assert!(node.inputs().is_empty());
     assert_eq!(node.outputs(), vec!["next"]);
     assert!(node.config_schema().as_object().unwrap().is_empty());
-}
-
-#[test]
-fn condition_node_metadata_is_consistent() {
-    let node = ConditionNode;
-
-    assert_eq!(node.id(), "core.logic.condition");
-    assert_eq!(node.display_name(), "Condition Check");
-    assert_eq!(
-        node.description(),
-        "Branch flow based on user or session data."
-    );
-    assert_eq!(node.icon(), "Split");
-    assert_eq!(node.category(), "Logic");
-    assert_eq!(node.outputs(), vec!["true", "false"]);
-
-    let schema = node.config_schema();
-    let required = schema.get("required").and_then(|v| v.as_array());
-    assert!(required.is_some());
 }
 
 #[test]
@@ -74,32 +52,6 @@ fn password_node_metadata_is_consistent() {
     assert_eq!(node.icon(), "Lock");
     assert_eq!(node.category(), "Authenticator");
     assert_eq!(node.outputs(), vec!["success", "failure"]);
-    assert!(node.config_schema().get("properties").is_some());
-}
-
-#[test]
-fn otp_node_metadata_is_consistent() {
-    let node = OtpNode;
-
-    assert_eq!(node.id(), "core.auth.otp");
-    assert_eq!(node.display_name(), "One-Time Password");
-    assert!(node.description().contains("verification code"));
-    assert_eq!(node.icon(), "Smartphone");
-    assert_eq!(node.category(), "Authenticator");
-    assert_eq!(node.outputs(), vec!["success", "failure", "resend"]);
-    assert!(node.config_schema().get("properties").is_some());
-}
-
-#[test]
-fn script_node_metadata_is_consistent() {
-    let node = ScriptNode;
-
-    assert_eq!(node.id(), "core.logic.script");
-    assert_eq!(node.display_name(), "Execution Script");
-    assert!(node.description().contains("custom internal logic"));
-    assert_eq!(node.icon(), "Code");
-    assert_eq!(node.category(), "Logic");
-    assert_eq!(node.outputs(), vec!["next", "error"]);
     assert!(node.config_schema().get("properties").is_some());
 }
 

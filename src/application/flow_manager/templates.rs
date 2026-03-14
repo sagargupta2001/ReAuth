@@ -85,14 +85,14 @@ impl FlowTemplates {
                     }
                 },
                 {
-                    "id": "success",
+                    "id": "allow",
                     "type": "core.terminal.allow",
                     "position": { "x": 250, "y": 200 },
-                    "data": { "label": "Success" }
+                    "data": { "label": "Allow Access" }
                 }
             ],
             "edges": [
-                { "id": "e1", "source": "auth-password", "sourceHandle": "success", "target": "success" }
+                { "id": "e1", "source": "auth-password", "sourceHandle": "success", "target": "allow" }
             ]
         })
     }
@@ -128,15 +128,15 @@ impl FlowTemplates {
                     }
                 },
                 {
-                    "id": "success",
+                    "id": "allow",
                     "type": "core.terminal.allow",
                     "position": { "x": 250, "y": 350 },
-                    "data": { "label": "Success" }
+                    "data": { "label": "Allow Access" }
                 }
             ],
             "edges": [
                 { "id": "e1", "source": "auth-forgot", "sourceHandle": "success", "target": "reset-password" },
-                { "id": "e2", "source": "reset-password", "sourceHandle": "success", "target": "success" }
+                { "id": "e2", "source": "reset-password", "sourceHandle": "success", "target": "allow" }
             ]
         })
     }
@@ -159,14 +159,14 @@ impl FlowTemplates {
                     }
                 },
                 {
-                    "id": "success",
+                    "id": "allow",
                     "type": "core.terminal.allow",
                     "position": { "x": 250, "y": 200 },
-                    "data": { "label": "Success" }
+                    "data": { "label": "Allow Access" }
                 }
             ],
             "edges": [
-                { "id": "e1", "source": "auth-register", "sourceHandle": "success", "target": "success" }
+                { "id": "e1", "source": "auth-register", "sourceHandle": "success", "target": "allow" }
             ]
         })
     }

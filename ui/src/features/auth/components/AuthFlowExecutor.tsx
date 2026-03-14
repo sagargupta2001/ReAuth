@@ -178,17 +178,26 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
         // Case C: Relative Redirect
         if (targetUrl.startsWith('/')) {
           navigate(targetUrl, { replace: true })
+          if (targetUrl.startsWith('/login')) {
+            setCurrentStep(null)
+            setIsLoading(false)
+            redirectHandledRef.current = false
+          }
           return
         }
         window.location.href = targetUrl
       } catch (err) {
         console.error('Session hydration failed:', err)
         setGlobalError('Login succeeded but session could not be established.')
+        setCurrentStep({
+          status: 'failure',
+          message: 'Login succeeded but session could not be established.',
+        })
       }
     }
 
     void handleRedirect()
-  }, [currentStep, refreshTokenMutation, setSession])
+  }, [currentStep, refreshTokenMutation, setSession, navigate])
 
   // --- RENDER ---
   if (isLoading && !currentStep) {

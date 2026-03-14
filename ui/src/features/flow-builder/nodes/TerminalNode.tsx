@@ -8,6 +8,11 @@ export function TerminalNode({ data, selected, type }: NodeProps) {
   // Determine style based on node ID/Type logic or label content
   // Assuming 'core.terminal.allow' vs 'core.terminal.deny'
   const isAllow = type?.includes('allow') || data.label?.toString().toLowerCase().includes('allow')
+  const displayLabel = isAllow
+    ? 'Allow Access'
+    : type?.includes('deny')
+      ? 'Deny Access'
+      : (data.label as string)
 
   const borderColor = isAllow ? 'border-blue-500' : 'border-red-500'
   const iconColor = isAllow ? 'text-blue-600' : 'text-red-600'
@@ -36,7 +41,7 @@ export function TerminalNode({ data, selected, type }: NodeProps) {
           <Icon className={cn('h-4 w-4', iconColor)} />
         </div>
         <div className="flex flex-col">
-          <span className="text-sm font-semibold">{data.label as string}</span>
+          <span className="text-sm font-semibold">{displayLabel}</span>
           <span className="text-muted-foreground text-[10px]">End of Flow</span>
         </div>
       </div>
