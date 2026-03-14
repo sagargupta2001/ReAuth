@@ -176,4 +176,17 @@ impl UserRepository for SqliteUserRepository {
 
         Ok(PageResponse::new(users, total, req.page, limit))
     }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "count")
+    )]
+    async fn count_in_realm(&self, realm_id: &Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE realm_id = ?")
+            .bind(realm_id.to_string())
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(count)
+    }
 }

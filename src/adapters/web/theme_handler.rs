@@ -913,6 +913,7 @@ fn extract_template_keys(graph: &Value) -> HashSet<String> {
 fn default_template_key(node_type: &str) -> Option<&'static str> {
     match node_type {
         "core.auth.password" => Some("login"),
+        "core.auth.register" => Some("register"),
         "core.auth.otp" => Some("mfa"),
         _ => None,
     }

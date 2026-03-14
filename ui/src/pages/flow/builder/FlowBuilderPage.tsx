@@ -22,24 +22,21 @@ export function FlowBuilderPage() {
   const draftId = flowId!
 
   const { data: draft, isLoading, isError } = useFlowDraft(flowId!)
-  const { setGraph, reset, nodes } = useFlowBuilderStore()
+  const { setGraph, reset, nodes, nodeTypes } = useFlowBuilderStore()
   const { data: activeTheme } = useActiveTheme()
 
   const missingTemplates = useMemo(() => {
     if (!activeTheme) return []
     const pages = activeTheme.pages
     const pageKeys = new Set(pages.map((page) => page.key))
-    const defaults: Record<string, string> = {
-      'core.auth.password': 'login',
-      'core.auth.otp': 'mfa',
-    }
+    const nodeTypeMap = new Map(nodeTypes.map((node) => [node.id, node]))
 
     const keys = new Set<string>()
     nodes.forEach((node) => {
       const config = (node.data as { config?: Record<string, unknown> })?.config
       const explicit = typeof config?.template_key === 'string' ? config.template_key : undefined
       const nodeType = node.type ?? ''
-      const fallback = nodeType ? defaults[nodeType] || undefined : undefined
+      const fallback = nodeTypeMap.get(nodeType)?.default_template_key ?? undefined
       const key = explicit || fallback
       if (key) {
         keys.add(key)
@@ -48,7 +45,7 @@ export function FlowBuilderPage() {
 
     const missing = Array.from(keys).filter((key) => !pageKeys.has(key))
     return missing
-  }, [activeTheme, nodes])
+  }, [activeTheme, nodeTypes, nodes])
 
   // Sync DB -> Store
   useEffect(() => {

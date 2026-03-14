@@ -1,8 +1,8 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
     harbor_handler, log_stream_handler, observability_handler, oidc_handler, rbac_handler,
-    realm_handler, search_handler, server::ui_handler, session_handler, theme_handler,
-    user_handler, webhook_handler,
+    realm_handler, search_handler, server::ui_handler, session_handler, setup_handler,
+    theme_handler, user_handler, webhook_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
@@ -67,6 +67,14 @@ pub fn create_router(app_state: AppState) -> Router {
             request_logging::log_api_request,
         ));
 
+    let system_public_api = Router::new()
+        .route("/setup/status", get(setup_handler::setup_status_handler))
+        .route("/setup", post(setup_handler::setup_handler))
+        .route_layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            request_logging::log_api_request,
+        ));
+
     let system_api = Router::new()
         .nest("/observability", observability_routes(app_state.clone()))
         .route_layer(middleware::from_fn_with_state(
@@ -78,9 +86,11 @@ pub fn create_router(app_state: AppState) -> Router {
             request_logging::log_api_request,
         ));
 
+    let system_router = system_public_api.merge(system_api);
+
     Router::new()
         .nest("/api", api_router)
-        .nest("/api/system", system_api)
+        .nest("/api/system", system_router)
         .fallback(ui_handler::static_handler)
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -95,7 +105,15 @@ fn auth_routes() -> Router<AppState> {
     Router::new()
         .route("/login", get(auth_handler::start_login_flow_handler))
         .route(
+            "/register",
+            get(auth_handler::start_registration_flow_handler),
+        )
+        .route(
             "/login/execute",
+            post(auth_handler::execute_login_step_handler),
+        )
+        .route(
+            "/register/execute",
             post(auth_handler::execute_login_step_handler),
         )
         .route("/resume", post(auth_handler::resume_action_handler))

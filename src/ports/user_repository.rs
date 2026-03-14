@@ -16,4 +16,5 @@ pub trait UserRepository: Send + Sync {
     async fn save(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()>;
     async fn update(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()>;
     async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<User>>;
+    async fn count_in_realm(&self, realm_id: &Uuid) -> Result<i64>;
 }

@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 
 use reauth::application::flow_manager::UpdateDraftRequest;
 use reauth::application::realm_service::CreateRealmPayload;
+use reauth::bootstrap::app_state::SetupState;
 use reauth::constants::{DEFAULT_REALM_NAME, LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE};
 use reauth::domain::auth_session::{AuthenticationSession, SessionStatus};
 use reauth::domain::oidc::OidcClient;
@@ -80,13 +81,19 @@ async fn assert_error_response(response: axum::response::Response, status: Statu
 }
 
 async fn setup_master_realm(ctx: &TestContext) -> Realm {
-    ctx.app_state
+    let realm = ctx
+        .app_state
         .realm_service
         .create_realm(CreateRealmPayload {
             name: DEFAULT_REALM_NAME.to_string(),
         })
         .await
-        .expect("create realm")
+        .expect("create realm");
+
+    let mut setup_state = ctx.app_state.setup_state.write().await;
+    *setup_state = SetupState::sealed();
+
+    realm
 }
 
 async fn ensure_minimal_browser_flow(ctx: &TestContext, realm: &Realm) {

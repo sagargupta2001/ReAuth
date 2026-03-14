@@ -1,9 +1,20 @@
-import type { DragEvent, ElementType } from 'react'
+import { type DragEvent, type ElementType, useEffect } from 'react'
 
 // Import missing icons (Play for Start)
-import { Box, CheckCircle, Loader2, Lock, Play, ShieldAlert, Split, XCircle } from 'lucide-react'
+import {
+  Box,
+  CheckCircle,
+  Loader2,
+  Lock,
+  Play,
+  ShieldAlert,
+  Split,
+  UserPlus,
+  XCircle,
+} from 'lucide-react'
 
 import { type NodeMetadata, useNodes } from '@/features/flow-builder/api/useNodes'
+import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderStore'
 import { cn } from '@/lib/utils'
 
 const IconMap: Record<string, ElementType> = {
@@ -13,16 +24,29 @@ const IconMap: Record<string, ElementType> = {
   CheckCircle: CheckCircle,
   XCircle: XCircle,
   Play: Play, // Added Play icon mapping
+  UserPlus: UserPlus,
   Box: Box,
 }
 
 export function NodePalette() {
   const { data: nodes, isLoading } = useNodes()
+  const setNodeTypes = useFlowBuilderStore((state) => state.setNodeTypes)
+
+  useEffect(() => {
+    if (nodes) {
+      setNodeTypes(nodes)
+    }
+  }, [nodes, setNodeTypes])
 
   const onDragStart = (event: DragEvent, node: NodeMetadata) => {
     // 1. Pass Identification
     event.dataTransfer.setData('application/reactflow/type', node.id)
     event.dataTransfer.setData('application/reactflow/category', node.category)
+    event.dataTransfer.setData('application/reactflow/label', node.display_name)
+    event.dataTransfer.setData(
+      'application/reactflow/default-template-key',
+      node.default_template_key || '',
+    )
 
     // 2. [CRITICAL FIX] Pass Outputs
     // This allows the Node Component to render the correct handles instantly on drop

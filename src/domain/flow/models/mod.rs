@@ -59,6 +59,10 @@ pub struct NodeMetadata {
     pub config_schema: serde_json::Value, // JSON Schema for the config form
     pub inputs: Vec<String>,              // e.g., ["flow"]
     pub outputs: Vec<String>,             // e.g., ["success", "failure"]
+    #[serde(default)]
+    pub supports_ui: bool,
+    #[serde(default)]
+    pub default_template_key: Option<String>,
 }
 
 #[cfg(test)]

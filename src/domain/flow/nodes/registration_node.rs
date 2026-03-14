@@ -1,40 +1,42 @@
 use crate::domain::flow::provider::NodeProvider;
 use serde_json::{json, Value};
 
-pub struct OtpNode;
+pub struct RegistrationNodeProvider;
 
-impl NodeProvider for OtpNode {
+impl NodeProvider for RegistrationNodeProvider {
     fn id(&self) -> &'static str {
-        "core.auth.otp"
+        "core.auth.register"
     }
+
     fn display_name(&self) -> &'static str {
-        "One-Time Password"
+        "Register Account"
     }
+
     fn description(&self) -> &'static str {
-        "Email or SMS verification code."
+        "Create a new user account in the current realm."
     }
+
     fn icon(&self) -> &'static str {
-        "Smartphone"
+        "UserPlus"
     }
+
     fn category(&self) -> &'static str {
         "Authenticator"
     }
 
     fn outputs(&self) -> Vec<&'static str> {
-        vec!["success", "failure", "resend"]
+        vec!["success", "failure"]
     }
 
     fn config_schema(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "length": { "type": "integer", "default": 6, "title": "Code Length" },
-                "ttl_seconds": { "type": "integer", "default": 300, "title": "TTL (Seconds)" },
-                "channel": {
-                    "type": "string",
-                    "enum": ["email", "sms"],
-                    "default": "email",
-                    "title": "Delivery Channel"
+                "min_password_length": {
+                    "type": "integer",
+                    "title": "Min Password Length",
+                    "default": 8,
+                    "minimum": 8
                 }
             }
         })
@@ -45,6 +47,6 @@ impl NodeProvider for OtpNode {
     }
 
     fn default_template_key(&self) -> Option<&'static str> {
-        Some("mfa")
+        Some("register")
     }
 }

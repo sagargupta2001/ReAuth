@@ -12,6 +12,8 @@ export interface NodeMetadata {
   inputs: string[]
   outputs: string[]
   config_schema: Record<string, unknown>
+  supports_ui: boolean
+  default_template_key?: string | null
 }
 
 export function useNodes() {

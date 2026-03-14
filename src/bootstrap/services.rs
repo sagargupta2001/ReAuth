@@ -1,4 +1,4 @@
-use crate::adapters::auth::register_builtins;
+use crate::adapters::auth::{register_builtins, BuiltinAuthContext};
 use crate::adapters::observability::telemetry_store::TelemetryDatabase;
 use crate::application::audit_service::AuditService;
 use crate::application::flow_executor::FlowExecutor;
@@ -121,12 +121,15 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     // This connects PasswordAuthenticator -> "core.auth.password"
     register_builtins(
         &mut registry_impl,
-        repos.user_repo.clone(),
-        repos.realm_repo.clone(),
-        repos.login_attempt_repo.clone(),
-        settings.auth.lockout_threshold,
-        settings.auth.lockout_duration_secs,
-        repos.session_repo.clone(),
+        BuiltinAuthContext {
+            user_service: user_service.clone(),
+            user_repo: repos.user_repo.clone(),
+            realm_repo: repos.realm_repo.clone(),
+            login_attempt_repo: repos.login_attempt_repo.clone(),
+            lockout_threshold: settings.auth.lockout_threshold,
+            lockout_duration_secs: settings.auth.lockout_duration_secs,
+            session_repo: repos.session_repo.clone(),
+        },
     );
 
     // Wrap in Arc for shared use
@@ -158,7 +161,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.realm_repo.clone(),
     ));
 
-    let node_registry = Arc::new(NodeRegistryService::new());
+    let node_registry = Arc::new(NodeRegistryService::new(runtime_registry.clone()));
 
     let mut harbor_registry = HarborRegistry::new();
     harbor_registry.register(Arc::new(ThemeHarborProvider::new(theme_service.clone())));

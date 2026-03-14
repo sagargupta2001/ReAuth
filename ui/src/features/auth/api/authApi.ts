@@ -20,21 +20,26 @@ export const authApi = {
    * 1. START: Initialize the flow.
    * NOTE: The backend now creates the session cookie automatically.
    */
-  startFlow: async (realm: string, searchParams?: string) => {
+  startFlow: async (realm: string, flowPath = 'login', searchParams?: string) => {
     const query = searchParams || ''
     // Ensure we don't double-add '?' if searchParams already has it
     const safeQuery = query.startsWith('?') ? query : query ? `?${query}` : ''
 
-    return apiClient.get<AuthExecutionResponse>(`/api/realms/${realm}/auth/login${safeQuery}`)
+    return apiClient.get<AuthExecutionResponse>(
+      `/api/realms/${realm}/auth/${flowPath}${safeQuery}`,
+    )
   },
 
   /**
    * 2. NEXT: Submit data for the current step.
    * The Session ID is now handled automatically via the 'login_session' cookie.
    */
-  submitStep: async (realm: string, data: Record<string, unknown>) => {
+  submitStep: async (realm: string, flowPath = 'login', data: Record<string, unknown>) => {
     // The backend accepts a generic JSON payload (e.g. { "username": "...", "password": "..." })
-    return apiClient.post<AuthExecutionResponse>(`/api/realms/${realm}/auth/login/execute`, data)
+    return apiClient.post<AuthExecutionResponse>(
+      `/api/realms/${realm}/auth/${flowPath}/execute`,
+      data,
+    )
   },
 
   /**

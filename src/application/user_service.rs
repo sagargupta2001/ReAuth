@@ -99,6 +99,10 @@ impl UserService {
         self.user_repo.find_by_username(realm_id, username).await
     }
 
+    pub async fn count_users_in_realm(&self, realm_id: Uuid) -> Result<i64> {
+        self.user_repo.count_in_realm(&realm_id).await
+    }
+
     pub async fn get_user(&self, id: Uuid) -> Result<User> {
         self.user_repo
             .find_by_id(&id)

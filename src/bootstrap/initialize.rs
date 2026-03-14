@@ -8,6 +8,7 @@ use crate::adapters::persistence::transaction::SqliteTransactionManager;
 use crate::application::delivery_replay_service::DeliveryReplayService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::telemetry_service::TelemetryService;
+use crate::bootstrap::app_state::SetupState;
 use crate::bootstrap::database::{initialize_database, run_migrations_and_seed};
 use crate::bootstrap::events::subscribe_event_listeners;
 use crate::bootstrap::infrastructure::initialize_core_infra;
@@ -15,10 +16,12 @@ use crate::bootstrap::logging::init_logging;
 use crate::bootstrap::repositories::initialize_repositories;
 use crate::bootstrap::services::initialize_services;
 use crate::config::Settings;
+use crate::constants::DEFAULT_REALM_NAME;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::AppState;
 use chrono::{Duration, Utc};
 use notify::{RecursiveMode, Watcher};
+use rand::distr::{Alphanumeric, SampleString};
 use std::sync::Arc;
 use std::time::SystemTime;
 use tokio::sync::RwLock;
@@ -130,6 +133,10 @@ async fn initialize_with_settings(
     )
     .await?;
 
+    let setup_state = Arc::new(RwLock::new(
+        detect_setup_state(&services.realm_service, &services.user_service, &settings).await?,
+    ));
+
     let settings_shared = Arc::new(RwLock::new(settings.clone()));
     if options.watch_config {
         spawn_config_watcher(settings_shared.clone());
@@ -171,6 +178,7 @@ async fn initialize_with_settings(
         node_registry: services.node_registry,
         flow_executor: services.flow_executor,
         session_repo: repos.session_repo,
+        setup_state,
     })
 }
 
@@ -268,6 +276,32 @@ fn spawn_config_watcher(settings: Arc<RwLock<Settings>>) {
             }
         }
     });
+}
+
+async fn detect_setup_state(
+    realm_service: &Arc<crate::application::realm_service::RealmService>,
+    user_service: &Arc<crate::application::user_service::UserService>,
+    settings: &Settings,
+) -> anyhow::Result<SetupState> {
+    let realm = realm_service.find_by_name(DEFAULT_REALM_NAME).await?;
+    let needs_setup = match realm {
+        Some(realm) => user_service.count_users_in_realm(realm.id).await? == 0,
+        None => true,
+    };
+
+    if !needs_setup {
+        return Ok(SetupState::sealed());
+    }
+
+    let token: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
+    let base_url = settings.server.public_url.trim_end_matches('/');
+    let setup_url = format!("{}/setup", base_url);
+    info!(
+        "First run detected. Visit {} and use Token: {}",
+        setup_url, token
+    );
+
+    Ok(SetupState::pending(token))
 }
 
 fn spawn_telemetry_cleanup(

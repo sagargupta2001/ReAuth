@@ -149,6 +149,7 @@ fn default_login_blueprint() -> Value {
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username", "name": "username", "input_type": "text" } },
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
             { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Forgot password?", "href": "/forgot-password", "target": "_self", "align": "right" } },
+            { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Create account", "href": "/register", "target": "_self", "align": "left" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } }
         ]
     })

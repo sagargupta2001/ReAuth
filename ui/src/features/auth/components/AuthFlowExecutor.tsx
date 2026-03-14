@@ -16,6 +16,14 @@ import type { AuthExecutionResponse } from '@/entities/auth/model/types.ts'
 let initializationPromise: Promise<AuthExecutionResponse> | null = null
 
 export function AuthFlowExecutor() {
+  return <BaseAuthFlowExecutor flowPath="login" />
+}
+
+type BaseAuthFlowExecutorProps = {
+  flowPath?: 'login' | 'register'
+}
+
+export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecutorProps) {
   const params = useParams()
   const location = useLocation() // <--- Hook to get ?client_id=...
   const setSession = useSessionStore((state) => state.setSession)
@@ -70,7 +78,7 @@ export function AuthFlowExecutor() {
         // [FIX] We pass the extracted 'realm' variable here
         // verify your authApi.startFlow uses this first argument to build the URL:
         // `/api/realms/${realm}/auth/login${queryParams}`
-        return await authApi.startFlow(realm, location.search)
+        return await authApi.startFlow(realm, flowPath, location.search)
       } catch (err) {
         console.error('[Executor] Init Failed:', err)
         throw err
@@ -101,7 +109,7 @@ export function AuthFlowExecutor() {
     return () => {
       active = false
     }
-  }, [realm, location.pathname, location.search, currentStep, resumeToken])
+  }, [realm, location.pathname, location.search, currentStep, resumeToken, flowPath])
 
   // 2. SUBMIT HANDLER
   const handleSubmit = async (data: Record<string, unknown>) => {
@@ -111,7 +119,7 @@ export function AuthFlowExecutor() {
     try {
       // Pass realm here if your API needs it for the execution URL too
       // e.g. /api/realms/{realm}/auth/login/execute
-      const res = await authApi.submitStep(realm, data)
+      const res = await authApi.submitStep(realm, flowPath, data)
       setCurrentStep(res)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'An unexpected error occurred'

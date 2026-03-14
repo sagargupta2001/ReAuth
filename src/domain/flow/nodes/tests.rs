@@ -2,6 +2,7 @@ use super::condition_node::ConditionNode;
 use super::cookie_node::CookieNodeProvider;
 use super::otp_node::OtpNode;
 use super::password_node::PasswordNodeProvider;
+use super::registration_node::RegistrationNodeProvider;
 use super::script_node::ScriptNode;
 use super::start_node::StartNode;
 use super::terminal_node::{AllowNode, DenyNode};
@@ -98,6 +99,20 @@ fn script_node_metadata_is_consistent() {
     assert_eq!(node.category(), "Logic");
     assert_eq!(node.outputs(), vec!["next", "error"]);
     assert!(node.config_schema().get("properties").is_some());
+}
+
+#[test]
+fn registration_node_metadata_is_consistent() {
+    let node = RegistrationNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.register");
+    assert_eq!(node.display_name(), "Register Account");
+    assert!(node.description().contains("new user account"));
+    assert_eq!(node.icon(), "UserPlus");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    assert_eq!(node.default_template_key(), Some("register"));
+    assert!(node.supports_ui());
 }
 
 #[test]

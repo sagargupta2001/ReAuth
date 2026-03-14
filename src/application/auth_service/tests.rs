@@ -524,6 +524,17 @@ impl UserRepository for TestUserRepo {
     async fn list(&self, _realm_id: &Uuid, _req: &PageRequest) -> Result<PageResponse<User>> {
         Ok(empty_page())
     }
+
+    async fn count_in_realm(&self, realm_id: &Uuid) -> Result<i64> {
+        let count = self
+            .users
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|user| &user.realm_id == realm_id)
+            .count();
+        Ok(count as i64)
+    }
 }
 
 #[derive(Default)]
@@ -894,7 +905,7 @@ async fn create_session_errors_when_realm_missing() {
     let service = build_service(user_repo, realm_repo, session_repo, token_service);
 
     match service.create_session(&user, None, None, None).await {
-        Err(Error::RealmNotFound(name)) => assert_eq!(name, DEFAULT_REALM_NAME),
+        Err(Error::RealmNotFound(name)) => assert_eq!(name, user.realm_id.to_string()),
         Err(other) => panic!("unexpected error: {:?}", other),
         Ok(_) => panic!("expected error"),
     }

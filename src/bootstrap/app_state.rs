@@ -22,9 +22,32 @@ use crate::ports::flow_store::FlowStore;
 use crate::ports::session_repository::SessionRepository;
 use tokio::sync::RwLock;
 
+#[derive(Clone, Debug)]
+pub struct SetupState {
+    pub required: bool,
+    pub token: Option<String>,
+}
+
+impl SetupState {
+    pub fn pending(token: String) -> Self {
+        Self {
+            required: true,
+            token: Some(token),
+        }
+    }
+
+    pub fn sealed() -> Self {
+        Self {
+            required: false,
+            token: None,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub settings: Arc<RwLock<Settings>>,
+    pub setup_state: Arc<RwLock<SetupState>>,
 
     // Services
     pub user_service: Arc<UserService>,
@@ -51,4 +74,10 @@ pub struct AppState {
 
     pub flow_store: Arc<dyn FlowStore>,
     pub flow_executor: Arc<FlowExecutor>,
+}
+
+impl AppState {
+    pub async fn is_setup_required(&self) -> bool {
+        self.setup_state.read().await.required
+    }
 }

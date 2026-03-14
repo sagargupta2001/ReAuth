@@ -32,7 +32,11 @@ impl FlowTemplates {
                     "position": { "x": 250, "y": 250 },
                     "data": {
                         "label": "Username & Password",
-                        "config": { "auth_type": "core.auth.password", "max_attempts": 3 },
+                        "config": {
+                            "auth_type": "core.auth.password",
+                            "template_key": "login",
+                            "max_attempts": 3
+                        },
                         "outputs": ["success", "failure"]
                     },
                     "next": { "success": "success" }
@@ -71,7 +75,14 @@ impl FlowTemplates {
                     "id": "auth-password",
                     "type": "core.auth.password",
                     "position": { "x": 250, "y": 50 },
-                    "data": { "label": "Direct Grant Auth" }
+                    "data": {
+                        "label": "Username & Password",
+                        "config": {
+                            "auth_type": "core.auth.password",
+                            "template_key": "login"
+                        },
+                        "outputs": ["success", "failure"]
+                    }
                 },
                 {
                     "id": "success",
@@ -94,7 +105,14 @@ impl FlowTemplates {
                     "id": "auth-password",
                     "type": "core.auth.password",
                     "position": { "x": 250, "y": 50 },
-                    "data": { "label": "Direct Grant Auth" }
+                    "data": {
+                        "label": "Username & Password",
+                        "config": {
+                            "auth_type": "core.auth.password",
+                            "template_key": "forgot_credentials"
+                        },
+                        "outputs": ["success", "failure"]
+                    }
                 },
                 {
                     "id": "success",
@@ -114,10 +132,17 @@ impl FlowTemplates {
         json!({
             "nodes": [
                 {
-                    "id": "auth-password",
-                    "type": "core.auth.password",
+                    "id": "auth-register",
+                    "type": "core.auth.register",
                     "position": { "x": 250, "y": 50 },
-                    "data": { "label": "Direct Grant Auth" }
+                    "data": {
+                        "label": "Register Account",
+                        "config": {
+                            "auth_type": "core.auth.register",
+                            "template_key": "register"
+                        },
+                        "outputs": ["success", "failure"]
+                    }
                 },
                 {
                     "id": "success",
@@ -127,7 +152,7 @@ impl FlowTemplates {
                 }
             ],
             "edges": [
-                { "id": "e1", "source": "auth-password", "sourceHandle": "success", "target": "success" }
+                { "id": "e1", "source": "auth-register", "sourceHandle": "success", "target": "success" }
             ]
         })
     }

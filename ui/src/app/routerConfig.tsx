@@ -4,6 +4,8 @@ import { Navigate } from 'react-router-dom'
 
 import DashboardPage from '@/pages/DashboardPage'
 import { LoginPage } from '@/pages/LoginPage.tsx'
+import { RegisterPage } from '@/pages/RegisterPage.tsx'
+import { SetupPage } from '@/pages/SetupPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { CachePage } from '@/pages/CachePage.tsx'
@@ -237,6 +239,18 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/login',
     element: LoginPage,
+    layout: LoginLayout,
+    isProtected: true,
+  },
+  {
+    path: '/register',
+    element: RegisterPage,
+    layout: LoginLayout,
+    isProtected: true,
+  },
+  {
+    path: '/setup',
+    element: SetupPage,
     layout: LoginLayout,
     isProtected: true,
   },

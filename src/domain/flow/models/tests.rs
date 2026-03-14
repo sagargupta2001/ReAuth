@@ -88,6 +88,8 @@ fn node_metadata_round_trip() {
         config_schema: json!({"type": "object"}),
         inputs: vec!["in".to_string()],
         outputs: vec!["out".to_string()],
+        supports_ui: true,
+        default_template_key: Some("login".to_string()),
     };
 
     let json = serde_json::to_string(&metadata).expect("serialize");
@@ -101,6 +103,8 @@ fn node_metadata_round_trip() {
     assert_eq!(decoded.config_schema, metadata.config_schema);
     assert_eq!(decoded.inputs, metadata.inputs);
     assert_eq!(decoded.outputs, metadata.outputs);
+    assert_eq!(decoded.supports_ui, metadata.supports_ui);
+    assert_eq!(decoded.default_template_key, metadata.default_template_key);
 }
 
 #[tokio::test]

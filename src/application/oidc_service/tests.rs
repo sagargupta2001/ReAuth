@@ -421,6 +421,17 @@ impl UserRepository for TestUserRepo {
     async fn list(&self, _realm_id: &Uuid, _req: &PageRequest) -> Result<PageResponse<User>> {
         Ok(empty_page())
     }
+
+    async fn count_in_realm(&self, realm_id: &Uuid) -> Result<i64> {
+        let count = self
+            .users
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|user| &user.realm_id == realm_id)
+            .count();
+        Ok(count as i64)
+    }
 }
 
 #[derive(Default)]

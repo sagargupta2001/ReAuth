@@ -2,8 +2,10 @@ use crate::domain::oidc::OidcContext;
 use crate::{
     constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
     domain::{
-        auth_session::AuthenticationSession, auth_session::SessionStatus,
-        execution::ExecutionResult, session::RefreshToken,
+        auth_session::AuthenticationSession,
+        auth_session::SessionStatus,
+        execution::{ExecutionPlan, ExecutionResult},
+        session::RefreshToken,
     },
     error::{Error, Result},
     AppState,
@@ -23,6 +25,43 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use tracing::{error, instrument, warn};
 use uuid::Uuid;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PublicAuthFlowKind {
+    Login,
+    Register,
+}
+
+impl PublicAuthFlowKind {
+    fn route_segment(self) -> &'static str {
+        match self {
+            Self::Login => "login",
+            Self::Register => "register",
+        }
+    }
+
+    fn flow_type(self) -> &'static str {
+        match self {
+            Self::Login => "browser",
+            Self::Register => "registration",
+        }
+    }
+
+    fn flow_binding_id(self, realm: &crate::domain::realm::Realm) -> Option<&String> {
+        match self {
+            Self::Login => realm.browser_flow_id.as_ref(),
+            Self::Register => realm.registration_flow_id.as_ref(),
+        }
+    }
+
+    fn allows_oidc(self) -> bool {
+        matches!(self, Self::Login)
+    }
+
+    fn allows_sso(self) -> bool {
+        matches!(self, Self::Login)
+    }
+}
 
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
     let expires_time = time::OffsetDateTime::from_unix_timestamp(token.expires_at.timestamp())
@@ -197,6 +236,50 @@ pub async fn start_login_flow_handler(
     Path(realm_name): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse> {
+    start_public_flow(
+        state,
+        jar,
+        addr,
+        realm_name,
+        params,
+        PublicAuthFlowKind::Login,
+    )
+    .await
+}
+
+#[instrument(skip_all)]
+pub async fn start_registration_flow_handler(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(realm_name): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<impl IntoResponse> {
+    start_public_flow(
+        state,
+        jar,
+        addr,
+        realm_name,
+        params,
+        PublicAuthFlowKind::Register,
+    )
+    .await
+}
+
+async fn start_public_flow(
+    state: AppState,
+    jar: CookieJar,
+    addr: SocketAddr,
+    realm_name: String,
+    params: HashMap<String, String>,
+    flow_kind: PublicAuthFlowKind,
+) -> Result<Response> {
+    if state.is_setup_required().await {
+        return Err(Error::SecurityViolation(
+            "Initial setup is required before authentication.".to_string(),
+        ));
+    }
+
     // 1. Resolve Realm
     let realm = state
         .realm_service
@@ -207,12 +290,39 @@ pub async fn start_login_flow_handler(
     // IP extraction for later use
     let ip = addr.ip().to_string();
 
-    let force_login = params.get("prompt").map(|v| v == "login").unwrap_or(false);
-    let sso_token_id = if !force_login {
+    let force_login = flow_kind == PublicAuthFlowKind::Login
+        && params.get("prompt").map(|v| v == "login").unwrap_or(false);
+    let sso_token_id = if flow_kind.allows_sso() && !force_login {
         jar.get(REFRESH_TOKEN_COOKIE).map(|c| c.value().to_string())
     } else {
         None
     };
+
+    let flow_id_str = flow_kind
+        .flow_binding_id(&realm)
+        .ok_or_else(|| {
+            Error::Validation(format!(
+                "Realm has no {} flow configured",
+                flow_kind.route_segment()
+            ))
+        })?
+        .clone();
+    let flow_id =
+        Uuid::parse_str(&flow_id_str).map_err(|_| Error::System("Invalid Flow ID".into()))?;
+
+    let version_num = state
+        .flow_store
+        .get_deployed_version_number(&realm.id, flow_kind.flow_type(), &flow_id)
+        .await?
+        .ok_or(Error::System("Flow not deployed".into()))?;
+    let version = state
+        .flow_store
+        .get_version_by_number(&flow_id, version_num)
+        .await?
+        .ok_or(Error::System("Flow version not found".into()))?;
+    let version_id = Uuid::parse_str(&version.id).unwrap_or_default();
+    let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
+        .map_err(|e| Error::System(format!("Corrupt execution artifact: {}", e)))?;
 
     // --- 1. RESUME LOGIC ---
     let mut valid_session_id = None;
@@ -225,8 +335,6 @@ pub async fn start_login_flow_handler(
         for cookie in cookies {
             if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
                 if let Ok(Some(mut session)) = state.auth_session_repo.find_by_id(&parse_id).await {
-                    // Verify the existing session belongs to the requested Realm.
-                    // If I am logged into "Tenant A" but request "Tenant B", ignore the cookie.
                     if session.realm_id != realm.id {
                         warn!(
                             "[StartFlow] Ignoring session {} (Realm mismatch).",
@@ -235,14 +343,21 @@ pub async fn start_login_flow_handler(
                         continue;
                     }
 
-                    if session.status == SessionStatus::Active {
-                        // [CRITICAL] Inject Context into Resumed Session
-                        let mut updated = false;
+                    if session.status != SessionStatus::Active
+                        || session.flow_version_id != version_id
+                    {
+                        continue;
+                    }
+
+                    let mut updated = false;
+                    if flow_kind.allows_sso() {
                         if let Some(token) = &sso_token_id {
                             session.context["sso_token_id"] =
                                 serde_json::Value::String(token.clone());
                             updated = true;
                         }
+                    }
+                    if flow_kind.allows_oidc() {
                         if let Some(client_id) = params.get("client_id") {
                             session.context["oidc"] = serde_json::json!({
                                 "client_id": client_id,
@@ -256,14 +371,14 @@ pub async fn start_login_flow_handler(
                             });
                             updated = true;
                         }
-
-                        if updated {
-                            state.auth_session_repo.update(&session).await?;
-                        }
-
-                        valid_session_id = Some(parse_id);
-                        break;
                     }
+
+                    if updated {
+                        state.auth_session_repo.update(&session).await?;
+                    }
+
+                    valid_session_id = Some(parse_id);
+                    break;
                 }
             }
         }
@@ -273,49 +388,33 @@ pub async fn start_login_flow_handler(
     let session_id = if let Some(sid) = valid_session_id {
         sid
     } else {
-        let flow_id_str = realm
-            .browser_flow_id
-            .ok_or(Error::System("Realm has no browser flow configured".into()))?;
-        let flow_id =
-            Uuid::parse_str(&flow_id_str).map_err(|_| Error::System("Invalid Flow ID".into()))?;
-
-        // Version Resolution
-        let version_num = state
-            .flow_store
-            .get_deployed_version_number(&realm.id, "browser", &flow_id)
-            .await?
-            .ok_or(Error::System("Flow not deployed".into()))?;
-        let version = state
-            .flow_store
-            .get_version_by_number(&flow_id, version_num)
-            .await?
-            .ok_or(Error::System("Flow version not found".into()))?;
-
         let mut context = serde_json::json!({});
-        // Inject OIDC
-        if let Some(client_id) = params.get("client_id") {
-            context["oidc"] = serde_json::json!({
-                "client_id": client_id,
-                "redirect_uri": params.get("redirect_uri"),
-                "response_type": params.get("response_type"),
-                "scope": params.get("scope"),
-                "state": params.get("state"),
-                "nonce": params.get("nonce"),
-                "code_challenge": params.get("code_challenge"),
-                "code_challenge_method": params.get("code_challenge_method"),
-            });
+        if flow_kind.allows_oidc() {
+            if let Some(client_id) = params.get("client_id") {
+                context["oidc"] = serde_json::json!({
+                    "client_id": client_id,
+                    "redirect_uri": params.get("redirect_uri"),
+                    "response_type": params.get("response_type"),
+                    "scope": params.get("scope"),
+                    "state": params.get("state"),
+                    "nonce": params.get("nonce"),
+                    "code_challenge": params.get("code_challenge"),
+                    "code_challenge_method": params.get("code_challenge_method"),
+                });
+            }
         }
-        // Inject SSO
-        if let Some(token) = sso_token_id {
-            context["sso_token_id"] = serde_json::Value::String(token);
+        if flow_kind.allows_sso() {
+            if let Some(token) = sso_token_id {
+                context["sso_token_id"] = serde_json::Value::String(token);
+            }
         }
 
         let new_sid = Uuid::new_v4();
         let session = AuthenticationSession {
             id: new_sid,
             realm_id: realm.id,
-            flow_version_id: Uuid::parse_str(&version.id).unwrap_or_default(),
-            current_node_id: "start".to_string(),
+            flow_version_id: version_id,
+            current_node_id: plan.start_node_id.clone(),
             user_id: None,
             status: SessionStatus::Active,
             context,

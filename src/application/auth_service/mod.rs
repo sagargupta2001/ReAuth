@@ -1,5 +1,4 @@
 use crate::application::rbac_service::RbacService;
-use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::session::RefreshToken;
 use crate::domain::user::User;
@@ -68,9 +67,9 @@ impl AuthService {
         // 1. Get realm from user. For now, use the default.
         let realm = self
             .realm_repo
-            .find_by_name(DEFAULT_REALM_NAME)
+            .find_by_id(&user.realm_id)
             .await?
-            .ok_or_else(|| Error::RealmNotFound(DEFAULT_REALM_NAME.to_string()))?;
+            .ok_or_else(|| Error::RealmNotFound(user.realm_id.to_string()))?;
 
         // 2. Create the Stateful Refresh Token
         let expires_at = Utc::now() + Duration::seconds(self.settings.refresh_token_ttl_secs);

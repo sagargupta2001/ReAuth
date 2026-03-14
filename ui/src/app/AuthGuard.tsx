@@ -29,9 +29,13 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     // --- 0. HASH ROUTER FIX (PRE-RENDER) ---
     // If backend sent us to /login (root path), jump to /#/login
     // IMPORTANT: Preserve the query string (search) so OIDC params aren't lost!
-    if (window.location.pathname === '/login') {
+    if (
+      window.location.pathname === '/login' ||
+      window.location.pathname === '/register' ||
+      window.location.pathname === '/setup'
+    ) {
       const search = window.location.search
-      window.location.replace(`${window.location.origin}/#/login${search}`)
+      window.location.replace(`${window.location.origin}/#${window.location.pathname}${search}`)
       return
     }
 
@@ -160,7 +164,7 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     }
 
     // Standard Logic: If stuck on /login without OIDC params, go to Dashboard
-    if (location.pathname.includes('/login')) {
+    if (location.pathname.includes('/login') || location.pathname.includes('/register')) {
       const storedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
       return <Navigate to={storedRedirect || '/'} replace />
     }
@@ -170,9 +174,15 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
 
   // --- UNAUTHENTICATED ---
 
-  const isLoginPage = location.pathname === '/login' || location.pathname === '/login/'
+  const isAuthPage =
+    location.pathname === '/login' ||
+    location.pathname === '/login/' ||
+    location.pathname === '/register' ||
+    location.pathname === '/register/' ||
+    location.pathname === '/setup' ||
+    location.pathname === '/setup/'
 
-  if (isLoginPage) {
+  if (isAuthPage) {
     // Save intent if user landed on /#/login?redirect=...
     const searchParams = new URLSearchParams(location.search)
     const redirectIntent = searchParams.get('redirect')

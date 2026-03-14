@@ -26,6 +26,12 @@ pub async fn create_user_handler(
     Path(realm_name): Path<String>,
     ValidatedJson(payload): ValidatedJson<CreateUserPayload>,
 ) -> Result<impl IntoResponse> {
+    if state.is_setup_required().await {
+        return Err(Error::SecurityViolation(
+            "Initial setup is required before creating users.".to_string(),
+        ));
+    }
+
     let realm = state
         .realm_service
         .find_by_name(&realm_name)
