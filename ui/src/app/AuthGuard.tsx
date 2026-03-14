@@ -18,6 +18,7 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const location = useLocation()
   const navigate = useNavigate()
   const [isProcessing, setIsProcessing] = useState(true)
+  const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
 
   // Ref to prevent double-firing in React 18 Strict Mode
   const processingRef = useRef(false)
@@ -39,7 +40,36 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
       return
     }
 
+    const checkSetup = async () => {
+      try {
+        const response = await fetch('/api/system/setup/status', {
+          method: 'GET',
+          credentials: 'include',
+        })
+        if (!response.ok) {
+          setSetupRequired(false)
+          return true
+        }
+        const data = (await response.json()) as { required?: boolean }
+        if (data.required) {
+          setSetupRequired(true)
+          return false
+        }
+        setSetupRequired(false)
+        return true
+      } catch {
+        setSetupRequired(false)
+        return true
+      }
+    }
+
     const handleAuth = async () => {
+      const proceed = await checkSetup()
+      if (!proceed) {
+        setIsProcessing(false)
+        return
+      }
+
       // 1. If we have a token, we are done.
       if (accessToken) {
         setIsProcessing(false)
@@ -149,6 +179,13 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
 
   if (isProcessing) {
     return <div className="flex h-screen items-center justify-center">Authenticating...</div>
+  }
+
+  if (setupRequired) {
+    if (location.pathname === '/setup' || location.pathname === '/setup/') {
+      return <>{children}</>
+    }
+    return <Navigate to="/setup" replace />
   }
 
   // --- AUTHENTICATED ---
