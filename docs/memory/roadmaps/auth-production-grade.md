@@ -41,6 +41,7 @@
   - Add template-gap validation for all UI-capable node types, not just password/OTP defaults.
 - Ship real registration and forgot-credentials flows.
   - Registration: user creation, password policy, duplicate-account handling, and post-registration verification.
+  - Registration policy: realm capabilities (registration enabled + default roles), master realm guard, and UI gating.
   - Recovery: request token, verify token, set new password, revoke existing sessions, and emit audit events.
   - Add public entry points and UX routing for register/recovery instead of relying on placeholder pages alone.
 - Close production-grade OIDC gaps with the highest risk payoff.
@@ -62,6 +63,10 @@
 - [x] UI `/register` route wired to the shared auth executor.
 - [x] Login page links to `/register` by default in system theme.
 - [x] Session creation is realm-scoped (no hardcoded `master`).
+- [ ] Realm capability flags: `registration_enabled` + `default_registration_roles` stored per realm.
+- [ ] Policy guard: master realm cannot enable self-registration.
+- [ ] Flow/runtime exposes realm capabilities to UI context for Fluid gating (hide register link).
+- [ ] Registration worker assigns default roles on self-registration.
 - [ ] Forgot-credentials runtime node and flow (token issuance + validation + password reset).
 - [ ] Recovery UX route and API path (`/forgot` or `/recover`) wired to flow executor.
 - [ ] OTP/email verification node with async pause/resume and resend support.
