@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { type Resolver, useForm } from 'react-hook-form'
@@ -21,7 +21,6 @@ export function GeneralSettingsForm() {
   const { data: realm, isLoading } = useCurrentRealm()
   const updateMutation = useUpdateRealm(realm?.id || '')
   const toggleMutation = useUpdateRealmOptimistic(realm?.id || '', realm?.name || '')
-  const registrationFlowIdRef = useRef<string | null>(null)
 
   const form = useForm<GeneralSettingsSchema>({
     resolver: zodResolver(generalSettingsSchema) as Resolver<GeneralSettingsSchema>,
@@ -47,26 +46,25 @@ export function GeneralSettingsForm() {
       })
   }, [realm, form])
 
-  useEffect(() => {
-    if (realm?.registration_flow_id) {
-      registrationFlowIdRef.current = realm.registration_flow_id
-    }
-  }, [realm?.registration_flow_id])
-
   if (isLoading) return null
 
-  const registrationEnabled = Boolean(realm?.registration_flow_id)
+  const registrationEnabled = Boolean(realm?.registration_enabled)
+  const registrationBlocked = Boolean(realm?.is_system)
   const handleRegistrationToggle = (enabled: boolean) => {
     if (!realm) return
-    const flowId = registrationFlowIdRef.current
 
-    if (enabled && !flowId) {
+    if (registrationBlocked) {
+      toast.error('Self-registration cannot be enabled for the master realm.')
+      return
+    }
+
+    if (enabled && !realm.registration_flow_id) {
       toast.error('No registration flow is configured for this realm.')
       return
     }
 
     toggleMutation.mutate({
-      registration_flow_id: enabled ? flowId : null,
+      registration_enabled: enabled,
     })
   }
 
@@ -103,14 +101,16 @@ export function GeneralSettingsForm() {
               <div className="space-y-1">
                 <div className="text-sm font-medium">Enable User Registration</div>
                 <div className="text-xs text-muted-foreground">
-                  Turn off to disable the registration flow for this realm.
+                  {registrationBlocked
+                    ? 'Master realm registration is always disabled.'
+                    : 'Turn off to disable the registration flow for this realm.'}
                 </div>
               </div>
               <Switch
                 checked={registrationEnabled}
                 onCheckedChange={handleRegistrationToggle}
                 aria-label="Enable user registration"
-                disabled={toggleMutation.isPending}
+                disabled={toggleMutation.isPending || registrationBlocked}
               />
             </CardContent>
           </Card>

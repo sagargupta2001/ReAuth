@@ -56,6 +56,12 @@ export function FluidLoginScreen({
     }
   }, [context?.username, form])
 
+  useEffect(() => {
+    if (templateKey === 'forgot_credentials' && context?.email) {
+      form.setValue('email', context.email as string)
+    }
+  }, [context?.email, form, templateKey])
+
   const displayError = localError || error || (context?.error as string) || null
 
   const tokens = useMemo(() => snapshot?.tokens ?? {}, [snapshot])
@@ -129,6 +135,38 @@ export function FluidLoginScreen({
     if (!normalized.username && normalized.email) {
       normalized.username = normalized.email
     }
+    if (templateKey === 'forgot_credentials') {
+      if (!normalized.username) {
+        setLocalError('Email or username is required.')
+        return
+      }
+      void onSubmit(normalized)
+      return
+    }
+    if (templateKey === 'reset_password') {
+      const minLength =
+        typeof context?.min_password_length === 'number'
+          ? context.min_password_length
+          : 8
+      if (!normalized.password) {
+        setLocalError('Password is required.')
+        return
+      }
+      if (String(normalized.password).length < minLength) {
+        setLocalError(`Password must be at least ${minLength} characters.`)
+        return
+      }
+      const confirm =
+        normalized.password_confirm ||
+        normalized.confirm_password ||
+        normalized.password_confirmation
+      if (confirm && confirm !== normalized.password) {
+        setLocalError('Passwords do not match.')
+        return
+      }
+      void onSubmit(normalized)
+      return
+    }
     const parsed = loginSchema.safeParse(normalized)
     if (!parsed.success) {
       setLocalError(parsed.error.issues[0]?.message ?? 'Invalid login details.')
@@ -137,22 +175,64 @@ export function FluidLoginScreen({
     void onSubmit(normalized)
   })
 
+  const resolveContextValue = (path: string): unknown => {
+    const trimmed = path.trim()
+    if (!trimmed) return undefined
+    const parts = trimmed.split('.')
+    let current: unknown = context
+    for (const part of parts) {
+      if (!part) continue
+      if (!current || typeof current !== 'object') return undefined
+      current = (current as Record<string, unknown>)[part]
+    }
+    return current
+  }
+
+  const coerceVisible = (value: unknown): boolean => {
+    if (value === undefined || value === null) return false
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'number') return value !== 0
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase()
+      if (!normalized || normalized === 'false' || normalized === '0') return false
+      if (normalized === 'true') return true
+      return true
+    }
+    return Boolean(value)
+  }
+
+  const resolveVisibleFlag = (value: unknown): boolean => {
+    if (value === undefined) return true
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'string') return value.toLowerCase() !== 'false'
+    return Boolean(value)
+  }
+
+  const resolveVisibleIf = (value: unknown): boolean => {
+    if (value === undefined) return true
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      const lowered = trimmed.toLowerCase()
+      if (lowered === 'true') return true
+      if (lowered === 'false') return false
+      return coerceVisible(resolveContextValue(trimmed))
+    }
+    return Boolean(value)
+  }
+
   const renderNode = (
     node: ThemeNode,
     index: number,
     options?: { wrapperClass?: string },
   ): ReactNode => {
-    const isVisible = (() => {
-      const value = node.props?.visible
-      if (value === undefined) return true
-      if (typeof value === 'boolean') return value
-      if (typeof value === 'string') return value.toLowerCase() !== 'false'
-      return true
-    })()
+    const props = node.props ?? {}
+    const isVisible =
+      resolveVisibleFlag(props.visible) && resolveVisibleIf(props.visible_if)
     if (!isVisible) {
       return null
     }
-    const props = node.props ?? {}
     const align = String(props.align || 'left')
     const alignClass =
       align === 'center'

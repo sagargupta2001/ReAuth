@@ -435,6 +435,8 @@ fn build_realm_flow_payload(flow_ids: &HashMap<String, Uuid>) -> UpdateRealmPayl
         pkce_required_public_clients: None,
         lockout_threshold: None,
         lockout_duration_secs: None,
+        registration_enabled: None,
+        default_registration_role_ids: None,
         browser_flow_id: browser.map(Some),
         registration_flow_id: registration.map(Some),
         direct_grant_flow_id: direct.map(Some),

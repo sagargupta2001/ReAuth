@@ -9,6 +9,7 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 - Roadmap: `reauth/docs/memory/roadmaps/auth-production-grade.md`
 - Unifies: identity flows, OIDC future hardening, Fluid page binding for auth nodes, and embedded scripting for custom auth logic.
 - Goal: ship production-grade login, registration, recovery, MFA, OIDC, and extensible UI-capable auth nodes.
+- Recent progress: recovery now has SMTP delivery, rate limiting, audit events, and session revocation on reset.
 
 ### Phase 0: Plugin Removal (Completed)
 - Status: Complete

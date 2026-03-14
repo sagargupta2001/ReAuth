@@ -97,6 +97,14 @@ export const sidebarData: SidebarData = {
           url: '/settings/general',
         },
         {
+          title: 'Email',
+          url: '/settings/email',
+        },
+        {
+          title: 'Recovery',
+          url: '/settings/recovery',
+        },
+        {
           title: 'Token',
           url: '/settings/token',
         },

@@ -9,9 +9,8 @@ import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { useOidcAuth } from '@/features/auth/api/useOidcAuth'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken.ts'
 import { PKCE_STORAGE_KEY } from '@/shared/config/oidc'
-
-// Ensure this key matches exactly what you use elsewhere
-const REDIRECT_STORAGE_KEY = 'reauth_post_login_redirect'
+import { REDIRECT_STORAGE_KEY } from '@/shared/config/redirect'
+import { getSetupRequired } from '@/shared/lib/setupStatus'
 
 export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const { accessToken, setSession } = useSessionStore()
@@ -40,35 +39,15 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
       return
     }
 
-    const checkSetup = async () => {
-      try {
-        const response = await fetch('/api/system/setup/status', {
-          method: 'GET',
-          credentials: 'include',
-        })
-        if (!response.ok) {
-          setSetupRequired(false)
-          return true
-        }
-        const data = (await response.json()) as { required?: boolean }
-        if (data.required) {
-          setSetupRequired(true)
-          return false
-        }
-        setSetupRequired(false)
-        return true
-      } catch {
-        setSetupRequired(false)
-        return true
-      }
-    }
-
     const handleAuth = async () => {
-      const proceed = await checkSetup()
-      if (!proceed) {
+      const required = await getSetupRequired()
+      if (required) {
+        setSetupRequired(true)
+        navigate('/setup', { replace: true })
         setIsProcessing(false)
         return
       }
+      setSetupRequired(false)
 
       // 1. If we have a token, we are done.
       if (accessToken) {
@@ -156,7 +135,9 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
 
     void handleAuth()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
 
   // --- RENDER LOGIC ---
 
@@ -182,10 +163,7 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
   }
 
   if (setupRequired) {
-    if (location.pathname === '/setup' || location.pathname === '/setup/') {
-      return <>{children}</>
-    }
-    return <Navigate to="/setup" replace />
+    return <>{children}</>
   }
 
   // --- AUTHENTICATED ---
@@ -201,7 +179,11 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     }
 
     // Standard Logic: If stuck on /login without OIDC params, go to Dashboard
-    if (location.pathname.includes('/login') || location.pathname.includes('/register')) {
+    if (
+      location.pathname.includes('/login') ||
+      location.pathname.includes('/register') ||
+      location.pathname.includes('/forgot-password')
+    ) {
       const storedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
       return <Navigate to={storedRedirect || '/'} replace />
     }
@@ -214,6 +196,8 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const isAuthPage =
     location.pathname === '/login' ||
     location.pathname === '/login/' ||
+    location.pathname === '/forgot-password' ||
+    location.pathname === '/forgot-password/' ||
     location.pathname === '/register' ||
     location.pathname === '/register/' ||
     location.pathname === '/setup' ||

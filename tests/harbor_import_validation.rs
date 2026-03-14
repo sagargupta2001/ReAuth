@@ -809,6 +809,8 @@ async fn harbor_bootstrap_import_restores_realm_settings_and_flow_bindings() {
                 pkce_required_public_clients: Some(false),
                 lockout_threshold: Some(7),
                 lockout_duration_secs: Some(1200),
+                registration_enabled: None,
+                default_registration_role_ids: None,
                 browser_flow_id: Some(Some(browser_draft.id)),
                 registration_flow_id: Some(None),
                 direct_grant_flow_id: Some(None),

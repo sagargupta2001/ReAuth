@@ -8,6 +8,8 @@ use crate::application::harbor::HarborService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::realm_email_settings_service::RealmEmailSettingsService;
+use crate::application::realm_recovery_settings_service::RealmRecoverySettingsService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::webhook_service::WebhookService;
 use crate::application::{
@@ -58,6 +60,8 @@ pub struct AppState {
     pub delivery_replay_service: Arc<DeliveryReplayService>,
     pub metrics_service: Arc<MetricsService>,
     pub realm_service: Arc<RealmService>,
+    pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
+    pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,
     pub harbor_service: Arc<HarborService>,

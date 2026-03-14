@@ -1,8 +1,8 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
     harbor_handler, log_stream_handler, observability_handler, oidc_handler, rbac_handler,
-    realm_handler, search_handler, server::ui_handler, session_handler, setup_handler,
-    theme_handler, user_handler, webhook_handler,
+    realm_email_handler, realm_handler, realm_recovery_handler, search_handler, server::ui_handler,
+    session_handler, setup_handler, theme_handler, user_handler, webhook_handler,
 };
 use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
 use crate::domain::permissions;
@@ -108,6 +108,7 @@ fn auth_routes() -> Router<AppState> {
             "/register",
             get(auth_handler::start_registration_flow_handler),
         )
+        .route("/reset", get(auth_handler::start_reset_flow_handler))
         .route(
             "/login/execute",
             post(auth_handler::execute_login_step_handler),
@@ -115,6 +116,10 @@ fn auth_routes() -> Router<AppState> {
         .route(
             "/register/execute",
             post(auth_handler::execute_login_step_handler),
+        )
+        .route(
+            "/reset/execute",
+            post(auth_handler::execute_reset_step_handler),
         )
         .route("/resume", post(auth_handler::resume_action_handler))
         .route("/refresh", post(auth_handler::refresh_handler))
@@ -185,6 +190,14 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
 fn realm_routes(state: AppState) -> Router<AppState> {
     let read_routes = Router::new()
         .route("/", get(realm_handler::list_realms_handler))
+        .route(
+            "/{id}/email-settings",
+            get(realm_email_handler::get_realm_email_settings_handler),
+        )
+        .route(
+            "/{id}/recovery-settings",
+            get(realm_recovery_handler::get_realm_recovery_settings_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -203,6 +216,14 @@ fn realm_routes(state: AppState) -> Router<AppState> {
             post(harbor_handler::bootstrap_import_harbor_archive_handler),
         )
         .route("/{id}", put(realm_handler::update_realm_handler))
+        .route(
+            "/{id}/email-settings",
+            put(realm_email_handler::update_realm_email_settings_handler),
+        )
+        .route(
+            "/{id}/recovery-settings",
+            put(realm_recovery_handler::update_realm_recovery_settings_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {

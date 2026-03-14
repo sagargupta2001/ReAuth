@@ -681,6 +681,16 @@ impl SessionRepository for TestSessionRepo {
         Ok(())
     }
 
+    async fn revoke_all_for_user(&self, _realm_id: &Uuid, user_id: &Uuid) -> Result<()> {
+        let mut stored = self.stored.lock().unwrap();
+        for token in stored.values_mut() {
+            if &token.user_id == user_id {
+                token.revoked_at = Some(Utc::now());
+            }
+        }
+        Ok(())
+    }
+
     async fn list(
         &self,
         _realm_id: &Uuid,
@@ -806,6 +816,9 @@ fn base_realm() -> crate::domain::realm::Realm {
         pkce_required_public_clients: true,
         lockout_threshold: 5,
         lockout_duration_secs: 900,
+        is_system: false,
+        registration_enabled: true,
+        default_registration_role_ids: Vec::new(),
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,

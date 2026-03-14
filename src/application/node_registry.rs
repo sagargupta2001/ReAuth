@@ -2,9 +2,11 @@ use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::flow::models::NodeMetadata;
 use crate::domain::flow::nodes::condition_node::ConditionNode;
 use crate::domain::flow::nodes::cookie_node::CookieNodeProvider;
+use crate::domain::flow::nodes::forgot_credentials_node::ForgotCredentialsNodeProvider;
 use crate::domain::flow::nodes::otp_node::OtpNode;
 use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
 use crate::domain::flow::nodes::registration_node::RegistrationNodeProvider;
+use crate::domain::flow::nodes::reset_password_node::ResetPasswordNodeProvider;
 use crate::domain::flow::nodes::script_node::ScriptNode;
 use crate::domain::flow::nodes::start_node::StartNode;
 use crate::domain::flow::nodes::terminal_node::{AllowNode, DenyNode};
@@ -23,7 +25,9 @@ impl NodeRegistryService {
                 Box::new(StartNode),
                 Box::new(CookieNodeProvider),
                 Box::new(PasswordNodeProvider),
+                Box::new(ForgotCredentialsNodeProvider),
                 Box::new(RegistrationNodeProvider),
+                Box::new(ResetPasswordNodeProvider),
                 Box::new(OtpNode),
                 Box::new(ConditionNode),
                 Box::new(ScriptNode),

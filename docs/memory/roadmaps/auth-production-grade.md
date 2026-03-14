@@ -63,12 +63,20 @@
 - [x] UI `/register` route wired to the shared auth executor.
 - [x] Login page links to `/register` by default in system theme.
 - [x] Session creation is realm-scoped (no hardcoded `master`).
-- [ ] Realm capability flags: `registration_enabled` + `default_registration_roles` stored per realm.
-- [ ] Policy guard: master realm cannot enable self-registration.
-- [ ] Flow/runtime exposes realm capabilities to UI context for Fluid gating (hide register link).
-- [ ] Registration worker assigns default roles on self-registration.
-- [ ] Forgot-credentials runtime node and flow (token issuance + validation + password reset).
-- [ ] Recovery UX route and API path (`/forgot` or `/recover`) wired to flow executor.
+- [x] Realm capability flags: `registration_enabled` + `default_registration_roles` stored per realm.
+- [x] Policy guard: master realm cannot enable self-registration.
+- [x] Flow/runtime exposes realm capabilities to UI context for Fluid gating (hide register link).
+- [x] Registration worker assigns default roles on self-registration.
+- [x] Reset flow entry routes and UI wiring (`/forgot-password` -> reset flow).
+- [x] Forgot-credentials runtime node and flow (token issuance + validation + password reset).
+- [x] Recovery delivery channel (SMTP email) wired to async resume.
+- [x] Recovery request rate limits + audit events.
+- [x] Session revocation on password reset.
+- [x] Awaiting-action UI shows expiration + resend entry point.
+- [x] Recovery resend + expiration UX copy.
+- [x] Per-realm recovery settings (token TTL, rate limits, session revocation, templates).
+- [ ] Recovery identifier should support email once the domain model adds email fields (currently username-only).
+- [x] Recovery UX route and API path (`/forgot` or `/recover`) wired to flow executor.
 - [ ] OTP/email verification node with async pause/resume and resend support.
 - [ ] Consent node for OIDC scopes.
 - [ ] Condition node execution support in runtime (not just palette metadata).
@@ -90,7 +98,7 @@
 - [x] Setup UI: prompt for token, then collect username/password for the first admin.
 - [x] Master seed: create master realm + first admin with system-level permissions.
 - [x] Seal system: disable setup routes after first admin creation.
-- [ ] Break-glass CLI: `reauth admin reset-password --user <username>`.
+- [x] Break-glass CLI: `reauth admin reset-password --user <username>`.
 
 ## Decisions (locked)
 - Custom script nodes are **Logic nodes**, not Steps; they can optionally request UI via `template_key`.

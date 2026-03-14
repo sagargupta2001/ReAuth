@@ -102,14 +102,27 @@ impl FlowTemplates {
         json!({
             "nodes": [
                 {
-                    "id": "auth-password",
-                    "type": "core.auth.password",
+                    "id": "auth-forgot",
+                    "type": "core.auth.forgot_credentials",
                     "position": { "x": 250, "y": 50 },
                     "data": {
-                        "label": "Username & Password",
+                        "label": "Forgot Credentials",
                         "config": {
-                            "auth_type": "core.auth.password",
+                            "auth_type": "core.auth.forgot_credentials",
                             "template_key": "forgot_credentials"
+                        },
+                        "outputs": ["success", "failure"]
+                    }
+                },
+                {
+                    "id": "reset-password",
+                    "type": "core.auth.reset_password",
+                    "position": { "x": 250, "y": 200 },
+                    "data": {
+                        "label": "Reset Password",
+                        "config": {
+                            "auth_type": "core.auth.reset_password",
+                            "template_key": "reset_password"
                         },
                         "outputs": ["success", "failure"]
                     }
@@ -117,12 +130,13 @@ impl FlowTemplates {
                 {
                     "id": "success",
                     "type": "core.terminal.allow",
-                    "position": { "x": 250, "y": 200 },
+                    "position": { "x": 250, "y": 350 },
                     "data": { "label": "Success" }
                 }
             ],
             "edges": [
-                { "id": "e1", "source": "auth-password", "sourceHandle": "success", "target": "success" }
+                { "id": "e1", "source": "auth-forgot", "sourceHandle": "success", "target": "reset-password" },
+                { "id": "e2", "source": "reset-password", "sourceHandle": "success", "target": "success" }
             ]
         })
     }

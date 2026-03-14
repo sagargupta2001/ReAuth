@@ -9,6 +9,7 @@ import {
 } from 'react'
 
 import { OmniCommandPalette } from '@/features/Search/components/OmniCommandPalette'
+import { useSessionStore } from '@/entities/session/model/sessionStore'
 
 type SearchContextType = {
   open: boolean
@@ -23,6 +24,7 @@ type SearchProviderProps = {
 
 export function SearchProvider({ children }: SearchProviderProps) {
   const [open, setOpen] = useState(false)
+  const accessToken = useSessionStore((state) => state.accessToken)
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -38,7 +40,7 @@ export function SearchProvider({ children }: SearchProviderProps) {
   return (
     <SearchContext value={{ open, setOpen }}>
       {children}
-      <OmniCommandPalette />
+      {accessToken ? <OmniCommandPalette /> : null}
     </SearchContext>
   )
 }

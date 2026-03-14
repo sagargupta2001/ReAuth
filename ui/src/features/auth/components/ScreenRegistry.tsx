@@ -13,6 +13,8 @@ const SCREEN_MAP: Record<string, FunctionComponent<AuthScreenProps>> = {
   // New Node IDs
   'core.auth.password': FluidLoginScreen,
   'core.auth.register': FluidLoginScreen,
+  'core.auth.forgot_credentials': FluidLoginScreen,
+  'core.auth.reset_password': FluidLoginScreen,
   'core.awaiting-action': AwaitingActionScreen,
   'awaiting-action': AwaitingActionScreen,
 

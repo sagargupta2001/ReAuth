@@ -2,7 +2,10 @@ use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::application::audit_service::AuditService;
+use crate::application::email_delivery_service::{EmailDeliveryService, RecoveryEmail};
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::domain::audit::NewAuditEvent;
 use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
 use crate::domain::auth_session_action::AuthSessionAction;
 use crate::domain::execution::lifecycle::NodeOutcome;
@@ -22,6 +25,8 @@ pub struct FlowExecutor {
     flow_store: Arc<dyn FlowStore>,
     registry: Arc<RuntimeRegistry>,
     action_repo: Arc<dyn AuthSessionActionRepository>,
+    email_delivery: Option<Arc<EmailDeliveryService>>,
+    audit_service: Option<Arc<AuditService>>,
 }
 
 impl FlowExecutor {
@@ -30,12 +35,16 @@ impl FlowExecutor {
         flow_store: Arc<dyn FlowStore>,
         registry: Arc<RuntimeRegistry>,
         action_repo: Arc<dyn AuthSessionActionRepository>,
+        email_delivery: Option<Arc<EmailDeliveryService>>,
+        audit_service: Option<Arc<AuditService>>,
     ) -> Self {
         Self {
             session_repo,
             flow_store,
             registry,
             action_repo,
+            email_delivery,
+            audit_service,
         }
     }
 
@@ -397,6 +406,34 @@ impl FlowExecutor {
                 "action_type": action.action_type,
             }),
         );
+        session.update_context("action_payload", action.payload.clone());
+
+        if action.action_type == "reset_credentials" {
+            if let Some(audit_service) = &self.audit_service {
+                let identifier_hash = action
+                    .payload
+                    .get("identifier")
+                    .and_then(|value| value.as_str())
+                    .map(hash_identifier);
+                let metadata = serde_json::json!({
+                    "action_type": action.action_type,
+                    "identifier_hash": identifier_hash,
+                });
+                if let Err(err) = audit_service
+                    .record(NewAuditEvent {
+                        realm_id: session.realm_id,
+                        actor_user_id: None,
+                        action: "recovery.token_resumed".to_string(),
+                        target_type: "auth_session_action".to_string(),
+                        target_id: Some(action.id.to_string()),
+                        metadata,
+                    })
+                    .await
+                {
+                    tracing::warn!("Failed to write recovery resume audit event: {}", err);
+                }
+            }
+        }
 
         self.session_repo.update(&session).await?;
         self.execute(session.id, None).await
@@ -442,6 +479,13 @@ fn attach_template_key(mut context: Value, template_key: Option<&str>) -> Value 
 fn hash_token(token: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(token.as_bytes());
+    let result = hasher.finalize();
+    URL_SAFE_NO_PAD.encode(result)
+}
+
+fn hash_identifier(identifier: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(identifier.as_bytes());
     let result = hasher.finalize();
     URL_SAFE_NO_PAD.encode(result)
 }
@@ -504,6 +548,10 @@ impl FlowExecutor {
         }
 
         let token_hash = hash_token(&request.token);
+        let action_type = request.action_type.clone();
+        let payload = request.payload.clone();
+        let expires_at = request.expires_at;
+        let email_expires_at = expires_at;
         let action = AuthSessionAction::new(
             session.id,
             session.realm_id,
@@ -511,7 +559,7 @@ impl FlowExecutor {
             token_hash,
             request.payload,
             request.resume_node_id,
-            request.expires_at,
+            expires_at,
         );
 
         self.action_repo.create(&action).await?;
@@ -520,8 +568,89 @@ impl FlowExecutor {
             "pending_action_id",
             serde_json::json!(action.id.to_string()),
         );
+        let mut ui_context = request.context.clone();
+
+        let mut email_sent = false;
+        if action_type == "reset_credentials" {
+            if let Some(service) = &self.email_delivery {
+                if let Some(identifier) = payload.get("identifier").and_then(|value| value.as_str())
+                {
+                    if let Some(user_id) = payload.get("user_id").and_then(|v| v.as_str()) {
+                        if !user_id.trim().is_empty() {
+                            let resume_path = ui_context
+                                .get("resume_path")
+                                .and_then(|value| value.as_str())
+                                .unwrap_or("/forgot-password");
+
+                            match service
+                                .send_recovery_email(
+                                    &session.realm_id,
+                                    RecoveryEmail {
+                                        identifier: identifier.to_string(),
+                                        token: request.token.clone(),
+                                        expires_at: email_expires_at,
+                                        resume_path: resume_path.to_string(),
+                                    },
+                                )
+                                .await
+                            {
+                                Ok(true) => {
+                                    email_sent = true;
+                                    if let Some(ctx) = ui_context.as_object_mut() {
+                                        ctx.insert(
+                                            "message".to_string(),
+                                            serde_json::json!(
+                                                "If an account exists, a recovery email has been sent."
+                                            ),
+                                        );
+                                        ctx.insert(
+                                            "delivery".to_string(),
+                                            serde_json::json!("email"),
+                                        );
+                                    }
+                                }
+                                Ok(false) => {}
+                                Err(err) => {
+                                    tracing::warn!(
+                                        "Failed to send recovery email: {}",
+                                        err.to_string()
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         let screen_id = request.screen.clone();
-        let ui_context = request.context.clone();
+        if action_type == "reset_credentials" {
+            if let Some(audit_service) = &self.audit_service {
+                let identifier_hash = payload
+                    .get("identifier")
+                    .and_then(|value| value.as_str())
+                    .map(hash_identifier);
+                let metadata = serde_json::json!({
+                    "action_type": action_type,
+                    "expires_at": action.expires_at,
+                    "identifier_hash": identifier_hash,
+                    "email_sent": email_sent,
+                });
+                if let Err(err) = audit_service
+                    .record(NewAuditEvent {
+                        realm_id: session.realm_id,
+                        actor_user_id: None,
+                        action: "recovery.token_issued".to_string(),
+                        target_type: "auth_session_action".to_string(),
+                        target_id: Some(action.id.to_string()),
+                        metadata,
+                    })
+                    .await
+                {
+                    tracing::warn!("Failed to write recovery audit event: {}", err);
+                }
+            }
+        }
         session.update_context(
             "last_ui",
             serde_json::json!({

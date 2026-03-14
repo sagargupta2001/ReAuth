@@ -57,6 +57,8 @@ pub async fn ensure_default_flows(
         pkce_required_public_clients: None,
         lockout_threshold: None,
         lockout_duration_secs: None,
+        registration_enabled: None,
+        default_registration_role_ids: None,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,

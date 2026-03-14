@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
 
-import { useNavigate } from 'react-router-dom'
-
 import { Alert, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
 import {
@@ -13,11 +11,9 @@ import {
   CardTitle,
 } from '@/components/card'
 import { Input } from '@/components/input'
-import { apiClient } from '@/shared/api/client'
-
-type SetupStatus = {
-  required: boolean
-}
+import { SETUP_SEALED_STORAGE_KEY } from '@/shared/config/setup'
+import { SETUP_COMPLETE_EVENT, getSetupRequired, markSetupSealed } from '@/shared/lib/setupStatus'
+import { useNavigate } from 'react-router-dom'
 
 export function SetupPage() {
   const navigate = useNavigate()
@@ -30,28 +26,29 @@ export function SetupPage() {
 
   useEffect(() => {
     let active = true
-    apiClient
-      .get<SetupStatus>('/api/system/setup/status')
-      .then((data) => {
+    const run = async () => {
+      try {
+        const required = await getSetupRequired()
         if (!active) return
-        if (!data.required) {
-          navigate('/', { replace: true })
+        if (!required) {
+          localStorage.setItem(SETUP_SEALED_STORAGE_KEY, '1')
+          window.location.replace(`${window.location.origin}/#/login`)
           return
         }
+        localStorage.removeItem(SETUP_SEALED_STORAGE_KEY)
         setStatusChecked(true)
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!active) return
         setError(err instanceof Error ? err.message : 'Failed to check setup status.')
-      })
-      .finally(() => {
-        if (active) setStatusChecked(true)
-      })
+        setStatusChecked(true)
+      }
+    }
+    void run()
 
     return () => {
       active = false
     }
-  }, [navigate])
+  }, [])
 
   const canSubmit =
     token.trim().length > 0 && username.trim().length > 0 && password.trim().length > 0
@@ -64,12 +61,35 @@ export function SetupPage() {
     const trimmedToken = token.trim()
     const trimmedUsername = username.trim()
     try {
-      await apiClient.post('/api/system/setup', {
-        token: trimmedToken,
-        username: trimmedUsername,
-        password,
+      const response = await fetch('/api/system/setup', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: trimmedToken,
+          username: trimmedUsername,
+          password,
+        }),
       })
+      if (!response.ok) {
+        const body = await response.text()
+        let message = 'Setup failed.'
+        try {
+          const parsed = JSON.parse(body) as { error?: string }
+          message = parsed.error || message
+        } catch {
+          if (body.trim().length > 0) {
+            message = body
+          }
+        }
+        throw new Error(message)
+      }
+      markSetupSealed()
+      window.dispatchEvent(new Event(SETUP_COMPLETE_EVENT))
       navigate('/login', { replace: true })
+      setTimeout(() => {
+        window.location.replace(`${window.location.origin}/#/login`)
+      }, 50)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Setup failed.')
     } finally {

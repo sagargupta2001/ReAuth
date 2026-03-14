@@ -1,3 +1,4 @@
+use crate::application::realm_policy::RealmCapabilities;
 use crate::domain::oidc::OidcContext;
 use crate::{
     constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE},
@@ -30,6 +31,7 @@ use uuid::Uuid;
 enum PublicAuthFlowKind {
     Login,
     Register,
+    Reset,
 }
 
 impl PublicAuthFlowKind {
@@ -37,6 +39,7 @@ impl PublicAuthFlowKind {
         match self {
             Self::Login => "login",
             Self::Register => "register",
+            Self::Reset => "reset",
         }
     }
 
@@ -44,6 +47,7 @@ impl PublicAuthFlowKind {
         match self {
             Self::Login => "browser",
             Self::Register => "registration",
+            Self::Reset => "reset",
         }
     }
 
@@ -51,6 +55,7 @@ impl PublicAuthFlowKind {
         match self {
             Self::Login => realm.browser_flow_id.as_ref(),
             Self::Register => realm.registration_flow_id.as_ref(),
+            Self::Reset => realm.reset_credentials_flow_id.as_ref(),
         }
     }
 
@@ -266,6 +271,25 @@ pub async fn start_registration_flow_handler(
     .await
 }
 
+#[instrument(skip_all)]
+pub async fn start_reset_flow_handler(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(realm_name): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<impl IntoResponse> {
+    start_public_flow(
+        state,
+        jar,
+        addr,
+        realm_name,
+        params,
+        PublicAuthFlowKind::Reset,
+    )
+    .await
+}
+
 async fn start_public_flow(
     state: AppState,
     jar: CookieJar,
@@ -286,6 +310,12 @@ async fn start_public_flow(
         .find_by_name(&realm_name)
         .await?
         .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+    let capabilities = RealmCapabilities::from_realm(&realm);
+    if flow_kind == PublicAuthFlowKind::Register && !capabilities.registration_enabled {
+        return Err(Error::SecurityViolation(
+            "Self-registration is disabled for this realm.".to_string(),
+        ));
+    }
 
     // IP extraction for later use
     let ip = addr.ip().to_string();
@@ -452,9 +482,13 @@ async fn start_public_flow(
     match result {
         // [FIX] Use shared logic for Success
         ExecutionResult::Success { redirect_url } => {
-            handle_flow_success(&state, session_id, redirect_url, headers, ip).await
+            if flow_kind == PublicAuthFlowKind::Reset {
+                reset_flow_success_response(headers)
+            } else {
+                handle_flow_success(&state, session_id, redirect_url, headers, ip).await
+            }
         }
-        _ => map_execution_result(result, headers),
+        _ => map_execution_result(result, headers, Some(&capabilities)),
     }
 }
 
@@ -474,6 +508,7 @@ pub async fn execute_login_step_handler(
         .find_by_name(&realm_name)
         .await?
         .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+    let capabilities = RealmCapabilities::from_realm(&realm);
 
     let ip = headers
         .get("x-forwarded-for")
@@ -512,18 +547,69 @@ pub async fn execute_login_step_handler(
         ExecutionResult::Success { redirect_url } => {
             handle_flow_success(&state, session_id, redirect_url, HeaderMap::new(), ip).await
         }
-        _ => map_execution_result(result, HeaderMap::new()),
+        _ => map_execution_result(result, HeaderMap::new(), Some(&capabilities)),
+    }
+}
+
+// POST /api/auth/reset/execute
+#[instrument(skip_all)]
+pub async fn execute_reset_step_handler(
+    State(state): State<AppState>,
+    jar: CookieJar,
+    Path(realm_name): Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+    let capabilities = RealmCapabilities::from_realm(&realm);
+
+    let mut target_session_id = None;
+    let cookies: Vec<_> = jar
+        .iter()
+        .filter(|c| c.name() == LOGIN_SESSION_COOKIE)
+        .collect();
+
+    for cookie in cookies {
+        if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
+            if let Ok(Some(session)) = state.auth_session_repo.find_by_id(&parse_id).await {
+                if session.realm_id == realm.id && session.status == SessionStatus::Active {
+                    target_session_id = Some(parse_id);
+                    break;
+                }
+            }
+        }
+    }
+
+    let session_id = target_session_id.ok_or(Error::InvalidLoginSession)?;
+
+    let result = state
+        .flow_executor
+        .execute(session_id, Some(payload))
+        .await?;
+
+    match result {
+        ExecutionResult::Success { .. } => reset_flow_success_response(HeaderMap::new()),
+        _ => map_execution_result(result, HeaderMap::new(), Some(&capabilities)),
     }
 }
 
 // Helper to map result to response (Deduped logic)
-fn map_execution_result(result: ExecutionResult, headers: HeaderMap) -> Result<Response> {
+fn map_execution_result(
+    result: ExecutionResult,
+    headers: HeaderMap,
+    capabilities: Option<&RealmCapabilities>,
+) -> Result<Response> {
     match result {
         ExecutionResult::Challenge { screen_id, context } => {
+            let context = attach_capabilities(context, capabilities);
             let body = serde_json::json!({ "status": "challenge", "challengeName": screen_id, "context": context });
             Ok((StatusCode::OK, headers, Json(body)).into_response())
         }
         ExecutionResult::AwaitingAction { screen_id, context } => {
+            let context = attach_capabilities(context, capabilities);
             let body = serde_json::json!({ "status": "awaiting_action", "challengeName": screen_id, "context": context });
             Ok((StatusCode::OK, headers, Json(body)).into_response())
         }
@@ -544,6 +630,40 @@ fn map_execution_result(result: ExecutionResult, headers: HeaderMap) -> Result<R
     }
 }
 
+fn reset_flow_success_response(mut headers: HeaderMap) -> Result<Response> {
+    headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&create_clear_login_cookie().to_string())?,
+    );
+    let body = serde_json::json!({ "status": "redirect", "url": "/login?reset=1" });
+    Ok((StatusCode::OK, headers, Json(body)).into_response())
+}
+
+fn attach_capabilities(
+    mut context: serde_json::Value,
+    capabilities: Option<&RealmCapabilities>,
+) -> serde_json::Value {
+    let Some(capabilities) = capabilities else {
+        return context;
+    };
+    let caps_value = serde_json::to_value(capabilities).unwrap_or_else(|_| {
+        serde_json::json!({
+            "registration_enabled": capabilities.registration_enabled,
+            "default_registration_role_ids": capabilities.default_registration_role_ids,
+        })
+    });
+    match context {
+        serde_json::Value::Object(ref mut map) => {
+            map.insert("capabilities".to_string(), caps_value);
+            context
+        }
+        _ => serde_json::json!({
+            "capabilities": caps_value,
+            "value": context
+        }),
+    }
+}
+
 #[derive(Deserialize)]
 pub struct ResumeActionRequest {
     pub token: String,
@@ -561,13 +681,14 @@ pub async fn resume_action_handler(
         .find_by_name(&realm_name)
         .await?
         .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+    let capabilities = RealmCapabilities::from_realm(&realm);
 
     let result = state
         .flow_executor
         .resume_action(realm.id, &payload.token)
         .await?;
 
-    map_execution_result(result, HeaderMap::new())
+    map_execution_result(result, HeaderMap::new(), Some(&capabilities))
 }
 
 // Refresh and Logout handlers remain largely the same, just standard auth_service calls.

@@ -149,4 +149,17 @@ impl UserService {
 
         Ok(user)
     }
+
+    pub async fn update_password(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        new_password: &str,
+    ) -> Result<User> {
+        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+        let hashed_password = HashedPassword::new(new_password)?;
+        user.hashed_password = hashed_password.as_str().to_string();
+        self.user_repo.update(&user, None).await?;
+        Ok(user)
+    }
 }

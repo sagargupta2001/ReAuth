@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
-import { useLocation, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 // <--- Import useLocation
 
@@ -11,6 +11,7 @@ import { authApi } from '@/features/auth/api/authApi.ts'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken'
 import { getScreenComponent } from '@/features/auth/components/ScreenRegistry.tsx'
 import type { AuthExecutionResponse } from '@/entities/auth/model/types.ts'
+import { REDIRECT_STORAGE_KEY } from '@/shared/config/redirect'
 
 // Global Singleton to prevent double-fetch in Strict Mode
 let initializationPromise: Promise<AuthExecutionResponse> | null = null
@@ -20,12 +21,13 @@ export function AuthFlowExecutor() {
 }
 
 type BaseAuthFlowExecutorProps = {
-  flowPath?: 'login' | 'register'
+  flowPath?: 'login' | 'register' | 'reset'
 }
 
 export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecutorProps) {
   const params = useParams()
   const location = useLocation() // <--- Hook to get ?client_id=...
+  const navigate = useNavigate()
   const setSession = useSessionStore((state) => state.setSession)
   const refreshTokenMutation = useRefreshToken()
 
@@ -48,10 +50,20 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
     return searchParams.get('client_id') || undefined
   }, [location.search])
 
+  const redirectParam = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('redirect')
+  }, [location.search])
+
   const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const redirectHandledRef = useRef(false)
+
+  useEffect(() => {
+    if (!redirectParam) return
+    sessionStorage.setItem(REDIRECT_STORAGE_KEY, redirectParam)
+  }, [redirectParam])
 
   // 1. INITIALIZE FLOW (GET /api/auth/login)
   useEffect(() => {
@@ -100,7 +112,7 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
       })
       .catch((err) => {
         if (active) {
-          setGlobalError('Failed to initialize login flow. ' + (err.message || ''))
+          setGlobalError('Failed to initialize auth flow. ' + (err.message || ''))
           setIsLoading(false)
         }
         initializationPromise = null
@@ -147,8 +159,13 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
         if (targetUrl === '/') {
           const token = await refreshTokenMutation.mutateAsync()
           setSession(token)
-          // Ensure we don't accidentally send query params to dashboard
-          window.history.replaceState({}, document.title, '/')
+          const storedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
+          sessionStorage.removeItem(REDIRECT_STORAGE_KEY)
+          if (storedRedirect && storedRedirect.startsWith('/') && !storedRedirect.startsWith('//')) {
+            navigate(storedRedirect, { replace: true })
+          } else {
+            navigate('/', { replace: true })
+          }
           return
         }
 
@@ -159,6 +176,10 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
         }
 
         // Case C: Relative Redirect
+        if (targetUrl.startsWith('/')) {
+          navigate(targetUrl, { replace: true })
+          return
+        }
         window.location.href = targetUrl
       } catch (err) {
         console.error('Session hydration failed:', err)
@@ -182,7 +203,7 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
     return (
       <div className="space-y-4">
         <div className="text-destructive rounded border border-red-100 bg-red-50 p-4 font-medium">
-          Login Failed: {currentStep.message}
+          Flow Failed: {currentStep.message}
         </div>
         <Button className="w-full" onClick={() => window.location.reload()}>
           Try Again
@@ -193,8 +214,8 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
 
   if (currentStep?.status === 'redirect') {
     return (
-      <div className="space-y-2 text-center text-green-600">
-        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+      <div className="flex min-h-[40vh] flex-col items-center justify-center space-y-2 text-center text-green-600">
+        <Loader2 className="h-6 w-6 animate-spin" />
         <p className="text-sm">Redirecting...</p>
       </div>
     )

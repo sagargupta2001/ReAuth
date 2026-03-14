@@ -1,11 +1,13 @@
 use crate::adapters::web::auth_middleware::AuthUser;
 use crate::adapters::web::validation::ValidatedJson;
+use crate::application::realm_policy::RealmCapabilities;
 use crate::domain::pagination::PageRequest;
 use crate::error::{Error, Result};
 use crate::AppState;
 use axum::extract::{Path, Query};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::Deserialize;
+use tracing::warn;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -37,11 +39,30 @@ pub async fn create_user_handler(
         .find_by_name(&realm_name)
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
+    let capabilities = RealmCapabilities::from_realm(&realm);
+    if !capabilities.registration_enabled {
+        return Err(Error::SecurityViolation(
+            "Self-registration is disabled for this realm.".to_string(),
+        ));
+    }
 
     let user = state
         .user_service
         .create_user(realm.id, &payload.username, &payload.password)
         .await?;
+
+    for role_id in capabilities.default_registration_role_ids {
+        if let Err(err) = state
+            .rbac_service
+            .assign_role_to_user(realm.id, user.id, role_id)
+            .await
+        {
+            warn!(
+                "Failed to assign default registration role {}: {}",
+                role_id, err
+            );
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(user)))
 }
