@@ -314,11 +314,26 @@ impl FlowExecutor {
                             step_type = %step_type
                         );
                         let _guard = logic_span.enter();
-                        let next_id = node_def
-                            .next
-                            .values()
-                            .next()
-                            .ok_or(Error::System("Logic node has no output".into()))?;
+                        let next_id = if is_condition_node(&node_def.config) {
+                            let outcome = evaluate_condition(&session.context, &node_def.config)?;
+                            let output_key = if outcome { "true" } else { "false" };
+                            node_def
+                                .next
+                                .get(output_key)
+                                .or_else(|| node_def.next.get("default"))
+                                .ok_or_else(|| {
+                                    Error::Validation(format!(
+                                        "Condition node missing '{}' output path",
+                                        output_key
+                                    ))
+                                })?
+                        } else {
+                            node_def
+                                .next
+                                .values()
+                                .next()
+                                .ok_or(Error::System("Logic node has no output".into()))?
+                        };
                         session.current_node_id = next_id.clone();
                     }
                     StepType::Terminal => {
@@ -464,6 +479,147 @@ fn attach_template_key(mut context: Value, template_key: Option<&str>) -> Value 
     }
 }
 
+fn is_condition_node(config: &Value) -> bool {
+    config
+        .get("logic_type")
+        .and_then(|value| value.as_str())
+        .is_some_and(|value| value == "core.logic.condition")
+}
+
+fn evaluate_condition(context: &Value, config: &Value) -> Result<bool> {
+    let path = config
+        .get("context_path")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| Error::Validation("Condition node requires context_path".into()))?;
+    let operator = config
+        .get("operator")
+        .and_then(|value| value.as_str())
+        .unwrap_or("exists");
+
+    let actual = resolve_context_path(context, path);
+    let expected = parse_expected_value(config.get("compare_value"));
+    if matches!(
+        operator,
+        "equals"
+            | "not_equals"
+            | "contains"
+            | "starts_with"
+            | "ends_with"
+            | "gt"
+            | "gte"
+            | "lt"
+            | "lte"
+    ) && expected.is_none()
+    {
+        return Err(Error::Validation(format!(
+            "Condition node requires compare_value for operator '{}'",
+            operator
+        )));
+    }
+
+    Ok(match operator {
+        "exists" => actual.is_some_and(|value| !value.is_null()),
+        "true" => actual.and_then(Value::as_bool).unwrap_or(false),
+        "false" => actual.and_then(Value::as_bool).is_some_and(|value| !value),
+        "equals" => compare_values(actual, expected.as_ref()).unwrap_or(false),
+        "not_equals" => compare_values(actual, expected.as_ref())
+            .map(|value| !value)
+            .unwrap_or(false),
+        "contains" => contains_value(actual, expected.as_ref()),
+        "starts_with" => match (
+            actual.and_then(Value::as_str),
+            expected.as_ref().and_then(Value::as_str),
+        ) {
+            (Some(left), Some(right)) => left.starts_with(right),
+            _ => false,
+        },
+        "ends_with" => match (
+            actual.and_then(Value::as_str),
+            expected.as_ref().and_then(Value::as_str),
+        ) {
+            (Some(left), Some(right)) => left.ends_with(right),
+            _ => false,
+        },
+        "gt" => compare_numbers(actual, expected.as_ref(), |a, b| a > b),
+        "gte" => compare_numbers(actual, expected.as_ref(), |a, b| a >= b),
+        "lt" => compare_numbers(actual, expected.as_ref(), |a, b| a < b),
+        "lte" => compare_numbers(actual, expected.as_ref(), |a, b| a <= b),
+        _ => {
+            return Err(Error::Validation(format!(
+                "Unknown condition operator '{}'",
+                operator
+            )))
+        }
+    })
+}
+
+fn resolve_context_path<'a>(context: &'a Value, path: &str) -> Option<&'a Value> {
+    let mut current = context;
+    for segment in path.split('.') {
+        if segment.is_empty() {
+            continue;
+        }
+        match current {
+            Value::Object(map) => {
+                current = map.get(segment)?;
+            }
+            Value::Array(values) => {
+                let index: usize = segment.parse().ok()?;
+                current = values.get(index)?;
+            }
+            _ => return None,
+        }
+    }
+    Some(current)
+}
+
+fn parse_expected_value(value: Option<&Value>) -> Option<Value> {
+    value.map(|raw| {
+        if let Some(text) = raw.as_str() {
+            serde_json::from_str::<Value>(text).unwrap_or_else(|_| Value::String(text.to_string()))
+        } else {
+            raw.clone()
+        }
+    })
+}
+
+fn compare_values(actual: Option<&Value>, expected: Option<&Value>) -> Option<bool> {
+    let actual = actual?;
+    let expected = expected?;
+    Some(actual == expected)
+}
+
+fn contains_value(actual: Option<&Value>, expected: Option<&Value>) -> bool {
+    match (actual, expected) {
+        (Some(Value::String(left)), Some(Value::String(right))) => left.contains(right),
+        (Some(Value::Array(values)), Some(expected_value)) => {
+            values.iter().any(|value| value == expected_value)
+        }
+        _ => false,
+    }
+}
+
+fn compare_numbers(
+    actual: Option<&Value>,
+    expected: Option<&Value>,
+    cmp: impl Fn(f64, f64) -> bool,
+) -> bool {
+    let left = actual.and_then(as_number);
+    let right = expected.and_then(as_number);
+    match (left, right) {
+        (Some(a), Some(b)) => cmp(a, b),
+        _ => false,
+    }
+}
+
+fn as_number(value: &Value) -> Option<f64> {
+    value
+        .as_f64()
+        .or_else(|| value.as_i64().map(|v| v as f64))
+        .or_else(|| value.as_u64().map(|v| v as f64))
+        .or_else(|| value.as_str().and_then(|v| v.parse::<f64>().ok()))
+}
+
 fn resolve_template_key(config: &Value) -> Option<String> {
     let explicit = config
         .get("template_key")
@@ -480,6 +636,7 @@ fn resolve_template_key(config: &Value) -> Option<String> {
         Some("core.auth.forgot_credentials") => Some("forgot_credentials".to_string()),
         Some("core.auth.reset_password") => Some("reset_password".to_string()),
         Some("core.auth.otp") => Some("mfa".to_string()),
+        Some("core.oidc.consent") => Some("consent".to_string()),
         _ => None,
     }
 }

@@ -1,5 +1,7 @@
+pub mod condition_node;
 pub mod cookie_node;
 pub mod forgot_credentials_node;
+pub mod oidc_consent_node;
 pub mod password_node;
 pub mod registration_node;
 pub mod reset_password_node;

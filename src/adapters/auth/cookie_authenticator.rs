@@ -77,8 +77,9 @@ impl LifecycleNode for CookieAuthenticator {
                     token.user_id
                 );
                 session.user_id = Some(token.user_id);
-                Ok(NodeOutcome::FlowSuccess {
-                    user_id: token.user_id,
+                session.update_context("user_id", Value::String(token.user_id.to_string()));
+                Ok(NodeOutcome::Continue {
+                    output: "continue".to_string(),
                 })
             }
             _ => Ok(NodeOutcome::Continue {
@@ -240,14 +241,15 @@ mod tests {
 
         let result = auth.execute(&mut session).await.unwrap();
 
-        if let NodeOutcome::FlowSuccess {
-            user_id: authenticated_user,
-        } = result
-        {
-            assert_eq!(authenticated_user, user_id);
-        } else {
-            panic!("Expected FlowSuccess, got {:?}", result);
-        }
+        assert!(matches!(result, NodeOutcome::Continue { .. }));
         assert_eq!(session.user_id, Some(user_id));
+        let user_id_str = user_id.to_string();
+        assert_eq!(
+            session
+                .context
+                .get("user_id")
+                .and_then(|value| value.as_str()),
+            Some(user_id_str.as_str())
+        );
     }
 }

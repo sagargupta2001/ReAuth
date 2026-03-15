@@ -16,7 +16,7 @@ impl FlowTemplates {
                 {
                     "id": "auth-cookie",
                     "type": "core.auth.cookie",
-                    "position": { "x": 250, "y": 100 },
+                    "position": { "x": 250, "y": 120 },
                     "data": {
                         "label": "Check SSO Cookie",
                         "config": {
@@ -24,12 +24,27 @@ impl FlowTemplates {
                         },
                         "outputs": ["continue"]
                     },
-                    "next": { "continue": "auth-password" }
+                    "next": { "continue": "condition-sso" }
+                },
+                {
+                    "id": "condition-sso",
+                    "type": "core.logic.condition",
+                    "position": { "x": 250, "y": 260 },
+                    "data": {
+                        "label": "SSO Session?",
+                        "config": {
+                            "logic_type": "core.logic.condition",
+                            "context_path": "user_id",
+                            "operator": "exists"
+                        },
+                        "outputs": ["true", "false"]
+                    },
+                    "next": { "true": "condition-oidc", "false": "auth-password" }
                 },
                 {
                     "id": "auth-password",
                     "type": "core.auth.password",
-                    "position": { "x": 250, "y": 250 },
+                    "position": { "x": 250, "y": 420 },
                     "data": {
                         "label": "Username & Password",
                         "config": {
@@ -39,31 +54,105 @@ impl FlowTemplates {
                         },
                         "outputs": ["success", "failure"]
                     },
-                    "next": { "success": "success" }
+                    "next": { "success": "condition-oidc" }
+                },
+                {
+                    "id": "condition-oidc",
+                    "type": "core.logic.condition",
+                    "position": { "x": 250, "y": 580 },
+                    "data": {
+                        "label": "OIDC Consent Required?",
+                        "config": {
+                            "logic_type": "core.logic.condition",
+                            "context_path": "oidc.client_id",
+                            "operator": "exists"
+                        },
+                        "outputs": ["true", "false"]
+                    },
+                    "next": { "true": "oidc-consent", "false": "success" }
+                },
+                {
+                    "id": "oidc-consent",
+                    "type": "core.oidc.consent",
+                    "position": { "x": 250, "y": 730 },
+                    "data": {
+                        "label": "OIDC Consent",
+                        "config": {
+                            "auth_type": "core.oidc.consent",
+                            "template_key": "consent"
+                        },
+                        "outputs": ["allow", "deny"]
+                    },
+                    "next": { "allow": "success", "deny": "deny" }
                 },
                 {
                     "id": "success",
                     "type": "core.terminal.allow",
-                    "position": { "x": 250, "y": 400 },
+                    "position": { "x": 250, "y": 880 },
                     "data": { "label": "Allow Access" },
+                    "next": {}
+                },
+                {
+                    "id": "deny",
+                    "type": "core.terminal.deny",
+                    "position": { "x": 460, "y": 880 },
+                    "data": {
+                        "label": "Deny Access",
+                        "config": { "is_failure": true }
+                    },
                     "next": {}
                 }
             ],
             "edges": [
-                // Start -> Cookie
                 { "id": "e1", "source": "start", "target": "auth-cookie" },
-
-                // [FIX] Cookie -> Password
-                // We use sourceHandle: "continue" to match the NodeProvider
                 {
                     "id": "e2",
                     "source": "auth-cookie",
                     "sourceHandle": "continue",
+                    "target": "condition-sso"
+                },
+                {
+                    "id": "e3",
+                    "source": "condition-sso",
+                    "sourceHandle": "false",
                     "target": "auth-password"
                 },
-
-                // Password -> Success
-                { "id": "e3", "source": "auth-password", "sourceHandle": "success", "target": "success" }
+                {
+                    "id": "e4",
+                    "source": "condition-sso",
+                    "sourceHandle": "true",
+                    "target": "condition-oidc"
+                },
+                {
+                    "id": "e5",
+                    "source": "auth-password",
+                    "sourceHandle": "success",
+                    "target": "condition-oidc"
+                },
+                {
+                    "id": "e6",
+                    "source": "condition-oidc",
+                    "sourceHandle": "true",
+                    "target": "oidc-consent"
+                },
+                {
+                    "id": "e7",
+                    "source": "condition-oidc",
+                    "sourceHandle": "false",
+                    "target": "success"
+                },
+                {
+                    "id": "e8",
+                    "source": "oidc-consent",
+                    "sourceHandle": "allow",
+                    "target": "success"
+                },
+                {
+                    "id": "e9",
+                    "source": "oidc-consent",
+                    "sourceHandle": "deny",
+                    "target": "deny"
+                }
             ]
         })
     }
@@ -102,9 +191,16 @@ impl FlowTemplates {
         json!({
             "nodes": [
                 {
+                    "id": "start",
+                    "type": "core.start",
+                    "position": { "x": 250, "y": 0 },
+                    "data": { "label": "Start" },
+                    "next": { "default": "auth-forgot" }
+                },
+                {
                     "id": "auth-forgot",
                     "type": "core.auth.forgot_credentials",
-                    "position": { "x": 250, "y": 50 },
+                    "position": { "x": 250, "y": 120 },
                     "data": {
                         "label": "Forgot Credentials",
                         "config": {
@@ -117,7 +213,7 @@ impl FlowTemplates {
                 {
                     "id": "reset-password",
                     "type": "core.auth.reset_password",
-                    "position": { "x": 250, "y": 200 },
+                    "position": { "x": 250, "y": 270 },
                     "data": {
                         "label": "Reset Password",
                         "config": {
@@ -130,11 +226,12 @@ impl FlowTemplates {
                 {
                     "id": "allow",
                     "type": "core.terminal.allow",
-                    "position": { "x": 250, "y": 350 },
+                    "position": { "x": 250, "y": 420 },
                     "data": { "label": "Allow Access" }
                 }
             ],
             "edges": [
+                { "id": "e0", "source": "start", "target": "auth-forgot" },
                 { "id": "e1", "source": "auth-forgot", "sourceHandle": "success", "target": "reset-password" },
                 { "id": "e2", "source": "reset-password", "sourceHandle": "success", "target": "allow" }
             ]
@@ -146,9 +243,16 @@ impl FlowTemplates {
         json!({
             "nodes": [
                 {
+                    "id": "start",
+                    "type": "core.start",
+                    "position": { "x": 250, "y": 0 },
+                    "data": { "label": "Start" },
+                    "next": { "default": "auth-register" }
+                },
+                {
                     "id": "auth-register",
                     "type": "core.auth.register",
-                    "position": { "x": 250, "y": 50 },
+                    "position": { "x": 250, "y": 120 },
                     "data": {
                         "label": "Register Account",
                         "config": {
@@ -161,11 +265,12 @@ impl FlowTemplates {
                 {
                     "id": "allow",
                     "type": "core.terminal.allow",
-                    "position": { "x": 250, "y": 200 },
+                    "position": { "x": 250, "y": 270 },
                     "data": { "label": "Allow Access" }
                 }
             ],
             "edges": [
+                { "id": "e0", "source": "start", "target": "auth-register" },
                 { "id": "e1", "source": "auth-register", "sourceHandle": "success", "target": "allow" }
             ]
         })

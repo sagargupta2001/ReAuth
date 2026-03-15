@@ -167,6 +167,14 @@ export function FluidLoginScreen({
       void onSubmit(normalized)
       return
     }
+    if (templateKey === 'consent') {
+      if (!normalized.decision) {
+        setLocalError('Select allow or deny to continue.')
+        return
+      }
+      void onSubmit(normalized)
+      return
+    }
     const parsed = loginSchema.safeParse(normalized)
     if (!parsed.success) {
       setLocalError(parsed.error.issues[0]?.message ?? 'Invalid login details.')
@@ -425,6 +433,7 @@ export function FluidLoginScreen({
 
         if (component.toLowerCase() === 'button') {
           const variant = String(props.variant || 'primary')
+          const intent = typeof props.intent === 'string' ? props.intent.trim() : ''
           const buttonVariant =
             variant === 'secondary' ? 'secondary' : variant === 'outline' ? 'outline' : 'default'
           const buttonStyle: React.CSSProperties = {}
@@ -443,6 +452,11 @@ export function FluidLoginScreen({
               className={cn(alignClass, sizeClass, fillWidthClass, fillHeightClass)}
               style={buttonStyle}
               disabled={isLoading}
+              onClick={() => {
+                if (intent) {
+                  form.setValue('decision', intent)
+                }
+              }}
             >
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               {String(props.label || 'Continue')}
@@ -571,6 +585,9 @@ export function FluidLoginScreen({
             <div className="p-8" style={{ backgroundColor: background, color: text }}>
               <Form {...form}>
                 <form onSubmit={handleSubmit} className="space-y-3">
+                  {templateKey === 'consent' ? (
+                    <input type="hidden" {...form.register('decision')} />
+                  ) : null}
                   {displayError && (
                     <div className="text-destructive mb-2 rounded-md bg-red-50 p-3 text-sm font-medium">
                       {String(displayError)}
@@ -601,6 +618,9 @@ export function FluidLoginScreen({
           >
             <Form {...form}>
               <form onSubmit={handleSubmit} className="space-y-3">
+                {templateKey === 'consent' ? (
+                  <input type="hidden" {...form.register('decision')} />
+                ) : null}
                 {displayError && (
                   <div className="text-destructive mb-2 rounded-md bg-red-50 p-3 text-sm font-medium">
                     {String(displayError)}

@@ -1,7 +1,9 @@
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::flow::models::NodeMetadata;
+use crate::domain::flow::nodes::condition_node::ConditionNodeProvider;
 use crate::domain::flow::nodes::cookie_node::CookieNodeProvider;
 use crate::domain::flow::nodes::forgot_credentials_node::ForgotCredentialsNodeProvider;
+use crate::domain::flow::nodes::oidc_consent_node::OidcConsentNodeProvider;
 use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
 use crate::domain::flow::nodes::registration_node::RegistrationNodeProvider;
 use crate::domain::flow::nodes::reset_password_node::ResetPasswordNodeProvider;
@@ -20,9 +22,11 @@ impl NodeRegistryService {
         Self {
             providers: vec![
                 Box::new(StartNode),
+                Box::new(ConditionNodeProvider),
                 Box::new(CookieNodeProvider),
                 Box::new(PasswordNodeProvider),
                 Box::new(ForgotCredentialsNodeProvider),
+                Box::new(OidcConsentNodeProvider),
                 Box::new(RegistrationNodeProvider),
                 Box::new(ResetPasswordNodeProvider),
                 Box::new(AllowNode),
@@ -100,8 +104,10 @@ mod tests {
             Arc::new(StubNode),
             StepType::Authenticator,
         );
+        runtime.register_definition("core.oidc.consent", StepType::Authenticator);
         runtime.register_definition("core.terminal.allow", StepType::Terminal);
         runtime.register_definition("core.terminal.deny", StepType::Terminal);
+        runtime.register_definition("core.logic.condition", StepType::Logic);
 
         let registry = NodeRegistryService::new(Arc::new(runtime));
         let nodes = registry.get_available_nodes();
@@ -109,8 +115,9 @@ mod tests {
 
         assert!(ids.iter().any(|id| id == "core.auth.password"));
         assert!(ids.iter().any(|id| id == "core.auth.cookie"));
+        assert!(ids.iter().any(|id| id == "core.oidc.consent"));
+        assert!(ids.iter().any(|id| id == "core.logic.condition"));
         assert!(!ids.iter().any(|id| id == "core.auth.otp"));
-        assert!(!ids.iter().any(|id| id == "core.logic.condition"));
         assert!(!ids.iter().any(|id| id == "core.logic.script"));
     }
 }

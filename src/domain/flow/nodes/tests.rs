@@ -1,5 +1,7 @@
+use super::condition_node::ConditionNodeProvider;
 use super::cookie_node::CookieNodeProvider;
 use super::forgot_credentials_node::ForgotCredentialsNodeProvider;
+use super::oidc_consent_node::OidcConsentNodeProvider;
 use super::password_node::PasswordNodeProvider;
 use super::registration_node::RegistrationNodeProvider;
 use super::reset_password_node::ResetPasswordNodeProvider;
@@ -116,4 +118,32 @@ fn terminal_nodes_have_no_outputs() {
     assert_eq!(deny.category(), "Terminal");
     assert!(deny.outputs().is_empty());
     assert!(deny.config_schema().get("properties").is_some());
+}
+
+#[test]
+fn oidc_consent_node_metadata_is_consistent() {
+    let node = OidcConsentNodeProvider;
+
+    assert_eq!(node.id(), "core.oidc.consent");
+    assert_eq!(node.display_name(), "OIDC Consent");
+    assert!(node.description().contains("OIDC scopes"));
+    assert_eq!(node.icon(), "ShieldAlert");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["allow", "deny"]);
+    assert_eq!(node.default_template_key(), Some("consent"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn condition_node_metadata_is_consistent() {
+    let node = ConditionNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.condition");
+    assert_eq!(node.display_name(), "Condition");
+    assert!(node.description().contains("session context"));
+    assert_eq!(node.icon(), "Split");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["true", "false"]);
+    assert!(node.config_schema().get("properties").is_some());
 }

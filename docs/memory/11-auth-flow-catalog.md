@@ -10,8 +10,9 @@ This file lists the known flow types and their current templates. All flows exec
 
 ## browser (default login)
 - Template: `FlowTemplates::browser_flow()`
-- Nodes: `core.start` -> `core.auth.cookie` -> `core.auth.password` -> `core.terminal.allow`
-- Purpose: standard interactive login with SSO-cookie check first.
+- Nodes: `core.start` -> `core.auth.cookie` -> `core.logic.condition` (SSO) -> `core.auth.password` -> `core.logic.condition` (OIDC) -> `core.oidc.consent` -> `core.terminal.allow`
+- Purpose: standard interactive login with SSO-cookie check first and optional OIDC consent.
+- Consent is only triggered when `oidc.client_id` is present in session context.
 - Binding slot: `browser_flow_id` in realm.
 
 ## direct (direct grant)
@@ -22,13 +23,21 @@ This file lists the known flow types and their current templates. All flows exec
 
 ## registration
 - Template: `FlowTemplates::registration_flow()`
-- Current nodes: same as direct grant (password -> allow). This is a placeholder.
+- Nodes: `core.start` -> `core.auth.register` -> `core.terminal.allow`
+- Purpose: self-service registration with role assignment and realm policies.
 - Binding slot: `registration_flow_id` in realm.
 
 ## reset
 - Template: `FlowTemplates::reset_credentials_flow()`
-- Current nodes: same as direct grant (password -> allow). This is a placeholder.
+- Nodes: `core.start` -> `core.auth.forgot_credentials` -> `core.auth.reset_password` -> `core.terminal.allow`
+- Purpose: recovery request + reset password flow.
 - Binding slot: `reset_credentials_flow_id` in realm.
+
+## oidc-consent (node)
+- Node type: `core.oidc.consent`
+- Purpose: capture user approval/denial of requested OIDC scopes.
+- Outputs: `allow` (continue flow) and `deny` (terminate with failure).
+- Default UI template: `consent` (Fluid).
 
 ## Reserved (not fully wired yet)
 The publish logic recognizes these flow types but realm schema does not yet have columns for them.

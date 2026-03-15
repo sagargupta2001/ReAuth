@@ -163,7 +163,7 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
   }
 
   if (setupRequired) {
-    return <>{children}</>
+    return <Navigate to="/setup" replace />
   }
 
   // --- AUTHENTICATED ---

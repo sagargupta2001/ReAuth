@@ -1,11 +1,13 @@
 pub mod cookie_authenticator;
 pub mod forgot_credentials_authenticator;
+pub mod oidc_consent_authenticator;
 pub mod password_authenticator;
 pub mod registration_authenticator;
 pub mod reset_password_authenticator;
 
 use crate::adapters::auth::cookie_authenticator::CookieAuthenticator;
 use crate::adapters::auth::forgot_credentials_authenticator::ForgotCredentialsAuthenticator;
+use crate::adapters::auth::oidc_consent_authenticator::OidcConsentAuthenticator;
 use crate::adapters::auth::password_authenticator::PasswordAuthenticator;
 use crate::adapters::auth::registration_authenticator::RegistrationAuthenticator;
 use crate::adapters::auth::reset_password_authenticator::ResetPasswordAuthenticator;
@@ -85,15 +87,21 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
         StepType::Authenticator,
     );
 
-    // 5. Cookie Authenticator (SSO)
+    // 5. OIDC Consent Node
+    let consent_node = Arc::new(OidcConsentAuthenticator::new());
+    registry.register_node("core.oidc.consent", consent_node, StepType::Authenticator);
+
+    // 6. Cookie Authenticator (SSO)
     let cookie_node = Arc::new(CookieAuthenticator::new(ctx.session_repo));
     registry.register_node("core.auth.cookie", cookie_node, StepType::Authenticator);
 
-    // 6. Terminal Nodes (Definitions only)
+    // 7. Terminal Nodes (Definitions only)
     // These nodes use the "Generic Handler" in the Executor loop above.
     registry.register_definition("core.terminal.allow", StepType::Terminal);
     registry.register_definition("core.terminal.deny", StepType::Terminal);
 
-    // 7. Start Node
+    // 8. Start Node
     registry.register_definition("core.start", StepType::Logic);
+    // 9. Condition Logic Node
+    registry.register_definition("core.logic.condition", StepType::Logic);
 }

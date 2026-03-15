@@ -53,6 +53,9 @@ export function FlowCanvas() {
       if (droppedCategory === 'Authenticator') {
         config.auth_type = droppedId
       }
+      if (droppedCategory === 'Logic') {
+        config.logic_type = droppedId
+      }
       if (droppedDefaultTemplateKey) {
         config.template_key = droppedDefaultTemplateKey
       }

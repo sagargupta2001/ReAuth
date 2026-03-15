@@ -122,8 +122,13 @@ async fn ensure_flow(
         new_id
     };
 
-    let draft_exists = ctx.flow_store.get_draft_by_id(&flow_id).await?.is_some();
+    let existing_draft = ctx.flow_store.get_draft_by_id(&flow_id).await?;
+    let draft_exists = existing_draft.is_some();
     let graph_json = FlowManager::generate_default_graph(type_);
+    let default_has_start = graph_contains_start(&graph_json);
+    let draft_missing_start = existing_draft
+        .as_ref()
+        .is_some_and(|draft| !graph_contains_start(&draft.graph_json));
     let draft_obj = FlowDraft {
         id: flow_id,
         realm_id: *realm_id,
@@ -139,6 +144,11 @@ async fn ensure_flow(
         let tx_ref = tx.as_deref_mut();
         ctx.flow_store
             .create_draft_with_tx(&draft_obj, tx_ref)
+            .await?;
+    } else if default_has_start && draft_missing_start {
+        let tx_ref = tx.as_deref_mut();
+        ctx.flow_store
+            .update_draft_with_tx(&draft_obj, tx_ref)
             .await?;
     }
 
@@ -165,4 +175,21 @@ async fn ensure_flow(
     }
 
     Ok(flow_id)
+}
+
+fn graph_contains_start(graph_json: &str) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(graph_json) else {
+        return false;
+    };
+    value
+        .get("nodes")
+        .and_then(|nodes| nodes.as_array())
+        .map(|nodes| {
+            nodes.iter().any(|node| {
+                node.get("type")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == "core.start")
+            })
+        })
+        .unwrap_or(false)
 }

@@ -222,8 +222,8 @@ fn default_consent_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Approve access to your account" } },
-            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Allow", "variant": "primary" } },
-            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Deny", "variant": "outline" } }
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Allow", "variant": "primary", "intent": "allow" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Deny", "variant": "outline", "intent": "deny" } }
         ]
     })
 }
