@@ -134,8 +134,6 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     }
 
     void handleAuth()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
 

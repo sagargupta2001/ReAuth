@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 
 import { Loader2 } from 'lucide-react'
@@ -12,6 +12,7 @@ import { PasswordInput } from '@/shared/ui/password-input'
 import { loginSchema } from '@/features/auth/schema/login.schema'
 import type { AuthScreenProps } from '@/entities/auth/model/screenTypes'
 import type { ThemeNode } from '@/entities/theme/model/types'
+import { authApi } from '@/features/auth/api/authApi'
 import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
 import { cn } from '@/lib/utils'
 import { UsernamePasswordScreen } from '@/features/auth/screens/UsernamePasswordScreen'
@@ -36,6 +37,37 @@ export function FluidLoginScreen({
 }: AuthScreenProps) {
   const templateKey =
     typeof context?.template_key === 'string' ? (context.template_key as string) : 'login'
+  const activeRealm = realm ?? 'master'
+
+  const resumeToken =
+    typeof context?.resume_token === 'string' ? (context.resume_token as string) : null
+  const resumePath =
+    typeof context?.resume_path === 'string' ? (context.resume_path as string) : null
+  const actionType =
+    typeof context?.action_type === 'string' ? (context.action_type as string) : null
+  const expiresAt =
+    typeof context?.expires_at === 'string'
+      ? (context.expires_at as string)
+      : context?.expires_at instanceof Date
+        ? context.expires_at.toISOString()
+        : null
+  const expiresAtDate = expiresAt ? new Date(expiresAt) : null
+  const expiresInMinutes =
+    expiresAtDate != null
+      ? Math.max(0, Math.ceil((expiresAtDate.getTime() - Date.now()) / 60000))
+      : null
+  const isExpired = expiresAtDate ? expiresAtDate.getTime() <= Date.now() : false
+  const canResend =
+    Boolean(resumeToken) &&
+    (actionType === 'reset_credentials' || actionType === 'email_verify')
+  const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>(
+    'idle',
+  )
+  const [autoStatus, setAutoStatus] = useState<'idle' | 'consumed' | 'expired' | 'error'>(
+    'idle',
+  )
+  const pollDelayRef = useRef(2000)
+  const pollTimeoutRef = useRef<number | null>(null)
 
   const { data: snapshot, isLoading: isThemeLoading } = useThemeSnapshot(realm, {
     pageKey: templateKey,
@@ -64,6 +96,46 @@ export function FluidLoginScreen({
   }, [context?.email, form, templateKey])
 
   const displayError = localError || error || (context?.error as string) || null
+
+  const awaitingStatusMessage = useMemo(() => {
+    if (templateKey !== 'awaiting_action') return null
+    if (autoStatus === 'consumed') return 'Recovery confirmed, redirecting…'
+    if (autoStatus === 'expired') return 'Token expired. Request a new one.'
+    if (autoStatus === 'error') return 'Waiting for confirmation…'
+    return null
+  }, [autoStatus, templateKey])
+
+  const resendMessage =
+    templateKey === 'awaiting_action'
+      ? resendStatus === 'sent'
+        ? 'Email sent.'
+        : resendStatus === 'error'
+          ? 'Unable to resend email.'
+          : null
+      : null
+
+  const contextualValues = useMemo(() => {
+    const base = typeof context === 'object' && context ? context : {}
+    return {
+      ...base,
+      can_resend: canResend,
+      awaiting_status: autoStatus,
+      awaiting_status_message: awaitingStatusMessage,
+      resend_message: resendMessage,
+      expires_at: expiresAt,
+      expires_in_minutes: expiresInMinutes,
+      is_expired: isExpired,
+    }
+  }, [
+    context,
+    canResend,
+    autoStatus,
+    awaitingStatusMessage,
+    resendMessage,
+    expiresAt,
+    expiresInMinutes,
+    isExpired,
+  ])
 
   const tokens = useMemo(() => snapshot?.tokens ?? {}, [snapshot])
   const layout = useMemo(() => snapshot?.layout ?? { shell: 'CenteredCard' }, [snapshot])
@@ -131,6 +203,9 @@ export function FluidLoginScreen({
   )
 
   const handleSubmit = form.handleSubmit((values) => {
+    if (templateKey === 'awaiting_action') {
+      return
+    }
     setLocalError(null)
     const normalized = { ...values }
     if (!normalized.username && normalized.email) {
@@ -202,7 +277,7 @@ export function FluidLoginScreen({
     const trimmed = path.trim()
     if (!trimmed) return undefined
     const parts = trimmed.split('.')
-    let current: unknown = context
+    let current: unknown = contextualValues
     for (const part of parts) {
       if (!part) continue
       if (!current || typeof current !== 'object') return undefined
@@ -244,6 +319,80 @@ export function FluidLoginScreen({
     }
     return Boolean(value)
   }
+
+  const handleResend = async () => {
+    if (!resumeToken || !canResend) return
+    setResendStatus('sending')
+    try {
+      await authApi.resendAction(activeRealm, resumeToken)
+      setResendStatus('sent')
+    } catch (error) {
+      console.error('[AwaitingAction] Resend failed', error)
+      setResendStatus('error')
+    }
+  }
+
+  useEffect(() => {
+    if (templateKey !== 'awaiting_action') return
+    setAutoStatus('idle')
+    setResendStatus('idle')
+    pollDelayRef.current = 2000
+  }, [templateKey, resumeToken])
+
+  useEffect(() => {
+    if (templateKey !== 'awaiting_action') return
+    if (!resumeToken || !resumePath) return
+    if (autoStatus === 'consumed' || autoStatus === 'expired') return
+    let cancelled = false
+
+    const buildResumeRedirectUrl = () => {
+      const [path, rawQuery] = resumePath.split('?')
+      const params = new URLSearchParams(rawQuery || '')
+      params.set('realm', activeRealm)
+      params.set('resume', 'consumed')
+      params.set('ts', Date.now().toString())
+      const query = params.toString()
+      return `/#${path}${query ? `?${query}` : ''}`
+    }
+
+    const poll = async () => {
+      try {
+        const response = await authApi.actionStatus(activeRealm, resumeToken)
+        if (cancelled) return
+        if (response.status === 'consumed') {
+          setAutoStatus('consumed')
+          const redirectUrl = buildResumeRedirectUrl()
+          window.setTimeout(() => {
+            window.location.href = redirectUrl
+          }, 1200)
+          return
+        }
+        if (response.status === 'expired') {
+          setAutoStatus('expired')
+          return
+        }
+        if (autoStatus !== 'idle') {
+          setAutoStatus('idle')
+        }
+      } catch {
+        if (!cancelled) {
+          setAutoStatus('error')
+        }
+      }
+
+      const nextDelay = Math.min(10000, Math.round(pollDelayRef.current * 1.5))
+      pollDelayRef.current = nextDelay
+      pollTimeoutRef.current = window.setTimeout(poll, pollDelayRef.current)
+    }
+
+    pollTimeoutRef.current = window.setTimeout(poll, pollDelayRef.current)
+    return () => {
+      cancelled = true
+      if (pollTimeoutRef.current) {
+        window.clearTimeout(pollTimeoutRef.current)
+      }
+    }
+  }, [templateKey, resumeToken, resumePath, activeRealm, autoStatus])
 
   const renderNode = (
     node: ThemeNode,
@@ -366,12 +515,17 @@ export function FluidLoginScreen({
         )
       }
       case 'Text':
-        return wrap(
-          <div className={cn('py-1', alignClass)}>
-            <p className="text-lg font-semibold">{String(props.text || 'Headline')}</p>
-          </div>,
-          options?.wrapperClass,
-        )
+        {
+          const textPath = String(props.text_path || '').trim()
+          const resolved = textPath ? resolveContextValue(textPath) : undefined
+          const textValue = resolved ?? props.text ?? 'Headline'
+          return wrap(
+            <div className={cn('py-1', alignClass)}>
+              <p className="text-lg font-semibold">{String(textValue)}</p>
+            </div>,
+            options?.wrapperClass,
+          )
+        }
       case 'Icon': {
         const name = String(props.name || '')
         const color = String(props.color || '')
@@ -449,6 +603,8 @@ export function FluidLoginScreen({
         if (component.toLowerCase() === 'button') {
           const variant = String(props.variant || 'primary')
           const intent = typeof props.intent === 'string' ? props.intent.trim() : ''
+          const isAwaitingResend =
+            templateKey === 'awaiting_action' && intent.toLowerCase() === 'resend'
           const buttonVariant =
             variant === 'secondary' ? 'secondary' : variant === 'outline' ? 'outline' : 'default'
           const buttonStyle: React.CSSProperties = {}
@@ -460,21 +616,29 @@ export function FluidLoginScreen({
             buttonStyle.borderColor = primary
             buttonStyle.color = primary
           }
+          const label =
+            isAwaitingResend && resendStatus === 'sending'
+              ? 'Sending…'
+              : String(props.label || 'Continue')
           return wrap(
             <Button
-              type="submit"
+              type={isAwaitingResend ? 'button' : 'submit'}
               variant={buttonVariant}
               className={cn(alignClass, sizeClass, fillWidthClass, fillHeightClass)}
               style={buttonStyle}
-              disabled={isLoading}
+              disabled={isLoading || (isAwaitingResend && (resendStatus === 'sending' || !canResend))}
               onClick={() => {
+                if (isAwaitingResend) {
+                  void handleResend()
+                  return
+                }
                 if (intent) {
                   form.setValue('decision', intent)
                 }
               }}
             >
               {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {String(props.label || 'Continue')}
+              {label}
             </Button>,
             options?.wrapperClass,
           )

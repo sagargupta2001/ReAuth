@@ -148,7 +148,9 @@ fn recovery_issue_node_metadata_is_consistent() {
     assert_eq!(node.category(), "Logic");
     assert_eq!(node.inputs(), vec!["default"]);
     assert_eq!(node.outputs(), vec!["issued"]);
-    assert!(node.config_schema().as_object().unwrap().is_empty());
+    assert!(node.config_schema().get("properties").is_some());
+    assert_eq!(node.default_template_key(), Some("awaiting_action"));
+    assert!(node.supports_ui());
 }
 
 #[test]

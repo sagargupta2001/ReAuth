@@ -21,7 +21,7 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::{Duration, Utc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use tracing::{error, instrument, warn};
@@ -686,6 +686,16 @@ pub struct ResendActionRequest {
     pub token: String,
 }
 
+#[derive(Deserialize)]
+pub struct ActionStatusQuery {
+    pub token: String,
+}
+
+#[derive(Serialize)]
+pub struct ActionStatusResponse {
+    pub status: crate::application::flow_executor::ActionStatus,
+}
+
 // POST /api/realms/{realm}/auth/resume
 #[instrument(skip_all)]
 pub async fn resume_action_handler(
@@ -748,6 +758,29 @@ pub async fn resend_action_handler(
             "delivered": delivered
         })),
     ))
+}
+
+// GET /api/realms/{realm}/auth/action-status?token=...
+#[instrument(skip_all)]
+pub async fn action_status_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Query(payload): Query<ActionStatusQuery>,
+) -> Result<impl IntoResponse> {
+    let token = payload.token.trim();
+    if token.is_empty() {
+        return Err(Error::Validation("Action token is required".to_string()));
+    }
+
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+
+    let status = state.flow_executor.action_status(realm.id, token).await?;
+
+    Ok((StatusCode::OK, Json(ActionStatusResponse { status })))
 }
 
 // Refresh and Logout handlers remain largely the same, just standard auth_service calls.

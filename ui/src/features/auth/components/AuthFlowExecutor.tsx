@@ -139,7 +139,16 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
     return () => {
       active = false
     }
-  }, [realm, location.pathname, location.search, currentStep, resumeToken, flowPath])
+  }, [
+    realm,
+    location.pathname,
+    location.search,
+    currentStep,
+    resumeToken,
+    flowPath,
+    navigate,
+    shouldWaitForHashRedirect,
+  ])
 
   // 2. SUBMIT HANDLER
   const handleSubmit = async (data: Record<string, unknown>) => {
@@ -224,6 +233,10 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     )
+  }
+
+  if (globalError && !currentStep) {
+    throw new Error(globalError)
   }
 
   if (currentStep?.status === 'failure') {

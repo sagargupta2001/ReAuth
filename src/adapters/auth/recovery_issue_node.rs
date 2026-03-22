@@ -102,7 +102,7 @@ impl LifecycleNode for RecoveryIssueNode {
             }),
             screen: "core.awaiting-action".to_string(),
             context: json!({
-                "message": "If an account exists, recovery instructions will be sent. You can also use the token to continue.",
+                "message": "If an account exists, recovery instructions will be sent.",
                 "resume_token": token,
                 "expires_at": expires_at,
                 "action_type": "reset_credentials",

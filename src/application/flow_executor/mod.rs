@@ -1,3 +1,4 @@
+use serde::Serialize;
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -29,6 +30,14 @@ pub struct FlowExecutor {
     action_repo: Arc<dyn AuthSessionActionRepository>,
     email_delivery: Option<Arc<EmailDeliveryService>>,
     audit_service: Option<Arc<AuditService>>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ActionStatus {
+    Pending,
+    Consumed,
+    Expired,
 }
 
 impl FlowExecutor {
@@ -180,6 +189,7 @@ impl FlowExecutor {
                         restore_node_config(&mut session, previous_config);
                         let template_key = resolve_template_key(&current_node_def.config);
                         let context = attach_template_key(context, template_key.as_deref());
+                        let context = ensure_template_key(context, "awaiting_action");
                         let result = self
                             .handle_async_suspend(
                                 &mut session,
@@ -293,6 +303,7 @@ impl FlowExecutor {
                         restore_node_config(&mut session, previous_config);
                         let template_key = resolve_template_key(&node_def.config);
                         let context = attach_template_key(context, template_key.as_deref());
+                        let context = ensure_template_key(context, "awaiting_action");
                         let result = self
                             .handle_async_suspend(
                                 &mut session,
@@ -472,6 +483,28 @@ impl FlowExecutor {
         Ok((result, session_id))
     }
 
+    pub async fn action_status(&self, realm_id: Uuid, token: &str) -> Result<ActionStatus> {
+        let token_hash = hash_token(token);
+        let action = self.action_repo.find_by_token_hash(&token_hash).await?;
+        let Some(action) = action else {
+            return Ok(ActionStatus::Expired);
+        };
+
+        if action.realm_id != realm_id {
+            return Ok(ActionStatus::Expired);
+        }
+
+        if action.is_consumed() {
+            return Ok(ActionStatus::Consumed);
+        }
+
+        if action.is_expired() {
+            return Ok(ActionStatus::Expired);
+        }
+
+        Ok(ActionStatus::Pending)
+    }
+
     async fn heal_session(&self, session: &mut AuthenticationSession) -> Result<()> {
         let version = self
             .flow_store
@@ -504,6 +537,24 @@ fn attach_template_key(mut context: Value, template_key: Option<&str>) -> Value 
         }
         other => serde_json::json!({
             "template_key": key,
+            "payload": other,
+        }),
+    }
+}
+
+fn ensure_template_key(mut context: Value, default_key: &str) -> Value {
+    match context {
+        Value::Object(ref mut map) => {
+            if !map.contains_key("template_key") {
+                map.insert(
+                    "template_key".to_string(),
+                    Value::String(default_key.to_string()),
+                );
+            }
+            context
+        }
+        other => serde_json::json!({
+            "template_key": default_key,
             "payload": other,
         }),
     }

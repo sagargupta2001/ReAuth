@@ -74,4 +74,12 @@ impl NodeProvider for EmailOtpIssueNodeProvider {
             "additionalProperties": false
         })
     }
+
+    fn supports_ui(&self) -> bool {
+        true
+    }
+
+    fn default_template_key(&self) -> Option<&'static str> {
+        Some("awaiting_action")
+    }
 }

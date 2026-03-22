@@ -37,6 +37,11 @@ const SYSTEM_PAGES: &[ThemePageDefinition] = &[
         description: "Set a new password.",
     },
     ThemePageDefinition {
+        key: "awaiting_action",
+        label: "Awaiting Action",
+        description: "Waiting for an out-of-band action.",
+    },
+    ThemePageDefinition {
         key: "verify_email",
         label: "Verify Email",
         description: "Email verification notice.",
@@ -121,6 +126,7 @@ pub fn default_page_blueprint(key: &str) -> Option<Value> {
         "register" => Some(default_register_blueprint()),
         "forgot_credentials" => Some(default_forgot_blueprint()),
         "reset_password" => Some(default_reset_password_blueprint()),
+        "awaiting_action" => Some(default_awaiting_action_blueprint()),
         "verify_email" => Some(default_verify_blueprint()),
         "mfa" => Some(default_mfa_blueprint()),
         "consent" => Some(default_consent_blueprint()),
@@ -192,6 +198,19 @@ fn default_reset_password_blueprint() -> Value {
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "New password", "name": "password", "input_type": "password" } },
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Confirm password", "name": "password_confirm", "input_type": "password" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Update password", "variant": "primary" } }
+        ]
+    })
+}
+
+fn default_awaiting_action_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Check your inbox" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "message", "visible_if": "message" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Resend email", "variant": "secondary", "intent": "resend", "visible_if": "can_resend" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "resend_message", "visible_if": "resend_message" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "awaiting_status_message", "visible_if": "awaiting_status_message" } }
         ]
     })
 }

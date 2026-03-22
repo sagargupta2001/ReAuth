@@ -75,7 +75,7 @@
 - [x] Awaiting-action UI shows expiration + resend entry point.
 - [x] Recovery resend + expiration UX copy.
 - [x] Per-realm recovery settings (token TTL, rate limits, session revocation, templates).
-- [ ] Recovery identifier should support email once the domain model adds email fields (currently username-only).
+- [x] Recovery identifier supports username or email (user email stored on domain model).
 - [x] Recovery UX route and API path (`/forgot` or `/recover`) wired to flow executor.
 - [x] Realm security headers (X-Frame-Options, CSP, etc.) configurable per realm and applied on auth/OIDC responses.
 - [x] OTP/email verification node with async pause/resume and resend support.
@@ -84,6 +84,9 @@
 - [x] OIDC spec-aligned error payloads across authorize/token/userinfo.
 - [ ] OIDC conformance harness coverage in CI.
 - [x] Confidential-client secret storage/rotation plan implemented.
+- [x] Action status endpoint for async flows (`GET /api/realms/{realm}/auth/action-status?token=...`).
+- [x] Awaiting-action polling with backoff and auto-redirect on consume.
+- [x] Awaiting-action UX copy for auto-redirect (“Recovery confirmed, redirecting…”).
 
 ## Master admin bootstrapping (production posture)
 ### Design summary

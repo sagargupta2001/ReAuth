@@ -58,4 +58,14 @@ export const authApi = {
       { token },
     )
   },
+
+  /**
+   * Check async action status for auto-advance.
+   */
+  actionStatus: async (realm: string, token: string) => {
+    const query = new URLSearchParams({ token })
+    return apiClient.get<{ status: 'pending' | 'consumed' | 'expired' }>(
+      `/api/realms/${realm}/auth/action-status?${query.toString()}`,
+    )
+  },
 }

@@ -916,6 +916,8 @@ fn default_template_key(node_type: &str) -> Option<&'static str> {
         "core.auth.register" => Some("register"),
         "core.auth.forgot_credentials" => Some("forgot_credentials"),
         "core.auth.reset_password" => Some("reset_password"),
+        "core.logic.recovery_issue" => Some("awaiting_action"),
+        "core.logic.issue_email_otp" => Some("awaiting_action"),
         "core.oidc.consent" => Some("consent"),
         _ => None,
     }
