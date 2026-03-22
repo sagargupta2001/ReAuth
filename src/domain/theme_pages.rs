@@ -178,7 +178,7 @@ fn default_forgot_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Reset your password" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email", "name": "email", "input_type": "email" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Username or email", "name": "username", "input_type": "text" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Send reset link", "variant": "primary" } }
         ]
     })
@@ -200,8 +200,8 @@ fn default_verify_blueprint() -> Value {
     json!({
         "layout": "default",
         "nodes": [
-            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Check your inbox to verify your email." } },
-            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Resend email", "variant": "secondary" } }
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Email verification complete." } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } }
         ]
     })
 }

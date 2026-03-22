@@ -211,9 +211,21 @@ impl FlowTemplates {
                     }
                 },
                 {
+                    "id": "recovery-issue",
+                    "type": "core.logic.recovery_issue",
+                    "position": { "x": 250, "y": 250 },
+                    "data": {
+                        "label": "Issue Recovery Token",
+                        "config": {
+                            "logic_type": "core.logic.recovery_issue"
+                        },
+                        "outputs": ["issued"]
+                    }
+                },
+                {
                     "id": "reset-password",
                     "type": "core.auth.reset_password",
-                    "position": { "x": 250, "y": 270 },
+                    "position": { "x": 250, "y": 380 },
                     "data": {
                         "label": "Reset Password",
                         "config": {
@@ -226,14 +238,15 @@ impl FlowTemplates {
                 {
                     "id": "allow",
                     "type": "core.terminal.allow",
-                    "position": { "x": 250, "y": 420 },
+                    "position": { "x": 250, "y": 520 },
                     "data": { "label": "Allow Access" }
                 }
             ],
             "edges": [
                 { "id": "e0", "source": "start", "target": "auth-forgot" },
-                { "id": "e1", "source": "auth-forgot", "sourceHandle": "success", "target": "reset-password" },
-                { "id": "e2", "source": "reset-password", "sourceHandle": "success", "target": "allow" }
+                { "id": "e1", "source": "auth-forgot", "sourceHandle": "success", "target": "recovery-issue" },
+                { "id": "e2", "source": "recovery-issue", "sourceHandle": "issued", "target": "reset-password" },
+                { "id": "e3", "source": "reset-password", "sourceHandle": "success", "target": "allow" }
             ]
         })
     }

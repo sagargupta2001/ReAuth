@@ -10,25 +10,26 @@ use axum::extract::{ConnectInfo, FromRequest, OriginalUri, Path, Request};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect}, // Redirect is needed for authorize
+    response::{IntoResponse, Redirect, Response}, // Redirect is needed for authorize
     Json,
 };
 use axum_extra::extract::cookie::{Cookie, SameSite}; // Use axum_extra cookie types
 use cookie::CookieBuilder;
 use http::{header, HeaderMap, HeaderValue};
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
+use url::Url;
 use uuid::Uuid;
 
 // Note: AuthorizeParams is replaced by domain::oidc::OidcRequest to match service signature
 
 #[derive(Deserialize)]
 pub struct TokenParams {
-    pub grant_type: String,
-    pub code: String,
-    pub redirect_uri: String,
-    pub client_id: String,
+    pub grant_type: Option<String>,
+    pub code: Option<String>,
+    pub redirect_uri: Option<String>,
+    pub client_id: Option<String>,
     pub code_verifier: Option<String>,
 }
 
@@ -45,11 +46,143 @@ where
         match axum::extract::Form::<T>::from_request(req, state).await {
             Ok(axum::extract::Form(value)) => Ok(JsonForm(value)),
             Err(rejection) => Err((
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(serde_json::json!({ "error": rejection.to_string() })),
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({
+                    "error": "invalid_request",
+                    "error_description": rejection.to_string()
+                })),
             )),
         }
     }
+}
+
+#[derive(Serialize)]
+struct OidcErrorResponse<'a> {
+    error: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_description: Option<&'a str>,
+}
+
+fn oidc_error_response(status: StatusCode, error: &str, description: Option<&str>) -> Response {
+    (
+        status,
+        Json(OidcErrorResponse {
+            error,
+            error_description: description,
+        }),
+    )
+        .into_response()
+}
+
+fn oidc_bearer_error(status: StatusCode, error: &str, description: &str) -> Response {
+    let mut response = oidc_error_response(status, error, Some(description));
+    let header_value = format!(
+        "Bearer error=\"{}\", error_description=\"{}\"",
+        error, description
+    );
+    if let Ok(value) = HeaderValue::from_str(&header_value) {
+        response
+            .headers_mut()
+            .insert(header::WWW_AUTHENTICATE, value);
+    }
+    response
+}
+
+fn normalize_authorize_error(error: &Error) -> (&'static str, StatusCode, String) {
+    match error {
+        Error::OidcInvalidRequest(message) => {
+            let error_code = if message.contains("response_type") {
+                "unsupported_response_type"
+            } else {
+                "invalid_request"
+            };
+            (error_code, StatusCode::BAD_REQUEST, message.clone())
+        }
+        Error::OidcInvalidRedirect(message) => {
+            ("invalid_request", StatusCode::BAD_REQUEST, message.clone())
+        }
+        Error::OidcClientNotFound(message) => (
+            "unauthorized_client",
+            StatusCode::BAD_REQUEST,
+            message.clone(),
+        ),
+        Error::Validation(message) => ("invalid_request", StatusCode::BAD_REQUEST, message.clone()),
+        Error::SecurityViolation(message) => {
+            ("access_denied", StatusCode::FORBIDDEN, message.clone())
+        }
+        _ => (
+            "server_error",
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Unexpected server error".to_string(),
+        ),
+    }
+}
+
+fn normalize_token_error(error: &Error) -> (&'static str, StatusCode, String) {
+    match error {
+        Error::OidcInvalidCode => (
+            "invalid_grant",
+            StatusCode::UNAUTHORIZED,
+            "Invalid authorization code".to_string(),
+        ),
+        Error::OidcInvalidRedirect(message) => {
+            ("invalid_grant", StatusCode::BAD_REQUEST, message.clone())
+        }
+        Error::OidcInvalidRequest(message) => {
+            let error_code = if message.contains("grant_type") {
+                "unsupported_grant_type"
+            } else {
+                "invalid_request"
+            };
+            (error_code, StatusCode::BAD_REQUEST, message.clone())
+        }
+        Error::OidcClientNotFound(message) => {
+            ("invalid_client", StatusCode::UNAUTHORIZED, message.clone())
+        }
+        Error::Validation(message) => ("invalid_request", StatusCode::BAD_REQUEST, message.clone()),
+        _ => (
+            "server_error",
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Unexpected server error".to_string(),
+        ),
+    }
+}
+
+fn normalize_userinfo_error(error: &Error) -> (&'static str, StatusCode, String) {
+    match error {
+        Error::Jwt(_) => (
+            "invalid_token",
+            StatusCode::UNAUTHORIZED,
+            "Invalid or expired access token".to_string(),
+        ),
+        Error::OidcInvalidRequest(message) => {
+            ("invalid_request", StatusCode::BAD_REQUEST, message.clone())
+        }
+        Error::Validation(message) => ("invalid_request", StatusCode::BAD_REQUEST, message.clone()),
+        _ => (
+            "server_error",
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Unexpected server error".to_string(),
+        ),
+    }
+}
+
+fn build_authorize_redirect(
+    redirect_uri: &str,
+    error: &str,
+    description: &str,
+    state: Option<&str>,
+) -> Option<Redirect> {
+    let mut url = Url::parse(redirect_uri).ok()?;
+    {
+        let mut pairs = url.query_pairs_mut();
+        pairs.append_pair("error", error);
+        pairs.append_pair("error_description", description);
+        if let Some(state) = state {
+            pairs.append_pair("state", state);
+        }
+    }
+    Some(Redirect::to(url.as_str()))
 }
 
 fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
@@ -80,7 +213,7 @@ pub async fn authorize_handler(
     Path(realm_name): Path<String>,
     Query(params): Query<OidcRequest>,
     uri: OriginalUri,
-) -> Result<impl IntoResponse> {
+) -> Result<Response> {
     // 1. Resolve Realm
     let realm = state
         .realm_service
@@ -90,10 +223,35 @@ pub async fn authorize_handler(
 
     // 2. Initiate the Graph Session via OidcService
     // This handles client validation, flow lookup, and unified session creation.
-    let session = state
+    let session = match state
         .oidc_service
-        .initiate_browser_login(realm.id, params)
-        .await?;
+        .initiate_browser_login(realm.id, params.clone())
+        .await
+    {
+        Ok(session) => session,
+        Err(err) => {
+            let (error_code, status, description) = normalize_authorize_error(&err);
+
+            let redirect_ok = state
+                .oidc_service
+                .validate_client(&realm.id, &params.client_id, &params.redirect_uri)
+                .await
+                .is_ok();
+
+            if redirect_ok {
+                if let Some(redirect) = build_authorize_redirect(
+                    &params.redirect_uri,
+                    error_code,
+                    &description,
+                    params.state.as_deref(),
+                ) {
+                    return Ok(redirect.into_response());
+                }
+            }
+
+            return Ok(oidc_error_response(status, error_code, Some(&description)));
+        }
+    };
 
     // 3. Set the Session Cookie
     let mut headers = HeaderMap::new();
@@ -123,7 +281,7 @@ pub async fn authorize_handler(
     // We append it to the frontend URL so AuthGuard sees it!
     let frontend_login_url = format!("/#/login?realm={}&{}", realm_name, query_string);
 
-    Ok((headers, Redirect::to(&frontend_login_url)))
+    Ok((headers, Redirect::to(&frontend_login_url)).into_response())
 }
 
 /// POST /api/oidc/token
@@ -134,10 +292,47 @@ pub async fn token_handler(
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     JsonForm(params): JsonForm<TokenParams>,
-) -> Result<impl IntoResponse> {
-    if params.grant_type != "authorization_code" {
-        return Err(Error::OidcInvalidRequest(
-            "Unsupported grant_type".to_string(),
+) -> Result<Response> {
+    let grant_type = params.grant_type.as_deref().unwrap_or_default().trim();
+    if grant_type.is_empty() {
+        return Ok(oidc_error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid_request",
+            Some("grant_type is required"),
+        ));
+    }
+    if grant_type != "authorization_code" {
+        return Ok(oidc_error_response(
+            StatusCode::BAD_REQUEST,
+            "unsupported_grant_type",
+            Some("Unsupported grant_type"),
+        ));
+    }
+
+    let code = params.code.as_deref().unwrap_or_default().trim();
+    if code.is_empty() {
+        return Ok(oidc_error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid_request",
+            Some("code is required"),
+        ));
+    }
+
+    let client_id = params.client_id.as_deref().unwrap_or_default().trim();
+    if client_id.is_empty() {
+        return Ok(oidc_error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid_request",
+            Some("client_id is required"),
+        ));
+    }
+
+    let redirect_uri = params.redirect_uri.as_deref().unwrap_or_default().trim();
+    if redirect_uri.is_empty() {
+        return Ok(oidc_error_response(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "invalid_request",
+            Some("redirect_uri is required"),
         ));
     }
 
@@ -154,16 +349,23 @@ pub async fn token_handler(
         .unwrap_or_else(|| addr.ip().to_string());
 
     // Call the service
-    let (token_response, refresh_token) = state
+    let (token_response, refresh_token) = match state
         .oidc_service
         .exchange_code_for_token(
-            &params.code,
-            &params.redirect_uri,
+            code,
+            redirect_uri,
             params.code_verifier.as_deref().unwrap_or(""),
             Some(ip_address),
             user_agent,
         )
-        .await?;
+        .await
+    {
+        Ok(values) => values,
+        Err(err) => {
+            let (error_code, status, description) = normalize_token_error(&err);
+            return Ok(oidc_error_response(status, error_code, Some(&description)));
+        }
+    };
 
     // Create the HttpOnly Cookie
     let cookie = create_refresh_cookie(&refresh_token);
@@ -176,7 +378,7 @@ pub async fn token_handler(
     );
 
     // Return the tuple (Status, Headers, JSON Body)
-    Ok((StatusCode::OK, headers, Json(token_response)))
+    Ok((StatusCode::OK, headers, Json(token_response)).into_response())
 }
 
 /// Get /.well-known/jwks.json
@@ -214,18 +416,37 @@ pub async fn discovery_handler(
 pub async fn userinfo_handler(
     State(state): State<AppState>,
     headers: HeaderMap,
-) -> Result<impl IntoResponse> {
-    let auth_header = headers
+) -> Result<Response> {
+    let Some(auth_header) = headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
-        .ok_or_else(|| Error::OidcInvalidRequest("Missing Authorization header".to_string()))?;
+    else {
+        return Ok(oidc_bearer_error(
+            StatusCode::UNAUTHORIZED,
+            "invalid_token",
+            "Missing Authorization header",
+        ));
+    };
 
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| Error::OidcInvalidRequest("Invalid Authorization header".to_string()))?;
+    let Some(token) = auth_header.strip_prefix("Bearer ") else {
+        return Ok(oidc_error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_request",
+            Some("Invalid Authorization header"),
+        ));
+    };
 
-    let response = state.oidc_service.userinfo(token).await?;
-    Ok((StatusCode::OK, Json(response)))
+    match state.oidc_service.userinfo(token).await {
+        Ok(response) => Ok((StatusCode::OK, Json(response)).into_response()),
+        Err(err) => {
+            let (error_code, status, description) = normalize_userinfo_error(&err);
+            if error_code == "invalid_token" {
+                Ok(oidc_bearer_error(status, error_code, &description))
+            } else {
+                Ok(oidc_error_response(status, error_code, Some(&description)))
+            }
+        }
+    }
 }
 
 pub async fn list_clients_handler(

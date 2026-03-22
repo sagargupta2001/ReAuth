@@ -29,9 +29,20 @@ This file lists the known flow types and their current templates. All flows exec
 
 ## reset
 - Template: `FlowTemplates::reset_credentials_flow()`
-- Nodes: `core.start` -> `core.auth.forgot_credentials` -> `core.auth.reset_password` -> `core.terminal.allow`
-- Purpose: recovery request + reset password flow.
+- Nodes: `core.start` -> `core.auth.forgot_credentials` -> `core.logic.recovery_issue` -> `core.auth.reset_password` -> `core.terminal.allow`
+- Purpose: recovery request UI, async token issuance + await, then reset password.
 - Binding slot: `reset_credentials_flow_id` in realm.
+
+## email verification (nodes)
+- Logic node: `core.logic.issue_email_otp`
+  - Purpose: generate a one-time verification token and suspend the flow (async).
+  - Outputs: `issued`
+  - Expected config: `identifier_key`, `token_ttl_minutes`, `resume_path`, `resend_path`, `resume_node_id`.
+- Authenticator: `core.auth.verify_email_otp`
+  - Purpose: resume after verification and continue the flow.
+  - Outputs: `success`, `failure`
+  - Default UI template: `verify_email` (Fluid).
+  - Uses `auto_continue` config to bypass UI after resume.
 
 ## oidc-consent (node)
 - Node type: `core.oidc.consent`

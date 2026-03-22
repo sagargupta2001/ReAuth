@@ -1,4 +1,3 @@
-use crate::application::user_service::UserService;
 use crate::domain::auth_session::AuthenticationSession;
 use crate::domain::execution::lifecycle::{LifecycleNode, NodeOutcome};
 use crate::domain::realm_recovery_settings::RealmRecoverySettings;
@@ -8,27 +7,21 @@ use crate::ports::realm_recovery_settings_repository::RealmRecoverySettingsRepos
 use crate::ports::recovery_attempt_repository::RecoveryAttemptRepository;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
-use rand::distr::{Alphanumeric, SampleString};
 use serde_json::{json, Value};
 use std::sync::Arc;
 use tracing::instrument;
 
-const RECOVERY_TOKEN_LENGTH: usize = 48;
-
 pub struct ForgotCredentialsAuthenticator {
-    user_service: Arc<UserService>,
     recovery_attempt_repo: Arc<dyn RecoveryAttemptRepository>,
     recovery_settings_repo: Arc<dyn RealmRecoverySettingsRepository>,
 }
 
 impl ForgotCredentialsAuthenticator {
     pub fn new(
-        user_service: Arc<UserService>,
         recovery_attempt_repo: Arc<dyn RecoveryAttemptRepository>,
         recovery_settings_repo: Arc<dyn RealmRecoverySettingsRepository>,
     ) -> Self {
         Self {
-            user_service,
             recovery_attempt_repo,
             recovery_settings_repo,
         }
@@ -190,42 +183,20 @@ impl LifecycleNode for ForgotCredentialsAuthenticator {
         }
         if let Some(ctx) = session.context.as_object_mut() {
             ctx.remove("retry_at");
-        }
-
-        let user_id = self
-            .user_service
-            .find_by_username(&session.realm_id, identifier)
-            .await?
-            .map(|user| user.id.to_string());
-
-        let token = Alphanumeric.sample_string(&mut rand::rng(), RECOVERY_TOKEN_LENGTH);
-        let expires_at = Utc::now() + Duration::minutes(recovery_settings.token_ttl_minutes.max(1));
-
-        if let Some(ctx) = session.context.as_object_mut() {
             ctx.remove("error");
             ctx.insert("email".to_string(), json!(identifier));
+            ctx.insert("username".to_string(), json!(identifier));
+            ctx.insert("recovery_identifier".to_string(), json!(identifier));
         } else {
-            session.context = json!({ "email": identifier });
+            session.context = json!({
+                "email": identifier,
+                "username": identifier,
+                "recovery_identifier": identifier,
+            });
         }
 
-        Ok(NodeOutcome::SuspendForAsync {
-            action_type: "reset_credentials".to_string(),
-            token: token.clone(),
-            expires_at,
-            resume_node_id: Some("reset-password".to_string()),
-            payload: json!({
-                "user_id": user_id,
-                "identifier": identifier,
-            }),
-            screen: "core.awaiting-action".to_string(),
-            context: json!({
-                "message": "If an account exists, recovery instructions will be sent. You can also use the token to continue.",
-                "resume_token": token,
-                "expires_at": expires_at,
-                "action_type": "reset_credentials",
-                "resume_path": "/forgot-password",
-                "email": identifier,
-            }),
+        Ok(NodeOutcome::Continue {
+            output: "success".to_string(),
         })
     }
 

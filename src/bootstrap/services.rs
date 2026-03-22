@@ -18,6 +18,7 @@ use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
 use crate::application::realm_email_settings_service::RealmEmailSettingsService;
 use crate::application::realm_recovery_settings_service::RealmRecoverySettingsService;
+use crate::application::realm_security_headers_service::RealmSecurityHeadersService;
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::webhook_service::WebhookService;
@@ -42,6 +43,7 @@ pub struct Services {
     pub realm_service: Arc<RealmService>,
     pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
     pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
+    pub realm_security_headers_service: Arc<RealmSecurityHeadersService>,
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
     pub webhook_service: Arc<WebhookService>,
@@ -119,6 +121,11 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.realm_recovery_settings_repo.clone(),
     ));
 
+    let realm_security_headers_service = Arc::new(RealmSecurityHeadersService::new(
+        repos.realm_repo.clone(),
+        repos.realm_security_headers_repo.clone(),
+    ));
+
     let email_delivery_service = Arc::new(EmailDeliveryService::new(
         repos.realm_repo.clone(),
         repos.realm_email_settings_repo.clone(),
@@ -151,6 +158,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
             lockout_threshold: settings.auth.lockout_threshold,
             lockout_duration_secs: settings.auth.lockout_duration_secs,
             session_repo: repos.session_repo.clone(),
+            action_repo: repos.auth_session_action_repo.clone(),
             recovery_attempt_repo: repos.recovery_attempt_repo.clone(),
             audit_service: audit_service.clone(),
             recovery_settings_repo: repos.realm_recovery_settings_repo.clone(),
@@ -228,6 +236,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         realm_service,
         realm_email_settings_service,
         realm_recovery_settings_service,
+        realm_security_headers_service,
         auth_service,
         audit_service,
         webhook_service,

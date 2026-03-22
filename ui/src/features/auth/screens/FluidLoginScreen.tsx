@@ -47,6 +47,7 @@ export function FluidLoginScreen({
     defaultValues: {
       username: (context?.username as string) || '',
       password: '',
+      otp: '',
     },
   })
 
@@ -140,6 +141,20 @@ export function FluidLoginScreen({
         setLocalError('Email or username is required.')
         return
       }
+      void onSubmit(normalized)
+      return
+    }
+    if (templateKey === 'mfa') {
+      const otp =
+        normalized.otp || normalized.code || normalized.token || normalized.verification_code
+      if (!otp) {
+        setLocalError('Verification code is required.')
+        return
+      }
+      void onSubmit({ otp })
+      return
+    }
+    if (templateKey === 'verify_email') {
       void onSubmit(normalized)
       return
     }

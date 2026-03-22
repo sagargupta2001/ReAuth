@@ -28,6 +28,15 @@ pub struct RecoveryEmail {
     pub resume_path: String,
 }
 
+pub struct VerificationEmail {
+    pub identifier: String,
+    pub token: String,
+    pub expires_at: DateTime<Utc>,
+    pub resume_path: String,
+    pub subject: Option<String>,
+    pub body: Option<String>,
+}
+
 impl EmailDeliveryService {
     pub fn new(
         realm_repo: Arc<dyn RealmRepository>,
@@ -112,6 +121,106 @@ If you did not request this, you can ignore this email."
             .clone()
             .unwrap_or(default_subject);
         let body_template = recovery_settings.email_body.clone().unwrap_or(default_body);
+
+        let subject = apply_template(
+            &subject_template,
+            &realm.name,
+            &request.identifier,
+            &request.token,
+            &resume_url,
+            &request.expires_at.to_rfc3339(),
+        );
+        let body = apply_template(
+            &body_template,
+            &realm.name,
+            &request.identifier,
+            &request.token,
+            &resume_url,
+            &request.expires_at.to_rfc3339(),
+        );
+
+        let mut message = Message::builder().from(from).to(to).subject(subject);
+
+        if let Some(reply_to) = settings.reply_to_address.clone() {
+            if let Ok(mailbox) = reply_to.parse::<Mailbox>() {
+                message = message.reply_to(mailbox);
+            }
+        }
+
+        let message = message
+            .body(body)
+            .map_err(|err| Error::Unexpected(err.into()))?;
+
+        let mailer = build_mailer(&settings, &host)?;
+
+        mailer
+            .send(message)
+            .await
+            .map_err(|err| Error::Unexpected(err.into()))?;
+
+        Ok(true)
+    }
+
+    pub async fn send_verification_email(
+        &self,
+        realm_id: &Uuid,
+        request: VerificationEmail,
+    ) -> Result<bool> {
+        let Some(realm) = self.realm_repo.find_by_id(realm_id).await? else {
+            return Ok(false);
+        };
+
+        let settings = self
+            .email_repo
+            .find_by_realm_id(realm_id)
+            .await?
+            .unwrap_or_else(|| RealmEmailSettings::disabled(*realm_id));
+
+        if !settings.enabled {
+            return Ok(false);
+        }
+
+        if !looks_like_email(&request.identifier) {
+            return Ok(false);
+        }
+
+        let Some(from_address) = settings.from_address.clone() else {
+            warn!("Email delivery skipped: from_address is missing.");
+            return Ok(false);
+        };
+
+        let Some(host) = settings.smtp_host.clone() else {
+            warn!("Email delivery skipped: smtp_host is missing.");
+            return Ok(false);
+        };
+
+        let from_addr = from_address
+            .parse()
+            .map_err(|err| Error::Validation(format!("Invalid from_address: {}", err)))?;
+        let to_addr = request
+            .identifier
+            .parse()
+            .map_err(|err| Error::Validation(format!("Invalid recipient address: {}", err)))?;
+        let from = Mailbox::new(settings.from_name.clone(), from_addr);
+        let to = Mailbox::new(None, to_addr);
+
+        let resume_url = build_resume_url(
+            &self.settings,
+            &realm.name,
+            &request.resume_path,
+            &request.token,
+        );
+
+        let default_subject = "Verify your email for {realm}".to_string();
+        let default_body = "A verification request was initiated for {realm}.\n\n\
+Verify your email using this code:\n{token}\n\n\
+Or use this link:\n{resume_url}\n\n\
+Expires at: {expires_at}\n\n\
+If you did not request this, you can ignore this email."
+            .to_string();
+
+        let subject_template = request.subject.clone().unwrap_or(default_subject);
+        let body_template = request.body.clone().unwrap_or(default_body);
 
         let subject = apply_template(
             &subject_template,

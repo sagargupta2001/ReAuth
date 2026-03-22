@@ -59,6 +59,11 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const redirectHandledRef = useRef(false)
+  const lastResumeTokenRef = useRef<string | null>(null)
+  const shouldWaitForHashRedirect = useMemo(() => {
+    const hashRoutes = new Set(['/login', '/register', '/forgot-password', '/setup'])
+    return hashRoutes.has(window.location.pathname) && !window.location.hash
+  }, [])
 
   useEffect(() => {
     if (!redirectParam) return
@@ -67,7 +72,20 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
 
   // 1. INITIALIZE FLOW (GET /api/auth/login)
   useEffect(() => {
-    if (currentStep) {
+    if (shouldWaitForHashRedirect) {
+      return
+    }
+    if (resumeToken && resumeToken !== lastResumeTokenRef.current) {
+      lastResumeTokenRef.current = resumeToken
+      initializationPromise = null
+      setCurrentStep(null)
+      setIsLoading(true)
+    }
+    if (currentStep && resumeToken) {
+      setIsLoading(false)
+      return
+    }
+    if (currentStep && !resumeToken) {
       setIsLoading(false)
       return
     }
@@ -83,7 +101,7 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
           cleaned.delete('action_token')
           const search = cleaned.toString()
           const nextUrl = search ? `${location.pathname}?${search}` : location.pathname
-          window.history.replaceState({}, document.title, nextUrl)
+          navigate(nextUrl, { replace: true })
           return response
         }
 
@@ -177,12 +195,12 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
 
         // Case C: Relative Redirect
         if (targetUrl.startsWith('/')) {
-          navigate(targetUrl, { replace: true })
           if (targetUrl.startsWith('/login')) {
-            setCurrentStep(null)
-            setIsLoading(false)
-            redirectHandledRef.current = false
+            const hashUrl = targetUrl.startsWith('/#') ? targetUrl : `/#${targetUrl}`
+            window.location.href = hashUrl
+            return
           }
+          navigate(targetUrl, { replace: true })
           return
         }
         window.location.href = targetUrl

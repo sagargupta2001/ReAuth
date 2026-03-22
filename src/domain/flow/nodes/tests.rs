@@ -1,12 +1,15 @@
 use super::condition_node::ConditionNodeProvider;
 use super::cookie_node::CookieNodeProvider;
+use super::email_otp_issue_node::EmailOtpIssueNodeProvider;
 use super::forgot_credentials_node::ForgotCredentialsNodeProvider;
 use super::oidc_consent_node::OidcConsentNodeProvider;
 use super::password_node::PasswordNodeProvider;
+use super::recovery_issue_node::RecoveryIssueNodeProvider;
 use super::registration_node::RegistrationNodeProvider;
 use super::reset_password_node::ResetPasswordNodeProvider;
 use super::start_node::StartNode;
 use super::terminal_node::{AllowNode, DenyNode};
+use super::verify_email_otp_node::VerifyEmailOtpNodeProvider;
 use crate::domain::flow::provider::NodeProvider;
 
 #[test]
@@ -131,6 +134,48 @@ fn oidc_consent_node_metadata_is_consistent() {
     assert_eq!(node.category(), "Authenticator");
     assert_eq!(node.outputs(), vec!["allow", "deny"]);
     assert_eq!(node.default_template_key(), Some("consent"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn recovery_issue_node_metadata_is_consistent() {
+    let node = RecoveryIssueNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.recovery_issue");
+    assert_eq!(node.display_name(), "Issue Recovery Token");
+    assert!(node.description().contains("recovery token"));
+    assert_eq!(node.icon(), "ShieldAlert");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["issued"]);
+    assert!(node.config_schema().as_object().unwrap().is_empty());
+}
+
+#[test]
+fn email_otp_issue_node_metadata_is_consistent() {
+    let node = EmailOtpIssueNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.issue_email_otp");
+    assert_eq!(node.display_name(), "Issue Email OTP");
+    assert!(node.description().contains("verification"));
+    assert_eq!(node.icon(), "Mail");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["issued"]);
+    assert!(node.config_schema().get("properties").is_some());
+}
+
+#[test]
+fn verify_email_otp_node_metadata_is_consistent() {
+    let node = VerifyEmailOtpNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.verify_email_otp");
+    assert_eq!(node.display_name(), "Verify Email OTP");
+    assert!(node.description().contains("verification"));
+    assert_eq!(node.icon(), "CheckCircle");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    assert_eq!(node.default_template_key(), Some("verify_email"));
     assert!(node.supports_ui());
 }
 

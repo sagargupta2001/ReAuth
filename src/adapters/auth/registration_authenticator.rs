@@ -108,12 +108,33 @@ impl LifecycleNode for RegistrationAuthenticator {
         {
             Ok(user) => {
                 session.user_id = Some(user.id);
+                let email_input = input
+                    .get("email")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty());
+                let email_value = email_input.or_else(|| {
+                    if username.contains('@') && username.contains('.') {
+                        Some(username.to_string())
+                    } else {
+                        None
+                    }
+                });
                 if let Some(ctx) = session.context.as_object_mut() {
                     ctx.remove("error");
                     ctx.remove("password");
                     ctx.insert("username".to_string(), json!(username));
+                    if let Some(email) = email_value {
+                        ctx.insert("email".to_string(), json!(email));
+                    }
                 } else {
-                    session.context = json!({ "username": username });
+                    let mut data = json!({ "username": username });
+                    if let Some(email) = email_value {
+                        if let Some(map) = data.as_object_mut() {
+                            map.insert("email".to_string(), json!(email));
+                        }
+                    }
+                    session.context = data;
                 }
 
                 for role_id in capabilities.default_registration_role_ids {

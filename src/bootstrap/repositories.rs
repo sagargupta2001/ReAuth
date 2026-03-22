@@ -10,6 +10,7 @@ use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
 use crate::adapters::persistence::sqlite_outbox_repository::SqliteOutboxRepository;
 use crate::adapters::persistence::sqlite_realm_email_settings_repository::SqliteRealmEmailSettingsRepository;
 use crate::adapters::persistence::sqlite_realm_recovery_settings_repository::SqliteRealmRecoverySettingsRepository;
+use crate::adapters::persistence::sqlite_realm_security_headers_repository::SqliteRealmSecurityHeadersRepository;
 use crate::adapters::persistence::sqlite_recovery_attempt_repository::SqliteRecoveryAttemptRepository;
 use crate::adapters::persistence::sqlite_theme_repository::SqliteThemeRepository;
 use crate::adapters::persistence::sqlite_webhook_repository::SqliteWebhookRepository;
@@ -23,6 +24,7 @@ use crate::ports::oidc_repository::OidcRepository;
 use crate::ports::outbox_repository::OutboxRepository;
 use crate::ports::realm_email_settings_repository::RealmEmailSettingsRepository;
 use crate::ports::realm_recovery_settings_repository::RealmRecoverySettingsRepository;
+use crate::ports::realm_security_headers_repository::RealmSecurityHeadersRepository;
 use crate::ports::recovery_attempt_repository::RecoveryAttemptRepository;
 use crate::ports::theme_repository::ThemeRepository;
 use crate::ports::webhook_repository::WebhookRepository;
@@ -52,6 +54,7 @@ pub struct Repositories {
     pub realm_repo: Arc<dyn RealmRepository>,
     pub realm_email_settings_repo: Arc<dyn RealmEmailSettingsRepository>,
     pub realm_recovery_settings_repo: Arc<dyn RealmRecoverySettingsRepository>,
+    pub realm_security_headers_repo: Arc<dyn RealmSecurityHeadersRepository>,
     pub recovery_attempt_repo: Arc<dyn RecoveryAttemptRepository>,
     pub login_attempt_repo: Arc<dyn LoginAttemptRepository>,
     pub session_repo: Arc<dyn SessionRepository>,
@@ -78,6 +81,8 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         Arc::new(SqliteRealmEmailSettingsRepository::new(db_pool.clone()));
     let realm_recovery_settings_repo =
         Arc::new(SqliteRealmRecoverySettingsRepository::new(db_pool.clone()));
+    let realm_security_headers_repo =
+        Arc::new(SqliteRealmSecurityHeadersRepository::new(db_pool.clone()));
     let recovery_attempt_repo = Arc::new(SqliteRecoveryAttemptRepository::new(db_pool.clone()));
     let login_attempt_repo = Arc::new(SqliteLoginAttemptRepository::new(db_pool.clone()));
     let session_repo = Arc::new(SqliteSessionRepository::new(db_pool.clone()));
@@ -101,6 +106,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         realm_repo,
         realm_email_settings_repo,
         realm_recovery_settings_repo,
+        realm_security_headers_repo,
         recovery_attempt_repo,
         login_attempt_repo,
         session_repo,

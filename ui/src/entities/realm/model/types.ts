@@ -37,3 +37,12 @@ export interface RealmRecoverySettings {
   email_subject?: string | null
   email_body?: string | null
 }
+
+export interface RealmSecurityHeaders {
+  realm_id: string
+  x_frame_options?: string | null
+  content_security_policy?: string | null
+  x_content_type_options?: string | null
+  referrer_policy?: string | null
+  strict_transport_security?: string | null
+}

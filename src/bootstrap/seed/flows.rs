@@ -125,10 +125,15 @@ async fn ensure_flow(
     let existing_draft = ctx.flow_store.get_draft_by_id(&flow_id).await?;
     let draft_exists = existing_draft.is_some();
     let graph_json = FlowManager::generate_default_graph(type_);
-    let default_has_start = graph_contains_start(&graph_json);
+    let default_has_start = graph_contains_node_type(&graph_json, "core.start");
     let draft_missing_start = existing_draft
         .as_ref()
-        .is_some_and(|draft| !graph_contains_start(&draft.graph_json));
+        .is_some_and(|draft| !graph_contains_node_type(&draft.graph_json, "core.start"));
+    let default_has_recovery_issue =
+        graph_contains_node_type(&graph_json, "core.logic.recovery_issue");
+    let draft_missing_recovery_issue = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_contains_node_type(&draft.graph_json, "core.logic.recovery_issue")
+    });
     let draft_obj = FlowDraft {
         id: flow_id,
         realm_id: *realm_id,
@@ -139,23 +144,27 @@ async fn ensure_flow(
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
+    let mut draft_updated = false;
 
     if !draft_exists {
         let tx_ref = tx.as_deref_mut();
         ctx.flow_store
             .create_draft_with_tx(&draft_obj, tx_ref)
             .await?;
-    } else if default_has_start && draft_missing_start {
+    } else if (default_has_start && draft_missing_start)
+        || (default_has_recovery_issue && draft_missing_recovery_issue)
+    {
         let tx_ref = tx.as_deref_mut();
         ctx.flow_store
             .update_draft_with_tx(&draft_obj, tx_ref)
             .await?;
+        draft_updated = true;
     }
 
     let latest_version = ctx.flow_store.get_latest_version_number(&flow_id).await?;
     let has_valid_version = latest_version.unwrap_or(0) > 0;
 
-    if !has_valid_version {
+    if !has_valid_version || draft_updated {
         let tx_ref = tx.as_deref_mut();
         match ctx
             .flow_manager
@@ -177,7 +186,7 @@ async fn ensure_flow(
     Ok(flow_id)
 }
 
-fn graph_contains_start(graph_json: &str) -> bool {
+fn graph_contains_node_type(graph_json: &str, node_type: &str) -> bool {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(graph_json) else {
         return false;
     };
@@ -188,7 +197,7 @@ fn graph_contains_start(graph_json: &str) -> bool {
             nodes.iter().any(|node| {
                 node.get("type")
                     .and_then(|value| value.as_str())
-                    .is_some_and(|value| value == "core.start")
+                    .is_some_and(|value| value == node_type)
             })
         })
         .unwrap_or(false)

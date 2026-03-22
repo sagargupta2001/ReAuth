@@ -3,7 +3,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::application::audit_service::AuditService;
-use crate::application::email_delivery_service::{EmailDeliveryService, RecoveryEmail};
+use crate::application::email_delivery_service::{
+    EmailDeliveryService, RecoveryEmail, VerificationEmail,
+};
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::audit::NewAuditEvent;
 use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
@@ -106,11 +108,13 @@ impl FlowExecutor {
                     worker = %worker_key
                 );
 
-                match worker
+                let previous_config = inject_node_config(&mut session, &current_node_def.config);
+                let outcome = worker
                     .handle_input(&mut session, input)
                     .instrument(handle_span)
-                    .await?
-                {
+                    .await?;
+
+                match outcome {
                     NodeOutcome::Continue { output } => {
                         // If DB is missing the link, we force it for the password node
                         let forced_next =
@@ -140,11 +144,10 @@ impl FlowExecutor {
                             worker = %worker_key
                         );
                         worker.on_exit(&mut session).instrument(exit_span).await?;
+                        restore_node_config(&mut session, previous_config);
                         session.current_node_id = next_id.clone();
                     }
                     NodeOutcome::Reject { .. } => {
-                        self.session_repo.update(&session).await?;
-
                         let exec_span = info_span!(
                             "flow.node.execute",
                             telemetry = "span",
@@ -153,6 +156,8 @@ impl FlowExecutor {
                             worker = %worker_key
                         );
                         let ui_outcome = worker.execute(&mut session).instrument(exec_span).await?;
+                        restore_node_config(&mut session, previous_config);
+                        self.session_repo.update(&session).await?;
                         if let NodeOutcome::SuspendForUI { screen, context } = ui_outcome {
                             let template_key = resolve_template_key(&current_node_def.config);
                             let context = attach_template_key(context, template_key.as_deref());
@@ -172,6 +177,7 @@ impl FlowExecutor {
                         screen,
                         context,
                     } => {
+                        restore_node_config(&mut session, previous_config);
                         let template_key = resolve_template_key(&current_node_def.config);
                         let context = attach_template_key(context, template_key.as_deref());
                         let result = self
@@ -190,7 +196,10 @@ impl FlowExecutor {
                             .await?;
                         return Ok(result);
                     }
-                    _ => return Err(Error::System("Unexpected outcome from handle_input".into())),
+                    _ => {
+                        restore_node_config(&mut session, previous_config);
+                        return Err(Error::System("Unexpected outcome from handle_input".into()));
+                    }
                 }
             }
         }
@@ -205,18 +214,25 @@ impl FlowExecutor {
             let node_id = session.current_node_id.clone();
             let step_type = format!("{:?}", node_def.step_type);
 
-            let worker = if node_def.step_type == StepType::Authenticator {
-                let key = node_def
+            let worker = match node_def.step_type {
+                StepType::Authenticator => {
+                    let key = node_def
+                        .config
+                        .get("auth_type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("core.auth.password");
+                    self.registry.get_node(key)
+                }
+                StepType::Logic => node_def
                     .config
-                    .get("auth_type")
+                    .get("logic_type")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("core.auth.password");
-                self.registry.get_node(key)
-            } else {
-                None
+                    .and_then(|key| self.registry.get_node(key)),
+                _ => None,
             };
 
             if let Some(worker) = worker {
+                let previous_config = inject_node_config(&mut session, &node_def.config);
                 let enter_span = info_span!(
                     "flow.node.on_enter",
                     telemetry = "span",
@@ -252,12 +268,14 @@ impl FlowExecutor {
                             step_type = %step_type
                         );
                         worker.on_exit(&mut session).instrument(exit_span).await?;
+                        restore_node_config(&mut session, previous_config);
                         session.current_node_id = next_id.clone();
                     }
                     NodeOutcome::SuspendForUI { screen, context } => {
-                        self.session_repo.update(&session).await?;
                         let template_key = resolve_template_key(&node_def.config);
                         let context = attach_template_key(context, template_key.as_deref());
+                        restore_node_config(&mut session, previous_config);
+                        self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Challenge {
                             screen_id: screen,
                             context,
@@ -272,6 +290,7 @@ impl FlowExecutor {
                         screen,
                         context,
                     } => {
+                        restore_node_config(&mut session, previous_config);
                         let template_key = resolve_template_key(&node_def.config);
                         let context = attach_template_key(context, template_key.as_deref());
                         let result = self
@@ -292,6 +311,7 @@ impl FlowExecutor {
                     }
                     NodeOutcome::FlowSuccess { user_id: _ } => {
                         session.status = SessionStatus::Completed;
+                        restore_node_config(&mut session, previous_config);
                         self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Success {
                             redirect_url: "/".to_string(),
@@ -299,10 +319,14 @@ impl FlowExecutor {
                     }
                     NodeOutcome::FlowFailure { reason } => {
                         session.status = SessionStatus::Failed;
+                        restore_node_config(&mut session, previous_config);
                         self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Failure { reason });
                     }
-                    _ => return Err(Error::System("Unhandled execution outcome".into())),
+                    _ => {
+                        restore_node_config(&mut session, previous_config);
+                        return Err(Error::System("Unhandled execution outcome".into()));
+                    }
                 }
             } else {
                 match node_def.step_type {
@@ -370,7 +394,11 @@ impl FlowExecutor {
         }
     }
 
-    pub async fn resume_action(&self, realm_id: Uuid, token: &str) -> Result<ExecutionResult> {
+    pub async fn resume_action(
+        &self,
+        realm_id: Uuid,
+        token: &str,
+    ) -> Result<(ExecutionResult, Uuid)> {
         let token_hash = hash_token(token);
         let action = self
             .action_repo
@@ -438,8 +466,10 @@ impl FlowExecutor {
             }
         }
 
+        let session_id = session.id;
         self.session_repo.update(&session).await?;
-        self.execute(session.id, None).await
+        let result = self.execute(session_id, None).await?;
+        Ok((result, session_id))
     }
 
     async fn heal_session(&self, session: &mut AuthenticationSession) -> Result<()> {
@@ -476,6 +506,29 @@ fn attach_template_key(mut context: Value, template_key: Option<&str>) -> Value 
             "template_key": key,
             "payload": other,
         }),
+    }
+}
+
+fn inject_node_config(session: &mut AuthenticationSession, config: &Value) -> Option<Value> {
+    let previous = session.context.get("node_config").cloned();
+    match session.context {
+        Value::Object(ref mut map) => {
+            map.insert("node_config".to_string(), config.clone());
+        }
+        _ => {
+            session.context = serde_json::json!({ "node_config": config });
+        }
+    }
+    previous
+}
+
+fn restore_node_config(session: &mut AuthenticationSession, previous: Option<Value>) {
+    if let Value::Object(ref mut map) = session.context {
+        if let Some(value) = previous {
+            map.insert("node_config".to_string(), value);
+        } else {
+            map.remove("node_config");
+        }
     }
 }
 
@@ -635,6 +688,7 @@ fn resolve_template_key(config: &Value) -> Option<String> {
         Some("core.auth.register") => Some("register".to_string()),
         Some("core.auth.forgot_credentials") => Some("forgot_credentials".to_string()),
         Some("core.auth.reset_password") => Some("reset_password".to_string()),
+        Some("core.auth.verify_email_otp") => Some("verify_email".to_string()),
         Some("core.auth.otp") => Some("mfa".to_string()),
         Some("core.oidc.consent") => Some("consent".to_string()),
         _ => None,
@@ -736,54 +790,35 @@ impl FlowExecutor {
         let mut ui_context = request.context.clone();
 
         let mut email_sent = false;
-        if action_type == "reset_credentials" {
-            if let Some(service) = &self.email_delivery {
-                if let Some(identifier) = payload.get("identifier").and_then(|value| value.as_str())
-                {
-                    if let Some(user_id) = payload.get("user_id").and_then(|v| v.as_str()) {
-                        if !user_id.trim().is_empty() {
-                            let resume_path = ui_context
-                                .get("resume_path")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("/forgot-password");
-
-                            match service
-                                .send_recovery_email(
-                                    &session.realm_id,
-                                    RecoveryEmail {
-                                        identifier: identifier.to_string(),
-                                        token: request.token.clone(),
-                                        expires_at: email_expires_at,
-                                        resume_path: resume_path.to_string(),
-                                    },
-                                )
-                                .await
-                            {
-                                Ok(true) => {
-                                    email_sent = true;
-                                    if let Some(ctx) = ui_context.as_object_mut() {
-                                        ctx.insert(
-                                            "message".to_string(),
-                                            serde_json::json!(
-                                                "If an account exists, a recovery email has been sent."
-                                            ),
-                                        );
-                                        ctx.insert(
-                                            "delivery".to_string(),
-                                            serde_json::json!("email"),
-                                        );
-                                    }
-                                }
-                                Ok(false) => {}
-                                Err(err) => {
-                                    tracing::warn!(
-                                        "Failed to send recovery email: {}",
-                                        err.to_string()
-                                    );
-                                }
-                            }
-                        }
+        if matches!(action_type.as_str(), "reset_credentials" | "email_verify") {
+            match self
+                .send_action_email(
+                    &action_type,
+                    &payload,
+                    session.realm_id,
+                    &request.token,
+                    email_expires_at,
+                    ui_context
+                        .get("resume_path")
+                        .and_then(|value| value.as_str()),
+                )
+                .await
+            {
+                Ok(true) => {
+                    email_sent = true;
+                    if let Some(ctx) = ui_context.as_object_mut() {
+                        let message = if action_type == "reset_credentials" {
+                            "If an account exists, a recovery email has been sent."
+                        } else {
+                            "If an account exists, a verification email has been sent."
+                        };
+                        ctx.insert("message".to_string(), serde_json::json!(message));
+                        ctx.insert("delivery".to_string(), serde_json::json!("email"));
                     }
+                }
+                Ok(false) => {}
+                Err(err) => {
+                    tracing::warn!("Failed to send {} email: {}", action_type, err.to_string());
                 }
             }
         }
@@ -816,6 +851,7 @@ impl FlowExecutor {
                 }
             }
         }
+        let response_context = ui_context.clone();
         session.update_context(
             "last_ui",
             serde_json::json!({
@@ -829,8 +865,121 @@ impl FlowExecutor {
 
         Ok(ExecutionResult::AwaitingAction {
             screen_id: request.screen,
-            context: request.context,
+            context: response_context,
         })
+    }
+
+    async fn send_action_email(
+        &self,
+        action_type: &str,
+        payload: &Value,
+        realm_id: Uuid,
+        token: &str,
+        expires_at: chrono::DateTime<chrono::Utc>,
+        resume_path_fallback: Option<&str>,
+    ) -> Result<bool> {
+        let Some(service) = &self.email_delivery else {
+            return Ok(false);
+        };
+
+        let identifier = payload
+            .get("identifier")
+            .and_then(|value| value.as_str())
+            .unwrap_or("");
+        if identifier.trim().is_empty() {
+            return Ok(false);
+        }
+
+        if action_type == "reset_credentials" {
+            let user_id = payload
+                .get("user_id")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
+            if user_id.trim().is_empty() {
+                return Ok(false);
+            }
+        }
+
+        let resume_path = payload
+            .get("resume_path")
+            .and_then(|value| value.as_str())
+            .or(resume_path_fallback)
+            .unwrap_or_else(|| {
+                if action_type == "reset_credentials" {
+                    "/forgot-password"
+                } else {
+                    "/register"
+                }
+            });
+
+        match action_type {
+            "reset_credentials" => {
+                service
+                    .send_recovery_email(
+                        &realm_id,
+                        RecoveryEmail {
+                            identifier: identifier.to_string(),
+                            token: token.to_string(),
+                            expires_at,
+                            resume_path: resume_path.to_string(),
+                        },
+                    )
+                    .await
+            }
+            "email_verify" => {
+                let subject = payload
+                    .get("email_subject")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string());
+                let body = payload
+                    .get("email_body")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string());
+                service
+                    .send_verification_email(
+                        &realm_id,
+                        VerificationEmail {
+                            identifier: identifier.to_string(),
+                            token: token.to_string(),
+                            expires_at,
+                            resume_path: resume_path.to_string(),
+                            subject,
+                            body,
+                        },
+                    )
+                    .await
+            }
+            _ => Ok(false),
+        }
+    }
+
+    pub async fn resend_action(&self, realm_id: Uuid, token: &str) -> Result<bool> {
+        let token_hash = hash_token(token);
+        let action = self
+            .action_repo
+            .find_by_token_hash(&token_hash)
+            .await?
+            .ok_or(Error::InvalidActionToken)?;
+
+        if action.realm_id != realm_id {
+            return Err(Error::SecurityViolation(
+                "Resume token does not belong to this realm".to_string(),
+            ));
+        }
+
+        if action.is_expired() || action.is_consumed() {
+            return Err(Error::InvalidActionToken);
+        }
+
+        self.send_action_email(
+            &action.action_type,
+            &action.payload,
+            action.realm_id,
+            token,
+            action.expires_at,
+            None,
+        )
+        .await
     }
 }
 

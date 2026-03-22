@@ -19,6 +19,7 @@ pub mod rbac;
 pub mod realm;
 pub mod realm_email_settings;
 pub mod realm_recovery_settings;
+pub mod realm_security_headers;
 pub mod recovery_attempt;
 pub mod role;
 pub mod session;

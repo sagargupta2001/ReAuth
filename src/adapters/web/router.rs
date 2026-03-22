@@ -1,10 +1,13 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
     harbor_handler, log_stream_handler, observability_handler, oidc_handler, rbac_handler,
-    realm_email_handler, realm_handler, realm_recovery_handler, search_handler, server::ui_handler,
-    session_handler, setup_handler, theme_handler, user_handler, webhook_handler,
+    realm_email_handler, realm_handler, realm_recovery_handler, realm_security_headers_handler,
+    search_handler, server::ui_handler, session_handler, setup_handler, theme_handler,
+    user_handler, webhook_handler,
 };
-use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
+use crate::adapters::web::middleware::{
+    cors_middleware, permission_guard, request_logging, security_headers,
+};
 use crate::domain::permissions;
 use crate::AppState;
 use axum::routing::{delete, put};
@@ -62,6 +65,10 @@ pub fn create_router(app_state: AppState) -> Router {
     let api_router = Router::new()
         .merge(public_api)
         .merge(protected_api)
+        .route_layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            security_headers::attach_realm_security_headers,
+        ))
         .route_layer(middleware::from_fn_with_state(
             app_state.clone(),
             request_logging::log_api_request,
@@ -122,6 +129,7 @@ fn auth_routes() -> Router<AppState> {
             post(auth_handler::execute_reset_step_handler),
         )
         .route("/resume", post(auth_handler::resume_action_handler))
+        .route("/resend", post(auth_handler::resend_action_handler))
         .route("/refresh", post(auth_handler::refresh_handler))
         .route("/logout", post(auth_handler::logout_handler))
 }
@@ -198,6 +206,10 @@ fn realm_routes(state: AppState) -> Router<AppState> {
             "/{id}/recovery-settings",
             get(realm_recovery_handler::get_realm_recovery_settings_handler),
         )
+        .route(
+            "/{id}/security-headers",
+            get(realm_security_headers_handler::get_realm_security_headers_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -223,6 +235,10 @@ fn realm_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{id}/recovery-settings",
             put(realm_recovery_handler::update_realm_recovery_settings_handler),
+        )
+        .route(
+            "/{id}/security-headers",
+            put(realm_security_headers_handler::update_realm_security_headers_handler),
         )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

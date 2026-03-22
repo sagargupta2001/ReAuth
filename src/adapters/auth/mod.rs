@@ -1,21 +1,28 @@
 pub mod cookie_authenticator;
+pub mod email_otp_issue_node;
 pub mod forgot_credentials_authenticator;
 pub mod oidc_consent_authenticator;
 pub mod password_authenticator;
+pub mod recovery_issue_node;
 pub mod registration_authenticator;
 pub mod reset_password_authenticator;
+pub mod verify_email_otp_authenticator;
 
 use crate::adapters::auth::cookie_authenticator::CookieAuthenticator;
+use crate::adapters::auth::email_otp_issue_node::EmailOtpIssueNode;
 use crate::adapters::auth::forgot_credentials_authenticator::ForgotCredentialsAuthenticator;
 use crate::adapters::auth::oidc_consent_authenticator::OidcConsentAuthenticator;
 use crate::adapters::auth::password_authenticator::PasswordAuthenticator;
+use crate::adapters::auth::recovery_issue_node::RecoveryIssueNode;
 use crate::adapters::auth::registration_authenticator::RegistrationAuthenticator;
 use crate::adapters::auth::reset_password_authenticator::ResetPasswordAuthenticator;
+use crate::adapters::auth::verify_email_otp_authenticator::VerifyEmailOtpAuthenticator;
 use crate::application::audit_service::AuditService;
 use crate::application::rbac_service::RbacService;
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::application::user_service::UserService;
 use crate::domain::execution::StepType;
+use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
 use crate::ports::login_attempt_repository::LoginAttemptRepository;
 use crate::ports::realm_recovery_settings_repository::RealmRecoverySettingsRepository;
 use crate::ports::realm_repository::RealmRepository;
@@ -33,6 +40,7 @@ pub struct BuiltinAuthContext {
     pub lockout_threshold: i64,
     pub lockout_duration_secs: i64,
     pub session_repo: Arc<dyn SessionRepository>,
+    pub action_repo: Arc<dyn AuthSessionActionRepository>,
     pub recovery_attempt_repo: Arc<dyn RecoveryAttemptRepository>,
     pub audit_service: Arc<AuditService>,
     pub recovery_settings_repo: Arc<dyn RealmRecoverySettingsRepository>,
@@ -64,7 +72,6 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
 
     // 3. Forgot Credentials Node
     let forgot_node = Arc::new(ForgotCredentialsAuthenticator::new(
-        ctx.user_service.clone(),
         ctx.recovery_attempt_repo,
         ctx.recovery_settings_repo.clone(),
     ));
@@ -76,10 +83,11 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
 
     // 4. Reset Password Node
     let reset_node = Arc::new(ResetPasswordAuthenticator::new(
-        ctx.user_service,
+        ctx.user_service.clone(),
         ctx.session_repo.clone(),
         ctx.audit_service.clone(),
-        ctx.recovery_settings_repo,
+        ctx.recovery_settings_repo.clone(),
+        ctx.action_repo.clone(),
     ));
     registry.register_node(
         "core.auth.reset_password",
@@ -91,17 +99,44 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
     let consent_node = Arc::new(OidcConsentAuthenticator::new());
     registry.register_node("core.oidc.consent", consent_node, StepType::Authenticator);
 
-    // 6. Cookie Authenticator (SSO)
+    // 6. Recovery Issue Logic Node
+    let recovery_issue_node = Arc::new(RecoveryIssueNode::new(
+        ctx.user_service.clone(),
+        ctx.recovery_settings_repo.clone(),
+    ));
+    registry.register_node(
+        "core.logic.recovery_issue",
+        recovery_issue_node,
+        StepType::Logic,
+    );
+
+    // 7. Email OTP Issue Logic Node
+    let email_otp_issue_node = Arc::new(EmailOtpIssueNode);
+    registry.register_node(
+        "core.logic.issue_email_otp",
+        email_otp_issue_node,
+        StepType::Logic,
+    );
+
+    // 8. Verify Email OTP Authenticator
+    let verify_email_otp_node = Arc::new(VerifyEmailOtpAuthenticator);
+    registry.register_node(
+        "core.auth.verify_email_otp",
+        verify_email_otp_node,
+        StepType::Authenticator,
+    );
+
+    // 9. Cookie Authenticator (SSO)
     let cookie_node = Arc::new(CookieAuthenticator::new(ctx.session_repo));
     registry.register_node("core.auth.cookie", cookie_node, StepType::Authenticator);
 
-    // 7. Terminal Nodes (Definitions only)
+    // 10. Terminal Nodes (Definitions only)
     // These nodes use the "Generic Handler" in the Executor loop above.
     registry.register_definition("core.terminal.allow", StepType::Terminal);
     registry.register_definition("core.terminal.deny", StepType::Terminal);
 
-    // 8. Start Node
+    // 11. Start Node
     registry.register_definition("core.start", StepType::Logic);
-    // 9. Condition Logic Node
+    // 12. Condition Logic Node
     registry.register_definition("core.logic.condition", StepType::Logic);
 }

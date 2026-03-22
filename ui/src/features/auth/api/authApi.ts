@@ -48,4 +48,14 @@ export const authApi = {
   resumeFlow: async (realm: string, token: string) => {
     return apiClient.post<AuthExecutionResponse>(`/api/realms/${realm}/auth/resume`, { token })
   },
+
+  /**
+   * Resend an async action email (recovery, verification).
+   */
+  resendAction: async (realm: string, token: string) => {
+    return apiClient.post<{ status: string; delivered: boolean }>(
+      `/api/realms/${realm}/auth/resend`,
+      { token },
+    )
+  },
 }

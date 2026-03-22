@@ -14,6 +14,7 @@ pub mod sqlite_rbac_repository;
 pub mod sqlite_realm_email_settings_repository;
 pub mod sqlite_realm_recovery_settings_repository;
 pub mod sqlite_realm_repository;
+pub mod sqlite_realm_security_headers_repository;
 pub mod sqlite_recovery_attempt_repository;
 pub mod sqlite_session_repository;
 pub mod sqlite_theme_repository;

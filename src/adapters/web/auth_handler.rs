@@ -373,10 +373,20 @@ async fn start_public_flow(
                         continue;
                     }
 
-                    if session.status != SessionStatus::Active
-                        || session.flow_version_id != version_id
-                    {
+                    if session.status != SessionStatus::Active {
                         continue;
+                    }
+
+                    if session.flow_version_id != version_id {
+                        let same_flow = state
+                            .flow_store
+                            .get_version(&session.flow_version_id)
+                            .await?
+                            .map(|version| version.flow_id == flow_id_str)
+                            .unwrap_or(false);
+                        if !same_flow {
+                            continue;
+                        }
                     }
 
                     let mut updated = false;
@@ -483,7 +493,7 @@ async fn start_public_flow(
         // [FIX] Use shared logic for Success
         ExecutionResult::Success { redirect_url } => {
             if flow_kind == PublicAuthFlowKind::Reset {
-                reset_flow_success_response(headers)
+                reset_flow_success_response(headers, &realm_name)
             } else {
                 handle_flow_success(&state, session_id, redirect_url, headers, ip).await
             }
@@ -591,7 +601,9 @@ pub async fn execute_reset_step_handler(
         .await?;
 
     match result {
-        ExecutionResult::Success { .. } => reset_flow_success_response(HeaderMap::new()),
+        ExecutionResult::Success { .. } => {
+            reset_flow_success_response(HeaderMap::new(), &realm_name)
+        }
         _ => map_execution_result(result, HeaderMap::new(), Some(&capabilities)),
     }
 }
@@ -630,12 +642,12 @@ fn map_execution_result(
     }
 }
 
-fn reset_flow_success_response(mut headers: HeaderMap) -> Result<Response> {
+fn reset_flow_success_response(mut headers: HeaderMap, realm_name: &str) -> Result<Response> {
     headers.append(
         header::SET_COOKIE,
         HeaderValue::from_str(&create_clear_login_cookie().to_string())?,
     );
-    let body = serde_json::json!({ "status": "redirect", "url": "/login?reset=1" });
+    let body = serde_json::json!({ "status": "redirect", "url": format!("/login?reset=1&realm={}", realm_name) });
     Ok((StatusCode::OK, headers, Json(body)).into_response())
 }
 
@@ -669,6 +681,11 @@ pub struct ResumeActionRequest {
     pub token: String,
 }
 
+#[derive(Deserialize)]
+pub struct ResendActionRequest {
+    pub token: String,
+}
+
 // POST /api/realms/{realm}/auth/resume
 #[instrument(skip_all)]
 pub async fn resume_action_handler(
@@ -683,12 +700,54 @@ pub async fn resume_action_handler(
         .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
     let capabilities = RealmCapabilities::from_realm(&realm);
 
-    let result = state
+    let (result, session_id) = state
         .flow_executor
         .resume_action(realm.id, &payload.token)
         .await?;
 
-    map_execution_result(result, HeaderMap::new(), Some(&capabilities))
+    let mut headers = HeaderMap::new();
+    let kill_root = Cookie::build(LOGIN_SESSION_COOKIE)
+        .path("/")
+        .max_age(time::Duration::seconds(0))
+        .build();
+    headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&kill_root.to_string())?,
+    );
+    let new_cookie = create_login_cookie(session_id);
+    headers.append(
+        header::SET_COOKIE,
+        HeaderValue::from_str(&new_cookie.to_string())?,
+    );
+
+    map_execution_result(result, headers, Some(&capabilities))
+}
+
+// POST /api/realms/{realm}/auth/resend
+#[instrument(skip_all)]
+pub async fn resend_action_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    Json(payload): Json<ResendActionRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+
+    let delivered = state
+        .flow_executor
+        .resend_action(realm.id, &payload.token)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": if delivered { "sent" } else { "skipped" },
+            "delivered": delivered
+        })),
+    ))
 }
 
 // Refresh and Logout handlers remain largely the same, just standard auth_service calls.

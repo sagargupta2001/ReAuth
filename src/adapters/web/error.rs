@@ -16,7 +16,6 @@ impl IntoResponse for Error {
             Error::InvalidCredentials
             | Error::SessionRevoked
             | Error::InvalidRefreshToken
-            | Error::InvalidActionToken
             | Error::OidcInvalidCode => (StatusCode::UNAUTHORIZED, self.to_string()),
 
             // 403 Forbidden
@@ -36,6 +35,9 @@ impl IntoResponse for Error {
             | Error::InvalidLoginStep
             | Error::NotFound(_)
             | Error::InvalidLoginSession => (StatusCode::NOT_FOUND, self.to_string()),
+
+            // 400 Bad Request
+            Error::InvalidActionToken => (StatusCode::BAD_REQUEST, self.to_string()),
 
             // 422 Unprocessable Entity
             Error::Validation(_) => (StatusCode::BAD_REQUEST, self.to_string()),

@@ -87,6 +87,10 @@ impl AuthSessionActionRepository for TestAuthSessionActionRepo {
         Ok(())
     }
 
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<AuthSessionAction>> {
+        Ok(self.actions.lock().unwrap().get(id).cloned())
+    }
+
     async fn find_by_token_hash(&self, token_hash: &str) -> Result<Option<AuthSessionAction>> {
         let actions = self.actions.lock().unwrap();
         Ok(actions

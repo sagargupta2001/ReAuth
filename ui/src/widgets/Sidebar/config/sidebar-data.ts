@@ -101,6 +101,10 @@ export const sidebarData: SidebarData = {
           url: '/settings/email',
         },
         {
+          title: 'Security Defenses',
+          url: '/settings/security',
+        },
+        {
           title: 'Recovery',
           url: '/settings/recovery',
         },

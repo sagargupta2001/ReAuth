@@ -25,6 +25,7 @@ import { EmailSettingsPage } from '@/pages/realm/settings/EmailSettingsPage.tsx'
 import { RecoverySettingsPage } from '@/pages/realm/settings/RecoverySettingsPage.tsx'
 import { ObservabilitySettingsPage } from '@/pages/realm/settings/ObservabilitySettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
+import { SecurityHeadersSettingsPage } from '@/pages/realm/settings/SecurityHeadersSettingsPage.tsx'
 import { CreateRolePage } from '@/pages/roles/create/CreateRolePage.tsx'
 import { EditRolePage } from '@/pages/roles/edit/EditRolePage.tsx'
 import { RolesPage } from '@/pages/roles/listing/RolesPage.tsx'
@@ -109,6 +110,12 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/settings/email',
     element: EmailSettingsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/settings/security',
+    element: SecurityHeadersSettingsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

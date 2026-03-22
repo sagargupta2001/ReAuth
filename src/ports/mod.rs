@@ -14,6 +14,7 @@ pub mod rbac_repository;
 pub mod realm_email_settings_repository;
 pub mod realm_recovery_settings_repository;
 pub mod realm_repository;
+pub mod realm_security_headers_repository;
 pub mod recovery_attempt_repository;
 pub mod session_repository;
 pub mod telemetry_repository;

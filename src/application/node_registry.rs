@@ -2,13 +2,16 @@ use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::flow::models::NodeMetadata;
 use crate::domain::flow::nodes::condition_node::ConditionNodeProvider;
 use crate::domain::flow::nodes::cookie_node::CookieNodeProvider;
+use crate::domain::flow::nodes::email_otp_issue_node::EmailOtpIssueNodeProvider;
 use crate::domain::flow::nodes::forgot_credentials_node::ForgotCredentialsNodeProvider;
 use crate::domain::flow::nodes::oidc_consent_node::OidcConsentNodeProvider;
 use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
+use crate::domain::flow::nodes::recovery_issue_node::RecoveryIssueNodeProvider;
 use crate::domain::flow::nodes::registration_node::RegistrationNodeProvider;
 use crate::domain::flow::nodes::reset_password_node::ResetPasswordNodeProvider;
 use crate::domain::flow::nodes::start_node::StartNode;
 use crate::domain::flow::nodes::terminal_node::{AllowNode, DenyNode};
+use crate::domain::flow::nodes::verify_email_otp_node::VerifyEmailOtpNodeProvider;
 use crate::domain::flow::provider::NodeProvider;
 use std::sync::Arc;
 
@@ -23,12 +26,15 @@ impl NodeRegistryService {
             providers: vec![
                 Box::new(StartNode),
                 Box::new(ConditionNodeProvider),
+                Box::new(RecoveryIssueNodeProvider),
+                Box::new(EmailOtpIssueNodeProvider),
                 Box::new(CookieNodeProvider),
                 Box::new(PasswordNodeProvider),
                 Box::new(ForgotCredentialsNodeProvider),
                 Box::new(OidcConsentNodeProvider),
                 Box::new(RegistrationNodeProvider),
                 Box::new(ResetPasswordNodeProvider),
+                Box::new(VerifyEmailOtpNodeProvider),
                 Box::new(AllowNode),
                 Box::new(DenyNode),
             ],
@@ -108,6 +114,7 @@ mod tests {
         runtime.register_definition("core.terminal.allow", StepType::Terminal);
         runtime.register_definition("core.terminal.deny", StepType::Terminal);
         runtime.register_definition("core.logic.condition", StepType::Logic);
+        runtime.register_definition("core.logic.recovery_issue", StepType::Logic);
 
         let registry = NodeRegistryService::new(Arc::new(runtime));
         let nodes = registry.get_available_nodes();
@@ -117,6 +124,7 @@ mod tests {
         assert!(ids.iter().any(|id| id == "core.auth.cookie"));
         assert!(ids.iter().any(|id| id == "core.oidc.consent"));
         assert!(ids.iter().any(|id| id == "core.logic.condition"));
+        assert!(ids.iter().any(|id| id == "core.logic.recovery_issue"));
         assert!(!ids.iter().any(|id| id == "core.auth.otp"));
         assert!(!ids.iter().any(|id| id == "core.logic.script"));
     }

@@ -14,6 +14,7 @@ pub mod rbac_service;
 pub mod realm_email_settings_service;
 pub mod realm_policy;
 pub mod realm_recovery_settings_service;
+pub mod realm_security_headers_service;
 pub mod realm_service;
 pub mod runtime_registry;
 pub mod telemetry_service;

@@ -77,10 +77,11 @@
 - [x] Per-realm recovery settings (token TTL, rate limits, session revocation, templates).
 - [ ] Recovery identifier should support email once the domain model adds email fields (currently username-only).
 - [x] Recovery UX route and API path (`/forgot` or `/recover`) wired to flow executor.
-- [ ] OTP/email verification node with async pause/resume and resend support.
+- [x] Realm security headers (X-Frame-Options, CSP, etc.) configurable per realm and applied on auth/OIDC responses.
+- [x] OTP/email verification node with async pause/resume and resend support.
 - [x] Consent node for OIDC scopes.
 - [x] Condition node execution support in runtime (not just palette metadata).
-- [ ] OIDC spec-aligned error payloads across authorize/token/userinfo.
+- [x] OIDC spec-aligned error payloads across authorize/token/userinfo.
 - [ ] OIDC conformance harness coverage in CI.
 - [ ] Confidential-client secret storage/rotation plan implemented.
 

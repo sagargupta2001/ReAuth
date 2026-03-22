@@ -1,0 +1,21 @@
+import { useQuery } from '@tanstack/react-query'
+
+import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
+import { apiClient } from '@/shared/api/client.ts'
+
+import type { RealmSecurityHeaders } from '@/entities/realm/model/types.ts'
+
+export function useRealmSecurityHeaders() {
+  const { data: realm } = useCurrentRealm()
+
+  return useQuery({
+    queryKey: ['realm-security-headers', realm?.id],
+    queryFn: async () => {
+      if (!realm?.id) {
+        throw new Error('Realm not loaded')
+      }
+      return apiClient.get<RealmSecurityHeaders>(`/api/realms/${realm.id}/security-headers`)
+    },
+    enabled: !!realm?.id,
+  })
+}

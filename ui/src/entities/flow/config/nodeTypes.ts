@@ -7,6 +7,8 @@ export const flowNodeTypes = {
   // --- LOGIC NODES ---
   'core.start': StartNode,
   'core.logic.condition': LogicNode,
+  'core.logic.recovery_issue': LogicNode,
+  'core.logic.issue_email_otp': LogicNode,
 
   // --- AUTHENTICATORS (Workers) ---
   'core.auth.cookie': AuthenticatorNode,
@@ -14,6 +16,7 @@ export const flowNodeTypes = {
   'core.auth.register': AuthenticatorNode,
   'core.auth.forgot_credentials': AuthenticatorNode,
   'core.auth.reset_password': AuthenticatorNode,
+  'core.auth.verify_email_otp': AuthenticatorNode,
   'core.oidc.consent': AuthenticatorNode,
 
   // --- TERMINALS ---
