@@ -507,6 +507,10 @@ impl UserRepository for TestUserRepo {
         Ok(None)
     }
 
+    async fn find_by_email(&self, _realm_id: &Uuid, _email: &str) -> Result<Option<User>> {
+        Ok(None)
+    }
+
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<User>> {
         Ok(self.users.lock().unwrap().get(id).cloned())
     }
@@ -523,6 +527,17 @@ impl UserRepository for TestUserRepo {
 
     async fn list(&self, _realm_id: &Uuid, _req: &PageRequest) -> Result<PageResponse<User>> {
         Ok(empty_page())
+    }
+
+    async fn count_in_realm(&self, realm_id: &Uuid) -> Result<i64> {
+        let count = self
+            .users
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|user| &user.realm_id == realm_id)
+            .count();
+        Ok(count as i64)
     }
 }
 
@@ -670,6 +685,16 @@ impl SessionRepository for TestSessionRepo {
         Ok(())
     }
 
+    async fn revoke_all_for_user(&self, _realm_id: &Uuid, user_id: &Uuid) -> Result<()> {
+        let mut stored = self.stored.lock().unwrap();
+        for token in stored.values_mut() {
+            if &token.user_id == user_id {
+                token.revoked_at = Some(Utc::now());
+            }
+        }
+        Ok(())
+    }
+
     async fn list(
         &self,
         _realm_id: &Uuid,
@@ -795,6 +820,9 @@ fn base_realm() -> crate::domain::realm::Realm {
         pkce_required_public_clients: true,
         lockout_threshold: 5,
         lockout_duration_secs: 900,
+        is_system: false,
+        registration_enabled: true,
+        default_registration_role_ids: Vec::new(),
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
@@ -809,6 +837,7 @@ async fn create_session_returns_tokens_and_refresh_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -853,6 +882,7 @@ async fn create_session_without_client_id_skips_id_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -883,6 +913,7 @@ async fn create_session_errors_when_realm_missing() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -894,7 +925,7 @@ async fn create_session_errors_when_realm_missing() {
     let service = build_service(user_repo, realm_repo, session_repo, token_service);
 
     match service.create_session(&user, None, None, None).await {
-        Err(Error::RealmNotFound(name)) => assert_eq!(name, DEFAULT_REALM_NAME),
+        Err(Error::RealmNotFound(name)) => assert_eq!(name, user.realm_id.to_string()),
         Err(other) => panic!("unexpected error: {:?}", other),
         Ok(_) => panic!("expected error"),
     }
@@ -936,6 +967,7 @@ async fn validate_token_and_get_user_returns_user() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -1034,6 +1066,7 @@ async fn refresh_session_errors_when_realm_missing() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -1076,6 +1109,7 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());

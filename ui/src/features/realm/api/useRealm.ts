@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
+import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { apiClient } from '@/shared/api/client.ts'
 
 import type { Realm } from '../../../entities/realm/model/types.ts'
 
 export function useCurrentRealm() {
   const realmName = useActiveRealm()
+  const accessToken = useSessionStore((state) => state.accessToken)
 
   return useQuery({
     // Include realmName in key so it refetches when you switch realms
@@ -22,6 +24,6 @@ export function useCurrentRealm() {
       return found
     },
     // Only fetch if we have a realm name
-    enabled: !!realmName,
+    enabled: !!realmName && !!accessToken,
   })
 }

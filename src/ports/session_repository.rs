@@ -11,5 +11,6 @@ pub trait SessionRepository: Send + Sync {
     async fn delete_by_id(&self, id: &Uuid) -> Result<()>;
     async fn mark_replaced(&self, old_id: &Uuid, new_id: &Uuid) -> Result<()>;
     async fn revoke_family(&self, family_id: &Uuid) -> Result<()>;
+    async fn revoke_all_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()>;
     async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<RefreshToken>>;
 }

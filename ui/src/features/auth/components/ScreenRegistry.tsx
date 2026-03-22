@@ -2,7 +2,6 @@ import type { FunctionComponent } from 'react'
 
 import type { AuthScreenProps } from '@/entities/auth/model/screenTypes.ts'
 
-import { AwaitingActionScreen } from '@/features/auth/screens/AwaitingActionScreen'
 import { FluidLoginScreen } from '@/features/auth/screens/FluidLoginScreen'
 
 // Define the keys the backend sends (e.g., "core.auth.password")
@@ -12,8 +11,13 @@ const SCREEN_MAP: Record<string, FunctionComponent<AuthScreenProps>> = {
 
   // New Node IDs
   'core.auth.password': FluidLoginScreen,
-  'core.awaiting-action': AwaitingActionScreen,
-  'awaiting-action': AwaitingActionScreen,
+  'core.auth.register': FluidLoginScreen,
+  'core.auth.forgot_credentials': FluidLoginScreen,
+  'core.auth.reset_password': FluidLoginScreen,
+  'core.auth.verify_email_otp': FluidLoginScreen,
+  'core.oidc.consent': FluidLoginScreen,
+  'core.awaiting-action': FluidLoginScreen,
+  'awaiting-action': FluidLoginScreen,
 
   // Future examples:
   // 'core.auth.otp': OtpScreen,

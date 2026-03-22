@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::application::delivery_replay_service::DeliveryReplayService;
+use crate::application::email_delivery_service::EmailDeliveryService;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
@@ -8,6 +9,9 @@ use crate::application::harbor::HarborService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::realm_email_settings_service::RealmEmailSettingsService;
+use crate::application::realm_recovery_settings_service::RealmRecoverySettingsService;
+use crate::application::realm_security_headers_service::RealmSecurityHeadersService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::webhook_service::WebhookService;
 use crate::application::{
@@ -22,9 +26,32 @@ use crate::ports::flow_store::FlowStore;
 use crate::ports::session_repository::SessionRepository;
 use tokio::sync::RwLock;
 
+#[derive(Clone, Debug)]
+pub struct SetupState {
+    pub required: bool,
+    pub token: Option<String>,
+}
+
+impl SetupState {
+    pub fn pending(token: String) -> Self {
+        Self {
+            required: true,
+            token: Some(token),
+        }
+    }
+
+    pub fn sealed() -> Self {
+        Self {
+            required: false,
+            token: None,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub settings: Arc<RwLock<Settings>>,
+    pub setup_state: Arc<RwLock<SetupState>>,
 
     // Services
     pub user_service: Arc<UserService>,
@@ -35,6 +62,10 @@ pub struct AppState {
     pub delivery_replay_service: Arc<DeliveryReplayService>,
     pub metrics_service: Arc<MetricsService>,
     pub realm_service: Arc<RealmService>,
+    pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
+    pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
+    pub realm_security_headers_service: Arc<RealmSecurityHeadersService>,
+    pub email_delivery_service: Arc<EmailDeliveryService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,
     pub harbor_service: Arc<HarborService>,
@@ -51,4 +82,10 @@ pub struct AppState {
 
     pub flow_store: Arc<dyn FlowStore>,
     pub flow_executor: Arc<FlowExecutor>,
+}
+
+impl AppState {
+    pub async fn is_setup_required(&self) -> bool {
+        self.setup_state.read().await.required
+    }
 }

@@ -1,10 +1,13 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
     harbor_handler, log_stream_handler, observability_handler, oidc_handler, rbac_handler,
-    realm_handler, search_handler, server::ui_handler, session_handler, theme_handler,
+    realm_email_handler, realm_handler, realm_recovery_handler, realm_security_headers_handler,
+    search_handler, server::ui_handler, session_handler, setup_handler, theme_handler,
     user_handler, webhook_handler,
 };
-use crate::adapters::web::middleware::{cors_middleware, permission_guard, request_logging};
+use crate::adapters::web::middleware::{
+    cors_middleware, permission_guard, request_logging, security_headers,
+};
 use crate::domain::permissions;
 use crate::AppState;
 use axum::routing::{delete, put};
@@ -64,6 +67,18 @@ pub fn create_router(app_state: AppState) -> Router {
         .merge(protected_api)
         .route_layer(middleware::from_fn_with_state(
             app_state.clone(),
+            security_headers::attach_realm_security_headers,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            app_state.clone(),
+            request_logging::log_api_request,
+        ));
+
+    let system_public_api = Router::new()
+        .route("/setup/status", get(setup_handler::setup_status_handler))
+        .route("/setup", post(setup_handler::setup_handler))
+        .route_layer(middleware::from_fn_with_state(
+            app_state.clone(),
             request_logging::log_api_request,
         ));
 
@@ -78,9 +93,11 @@ pub fn create_router(app_state: AppState) -> Router {
             request_logging::log_api_request,
         ));
 
+    let system_router = system_public_api.merge(system_api);
+
     Router::new()
         .nest("/api", api_router)
-        .nest("/api/system", system_api)
+        .nest("/api/system", system_router)
         .fallback(ui_handler::static_handler)
         .layer(middleware::from_fn_with_state(
             app_state.clone(),
@@ -95,10 +112,25 @@ fn auth_routes() -> Router<AppState> {
     Router::new()
         .route("/login", get(auth_handler::start_login_flow_handler))
         .route(
+            "/register",
+            get(auth_handler::start_registration_flow_handler),
+        )
+        .route("/reset", get(auth_handler::start_reset_flow_handler))
+        .route(
             "/login/execute",
             post(auth_handler::execute_login_step_handler),
         )
+        .route(
+            "/register/execute",
+            post(auth_handler::execute_login_step_handler),
+        )
+        .route(
+            "/reset/execute",
+            post(auth_handler::execute_reset_step_handler),
+        )
         .route("/resume", post(auth_handler::resume_action_handler))
+        .route("/resend", post(auth_handler::resend_action_handler))
+        .route("/action-status", get(auth_handler::action_status_handler))
         .route("/refresh", post(auth_handler::refresh_handler))
         .route("/logout", post(auth_handler::logout_handler))
 }
@@ -167,6 +199,18 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
 fn realm_routes(state: AppState) -> Router<AppState> {
     let read_routes = Router::new()
         .route("/", get(realm_handler::list_realms_handler))
+        .route(
+            "/{id}/email-settings",
+            get(realm_email_handler::get_realm_email_settings_handler),
+        )
+        .route(
+            "/{id}/recovery-settings",
+            get(realm_recovery_handler::get_realm_recovery_settings_handler),
+        )
+        .route(
+            "/{id}/security-headers",
+            get(realm_security_headers_handler::get_realm_security_headers_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -185,6 +229,22 @@ fn realm_routes(state: AppState) -> Router<AppState> {
             post(harbor_handler::bootstrap_import_harbor_archive_handler),
         )
         .route("/{id}", put(realm_handler::update_realm_handler))
+        .route(
+            "/{id}/email-settings",
+            put(realm_email_handler::update_realm_email_settings_handler),
+        )
+        .route(
+            "/{id}/email-settings/test",
+            post(realm_email_handler::test_realm_email_settings_handler),
+        )
+        .route(
+            "/{id}/recovery-settings",
+            put(realm_recovery_handler::update_realm_recovery_settings_handler),
+        )
+        .route(
+            "/{id}/security-headers",
+            put(realm_security_headers_handler::update_realm_security_headers_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -518,9 +578,8 @@ fn client_routes(state: AppState) -> Router<AppState> {
             },
         ));
 
-    let write_routes = Router::new()
+    let create_routes = Router::new()
         .route("/", post(oidc_handler::create_client_handler))
-        .route("/{id}", put(oidc_handler::update_client_handler))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -528,7 +587,20 @@ fn client_routes(state: AppState) -> Router<AppState> {
             },
         ));
 
-    read_routes.merge(write_routes)
+    let update_routes = Router::new()
+        .route("/{id}", put(oidc_handler::update_client_handler))
+        .route(
+            "/{id}/rotate-secret",
+            post(oidc_handler::rotate_client_secret_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::CLIENT_UPDATE)
+            },
+        ));
+
+    read_routes.merge(create_routes).merge(update_routes)
 }
 
 fn flow_routes(state: AppState) -> Router<AppState> {

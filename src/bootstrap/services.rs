@@ -1,6 +1,7 @@
-use crate::adapters::auth::register_builtins;
+use crate::adapters::auth::{register_builtins, BuiltinAuthContext};
 use crate::adapters::observability::telemetry_store::TelemetryDatabase;
 use crate::application::audit_service::AuditService;
+use crate::application::email_delivery_service::EmailDeliveryService;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
@@ -15,7 +16,11 @@ use crate::application::harbor::theme_provider::ThemeHarborProvider;
 use crate::application::harbor::user_provider::UserHarborProvider;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::realm_email_settings_service::RealmEmailSettingsService;
+use crate::application::realm_recovery_settings_service::RealmRecoverySettingsService;
+use crate::application::realm_security_headers_service::RealmSecurityHeadersService;
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::application::secret_service::SecretService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::webhook_service::WebhookService;
 use crate::ports::transaction_manager::TransactionManager;
@@ -37,12 +42,15 @@ pub struct Services {
     pub user_service: Arc<UserService>,
     pub rbac_service: Arc<RbacService>,
     pub realm_service: Arc<RealmService>,
+    pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
+    pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
+    pub realm_security_headers_service: Arc<RealmSecurityHeadersService>,
+    pub email_delivery_service: Arc<EmailDeliveryService>,
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,
     pub harbor_service: Arc<HarborService>,
-    // Removed Legacy FlowEngine
     pub oidc_service: Arc<OidcService>,
     pub flow_service: Arc<FlowService>,
     pub flow_manager: Arc<FlowManager>,
@@ -105,6 +113,28 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         tx_manager.clone(),
     ));
 
+    let realm_email_settings_service = Arc::new(RealmEmailSettingsService::new(
+        repos.realm_repo.clone(),
+        repos.realm_email_settings_repo.clone(),
+    ));
+
+    let realm_recovery_settings_service = Arc::new(RealmRecoverySettingsService::new(
+        repos.realm_repo.clone(),
+        repos.realm_recovery_settings_repo.clone(),
+    ));
+
+    let realm_security_headers_service = Arc::new(RealmSecurityHeadersService::new(
+        repos.realm_repo.clone(),
+        repos.realm_security_headers_repo.clone(),
+    ));
+
+    let email_delivery_service = Arc::new(EmailDeliveryService::new(
+        repos.realm_repo.clone(),
+        repos.realm_email_settings_repo.clone(),
+        repos.realm_recovery_settings_repo.clone(),
+        settings.clone(),
+    ));
+
     let auth_service = Arc::new(AuthService::new(
         repos.user_repo.clone(),
         repos.realm_repo.clone(),
@@ -114,6 +144,8 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         settings.auth.clone(),
     ));
 
+    let secret_service = Arc::new(SecretService::from_settings(settings));
+
     // 2. Runtime Registry (The Brain)
     let mut registry_impl = RuntimeRegistry::new();
 
@@ -121,12 +153,20 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     // This connects PasswordAuthenticator -> "core.auth.password"
     register_builtins(
         &mut registry_impl,
-        repos.user_repo.clone(),
-        repos.realm_repo.clone(),
-        repos.login_attempt_repo.clone(),
-        settings.auth.lockout_threshold,
-        settings.auth.lockout_duration_secs,
-        repos.session_repo.clone(),
+        BuiltinAuthContext {
+            user_service: user_service.clone(),
+            user_repo: repos.user_repo.clone(),
+            realm_repo: repos.realm_repo.clone(),
+            rbac_service: rbac_service.clone(),
+            login_attempt_repo: repos.login_attempt_repo.clone(),
+            lockout_threshold: settings.auth.lockout_threshold,
+            lockout_duration_secs: settings.auth.lockout_duration_secs,
+            session_repo: repos.session_repo.clone(),
+            action_repo: repos.auth_session_action_repo.clone(),
+            recovery_attempt_repo: repos.recovery_attempt_repo.clone(),
+            audit_service: audit_service.clone(),
+            recovery_settings_repo: repos.realm_recovery_settings_repo.clone(),
+        },
     );
 
     // Wrap in Arc for shared use
@@ -138,6 +178,8 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.flow_store.clone(),
         runtime_registry.clone(),
         repos.auth_session_action_repo.clone(),
+        Some(email_delivery_service.clone()),
+        Some(audit_service.clone()),
     ));
 
     let flow_manager = Arc::new(FlowManager::new(
@@ -153,12 +195,13 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.user_repo.clone(),
         auth_service.clone(),
         token_service.clone(),
+        secret_service,
         repos.auth_session_repo.clone(),
         repos.flow_store.clone(),
         repos.realm_repo.clone(),
     ));
 
-    let node_registry = Arc::new(NodeRegistryService::new());
+    let node_registry = Arc::new(NodeRegistryService::new(runtime_registry.clone()));
 
     let mut harbor_registry = HarborRegistry::new();
     harbor_registry.register(Arc::new(ThemeHarborProvider::new(theme_service.clone())));
@@ -196,6 +239,10 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         user_service,
         rbac_service,
         realm_service,
+        realm_email_settings_service,
+        realm_recovery_settings_service,
+        realm_security_headers_service,
+        email_delivery_service,
         auth_service,
         audit_service,
         webhook_service,

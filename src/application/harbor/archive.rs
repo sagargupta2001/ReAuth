@@ -173,7 +173,7 @@ fn read_bundle_from_tar(path: &Path) -> Result<HarborBundle> {
 fn write_bundle_to_zip(bundle: &HarborBundle, path: &Path) -> Result<()> {
     let file = File::create(path).map_err(|e| Error::Unexpected(e.into()))?;
     let mut writer = ZipWriter::new(file);
-    let options = FileOptions::default();
+    let options = FileOptions::<()>::default();
 
     let manifest_json =
         serde_json::to_vec_pretty(&bundle.manifest).map_err(|e| Error::Unexpected(e.into()))?;
@@ -221,7 +221,7 @@ fn write_bundle_to_tar(bundle: &HarborBundle, path: &Path) -> Result<()> {
 }
 
 fn write_assets_to_zip(bundle: &HarborBundle, writer: &mut ZipWriter<File>) -> Result<()> {
-    let options = FileOptions::default();
+    let options = FileOptions::<()>::default();
     let mut asset_index = 0usize;
 
     for resource in &bundle.resources {

@@ -1,62 +1,62 @@
 use crate::error::{Error, Result};
-use jsonschema::JSONSchema;
+use jsonschema::Validator;
 use once_cell::sync::Lazy;
 use serde_json::Value;
 
-static BUNDLE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+static BUNDLE_SCHEMA: Lazy<Validator> = Lazy::new(|| {
     let schema: Value = serde_json::from_str(include_str!(
         "../../../docs/schemas/harbor/bundle.schema.json"
     ))
     .expect("bundle schema");
-    JSONSchema::compile(&schema).expect("compile bundle schema")
+    Validator::new(&schema).expect("compile bundle schema")
 });
 
-static THEME_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+static THEME_RESOURCE_SCHEMA: Lazy<Validator> = Lazy::new(|| {
     let schema: Value = serde_json::from_str(include_str!(
         "../../../docs/schemas/harbor/resource-theme.schema.json"
     ))
     .expect("theme schema");
-    JSONSchema::compile(&schema).expect("compile theme schema")
+    Validator::new(&schema).expect("compile theme schema")
 });
 
-static CLIENT_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+static CLIENT_RESOURCE_SCHEMA: Lazy<Validator> = Lazy::new(|| {
     let schema: Value = serde_json::from_str(include_str!(
         "../../../docs/schemas/harbor/resource-client.schema.json"
     ))
     .expect("client schema");
-    JSONSchema::compile(&schema).expect("compile client schema")
+    Validator::new(&schema).expect("compile client schema")
 });
 
-static FLOW_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+static FLOW_RESOURCE_SCHEMA: Lazy<Validator> = Lazy::new(|| {
     let schema: Value = serde_json::from_str(include_str!(
         "../../../docs/schemas/harbor/resource-flow.schema.json"
     ))
     .expect("flow schema");
-    JSONSchema::compile(&schema).expect("compile flow schema")
+    Validator::new(&schema).expect("compile flow schema")
 });
 
-static USER_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+static USER_RESOURCE_SCHEMA: Lazy<Validator> = Lazy::new(|| {
     let schema: Value = serde_json::from_str(include_str!(
         "../../../docs/schemas/harbor/resource-user.schema.json"
     ))
     .expect("user schema");
-    JSONSchema::compile(&schema).expect("compile user schema")
+    Validator::new(&schema).expect("compile user schema")
 });
 
-static ROLE_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+static ROLE_RESOURCE_SCHEMA: Lazy<Validator> = Lazy::new(|| {
     let schema: Value = serde_json::from_str(include_str!(
         "../../../docs/schemas/harbor/resource-role.schema.json"
     ))
     .expect("role schema");
-    JSONSchema::compile(&schema).expect("compile role schema")
+    Validator::new(&schema).expect("compile role schema")
 });
 
-static REALM_RESOURCE_SCHEMA: Lazy<JSONSchema> = Lazy::new(|| {
+static REALM_RESOURCE_SCHEMA: Lazy<Validator> = Lazy::new(|| {
     let schema: Value = serde_json::from_str(include_str!(
         "../../../docs/schemas/harbor/resource-realm.schema.json"
     ))
     .expect("realm schema");
-    JSONSchema::compile(&schema).expect("compile realm schema")
+    Validator::new(&schema).expect("compile realm schema")
 });
 
 pub fn validate_bundle_schema(value: &Value) -> Result<()> {
@@ -75,12 +75,12 @@ pub fn validate_resource_schema(key: &str, value: &Value) -> Result<()> {
     }
 }
 
-fn validate_with_schema(schema: &JSONSchema, value: &Value, label: &str) -> Result<()> {
-    if let Err(errors) = schema.validate(value) {
-        let mut messages = Vec::new();
-        for error in errors.take(5) {
-            messages.push(error.to_string());
-        }
+fn validate_with_schema(schema: &Validator, value: &Value, label: &str) -> Result<()> {
+    let mut messages = Vec::new();
+    for error in schema.iter_errors(value).take(5) {
+        messages.push(error.to_string());
+    }
+    if !messages.is_empty() {
         return Err(Error::Validation(format!(
             "Invalid {} schema: {}",
             label,

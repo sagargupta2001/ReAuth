@@ -7,6 +7,7 @@ import { apiClient } from '@/shared/api/client.ts'
 
 interface CreateUserPayload {
   username: string
+  email?: string
   password?: string // Optional if you implement password generation
 }
 

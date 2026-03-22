@@ -913,7 +913,12 @@ fn extract_template_keys(graph: &Value) -> HashSet<String> {
 fn default_template_key(node_type: &str) -> Option<&'static str> {
     match node_type {
         "core.auth.password" => Some("login"),
-        "core.auth.otp" => Some("mfa"),
+        "core.auth.register" => Some("register"),
+        "core.auth.forgot_credentials" => Some("forgot_credentials"),
+        "core.auth.reset_password" => Some("reset_password"),
+        "core.logic.recovery_issue" => Some("awaiting_action"),
+        "core.logic.issue_email_otp" => Some("awaiting_action"),
+        "core.oidc.consent" => Some("consent"),
         _ => None,
     }
 }

@@ -1,9 +1,10 @@
 import { useParams } from 'react-router-dom'
 
 import { DEFAULT_REALM } from '@/shared/config/auth.ts'
+import { isNonRealmRoute, resolveRealmFromLocation } from '@/shared/lib/realm'
 
 export function useActiveRealm() {
   const { realm } = useParams<{ realm: string }>()
-  // Default to 'DEFAULT_REALM' if something goes wrong or we are at root
-  return realm || DEFAULT_REALM
+  if (realm && !isNonRealmRoute(realm)) return realm
+  return resolveRealmFromLocation(DEFAULT_REALM)
 }

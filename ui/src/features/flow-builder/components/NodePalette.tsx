@@ -1,9 +1,21 @@
-import type { DragEvent, ElementType } from 'react'
+import { type DragEvent, type ElementType, useEffect, useMemo, useState } from 'react'
 
 // Import missing icons (Play for Start)
-import { Box, CheckCircle, Loader2, Lock, Play, ShieldAlert, Split, XCircle } from 'lucide-react'
+import {
+  Box,
+  CheckCircle,
+  Loader2,
+  Lock,
+  Play,
+  ShieldAlert,
+  Split,
+  UserPlus,
+  XCircle,
+} from 'lucide-react'
 
+import { Input } from '@/components/input'
 import { type NodeMetadata, useNodes } from '@/features/flow-builder/api/useNodes'
+import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderStore'
 import { cn } from '@/lib/utils'
 
 const IconMap: Record<string, ElementType> = {
@@ -13,16 +25,39 @@ const IconMap: Record<string, ElementType> = {
   CheckCircle: CheckCircle,
   XCircle: XCircle,
   Play: Play, // Added Play icon mapping
+  UserPlus: UserPlus,
   Box: Box,
 }
 
 export function NodePalette() {
   const { data: nodes, isLoading } = useNodes()
+  const setNodeTypes = useFlowBuilderStore((state) => state.setNodeTypes)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    if (nodes) {
+      setNodeTypes(nodes)
+    }
+  }, [nodes, setNodeTypes])
+
+  const filteredNodes = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase()
+    if (!term) return nodes || []
+    return (nodes || []).filter((node) => {
+      const haystack = `${node.display_name} ${node.description} ${node.id}`.toLowerCase()
+      return haystack.includes(term)
+    })
+  }, [nodes, searchTerm])
 
   const onDragStart = (event: DragEvent, node: NodeMetadata) => {
     // 1. Pass Identification
     event.dataTransfer.setData('application/reactflow/type', node.id)
     event.dataTransfer.setData('application/reactflow/category', node.category)
+    event.dataTransfer.setData('application/reactflow/label', node.display_name)
+    event.dataTransfer.setData(
+      'application/reactflow/default-template-key',
+      node.default_template_key || '',
+    )
 
     // 2. [CRITICAL FIX] Pass Outputs
     // This allows the Node Component to render the correct handles instantly on drop
@@ -43,11 +78,16 @@ export function NodePalette() {
 
   return (
     <aside className="bg-muted/10 flex w-64 flex-col border-r">
-      <div className="text-muted-foreground border-b p-4 text-xs font-semibold uppercase">
-        Components
+      <div className="border-b p-4">
+        <Input
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="search components..."
+          className="h-8 text-xs"
+        />
       </div>
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {(nodes || []).map((node) => {
+        {filteredNodes.map((node) => {
           const IconComponent = IconMap[node.icon] || Box
 
           return (

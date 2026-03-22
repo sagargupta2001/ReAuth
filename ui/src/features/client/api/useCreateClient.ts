@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import type { OidcClient } from '@/entities/oidc/model/types'
 import { apiClient } from '@/shared/api/client'
 
 interface CreateClientPayload {
@@ -13,18 +13,16 @@ interface CreateClientPayload {
 
 export function useCreateClient() {
   const queryClient = useQueryClient()
-  const navigate = useRealmNavigate()
   const realm = useActiveRealm()
 
   return useMutation({
     mutationFn: (data: CreateClientPayload) => {
       // POST /api/realms/{realm}/clients
-      return apiClient.post(`/api/realms/${realm}/clients`, data)
+      return apiClient.post<OidcClient>(`/api/realms/${realm}/clients`, data)
     },
     onSuccess: () => {
       toast.success('Client created successfully')
       void queryClient.invalidateQueries({ queryKey: ['clients', realm] })
-      navigate('/clients')
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to create client')

@@ -15,6 +15,7 @@ import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { FormInput } from '@/shared/ui/form-input.tsx'
 
 import { useClient } from '../api/useClient.ts'
+import { useRotateClientSecret } from '../api/useRotateClientSecret.ts'
 import { useUpdateClient } from '../api/useUpdateClient.ts'
 import { type CreateClientSchema, createClientSchema } from '../schema/create.schema.ts'
 import { ClientSecretInput } from '../components/ClientSecretInput.tsx'
@@ -27,6 +28,7 @@ export function EditClientForm({ clientId }: Props) {
   const { t } = useTranslation('client')
   const { data: client, isLoading } = useClient(clientId)
   const mutation = useUpdateClient(clientId)
+  const rotateSecret = useRotateClientSecret(clientId)
 
   const schema = createClientSchema()
 
@@ -112,7 +114,18 @@ export function EditClientForm({ clientId }: Props) {
                 description="Unique identifier for this client."
               />
             </div>
-            <ClientSecretInput secret={client?.client_secret} />
+            <ClientSecretInput
+              secret={client?.client_secret ?? null}
+              confidential={client?.confidential}
+              onRotate={async () => {
+                try {
+                  await rotateSecret.mutateAsync()
+                } catch {
+                  // handled in hook
+                }
+              }}
+              isRotating={rotateSecret.isPending}
+            />
           </div>
 
           <Separator />

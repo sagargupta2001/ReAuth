@@ -1,23 +1,31 @@
 use crate::domain::flow::provider::NodeProvider;
 use serde_json::{json, Value};
 
-pub struct ConditionNode;
+pub struct ConditionNodeProvider;
 
-impl NodeProvider for ConditionNode {
+impl NodeProvider for ConditionNodeProvider {
     fn id(&self) -> &'static str {
         "core.logic.condition"
     }
+
     fn display_name(&self) -> &'static str {
-        "Condition Check"
+        "Condition"
     }
+
     fn description(&self) -> &'static str {
-        "Branch flow based on user or session data."
+        "Branch the flow based on a session context value."
     }
+
     fn icon(&self) -> &'static str {
         "Split"
     }
+
     fn category(&self) -> &'static str {
         "Logic"
+    }
+
+    fn inputs(&self) -> Vec<&'static str> {
+        vec!["default"]
     }
 
     fn outputs(&self) -> Vec<&'static str> {
@@ -27,21 +35,38 @@ impl NodeProvider for ConditionNode {
     fn config_schema(&self) -> Value {
         json!({
             "type": "object",
-            "required": ["variable", "operator", "value"],
             "properties": {
-                "variable": {
+                "context_path": {
                     "type": "string",
-                    "description": "e.g. user.email_verified, context.ip_address",
-                    "title": "Variable"
+                    "title": "Context Path",
+                    "description": "Dot-separated path in session context (ex: oidc.prompt or recovery.identifier)."
                 },
                 "operator": {
                     "type": "string",
-                    "enum": ["equals", "not_equals", "contains", "starts_with"],
-                    "default": "equals",
-                    "title": "Operator"
+                    "title": "Operator",
+                    "default": "exists",
+                    "enum": [
+                        "exists",
+                        "equals",
+                        "not_equals",
+                        "contains",
+                        "starts_with",
+                        "ends_with",
+                        "gt",
+                        "gte",
+                        "lt",
+                        "lte",
+                        "true",
+                        "false"
+                    ]
                 },
-                "value": { "type": "string", "title": "Comparison Value" }
-            }
+                "compare_value": {
+                    "type": "string",
+                    "title": "Compare Value",
+                    "description": "Optional. If valid JSON, it is parsed before comparison."
+                }
+            },
+            "required": ["context_path", "operator"]
         })
     }
 }

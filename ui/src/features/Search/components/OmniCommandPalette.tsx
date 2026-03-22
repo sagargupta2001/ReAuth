@@ -182,7 +182,8 @@ export function OmniCommandPalette() {
     }
   }, [realmData?.registration_flow_id])
 
-  const registrationEnabled = Boolean(realmData?.registration_flow_id)
+  const registrationEnabled = Boolean(realmData?.registration_enabled)
+  const registrationBlocked = Boolean(realmData?.is_system)
   const pkceRequired = Boolean(realmData?.pkce_required_public_clients)
 
   const executeAction = React.useCallback(
@@ -330,6 +331,11 @@ export function OmniCommandPalette() {
       if (!realmData) return
       const flowId = registrationFlowIdRef.current
 
+      if (registrationBlocked) {
+        toast.error('Self-registration cannot be enabled for the master realm.')
+        return
+      }
+
       if (enabled && !flowId) {
         toast.error('No registration flow is configured for this realm.')
         return
@@ -337,10 +343,10 @@ export function OmniCommandPalette() {
 
       recordSelection('setting.registration-enabled')
       updateRealm.mutate({
-        registration_flow_id: enabled ? flowId : null,
+        registration_enabled: enabled,
       })
     },
-    [realmData, recordSelection, updateRealm],
+    [realmData, recordSelection, updateRealm, registrationBlocked],
   )
 
   React.useEffect(() => {
@@ -363,7 +369,7 @@ export function OmniCommandPalette() {
       rankItems(
         dynamicResults?.users || [],
         debouncedQuery,
-        (user) => buildHaystack([user.username, user.id]),
+        (user) => buildHaystack([user.username, user.email, user.id]),
         (user) => `user:${user.id}`,
         recencyMap,
       ),
@@ -498,7 +504,7 @@ export function OmniCommandPalette() {
         kind: 'user',
         id: user.id,
         label: user.username,
-        subtitle: user.id,
+        subtitle: user.email || user.id,
         href: `/${realm}/users/${user.id}/settings`,
       }),
     )
@@ -777,7 +783,7 @@ export function OmniCommandPalette() {
                                                 checked: registrationEnabled,
                                                 onChange: handleRegistrationToggle,
                                                 ariaLabel: item.label,
-                                                disabled: updateRealm.isPending,
+                                                disabled: updateRealm.isPending || registrationBlocked,
                                               }
                                             : item.kind === 'toggle' &&
                                                 item.toggleId === 'pkce-required'

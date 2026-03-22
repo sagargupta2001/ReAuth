@@ -32,6 +32,16 @@ const SYSTEM_PAGES: &[ThemePageDefinition] = &[
         description: "Password reset entry.",
     },
     ThemePageDefinition {
+        key: "reset_password",
+        label: "Reset Password",
+        description: "Set a new password.",
+    },
+    ThemePageDefinition {
+        key: "awaiting_action",
+        label: "Awaiting Action",
+        description: "Waiting for an out-of-band action.",
+    },
+    ThemePageDefinition {
         key: "verify_email",
         label: "Verify Email",
         description: "Email verification notice.",
@@ -115,6 +125,8 @@ pub fn default_page_blueprint(key: &str) -> Option<Value> {
         "login" => Some(default_login_blueprint()),
         "register" => Some(default_register_blueprint()),
         "forgot_credentials" => Some(default_forgot_blueprint()),
+        "reset_password" => Some(default_reset_password_blueprint()),
+        "awaiting_action" => Some(default_awaiting_action_blueprint()),
         "verify_email" => Some(default_verify_blueprint()),
         "mfa" => Some(default_mfa_blueprint()),
         "consent" => Some(default_consent_blueprint()),
@@ -149,6 +161,7 @@ fn default_login_blueprint() -> Value {
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username", "name": "username", "input_type": "text" } },
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
             { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Forgot password?", "href": "/forgot-password", "target": "_self", "align": "right" } },
+            { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Create account", "href": "/register", "target": "_self", "align": "left", "visible_if": "capabilities.registration_enabled" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } }
         ]
     })
@@ -171,8 +184,33 @@ fn default_forgot_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Reset your password" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email", "name": "email", "input_type": "email" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Username or email", "name": "username", "input_type": "text" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Send reset link", "variant": "primary" } }
+        ]
+    })
+}
+
+fn default_reset_password_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Set a new password" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "New password", "name": "password", "input_type": "password" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Confirm password", "name": "password_confirm", "input_type": "password" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Update password", "variant": "primary" } }
+        ]
+    })
+}
+
+fn default_awaiting_action_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Check your inbox" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "message", "visible_if": "message" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Resend email", "variant": "secondary", "intent": "resend", "visible_if": "can_resend" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "resend_message", "visible_if": "resend_message" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "awaiting_status_message", "visible_if": "awaiting_status_message" } }
         ]
     })
 }
@@ -181,8 +219,8 @@ fn default_verify_blueprint() -> Value {
     json!({
         "layout": "default",
         "nodes": [
-            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Check your inbox to verify your email." } },
-            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Resend email", "variant": "secondary" } }
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Email verification complete." } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } }
         ]
     })
 }
@@ -203,8 +241,8 @@ fn default_consent_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Approve access to your account" } },
-            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Allow", "variant": "primary" } },
-            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Deny", "variant": "outline" } }
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Allow", "variant": "primary", "intent": "allow" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Deny", "variant": "outline", "intent": "deny" } }
         ]
     })
 }

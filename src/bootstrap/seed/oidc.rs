@@ -62,7 +62,7 @@ pub async fn seed_default_oidc_client(ctx: &SeedContext<'_>, realm_id: Uuid) -> 
                 managed_by_config: true,
             };
 
-            ctx.oidc_service.register_client(&mut client).await?;
+            let _ = ctx.oidc_service.register_client(&mut client).await?;
             info!("Default OIDC client created.");
         }
     }

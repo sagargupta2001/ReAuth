@@ -87,6 +87,10 @@ impl AuthSessionActionRepository for TestAuthSessionActionRepo {
         Ok(())
     }
 
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<AuthSessionAction>> {
+        Ok(self.actions.lock().unwrap().get(id).cloned())
+    }
+
     async fn find_by_token_hash(&self, token_hash: &str) -> Result<Option<AuthSessionAction>> {
         let actions = self.actions.lock().unwrap();
         Ok(actions
@@ -324,7 +328,7 @@ fn new_executor(
     registry: Arc<RuntimeRegistry>,
 ) -> FlowExecutor {
     let action_repo = Arc::new(TestAuthSessionActionRepo::default());
-    FlowExecutor::new(repo, flow_store, registry, action_repo)
+    FlowExecutor::new(repo, flow_store, registry, action_repo, None, None)
 }
 
 fn hash_action_token(token: &str) -> String {
@@ -874,6 +878,8 @@ async fn execute_returns_awaiting_action_and_stores_action() {
         flow_store,
         Arc::new(registry),
         action_repo.clone(),
+        None,
+        None,
     );
 
     let result = executor

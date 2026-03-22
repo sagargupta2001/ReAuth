@@ -1,16 +1,18 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Realm {
-    #[sqlx(try_from = "String")]
-    pub id: Uuid, // Mandatory field works fine with try_from
+    pub id: Uuid,
     pub name: String,
     pub access_token_ttl_secs: i64,
     pub refresh_token_ttl_secs: i64,
     pub pkce_required_public_clients: bool,
     pub lockout_threshold: i64,
     pub lockout_duration_secs: i64,
+    pub is_system: bool,
+    pub registration_enabled: bool,
+    pub default_registration_role_ids: Vec<Uuid>,
 
     // This matches the SQLite TEXT column perfectly.
     pub browser_flow_id: Option<String>,
@@ -46,6 +48,9 @@ mod tests {
             pkce_required_public_clients: true,
             lockout_threshold: 5,
             lockout_duration_secs: 900,
+            is_system: false,
+            registration_enabled: true,
+            default_registration_role_ids: Vec::new(),
             browser_flow_id: Some(flow_id.to_string()),
             registration_flow_id: None,
             direct_grant_flow_id: Some(Uuid::new_v4().to_string()),
@@ -80,6 +85,9 @@ mod tests {
             pkce_required_public_clients: true,
             lockout_threshold: 5,
             lockout_duration_secs: 900,
+            is_system: false,
+            registration_enabled: true,
+            default_registration_role_ids: Vec::new(),
             browser_flow_id: Some("not-a-uuid".to_string()),
             registration_flow_id: None,
             direct_grant_flow_id: None,

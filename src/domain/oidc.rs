@@ -58,7 +58,7 @@ pub struct OidcContext {
     pub code_challenge_method: Option<String>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct OidcRequest {
     pub client_id: String,
     pub redirect_uri: String,

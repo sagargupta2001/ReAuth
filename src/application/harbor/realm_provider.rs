@@ -12,6 +12,17 @@ use serde_json::to_value;
 use std::sync::Arc;
 use uuid::Uuid;
 
+fn parse_role_ids(role_ids: &[String]) -> Result<Vec<Uuid>> {
+    let mut parsed = Vec::with_capacity(role_ids.len());
+    for role_id in role_ids {
+        let id = Uuid::parse_str(role_id).map_err(|_| {
+            Error::Validation(format!("Invalid default registration role id: {}", role_id))
+        })?;
+        parsed.push(id);
+    }
+    Ok(parsed)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct HarborRealmFlowBindings {
     pub browser_flow_id: Option<String>,
@@ -27,6 +38,10 @@ struct HarborRealmPayload {
     pub pkce_required_public_clients: bool,
     pub lockout_threshold: i64,
     pub lockout_duration_secs: i64,
+    #[serde(default)]
+    pub registration_enabled: Option<bool>,
+    #[serde(default)]
+    pub default_registration_role_ids: Option<Vec<String>>,
     #[serde(default)]
     pub flow_bindings: HarborRealmFlowBindings,
 }
@@ -73,6 +88,9 @@ impl HarborProvider for RealmHarborProvider {
             Uuid::parse_str(flow_id)
                 .map_err(|_| Error::Validation(format!("Invalid flow binding id: {}", flow_id)))?;
         }
+        if let Some(role_ids) = payload.default_registration_role_ids.as_ref() {
+            parse_role_ids(role_ids)?;
+        }
 
         Ok(())
     }
@@ -101,6 +119,14 @@ impl HarborProvider for RealmHarborProvider {
             pkce_required_public_clients: realm.pkce_required_public_clients,
             lockout_threshold: realm.lockout_threshold,
             lockout_duration_secs: realm.lockout_duration_secs,
+            registration_enabled: Some(realm.registration_enabled),
+            default_registration_role_ids: Some(
+                realm
+                    .default_registration_role_ids
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect(),
+            ),
             flow_bindings: HarborRealmFlowBindings {
                 browser_flow_id: realm.browser_flow_id,
                 registration_flow_id: realm.registration_flow_id,
@@ -154,6 +180,8 @@ impl HarborProvider for RealmHarborProvider {
             pkce_required_public_clients,
             lockout_threshold,
             lockout_duration_secs,
+            registration_enabled,
+            default_registration_role_ids,
             flow_bindings,
         } = payload;
 
@@ -164,6 +192,11 @@ impl HarborProvider for RealmHarborProvider {
             pkce_required_public_clients: Some(pkce_required_public_clients),
             lockout_threshold: Some(lockout_threshold),
             lockout_duration_secs: Some(lockout_duration_secs),
+            registration_enabled,
+            default_registration_role_ids: match default_registration_role_ids {
+                Some(role_ids) => Some(parse_role_ids(&role_ids)?),
+                None => None,
+            },
             browser_flow_id: Some(parse_optional_uuid(flow_bindings.browser_flow_id.clone())?),
             registration_flow_id: Some(parse_optional_uuid(
                 flow_bindings.registration_flow_id.clone(),

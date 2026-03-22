@@ -4,6 +4,9 @@ import { Navigate } from 'react-router-dom'
 
 import DashboardPage from '@/pages/DashboardPage'
 import { LoginPage } from '@/pages/LoginPage.tsx'
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage.tsx'
+import { RegisterPage } from '@/pages/RegisterPage.tsx'
+import { SetupPage } from '@/pages/SetupPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { CachePage } from '@/pages/CachePage.tsx'
@@ -18,8 +21,11 @@ import { ThemesIndexPage } from '@/pages/theme/ThemesIndexPage.tsx'
 import { FluidBuilderPage } from '@/pages/theme/builder/FluidBuilderPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
+import { EmailSettingsPage } from '@/pages/realm/settings/EmailSettingsPage.tsx'
+import { RecoverySettingsPage } from '@/pages/realm/settings/RecoverySettingsPage.tsx'
 import { ObservabilitySettingsPage } from '@/pages/realm/settings/ObservabilitySettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
+import { SecurityHeadersSettingsPage } from '@/pages/realm/settings/SecurityHeadersSettingsPage.tsx'
 import { CreateRolePage } from '@/pages/roles/create/CreateRolePage.tsx'
 import { EditRolePage } from '@/pages/roles/edit/EditRolePage.tsx'
 import { RolesPage } from '@/pages/roles/listing/RolesPage.tsx'
@@ -98,6 +104,24 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/settings/general',
     element: GeneralSettingsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/settings/email',
+    element: EmailSettingsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/settings/security',
+    element: SecurityHeadersSettingsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/settings/recovery',
+    element: RecoverySettingsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
@@ -238,7 +262,25 @@ export const staticRoutes: RouteConfig[] = [
     path: '/login',
     element: LoginPage,
     layout: LoginLayout,
-    isProtected: true,
+    isProtected: false,
+  },
+  {
+    path: '/forgot-password',
+    element: ForgotPasswordPage,
+    layout: LoginLayout,
+    isProtected: false,
+  },
+  {
+    path: '/register',
+    element: RegisterPage,
+    layout: LoginLayout,
+    isProtected: false,
+  },
+  {
+    path: '/setup',
+    element: SetupPage,
+    layout: LoginLayout,
+    isProtected: false,
   },
   {
     path: '*',

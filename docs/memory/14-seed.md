@@ -51,7 +51,7 @@ Notes:
 ## What is seeded today
 - Default realm (`master`)
 - Default auth flows + bindings
-- Default admin user + role + permissions
+- Default admin user is no longer seeded; the first master admin is created via /setup.
 - Default OIDC client (`reauth-admin`, managed by config)
 
 ## Seed history
@@ -69,11 +69,10 @@ Key modules:
 - `/src/bootstrap/seed/context.rs` (shared services + settings)
 - `/src/bootstrap/seed/realm.rs`
 - `/src/bootstrap/seed/flows.rs`
-- `/src/bootstrap/seed/admin.rs`
 - `/src/bootstrap/seed/oidc.rs`
 
 The `SeedContext` provides:
-- Services (realm/user/flow/oidc/rbac)
+- Services (realm/flow/oidc/theme/harbor)
 - Repositories (flow repo + flow store)
 - Resolved `Settings`
 

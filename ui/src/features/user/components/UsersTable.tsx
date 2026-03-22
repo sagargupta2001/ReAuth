@@ -82,7 +82,7 @@ export function UsersTable() {
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-240px)]">
-        <DataTableSkeleton columnCount={4} rowCount={10} />
+        <DataTableSkeleton columnCount={5} rowCount={10} />
       </div>
     )
   }

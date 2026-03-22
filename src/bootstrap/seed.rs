@@ -1,6 +1,5 @@
 #![allow(clippy::needless_option_as_deref)]
 
-mod admin;
 mod context;
 mod flows;
 pub mod history;
@@ -39,25 +38,23 @@ use uuid::Uuid;
 pub async fn seed_database(
     db_pool: &sqlx::SqlitePool,
     realm_service: &Arc<RealmService>,
-    user_service: &Arc<UserService>,
+    _user_service: &Arc<UserService>,
     flow_repo: &Arc<dyn FlowRepository>,
     flow_store: &Arc<dyn FlowStore>,
     flow_manager: &Arc<FlowManager>,
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
-    rbac_service: &Arc<RbacService>,
+    _rbac_service: &Arc<RbacService>,
     theme_service: &Arc<ThemeResolverService>,
     harbor_service: &Arc<HarborService>,
 ) -> anyhow::Result<()> {
     let ctx = SeedContext {
         realm_service,
-        user_service,
         flow_repo,
         flow_store,
         flow_manager,
         settings,
         oidc_service,
-        rbac_service,
         theme_service,
         harbor_service,
     };
@@ -68,7 +65,6 @@ pub async fn seed_database(
         Box::new(HarborBundleSeeder),
         Box::new(FlowsSeeder),
         Box::new(ThemeSeeder),
-        Box::new(AdminSeeder),
         Box::new(OidcSeeder),
     ];
 
@@ -171,7 +167,6 @@ struct RealmSeeder;
 struct HarborBundleSeeder;
 struct FlowsSeeder;
 struct ThemeSeeder;
-struct AdminSeeder;
 struct OidcSeeder;
 
 #[async_trait]
@@ -280,11 +275,11 @@ impl Seeder for FlowsSeeder {
         1
     }
 
-    fn always_run(&self) -> bool {
+    fn transactional(&self) -> bool {
         true
     }
 
-    fn transactional(&self) -> bool {
+    fn always_run(&self) -> bool {
         true
     }
 
@@ -337,36 +332,6 @@ impl Seeder for ThemeSeeder {
         }
         let realm = state.require_realm()?;
         theme::ensure_default_theme(ctx, realm.id).await?;
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl Seeder for AdminSeeder {
-    fn name(&self) -> &'static str {
-        "default_admin"
-    }
-
-    fn version(&self) -> i32 {
-        1
-    }
-
-    fn always_run(&self) -> bool {
-        true
-    }
-
-    fn checksum(&self, ctx: &SeedContext<'_>) -> String {
-        format!("username={}", ctx.settings.default_admin.username)
-    }
-
-    async fn run(
-        &self,
-        ctx: &SeedContext<'_>,
-        state: &mut SeedState,
-        _tx: &mut Option<&mut dyn Transaction>,
-    ) -> anyhow::Result<()> {
-        let realm = state.require_realm()?;
-        admin::seed_admin_user(ctx, realm.id).await?;
         Ok(())
     }
 }
@@ -470,6 +435,8 @@ fn build_realm_flow_payload(flow_ids: &HashMap<String, Uuid>) -> UpdateRealmPayl
         pkce_required_public_clients: None,
         lockout_threshold: None,
         lockout_duration_secs: None,
+        registration_enabled: None,
+        default_registration_role_ids: None,
         browser_flow_id: browser.map(Some),
         registration_flow_id: registration.map(Some),
         direct_grant_flow_id: direct.map(Some),

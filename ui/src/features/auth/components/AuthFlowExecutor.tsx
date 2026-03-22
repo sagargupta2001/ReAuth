@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Loader2 } from 'lucide-react'
-import { useLocation, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 // <--- Import useLocation
 
@@ -11,13 +11,23 @@ import { authApi } from '@/features/auth/api/authApi.ts'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken'
 import { getScreenComponent } from '@/features/auth/components/ScreenRegistry.tsx'
 import type { AuthExecutionResponse } from '@/entities/auth/model/types.ts'
+import { REDIRECT_STORAGE_KEY } from '@/shared/config/redirect'
 
 // Global Singleton to prevent double-fetch in Strict Mode
 let initializationPromise: Promise<AuthExecutionResponse> | null = null
 
 export function AuthFlowExecutor() {
+  return <BaseAuthFlowExecutor flowPath="login" />
+}
+
+type BaseAuthFlowExecutorProps = {
+  flowPath?: 'login' | 'register' | 'reset'
+}
+
+export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecutorProps) {
   const params = useParams()
   const location = useLocation() // <--- Hook to get ?client_id=...
+  const navigate = useNavigate()
   const setSession = useSessionStore((state) => state.setSession)
   const refreshTokenMutation = useRefreshToken()
 
@@ -40,14 +50,42 @@ export function AuthFlowExecutor() {
     return searchParams.get('client_id') || undefined
   }, [location.search])
 
+  const redirectParam = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('redirect')
+  }, [location.search])
+
   const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const redirectHandledRef = useRef(false)
+  const lastResumeTokenRef = useRef<string | null>(null)
+  const shouldWaitForHashRedirect = useMemo(() => {
+    const hashRoutes = new Set(['/login', '/register', '/forgot-password', '/setup'])
+    return hashRoutes.has(window.location.pathname) && !window.location.hash
+  }, [])
+
+  useEffect(() => {
+    if (!redirectParam) return
+    sessionStorage.setItem(REDIRECT_STORAGE_KEY, redirectParam)
+  }, [redirectParam])
 
   // 1. INITIALIZE FLOW (GET /api/auth/login)
   useEffect(() => {
-    if (currentStep) {
+    if (shouldWaitForHashRedirect) {
+      return
+    }
+    if (resumeToken && resumeToken !== lastResumeTokenRef.current) {
+      lastResumeTokenRef.current = resumeToken
+      initializationPromise = null
+      setCurrentStep(null)
+      setIsLoading(true)
+    }
+    if (currentStep && resumeToken) {
+      setIsLoading(false)
+      return
+    }
+    if (currentStep && !resumeToken) {
       setIsLoading(false)
       return
     }
@@ -63,14 +101,14 @@ export function AuthFlowExecutor() {
           cleaned.delete('action_token')
           const search = cleaned.toString()
           const nextUrl = search ? `${location.pathname}?${search}` : location.pathname
-          window.history.replaceState({}, document.title, nextUrl)
+          navigate(nextUrl, { replace: true })
           return response
         }
 
         // [FIX] We pass the extracted 'realm' variable here
         // verify your authApi.startFlow uses this first argument to build the URL:
         // `/api/realms/${realm}/auth/login${queryParams}`
-        return await authApi.startFlow(realm, location.search)
+        return await authApi.startFlow(realm, flowPath, location.search)
       } catch (err) {
         console.error('[Executor] Init Failed:', err)
         throw err
@@ -92,7 +130,7 @@ export function AuthFlowExecutor() {
       })
       .catch((err) => {
         if (active) {
-          setGlobalError('Failed to initialize login flow. ' + (err.message || ''))
+          setGlobalError('Failed to initialize auth flow. ' + (err.message || ''))
           setIsLoading(false)
         }
         initializationPromise = null
@@ -101,7 +139,16 @@ export function AuthFlowExecutor() {
     return () => {
       active = false
     }
-  }, [realm, location.pathname, location.search, currentStep, resumeToken])
+  }, [
+    realm,
+    location.pathname,
+    location.search,
+    currentStep,
+    resumeToken,
+    flowPath,
+    navigate,
+    shouldWaitForHashRedirect,
+  ])
 
   // 2. SUBMIT HANDLER
   const handleSubmit = async (data: Record<string, unknown>) => {
@@ -111,7 +158,7 @@ export function AuthFlowExecutor() {
     try {
       // Pass realm here if your API needs it for the execution URL too
       // e.g. /api/realms/{realm}/auth/login/execute
-      const res = await authApi.submitStep(realm, data)
+      const res = await authApi.submitStep(realm, flowPath, data)
       setCurrentStep(res)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'An unexpected error occurred'
@@ -139,8 +186,13 @@ export function AuthFlowExecutor() {
         if (targetUrl === '/') {
           const token = await refreshTokenMutation.mutateAsync()
           setSession(token)
-          // Ensure we don't accidentally send query params to dashboard
-          window.history.replaceState({}, document.title, '/')
+          const storedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
+          sessionStorage.removeItem(REDIRECT_STORAGE_KEY)
+          if (storedRedirect && storedRedirect.startsWith('/') && !storedRedirect.startsWith('//')) {
+            navigate(storedRedirect, { replace: true })
+          } else {
+            navigate('/', { replace: true })
+          }
           return
         }
 
@@ -151,15 +203,28 @@ export function AuthFlowExecutor() {
         }
 
         // Case C: Relative Redirect
+        if (targetUrl.startsWith('/')) {
+          if (targetUrl.startsWith('/login')) {
+            const hashUrl = targetUrl.startsWith('/#') ? targetUrl : `/#${targetUrl}`
+            window.location.href = hashUrl
+            return
+          }
+          navigate(targetUrl, { replace: true })
+          return
+        }
         window.location.href = targetUrl
       } catch (err) {
         console.error('Session hydration failed:', err)
         setGlobalError('Login succeeded but session could not be established.')
+        setCurrentStep({
+          status: 'failure',
+          message: 'Login succeeded but session could not be established.',
+        })
       }
     }
 
     void handleRedirect()
-  }, [currentStep, refreshTokenMutation, setSession])
+  }, [currentStep, refreshTokenMutation, setSession, navigate])
 
   // --- RENDER ---
   if (isLoading && !currentStep) {
@@ -170,11 +235,15 @@ export function AuthFlowExecutor() {
     )
   }
 
+  if (globalError && !currentStep) {
+    throw new Error(globalError)
+  }
+
   if (currentStep?.status === 'failure') {
     return (
       <div className="space-y-4">
         <div className="text-destructive rounded border border-red-100 bg-red-50 p-4 font-medium">
-          Login Failed: {currentStep.message}
+          Flow Failed: {currentStep.message}
         </div>
         <Button className="w-full" onClick={() => window.location.reload()}>
           Try Again
@@ -185,8 +254,8 @@ export function AuthFlowExecutor() {
 
   if (currentStep?.status === 'redirect') {
     return (
-      <div className="space-y-2 text-center text-green-600">
-        <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+      <div className="flex min-h-[40vh] flex-col items-center justify-center space-y-2 text-center text-green-600">
+        <Loader2 className="h-6 w-6 animate-spin" />
         <p className="text-sm">Redirecting...</p>
       </div>
     )

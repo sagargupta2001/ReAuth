@@ -5,7 +5,7 @@
 
 ## Current state (code-aligned)
 - [x] Seeding is orchestrated in `bootstrap/seed.rs` with feature‑scoped modules.
-- [x] Defaults include realm, flows, admin user/role, and default OIDC client.
+- [x] Defaults include realm, flows, theme, and default OIDC client (admin is created via /setup).
 - [x] Seeding is run on every startup (after migrations).
 - [x] Seed versioning and history tracking are in place.
 - [x] Seed logic split into feature‑scoped modules with shared context.
@@ -13,7 +13,7 @@
 - [x] Seeder registry executes versioned seeders in order.
 - [x] Per‑seeder transactions supported for atomic steps where possible.
 - [x] Flow seeding now uses transactions across flow drafts/versions/deployments.
-- [x] Admin seeding now reuses existing roles/users instead of skipping.
+- [x] Admin seeding removed in favor of the /setup bootstrapping flow.
 - [x] `--seed-only` flag added for CI/dev workflows.
 - [x] `--seed-status` flag prints applied seeders.
 

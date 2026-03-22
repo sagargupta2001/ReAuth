@@ -9,15 +9,15 @@ import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { useOidcAuth } from '@/features/auth/api/useOidcAuth'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken.ts'
 import { PKCE_STORAGE_KEY } from '@/shared/config/oidc'
-
-// Ensure this key matches exactly what you use elsewhere
-const REDIRECT_STORAGE_KEY = 'reauth_post_login_redirect'
+import { REDIRECT_STORAGE_KEY } from '@/shared/config/redirect'
+import { getSetupRequired } from '@/shared/lib/setupStatus'
 
 export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const { accessToken, setSession } = useSessionStore()
   const location = useLocation()
   const navigate = useNavigate()
   const [isProcessing, setIsProcessing] = useState(true)
+  const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
 
   // Ref to prevent double-firing in React 18 Strict Mode
   const processingRef = useRef(false)
@@ -29,13 +29,26 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     // --- 0. HASH ROUTER FIX (PRE-RENDER) ---
     // If backend sent us to /login (root path), jump to /#/login
     // IMPORTANT: Preserve the query string (search) so OIDC params aren't lost!
-    if (window.location.pathname === '/login') {
+    if (
+      window.location.pathname === '/login' ||
+      window.location.pathname === '/register' ||
+      window.location.pathname === '/setup'
+    ) {
       const search = window.location.search
-      window.location.replace(`${window.location.origin}/#/login${search}`)
+      window.location.replace(`${window.location.origin}/#${window.location.pathname}${search}`)
       return
     }
 
     const handleAuth = async () => {
+      const required = await getSetupRequired()
+      if (required) {
+        setSetupRequired(true)
+        navigate('/setup', { replace: true })
+        setIsProcessing(false)
+        return
+      }
+      setSetupRequired(false)
+
       // 1. If we have a token, we are done.
       if (accessToken) {
         setIsProcessing(false)
@@ -121,8 +134,8 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     }
 
     void handleAuth()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
 
   // --- RENDER LOGIC ---
 
@@ -147,6 +160,10 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     return <div className="flex h-screen items-center justify-center">Authenticating...</div>
   }
 
+  if (setupRequired) {
+    return <Navigate to="/setup" replace />
+  }
+
   // --- AUTHENTICATED ---
   if (accessToken) {
     // Check if this is an OIDC flow (e.g. ?client_id=...)
@@ -160,7 +177,11 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     }
 
     // Standard Logic: If stuck on /login without OIDC params, go to Dashboard
-    if (location.pathname.includes('/login')) {
+    if (
+      location.pathname.includes('/login') ||
+      location.pathname.includes('/register') ||
+      location.pathname.includes('/forgot-password')
+    ) {
       const storedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
       return <Navigate to={storedRedirect || '/'} replace />
     }
@@ -170,9 +191,17 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
 
   // --- UNAUTHENTICATED ---
 
-  const isLoginPage = location.pathname === '/login' || location.pathname === '/login/'
+  const isAuthPage =
+    location.pathname === '/login' ||
+    location.pathname === '/login/' ||
+    location.pathname === '/forgot-password' ||
+    location.pathname === '/forgot-password/' ||
+    location.pathname === '/register' ||
+    location.pathname === '/register/' ||
+    location.pathname === '/setup' ||
+    location.pathname === '/setup/'
 
-  if (isLoginPage) {
+  if (isAuthPage) {
     // Save intent if user landed on /#/login?redirect=...
     const searchParams = new URLSearchParams(location.search)
     const redirectIntent = searchParams.get('redirect')

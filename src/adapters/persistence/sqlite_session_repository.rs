@@ -133,6 +133,21 @@ impl SessionRepository for SqliteSessionRepository {
 
     #[instrument(
         skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn revoke_all_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()> {
+        sqlx::query("UPDATE refresh_tokens SET revoked_at = ? WHERE realm_id = ? AND user_id = ?")
+            .bind(Utc::now())
+            .bind(realm_id.to_string())
+            .bind(user_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    #[instrument(
+        skip_all,
         fields(telemetry = "span", db_table = "refresh_tokens", db_op = "select")
     )]
     async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<RefreshToken>> {

@@ -108,8 +108,15 @@ impl AuthenticationSession {
     }
 
     pub fn update_context(&mut self, key: &str, value: Value) {
-        if let Value::Object(ref mut map) = self.context {
-            map.insert(key.to_string(), value);
+        match self.context {
+            Value::Object(ref mut map) => {
+                map.insert(key.to_string(), value);
+            }
+            _ => {
+                let mut map = serde_json::Map::new();
+                map.insert(key.to_string(), value);
+                self.context = Value::Object(map);
+            }
         }
     }
 }

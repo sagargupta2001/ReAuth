@@ -1,6 +1,7 @@
 use crate::application::flow_service::FlowService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::config::Settings;
+use crate::constants::DEFAULT_REALM_NAME;
 use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use crate::{
     domain::realm::Realm,
@@ -27,6 +28,8 @@ pub struct UpdateRealmPayload {
     pub pkce_required_public_clients: Option<bool>,
     pub lockout_threshold: Option<i64>,
     pub lockout_duration_secs: Option<i64>,
+    pub registration_enabled: Option<bool>,
+    pub default_registration_role_ids: Option<Vec<Uuid>>,
     pub browser_flow_id: Option<Option<Uuid>>,
     pub registration_flow_id: Option<Option<Uuid>>,
     pub direct_grant_flow_id: Option<Option<Uuid>>,
@@ -70,6 +73,7 @@ impl RealmService {
         let result = async {
             let realm_id = Uuid::new_v4();
 
+            let is_system = payload.name == DEFAULT_REALM_NAME;
             let mut realm = Realm {
                 id: realm_id,
                 name: payload.name,
@@ -78,6 +82,9 @@ impl RealmService {
                 pkce_required_public_clients: settings.auth.pkce_required_public_clients,
                 lockout_threshold: settings.auth.lockout_threshold,
                 lockout_duration_secs: settings.auth.lockout_duration_secs,
+                is_system,
+                registration_enabled: !is_system,
+                default_registration_role_ids: Vec::new(),
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
@@ -172,6 +179,19 @@ impl RealmService {
         if let Some(value) = payload.lockout_duration_secs {
             validate_lockout_value("lockout_duration_secs", value, MAX_LOCKOUT_DURATION_SECS)?;
             realm.lockout_duration_secs = value;
+        }
+        if let Some(value) = payload.registration_enabled {
+            if realm.is_system && value {
+                return Err(Error::SecurityViolation(
+                    "Self-registration cannot be enabled for the master realm.".to_string(),
+                ));
+            }
+            realm.registration_enabled = value;
+        }
+        if let Some(mut role_ids) = payload.default_registration_role_ids {
+            role_ids.sort();
+            role_ids.dedup();
+            realm.default_registration_role_ids = role_ids;
         }
 
         if let Some(val) = payload.browser_flow_id {

@@ -6,6 +6,7 @@ use crate::AppState;
 use axum::extract::{Path, Query};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use serde::Deserialize;
+use tracing::warn;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -13,6 +14,8 @@ use validator::Validate;
 pub struct CreateUserPayload {
     #[validate(length(min = 3, message = "Username must be at least 3 characters long"))]
     username: String,
+    #[validate(email(message = "Email address is invalid"))]
+    email: Option<String>,
     #[validate(length(
         min = 8,
         max = 100,
@@ -26,16 +29,46 @@ pub async fn create_user_handler(
     Path(realm_name): Path<String>,
     ValidatedJson(payload): ValidatedJson<CreateUserPayload>,
 ) -> Result<impl IntoResponse> {
+    if state.is_setup_required().await {
+        return Err(Error::SecurityViolation(
+            "Initial setup is required before creating users.".to_string(),
+        ));
+    }
+
     let realm = state
         .realm_service
         .find_by_name(&realm_name)
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
+    let capabilities = crate::application::realm_policy::RealmCapabilities::from_realm(&realm);
 
+    let email = payload
+        .email
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     let user = state
         .user_service
-        .create_user(realm.id, &payload.username, &payload.password)
+        .create_user(
+            realm.id,
+            &payload.username,
+            &payload.password,
+            email.as_deref(),
+        )
         .await?;
+
+    for role_id in capabilities.default_registration_role_ids {
+        if let Err(err) = state
+            .rbac_service
+            .assign_role_to_user(realm.id, user.id, role_id)
+            .await
+        {
+            warn!(
+                "Failed to assign default registration role {}: {}",
+                role_id, err
+            );
+        }
+    }
 
     Ok((StatusCode::CREATED, Json(user)))
 }
@@ -78,15 +111,18 @@ pub async fn get_user_handler(
     Ok((StatusCode::OK, Json(user)))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Validate)]
 pub struct UpdateUserRequest {
-    pub username: String,
+    #[validate(length(min = 3, message = "Username must be at least 3 characters long"))]
+    pub username: Option<String>,
+    #[validate(email(message = "Email address is invalid"))]
+    pub email: Option<String>,
 }
 
 pub async fn update_user_handler(
     State(state): State<AppState>,
     Path((realm_name, id)): Path<(String, Uuid)>,
-    Json(payload): Json<UpdateUserRequest>,
+    ValidatedJson(payload): ValidatedJson<UpdateUserRequest>,
 ) -> Result<impl IntoResponse> {
     let realm = state
         .realm_service
@@ -94,9 +130,21 @@ pub async fn update_user_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
+    let username = payload.username.map(|value| value.trim().to_string());
+    let email = payload.email.map(|value| value.trim().to_string());
+    if username.as_deref().is_some_and(|value| value.is_empty()) {
+        return Err(Error::Validation("Username cannot be empty".to_string()));
+    }
+
+    let email_update = email.map(|value| if value.is_empty() { None } else { Some(value) });
+
+    if username.is_none() && email_update.is_none() {
+        return Err(Error::Validation("No updates provided".to_string()));
+    }
+
     let user = state
         .user_service
-        .update_username(realm.id, id, payload.username)
+        .update_profile(realm.id, id, username, email_update)
         .await?;
 
     Ok((StatusCode::OK, Json(user)))

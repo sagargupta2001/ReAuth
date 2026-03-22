@@ -28,6 +28,10 @@ export function FlowCanvas() {
       // 1. Get Data from Palette
       const droppedId = event.dataTransfer.getData('application/reactflow/type')
       const droppedCategory = event.dataTransfer.getData('application/reactflow/category')
+      const droppedLabel = event.dataTransfer.getData('application/reactflow/label')
+      const droppedDefaultTemplateKey = event.dataTransfer.getData(
+        'application/reactflow/default-template-key',
+      )
       const droppedOutputsStr = event.dataTransfer.getData('application/reactflow/outputs')
 
       if (!droppedId) return
@@ -45,9 +49,15 @@ export function FlowCanvas() {
       })
 
       // 2. Create Node
-      const templateDefaults: Record<string, string> = {
-        'core.auth.password': 'login',
-        'core.auth.otp': 'mfa',
+      const config: Record<string, string> = {}
+      if (droppedCategory === 'Authenticator') {
+        config.auth_type = droppedId
+      }
+      if (droppedCategory === 'Logic') {
+        config.logic_type = droppedId
+      }
+      if (droppedDefaultTemplateKey) {
+        config.template_key = droppedDefaultTemplateKey
       }
 
       const newNode = {
@@ -56,10 +66,8 @@ export function FlowCanvas() {
         type: droppedId,
         position,
         data: {
-          label: droppedId,
-          config: templateDefaults[droppedId]
-            ? { template_key: templateDefaults[droppedId] }
-            : {},
+          label: droppedLabel || droppedId,
+          config,
           category: droppedCategory,
           outputs: outputs,
         },

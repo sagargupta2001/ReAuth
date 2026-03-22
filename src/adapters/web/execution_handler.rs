@@ -26,6 +26,12 @@ pub async fn start_login(
     Path(realm_name): Path<String>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse> {
+    if state.is_setup_required().await {
+        return Err(Error::SecurityViolation(
+            "Initial setup is required before authentication.".to_string(),
+        ));
+    }
+
     let realm = state
         .realm_service
         .find_by_name(&realm_name)

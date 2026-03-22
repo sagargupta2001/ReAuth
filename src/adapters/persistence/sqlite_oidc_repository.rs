@@ -202,9 +202,10 @@ impl OidcRepository for SqliteOidcRepository {
     )]
     async fn update_client(&self, client: &OidcClient) -> Result<()> {
         sqlx::query(
-            "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ?, web_origins = ?, managed_by_config = ? WHERE id = ?",
+            "UPDATE oidc_clients SET client_id = ?, client_secret = ?, redirect_uris = ?, scopes = ?, web_origins = ?, managed_by_config = ? WHERE id = ?",
         )
         .bind(&client.client_id)
+        .bind(&client.client_secret)
         .bind(&client.redirect_uris)
         .bind(&client.scopes)
         .bind(&client.web_origins)
@@ -226,9 +227,10 @@ impl OidcRepository for SqliteOidcRepository {
         tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         let query = sqlx::query(
-            "UPDATE oidc_clients SET client_id = ?, redirect_uris = ?, scopes = ?, web_origins = ?, managed_by_config = ? WHERE id = ?",
+            "UPDATE oidc_clients SET client_id = ?, client_secret = ?, redirect_uris = ?, scopes = ?, web_origins = ?, managed_by_config = ? WHERE id = ?",
         )
         .bind(&client.client_id)
+        .bind(&client.client_secret)
         .bind(&client.redirect_uris)
         .bind(&client.scopes)
         .bind(&client.web_origins)

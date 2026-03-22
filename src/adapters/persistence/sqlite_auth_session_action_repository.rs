@@ -70,6 +70,40 @@ INSERT INTO auth_session_actions (
             db_op = "select"
         )
     )]
+    async fn find_by_id(&self, id: &Uuid) -> Result<Option<AuthSessionAction>> {
+        let action = sqlx::query_as(
+            r#"
+SELECT
+    id,
+    session_id,
+    realm_id,
+    action_type,
+    token_hash,
+    COALESCE(payload_json, '{}') AS payload_json,
+    resume_node_id,
+    expires_at,
+    consumed_at,
+    created_at,
+    updated_at
+FROM auth_session_actions
+WHERE id = ?
+"#,
+        )
+        .bind(id.to_string())
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(action)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(
+            telemetry = "span",
+            db_table = "auth_session_actions",
+            db_op = "select"
+        )
+    )]
     async fn find_by_token_hash(&self, token_hash: &str) -> Result<Option<AuthSessionAction>> {
         let action = sqlx::query_as(
             r#"

@@ -51,4 +51,12 @@ impl NodeProvider for PasswordNodeProvider {
             "required": ["max_attempts"]
         })
     }
+
+    fn supports_ui(&self) -> bool {
+        true
+    }
+
+    fn default_template_key(&self) -> Option<&'static str> {
+        Some("login")
+    }
 }

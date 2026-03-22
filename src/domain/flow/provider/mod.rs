@@ -29,6 +29,16 @@ pub trait NodeProvider: Send + Sync {
     /// The Frontend will use this to auto-generate the settings form.
     fn config_schema(&self) -> Value;
 
+    /// Whether this node renders a user-facing screen at runtime.
+    fn supports_ui(&self) -> bool {
+        false
+    }
+
+    /// Default Fluid page key for UI-capable nodes.
+    fn default_template_key(&self) -> Option<&'static str> {
+        None
+    }
+
     /// (Optional) Default configuration values
     fn default_config(&self) -> Value {
         serde_json::json!({})

@@ -34,14 +34,10 @@ export function NodeInspector() {
   // 1. Lookup Schema based on Node Type (e.g., "core.auth.password")
   const nodeDefinition = nodeType ? nodeTypes.find((t) => t.id === nodeType) : undefined
   const configSchema = nodeDefinition?.config_schema
-  const isAuthenticator = nodeDefinition?.category === 'Authenticator'
+  const supportsUi = nodeDefinition?.supports_ui ?? false
 
   const currentConfig = (selectedNode?.data?.config as Record<string, unknown>) || {}
-  const fallbackTemplate = nodeType.includes('password')
-    ? 'login'
-    : nodeType.includes('otp')
-      ? 'mfa'
-      : undefined
+  const fallbackTemplate = nodeDefinition?.default_template_key ?? undefined
   const explicitTemplate =
     typeof currentConfig.template_key === 'string' ? currentConfig.template_key : undefined
   const currentTemplate = explicitTemplate ?? fallbackTemplate
@@ -140,7 +136,7 @@ export function NodeInspector() {
 
         <Separator />
 
-        {isAuthenticator && (
+        {supportsUi && (
           <>
             <div className="space-y-4">
               <div className="flex items-center gap-2">

@@ -1,6 +1,7 @@
 use super::OidcService;
 use crate::application::auth_service::AuthService;
 use crate::application::rbac_service::RbacService;
+use crate::application::secret_service::SecretService;
 use crate::config::AuthConfig;
 use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::AuthFlow;
@@ -404,6 +405,10 @@ impl UserRepository for TestUserRepo {
         Ok(None)
     }
 
+    async fn find_by_email(&self, _realm_id: &Uuid, _email: &str) -> Result<Option<User>> {
+        Ok(None)
+    }
+
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<User>> {
         Ok(self.users.lock().unwrap().get(id).cloned())
     }
@@ -420,6 +425,17 @@ impl UserRepository for TestUserRepo {
 
     async fn list(&self, _realm_id: &Uuid, _req: &PageRequest) -> Result<PageResponse<User>> {
         Ok(empty_page())
+    }
+
+    async fn count_in_realm(&self, realm_id: &Uuid) -> Result<i64> {
+        let count = self
+            .users
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|user| &user.realm_id == realm_id)
+            .count();
+        Ok(count as i64)
     }
 }
 
@@ -485,6 +501,16 @@ impl SessionRepository for TestSessionRepo {
         let mut stored = self.stored.lock().unwrap();
         for token in stored.values_mut() {
             if &token.family_id == family_id {
+                token.revoked_at = Some(Utc::now());
+            }
+        }
+        Ok(())
+    }
+
+    async fn revoke_all_for_user(&self, _realm_id: &Uuid, user_id: &Uuid) -> Result<()> {
+        let mut stored = self.stored.lock().unwrap();
+        for token in stored.values_mut() {
+            if &token.user_id == user_id {
                 token.revoked_at = Some(Utc::now());
             }
         }
@@ -1055,12 +1081,14 @@ fn build_service(
         session_repo.clone(),
         token_service.clone(),
     );
+    let secret_service = Arc::new(SecretService::from_key("test-secret"));
 
     OidcService::new(
         oidc_repo,
         user_repo,
         auth_service,
         token_service,
+        secret_service,
         auth_session_repo,
         flow_store,
         realm_repo,
@@ -1076,6 +1104,9 @@ fn base_realm() -> crate::domain::realm::Realm {
         pkce_required_public_clients: true,
         lockout_threshold: 5,
         lockout_duration_secs: 900,
+        is_system: false,
+        registration_enabled: true,
+        default_registration_role_ids: Vec::new(),
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
@@ -1685,6 +1716,7 @@ async fn exchange_code_for_token_returns_tokens_and_deletes_code() {
         id: user_id,
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     });
 

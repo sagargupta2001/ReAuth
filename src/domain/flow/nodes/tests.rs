@@ -1,10 +1,15 @@
-use super::condition_node::ConditionNode;
+use super::condition_node::ConditionNodeProvider;
 use super::cookie_node::CookieNodeProvider;
-use super::otp_node::OtpNode;
+use super::email_otp_issue_node::EmailOtpIssueNodeProvider;
+use super::forgot_credentials_node::ForgotCredentialsNodeProvider;
+use super::oidc_consent_node::OidcConsentNodeProvider;
 use super::password_node::PasswordNodeProvider;
-use super::script_node::ScriptNode;
+use super::recovery_issue_node::RecoveryIssueNodeProvider;
+use super::registration_node::RegistrationNodeProvider;
+use super::reset_password_node::ResetPasswordNodeProvider;
 use super::start_node::StartNode;
 use super::terminal_node::{AllowNode, DenyNode};
+use super::verify_email_otp_node::VerifyEmailOtpNodeProvider;
 use crate::domain::flow::provider::NodeProvider;
 
 #[test]
@@ -22,25 +27,6 @@ fn start_node_metadata_is_consistent() {
     assert!(node.inputs().is_empty());
     assert_eq!(node.outputs(), vec!["next"]);
     assert!(node.config_schema().as_object().unwrap().is_empty());
-}
-
-#[test]
-fn condition_node_metadata_is_consistent() {
-    let node = ConditionNode;
-
-    assert_eq!(node.id(), "core.logic.condition");
-    assert_eq!(node.display_name(), "Condition Check");
-    assert_eq!(
-        node.description(),
-        "Branch flow based on user or session data."
-    );
-    assert_eq!(node.icon(), "Split");
-    assert_eq!(node.category(), "Logic");
-    assert_eq!(node.outputs(), vec!["true", "false"]);
-
-    let schema = node.config_schema();
-    let required = schema.get("required").and_then(|v| v.as_array());
-    assert!(required.is_some());
 }
 
 #[test]
@@ -75,29 +61,45 @@ fn password_node_metadata_is_consistent() {
 }
 
 #[test]
-fn otp_node_metadata_is_consistent() {
-    let node = OtpNode;
+fn registration_node_metadata_is_consistent() {
+    let node = RegistrationNodeProvider;
 
-    assert_eq!(node.id(), "core.auth.otp");
-    assert_eq!(node.display_name(), "One-Time Password");
-    assert!(node.description().contains("verification code"));
-    assert_eq!(node.icon(), "Smartphone");
+    assert_eq!(node.id(), "core.auth.register");
+    assert_eq!(node.display_name(), "Register Account");
+    assert!(node.description().contains("new user account"));
+    assert_eq!(node.icon(), "UserPlus");
     assert_eq!(node.category(), "Authenticator");
-    assert_eq!(node.outputs(), vec!["success", "failure", "resend"]);
-    assert!(node.config_schema().get("properties").is_some());
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    assert_eq!(node.default_template_key(), Some("register"));
+    assert!(node.supports_ui());
 }
 
 #[test]
-fn script_node_metadata_is_consistent() {
-    let node = ScriptNode;
+fn forgot_credentials_node_metadata_is_consistent() {
+    let node = ForgotCredentialsNodeProvider;
 
-    assert_eq!(node.id(), "core.logic.script");
-    assert_eq!(node.display_name(), "Execution Script");
-    assert!(node.description().contains("custom internal logic"));
-    assert_eq!(node.icon(), "Code");
-    assert_eq!(node.category(), "Logic");
-    assert_eq!(node.outputs(), vec!["next", "error"]);
-    assert!(node.config_schema().get("properties").is_some());
+    assert_eq!(node.id(), "core.auth.forgot_credentials");
+    assert_eq!(node.display_name(), "Forgot Credentials");
+    assert!(node.description().contains("credential recovery"));
+    assert_eq!(node.icon(), "Mail");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    assert_eq!(node.default_template_key(), Some("forgot_credentials"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn reset_password_node_metadata_is_consistent() {
+    let node = ResetPasswordNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.reset_password");
+    assert_eq!(node.display_name(), "Reset Password");
+    assert!(node.description().contains("new password"));
+    assert_eq!(node.icon(), "Key");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    assert_eq!(node.default_template_key(), Some("reset_password"));
+    assert!(node.supports_ui());
 }
 
 #[test]
@@ -119,4 +121,76 @@ fn terminal_nodes_have_no_outputs() {
     assert_eq!(deny.category(), "Terminal");
     assert!(deny.outputs().is_empty());
     assert!(deny.config_schema().get("properties").is_some());
+}
+
+#[test]
+fn oidc_consent_node_metadata_is_consistent() {
+    let node = OidcConsentNodeProvider;
+
+    assert_eq!(node.id(), "core.oidc.consent");
+    assert_eq!(node.display_name(), "OIDC Consent");
+    assert!(node.description().contains("OIDC scopes"));
+    assert_eq!(node.icon(), "ShieldAlert");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["allow", "deny"]);
+    assert_eq!(node.default_template_key(), Some("consent"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn recovery_issue_node_metadata_is_consistent() {
+    let node = RecoveryIssueNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.recovery_issue");
+    assert_eq!(node.display_name(), "Issue Recovery Token");
+    assert!(node.description().contains("recovery token"));
+    assert_eq!(node.icon(), "ShieldAlert");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["issued"]);
+    assert!(node.config_schema().get("properties").is_some());
+    assert_eq!(node.default_template_key(), Some("awaiting_action"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn email_otp_issue_node_metadata_is_consistent() {
+    let node = EmailOtpIssueNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.issue_email_otp");
+    assert_eq!(node.display_name(), "Issue Email OTP");
+    assert!(node.description().contains("verification"));
+    assert_eq!(node.icon(), "Mail");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["issued"]);
+    assert!(node.config_schema().get("properties").is_some());
+}
+
+#[test]
+fn verify_email_otp_node_metadata_is_consistent() {
+    let node = VerifyEmailOtpNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.verify_email_otp");
+    assert_eq!(node.display_name(), "Verify Email OTP");
+    assert!(node.description().contains("verification"));
+    assert_eq!(node.icon(), "CheckCircle");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    assert_eq!(node.default_template_key(), Some("verify_email"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn condition_node_metadata_is_consistent() {
+    let node = ConditionNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.condition");
+    assert_eq!(node.display_name(), "Condition");
+    assert!(node.description().contains("session context"));
+    assert_eq!(node.icon(), "Split");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["true", "false"]);
+    assert!(node.config_schema().get("properties").is_some());
 }

@@ -208,6 +208,7 @@ impl LifecycleNode for PasswordAuthenticator {
         // 4. Success Logic
         // A. Update Identity in Session
         _session.user_id = Some(user.id);
+        _session.update_context("user_id", Value::String(user.id.to_string()));
 
         // B. Clean Context (Remove errors, keep username, ensure no password leaks)
         if let Some(ctx) = _session.context.as_object_mut() {
