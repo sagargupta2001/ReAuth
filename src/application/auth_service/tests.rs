@@ -507,6 +507,10 @@ impl UserRepository for TestUserRepo {
         Ok(None)
     }
 
+    async fn find_by_email(&self, _realm_id: &Uuid, _email: &str) -> Result<Option<User>> {
+        Ok(None)
+    }
+
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<User>> {
         Ok(self.users.lock().unwrap().get(id).cloned())
     }
@@ -833,6 +837,7 @@ async fn create_session_returns_tokens_and_refresh_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -877,6 +882,7 @@ async fn create_session_without_client_id_skips_id_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -907,6 +913,7 @@ async fn create_session_errors_when_realm_missing() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -960,6 +967,7 @@ async fn validate_token_and_get_user_returns_user() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -1058,6 +1066,7 @@ async fn refresh_session_errors_when_realm_missing() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());
@@ -1100,6 +1109,7 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     };
     user_repo.insert(user.clone());

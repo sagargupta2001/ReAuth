@@ -492,6 +492,7 @@ async fn import_new_user(
         id: user_id,
         realm_id: ctx.realm_id,
         username: payload.username.clone(),
+        email: None,
         hashed_password,
     };
 

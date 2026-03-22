@@ -83,7 +83,7 @@
 - [x] Condition node execution support in runtime (not just palette metadata).
 - [x] OIDC spec-aligned error payloads across authorize/token/userinfo.
 - [ ] OIDC conformance harness coverage in CI.
-- [ ] Confidential-client secret storage/rotation plan implemented.
+- [x] Confidential-client secret storage/rotation plan implemented.
 
 ## Master admin bootstrapping (production posture)
 ### Design summary

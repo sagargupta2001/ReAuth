@@ -167,6 +167,7 @@ async fn initialize_with_settings(
         realm_email_settings_service: services.realm_email_settings_service,
         realm_recovery_settings_service: services.realm_recovery_settings_service,
         realm_security_headers_service: services.realm_security_headers_service,
+        email_delivery_service: services.email_delivery_service,
         webhook_service: services.webhook_service,
         theme_service: services.theme_service,
         harbor_service: services.harbor_service,

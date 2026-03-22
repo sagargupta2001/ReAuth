@@ -13,6 +13,7 @@ import type { OidcClient } from '@/entities/oidc/model/types.ts'
 import type { ThemeSnapshot } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useUpdateClient } from '@/features/client/api/useUpdateClient.ts'
+import { useRotateClientSecret } from '@/features/client/api/useRotateClientSecret'
 import { useThemePages } from '@/features/theme/api/useThemePages'
 import { useThemes } from '@/features/theme/api/useThemes'
 import { useThemeVersions } from '@/features/theme/api/useThemeVersions'
@@ -51,6 +52,10 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
   const deleteBinding = useDeleteThemeBinding(binding?.theme_id || selectedThemeId)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewPageKey, setPreviewPageKey] = useState('login')
+  const [clientSecret, setClientSecret] = useState<string | null>(
+    client.client_secret ?? null,
+  )
+  const rotateSecret = useRotateClientSecret(client.id)
 
   const form = useForm<CreateClientSchema>({
     resolver: zodResolver(createClientSchema()),
@@ -78,6 +83,10 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
       console.error('Failed to parse client JSON fields', e)
     }
   }, [client, form])
+
+  useEffect(() => {
+    setClientSecret(client.client_secret ?? null)
+  }, [client.client_secret])
 
   useEffect(() => {
     if (selectedThemeId) return
@@ -170,6 +179,15 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
     deleteBinding.mutate(client.client_id)
   }
 
+  const handleRotateSecret = async () => {
+    try {
+      const result = await rotateSecret.mutateAsync()
+      setClientSecret(result.client_secret ?? null)
+    } catch {
+      // handled in hook
+    }
+  }
+
   return (
     <div className="max-w-4xl space-y-6 p-6">
       <Form {...form}>
@@ -187,7 +205,12 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
                 label="Client ID"
                 description="The unique identifier used in your application."
               />
-              <ClientSecretInput secret={client.client_secret} />
+              <ClientSecretInput
+                secret={clientSecret}
+                confidential={client.confidential}
+                onRotate={handleRotateSecret}
+                isRotating={rotateSecret.isPending}
+              />
             </CardContent>
           </Card>
 

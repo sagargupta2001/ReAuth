@@ -8,6 +8,7 @@ pub struct User {
     #[sqlx(try_from = "String")]
     pub realm_id: Uuid,
     pub username: String,
+    pub email: Option<String>,
     #[serde(skip_serializing)] // Don't send hash to UI
     pub hashed_password: String,
 }
@@ -18,6 +19,7 @@ impl User {
             id: Uuid::new_v4(),
             realm_id,
             username,
+            email: None,
             hashed_password,
         }
     }
@@ -48,19 +50,22 @@ mod tests {
         let id = Uuid::new_v4();
         let realm_id = Uuid::new_v4();
 
-        let user: User =
-            sqlx::query_as("SELECT ? as id, ? as realm_id, ? as username, ? as hashed_password")
-                .bind(id.to_string())
-                .bind(realm_id.to_string())
-                .bind("alice")
-                .bind("hash")
-                .fetch_one(&pool)
-                .await
-                .expect("fetch user");
+        let user: User = sqlx::query_as(
+            "SELECT ? as id, ? as realm_id, ? as username, ? as email, ? as hashed_password",
+        )
+        .bind(id.to_string())
+        .bind(realm_id.to_string())
+        .bind("alice")
+        .bind(None::<String>)
+        .bind("hash")
+        .fetch_one(&pool)
+        .await
+        .expect("fetch user");
 
         assert_eq!(user.id, id);
         assert_eq!(user.realm_id, realm_id);
         assert_eq!(user.username, "alice");
+        assert!(user.email.is_none());
         assert_eq!(user.hashed_password, "hash");
     }
 
@@ -70,6 +75,7 @@ mod tests {
             id: Uuid::new_v4(),
             realm_id: Uuid::new_v4(),
             username: "alice".to_string(),
+            email: None,
             hashed_password: "hash".to_string(),
         };
 
@@ -85,6 +91,7 @@ mod tests {
             "id": id,
             "realm_id": realm_id,
             "username": "alice",
+            "email": null,
             "hashed_password": "hash"
         });
 
@@ -93,6 +100,7 @@ mod tests {
         assert_eq!(user.id, id);
         assert_eq!(user.realm_id, realm_id);
         assert_eq!(user.username, "alice");
+        assert!(user.email.is_none());
         assert_eq!(user.hashed_password, "hash");
     }
 
@@ -104,6 +112,7 @@ mod tests {
         assert!(!user.id.is_nil());
         assert_eq!(user.realm_id, realm_id);
         assert_eq!(user.username, "bob");
+        assert!(user.email.is_none());
     }
 
     #[test]

@@ -69,6 +69,15 @@ export const userColumns: ColumnDef<User>[] = [
     enableSorting: false,
   },
   {
+    accessorKey: 'email',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
+    cell: ({ row }) => {
+      const value = row.getValue('email') as string | null | undefined
+      return <div className="text-muted-foreground text-sm">{value || '—'}</div>
+    },
+    enableSorting: false,
+  },
+  {
     id: 'actions',
     cell: ({ row }) => {
       const user = row.original

@@ -43,6 +43,7 @@ impl UserService {
         realm_id: Uuid,
         username: &str,
         password: &str,
+        email: Option<&str>,
     ) -> Result<User> {
         // Check uniqueness WITHIN the realm
         if self
@@ -54,12 +55,25 @@ impl UserService {
             return Err(Error::UserAlreadyExists);
         }
 
+        let normalized_email = normalize_optional_email(email);
+        if let Some(email_value) = normalized_email.as_deref() {
+            if self
+                .user_repo
+                .find_by_email(&realm_id, email_value)
+                .await?
+                .is_some()
+            {
+                return Err(Error::UserAlreadyExists);
+            }
+        }
+
         let hashed_password = HashedPassword::new(password)?;
 
         let user = User {
             id: Uuid::new_v4(),
             realm_id,
             username: username.to_string(),
+            email: normalized_email,
             hashed_password: hashed_password.as_str().to_string(),
         };
 
@@ -99,6 +113,21 @@ impl UserService {
         self.user_repo.find_by_username(realm_id, username).await
     }
 
+    pub async fn find_by_identifier(
+        &self,
+        realm_id: &Uuid,
+        identifier: &str,
+    ) -> Result<Option<User>> {
+        if let Some(user) = self
+            .user_repo
+            .find_by_username(realm_id, identifier)
+            .await?
+        {
+            return Ok(Some(user));
+        }
+        self.user_repo.find_by_email(realm_id, identifier).await
+    }
+
     pub async fn count_users_in_realm(&self, realm_id: Uuid) -> Result<i64> {
         self.user_repo.count_in_realm(&realm_id).await
     }
@@ -116,19 +145,53 @@ impl UserService {
         user_id: Uuid,
         new_username: String,
     ) -> Result<User> {
-        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+        self.update_profile(realm_id, user_id, Some(new_username), None)
+            .await
+    }
 
-        // Check uniqueness if changed
-        if user.username != new_username {
-            if self
-                .user_repo
-                .find_by_username(&realm_id, &new_username)
-                .await?
-                .is_some()
-            {
-                return Err(Error::UserAlreadyExists);
+    pub async fn update_profile(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        new_username: Option<String>,
+        new_email: Option<Option<String>>,
+    ) -> Result<User> {
+        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+        let mut changed = false;
+
+        if let Some(username) = new_username {
+            if user.username != username {
+                if self
+                    .user_repo
+                    .find_by_username(&realm_id, &username)
+                    .await?
+                    .is_some()
+                {
+                    return Err(Error::UserAlreadyExists);
+                }
+                user.username = username;
+                changed = true;
             }
-            user.username = new_username;
+        }
+
+        if let Some(email_update) = new_email {
+            let normalized_email = normalize_optional_email(email_update.as_deref());
+            if user.email != normalized_email {
+                if let Some(email_value) = normalized_email.as_deref() {
+                    if let Some(existing) =
+                        self.user_repo.find_by_email(&realm_id, email_value).await?
+                    {
+                        if existing.id != user.id {
+                            return Err(Error::UserAlreadyExists);
+                        }
+                    }
+                }
+                user.email = normalized_email;
+                changed = true;
+            }
+        }
+
+        if changed {
             self.user_repo.update(&user, None).await?;
         }
         Ok(user)
@@ -162,4 +225,10 @@ impl UserService {
         self.user_repo.update(&user, None).await?;
         Ok(user)
     }
+}
+
+fn normalize_optional_email(email: Option<&str>) -> Option<String> {
+    email
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }

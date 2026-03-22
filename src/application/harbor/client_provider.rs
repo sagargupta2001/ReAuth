@@ -96,7 +96,7 @@ impl HarborProvider for ClientHarborProvider {
 
         let client = self
             .oidc_service
-            .find_client_by_client_id(&realm_id, client_id)
+            .find_client_by_client_id_with_secret(&realm_id, client_id)
             .await?
             .ok_or_else(|| Error::OidcClientNotFound(client_id.to_string()))?;
 
@@ -323,7 +323,7 @@ async fn import_new_client(
 
     apply_client_payload(&mut client, &payload, false)?;
 
-    oidc_service
+    let _ = oidc_service
         .register_client_with_tx(&mut client, tx)
         .await?;
 

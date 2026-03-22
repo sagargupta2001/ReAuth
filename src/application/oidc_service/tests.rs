@@ -1,6 +1,7 @@
 use super::OidcService;
 use crate::application::auth_service::AuthService;
 use crate::application::rbac_service::RbacService;
+use crate::application::secret_service::SecretService;
 use crate::config::AuthConfig;
 use crate::constants::DEFAULT_REALM_NAME;
 use crate::domain::auth_flow::AuthFlow;
@@ -401,6 +402,10 @@ impl TestUserRepo {
 #[async_trait]
 impl UserRepository for TestUserRepo {
     async fn find_by_username(&self, _realm_id: &Uuid, _username: &str) -> Result<Option<User>> {
+        Ok(None)
+    }
+
+    async fn find_by_email(&self, _realm_id: &Uuid, _email: &str) -> Result<Option<User>> {
         Ok(None)
     }
 
@@ -1076,12 +1081,14 @@ fn build_service(
         session_repo.clone(),
         token_service.clone(),
     );
+    let secret_service = Arc::new(SecretService::from_key("test-secret"));
 
     OidcService::new(
         oidc_repo,
         user_repo,
         auth_service,
         token_service,
+        secret_service,
         auth_session_repo,
         flow_store,
         realm_repo,
@@ -1709,6 +1716,7 @@ async fn exchange_code_for_token_returns_tokens_and_deletes_code() {
         id: user_id,
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        email: None,
         hashed_password: "hash".to_string(),
     });
 

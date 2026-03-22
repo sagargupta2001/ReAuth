@@ -3,6 +3,7 @@ export interface OidcClient {
   realm_id: string
   client_id: string
   client_secret?: string | null
+  confidential?: boolean
   redirect_uris: string // It comes as a JSON string from the DB
   web_origins: string
   scopes: string

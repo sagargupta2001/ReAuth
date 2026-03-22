@@ -190,7 +190,8 @@ async fn register_oidc_client(
         managed_by_config: false,
     };
 
-    ctx.app_state
+    let _ = ctx
+        .app_state
         .oidc_service
         .register_client(&mut client)
         .await
@@ -296,7 +297,7 @@ async fn oidc_token_exchange_returns_tokens_and_refresh_cookie() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "alice", "password-123")
+        .create_user(realm.id, "alice", "password-123", None)
         .await
         .expect("create user");
 
@@ -390,7 +391,7 @@ async fn auth_refresh_rotates_refresh_token() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "bob", "password-123")
+        .create_user(realm.id, "bob", "password-123", None)
         .await
         .expect("create user");
 
@@ -447,7 +448,7 @@ async fn auth_login_flow_challenge_and_execute_success() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "charlie", "password-123")
+        .create_user(realm.id, "charlie", "password-123", None)
         .await
         .expect("create user");
 
@@ -643,7 +644,7 @@ async fn oidc_token_exchange_rejects_invalid_pkce_verifier() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "dana", "password-123")
+        .create_user(realm.id, "dana", "password-123", None)
         .await
         .expect("create user");
 
@@ -720,7 +721,7 @@ async fn auth_login_execute_rejects_invalid_password_with_challenge() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "erin", "password-123")
+        .create_user(realm.id, "erin", "password-123", None)
         .await
         .expect("create user");
 
@@ -1145,7 +1146,7 @@ async fn oidc_token_rejects_invalid_redirect_uri() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "gina", "password-123")
+        .create_user(realm.id, "gina", "password-123", None)
         .await
         .expect("create user");
 
@@ -1198,7 +1199,7 @@ async fn auth_logout_clears_cookies_and_revokes_refresh_token() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "frank", "password-123")
+        .create_user(realm.id, "frank", "password-123", None)
         .await
         .expect("create user");
 

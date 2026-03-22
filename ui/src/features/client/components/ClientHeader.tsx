@@ -23,7 +23,7 @@ export function ClientHeader({ client, actions }: ClientHeaderProps) {
   const navigate = useRealmNavigate()
 
   // Logic to determine badge status
-  const isConfidential = !!client.client_secret
+  const isConfidential = client.confidential ?? !!client.client_secret
   const isSystem = client.client_id === 'reauth-admin' // Example logic
 
   const copyId = () => {

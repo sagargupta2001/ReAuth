@@ -39,6 +39,11 @@ impl RecoveryIssueNode {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty())
     }
+
+    fn looks_like_email(value: &str) -> bool {
+        let trimmed = value.trim();
+        trimmed.contains('@') && trimmed.contains('.')
+    }
 }
 
 #[async_trait]
@@ -60,11 +65,18 @@ impl LifecycleNode for RecoveryIssueNode {
             .await?
             .unwrap_or_else(|| RealmRecoverySettings::defaults(session.realm_id));
 
-        let user_id = self
+        let user = self
             .user_service
-            .find_by_username(&session.realm_id, &identifier)
-            .await?
-            .map(|user| user.id.to_string());
+            .find_by_identifier(&session.realm_id, &identifier)
+            .await?;
+        let user_id = user.as_ref().map(|user| user.id.to_string());
+        let email_target = if Self::looks_like_email(&identifier) {
+            identifier.clone()
+        } else {
+            user.as_ref()
+                .and_then(|user| user.email.clone())
+                .unwrap_or_else(|| identifier.clone())
+        };
 
         let token = Alphanumeric.sample_string(&mut rand::rng(), RECOVERY_TOKEN_LENGTH);
         let expires_at = Utc::now() + Duration::minutes(recovery_settings.token_ttl_minutes.max(1));
@@ -84,7 +96,7 @@ impl LifecycleNode for RecoveryIssueNode {
             resume_node_id: Some("reset-password".to_string()),
             payload: json!({
                 "user_id": user_id,
-                "identifier": identifier,
+                "identifier": email_target,
                 "resume_path": "/forgot-password",
                 "resend_path": "/forgot-password",
             }),

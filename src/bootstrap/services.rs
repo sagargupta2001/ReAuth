@@ -20,6 +20,7 @@ use crate::application::realm_email_settings_service::RealmEmailSettingsService;
 use crate::application::realm_recovery_settings_service::RealmRecoverySettingsService;
 use crate::application::realm_security_headers_service::RealmSecurityHeadersService;
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::application::secret_service::SecretService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::webhook_service::WebhookService;
 use crate::ports::transaction_manager::TransactionManager;
@@ -44,6 +45,7 @@ pub struct Services {
     pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
     pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
     pub realm_security_headers_service: Arc<RealmSecurityHeadersService>,
+    pub email_delivery_service: Arc<EmailDeliveryService>,
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
     pub webhook_service: Arc<WebhookService>,
@@ -142,6 +144,8 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         settings.auth.clone(),
     ));
 
+    let secret_service = Arc::new(SecretService::from_settings(settings));
+
     // 2. Runtime Registry (The Brain)
     let mut registry_impl = RuntimeRegistry::new();
 
@@ -191,6 +195,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.user_repo.clone(),
         auth_service.clone(),
         token_service.clone(),
+        secret_service,
         repos.auth_session_repo.clone(),
         repos.flow_store.clone(),
         repos.realm_repo.clone(),
@@ -237,6 +242,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         realm_email_settings_service,
         realm_recovery_settings_service,
         realm_security_headers_service,
+        email_delivery_service,
         auth_service,
         audit_service,
         webhook_service,

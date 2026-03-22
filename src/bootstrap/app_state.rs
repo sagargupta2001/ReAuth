@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::application::delivery_replay_service::DeliveryReplayService;
+use crate::application::email_delivery_service::EmailDeliveryService;
 use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
@@ -64,6 +65,7 @@ pub struct AppState {
     pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
     pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
     pub realm_security_headers_service: Arc<RealmSecurityHeadersService>,
+    pub email_delivery_service: Arc<EmailDeliveryService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,
     pub harbor_service: Arc<HarborService>,

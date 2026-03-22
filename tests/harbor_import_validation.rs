@@ -85,7 +85,8 @@ async fn harbor_import_conflict_skip_leaves_existing_client() {
         web_origins: "[]".to_string(),
         managed_by_config: false,
     };
-    ctx.app_state
+    let _ = ctx
+        .app_state
         .oidc_service
         .register_client(&mut existing)
         .await
@@ -163,7 +164,8 @@ async fn harbor_full_realm_remaps_client_ids_in_flows_and_bindings() {
         web_origins: "[]".to_string(),
         managed_by_config: false,
     };
-    ctx.app_state
+    let _ = ctx
+        .app_state
         .oidc_service
         .register_client(&mut existing)
         .await
@@ -320,7 +322,8 @@ async fn harbor_import_allows_same_client_id_in_different_realms() {
         web_origins: "[]".to_string(),
         managed_by_config: false,
     };
-    ctx.app_state
+    let _ = ctx
+        .app_state
         .oidc_service
         .register_client(&mut source_client)
         .await
@@ -500,7 +503,8 @@ async fn harbor_full_realm_imports_roles_and_remaps_client_roles() {
         web_origins: "[]".to_string(),
         managed_by_config: false,
     };
-    ctx.app_state
+    let _ = ctx
+        .app_state
         .oidc_service
         .register_client(&mut existing)
         .await
@@ -662,7 +666,8 @@ async fn harbor_bootstrap_import_creates_new_realm_from_full_bundle() {
         web_origins: "[]".to_string(),
         managed_by_config: false,
     };
-    ctx.app_state
+    let _ = ctx
+        .app_state
         .oidc_service
         .register_client(&mut client)
         .await
@@ -904,7 +909,7 @@ async fn harbor_full_realm_bootstrap_imports_users_with_credentials_and_roles() 
     let user = ctx
         .app_state
         .user_service
-        .create_user(source.id, "alice", "password-123")
+        .create_user(source.id, "alice", "password-123", None)
         .await
         .expect("create user");
 
@@ -969,7 +974,7 @@ async fn harbor_bootstrap_rejects_new_user_creation_when_credentials_are_redacte
 
     ctx.app_state
         .user_service
-        .create_user(source.id, "alice", "password-123")
+        .create_user(source.id, "alice", "password-123", None)
         .await
         .expect("create user");
 

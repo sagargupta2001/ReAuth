@@ -1,10 +1,14 @@
-use crate::application::realm_email_settings_service::UpdateRealmEmailSettingsPayload;
+use crate::adapters::web::validation::ValidatedJson;
+use crate::application::realm_email_settings_service::{
+    apply_payload, validate_settings, UpdateRealmEmailSettingsPayload,
+};
 use crate::domain::realm_email_settings::RealmEmailSettings;
 use crate::{error::Result, AppState};
 use axum::extract::{Path, State};
 use axum::{http::StatusCode, response::IntoResponse, Json};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use validator::Validate;
 
 #[derive(Serialize)]
 pub struct RealmEmailSettingsResponse {
@@ -63,4 +67,30 @@ pub async fn update_realm_email_settings_handler(
         .update_settings(id, payload)
         .await?;
     Ok(Json(RealmEmailSettingsResponse::from(settings)))
+}
+
+#[derive(Deserialize, Validate)]
+pub struct TestEmailPayload {
+    #[validate(email(message = "Recipient email is invalid"))]
+    pub to_address: String,
+    #[serde(flatten)]
+    pub settings: UpdateRealmEmailSettingsPayload,
+}
+
+pub async fn test_realm_email_settings_handler(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    ValidatedJson(payload): ValidatedJson<TestEmailPayload>,
+) -> Result<impl IntoResponse> {
+    let mut settings = state.realm_email_settings_service.get_settings(id).await?;
+    apply_payload(&mut settings, payload.settings);
+    settings.enabled = true;
+    validate_settings(&settings)?;
+
+    state
+        .email_delivery_service
+        .send_test_email(&id, settings, &payload.to_address)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }

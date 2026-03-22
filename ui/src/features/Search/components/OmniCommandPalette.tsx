@@ -369,7 +369,7 @@ export function OmniCommandPalette() {
       rankItems(
         dynamicResults?.users || [],
         debouncedQuery,
-        (user) => buildHaystack([user.username, user.id]),
+        (user) => buildHaystack([user.username, user.email, user.id]),
         (user) => `user:${user.id}`,
         recencyMap,
       ),
@@ -504,7 +504,7 @@ export function OmniCommandPalette() {
         kind: 'user',
         id: user.id,
         label: user.username,
-        subtitle: user.id,
+        subtitle: user.email || user.id,
         href: `/${realm}/users/${user.id}/settings`,
       }),
     )

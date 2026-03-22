@@ -59,40 +59,7 @@ impl RealmEmailSettingsService {
             .await?
             .unwrap_or_else(|| RealmEmailSettings::disabled(realm_id));
 
-        if let Some(enabled) = payload.enabled {
-            settings.enabled = enabled;
-        }
-        if let Some(from_address) = payload.from_address {
-            settings.from_address = normalize_optional(from_address);
-        }
-        if let Some(from_name) = payload.from_name {
-            settings.from_name = normalize_optional(from_name);
-        }
-        if let Some(reply_to_address) = payload.reply_to_address {
-            settings.reply_to_address = normalize_optional(reply_to_address);
-        }
-        if let Some(smtp_host) = payload.smtp_host {
-            settings.smtp_host = normalize_optional(smtp_host);
-        }
-        if let Some(smtp_port) = payload.smtp_port {
-            settings.smtp_port = Some(smtp_port);
-        }
-        if let Some(smtp_username) = payload.smtp_username {
-            settings.smtp_username = normalize_optional(smtp_username);
-        }
-        if let Some(smtp_password) = payload.smtp_password {
-            let normalized = smtp_password.trim().to_string();
-            if !normalized.is_empty() {
-                settings.smtp_password = Some(normalized);
-            }
-        }
-        if let Some(security) = payload.smtp_security {
-            let normalized = security.trim().to_lowercase();
-            if !normalized.is_empty() {
-                settings.smtp_security = normalized;
-            }
-        }
-
+        apply_payload(&mut settings, payload);
         validate_settings(&settings)?;
         self.email_repo.upsert(&settings).await?;
 
@@ -107,6 +74,45 @@ impl RealmEmailSettingsService {
     }
 }
 
+pub(crate) fn apply_payload(
+    settings: &mut RealmEmailSettings,
+    payload: UpdateRealmEmailSettingsPayload,
+) {
+    if let Some(enabled) = payload.enabled {
+        settings.enabled = enabled;
+    }
+    if let Some(from_address) = payload.from_address {
+        settings.from_address = normalize_optional(from_address);
+    }
+    if let Some(from_name) = payload.from_name {
+        settings.from_name = normalize_optional(from_name);
+    }
+    if let Some(reply_to_address) = payload.reply_to_address {
+        settings.reply_to_address = normalize_optional(reply_to_address);
+    }
+    if let Some(smtp_host) = payload.smtp_host {
+        settings.smtp_host = normalize_optional(smtp_host);
+    }
+    if let Some(smtp_port) = payload.smtp_port {
+        settings.smtp_port = Some(smtp_port);
+    }
+    if let Some(smtp_username) = payload.smtp_username {
+        settings.smtp_username = normalize_optional(smtp_username);
+    }
+    if let Some(smtp_password) = payload.smtp_password {
+        let normalized = smtp_password.trim().to_string();
+        if !normalized.is_empty() {
+            settings.smtp_password = Some(normalized);
+        }
+    }
+    if let Some(security) = payload.smtp_security {
+        let normalized = security.trim().to_lowercase();
+        if !normalized.is_empty() {
+            settings.smtp_security = normalized;
+        }
+    }
+}
+
 fn normalize_optional(value: String) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -116,7 +122,7 @@ fn normalize_optional(value: String) -> Option<String> {
     }
 }
 
-fn validate_settings(settings: &RealmEmailSettings) -> Result<()> {
+pub(crate) fn validate_settings(settings: &RealmEmailSettings) -> Result<()> {
     if !VALID_SMTP_SECURITY.contains(&settings.smtp_security.as_str()) {
         return Err(Error::Validation(format!(
             "smtp_security must be one of {}",

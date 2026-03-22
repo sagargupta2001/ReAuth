@@ -260,6 +260,65 @@ If you did not request this, you can ignore this email."
 
         Ok(true)
     }
+
+    pub async fn send_test_email(
+        &self,
+        realm_id: &Uuid,
+        settings: RealmEmailSettings,
+        to_address: &str,
+    ) -> Result<()> {
+        let Some(realm) = self.realm_repo.find_by_id(realm_id).await? else {
+            return Err(Error::RealmNotFound(realm_id.to_string()));
+        };
+
+        let Some(from_address) = settings.from_address.clone() else {
+            return Err(Error::Validation(
+                "from_address is required for test email".to_string(),
+            ));
+        };
+
+        let Some(host) = settings.smtp_host.clone() else {
+            return Err(Error::Validation(
+                "smtp_host is required for test email".to_string(),
+            ));
+        };
+
+        let from_addr = from_address
+            .parse()
+            .map_err(|err| Error::Validation(format!("Invalid from_address: {}", err)))?;
+        let to_addr = to_address
+            .parse()
+            .map_err(|err| Error::Validation(format!("Invalid recipient address: {}", err)))?;
+        let from = Mailbox::new(settings.from_name.clone(), from_addr);
+        let to = Mailbox::new(None, to_addr);
+
+        let subject = format!("ReAuth SMTP test for {}", realm.name);
+        let body = format!(
+            "This is a test email for realm {realm}.\n\n\
+If you received this message, SMTP delivery is configured correctly.",
+            realm = realm.name
+        );
+
+        let mut message = Message::builder().from(from).to(to).subject(subject);
+
+        if let Some(reply_to) = settings.reply_to_address.clone() {
+            if let Ok(mailbox) = reply_to.parse::<Mailbox>() {
+                message = message.reply_to(mailbox);
+            }
+        }
+
+        let message = message
+            .body(body)
+            .map_err(|err| Error::Unexpected(err.into()))?;
+
+        let mailer = build_mailer(&settings, &host)?;
+        mailer
+            .send(message)
+            .await
+            .map_err(|err| Error::Validation(format!("SMTP send failed: {}", err)))?;
+
+        Ok(())
+    }
 }
 
 fn build_mailer(

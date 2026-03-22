@@ -1,6 +1,6 @@
 use crate::constants::{LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE};
 use crate::domain::oidc::{OidcClient, OidcRequest}; // Use OidcRequest from domain
-use crate::domain::pagination::PageRequest;
+use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::session::RefreshToken;
 use crate::{
     error::{Error, Result},
@@ -461,8 +461,18 @@ pub async fn list_clients_handler(
         .ok_or(Error::RealmNotFound(realm_name))?;
 
     let response = state.oidc_service.list_clients(realm.id, page_req).await?;
-
-    Ok((StatusCode::OK, Json(response)))
+    let data = response
+        .data
+        .iter()
+        .map(|client| to_client_response(client, None))
+        .collect::<Vec<_>>();
+    let payload = PageResponse::new(
+        data,
+        response.meta.total,
+        response.meta.page,
+        response.meta.per_page,
+    );
+    Ok((StatusCode::OK, Json(payload)))
 }
 
 #[derive(Deserialize)]
@@ -470,6 +480,33 @@ pub struct CreateClientRequest {
     pub client_id: String,
     pub redirect_uris: Vec<String>,
     pub web_origins: Option<Vec<String>>,
+}
+
+#[derive(Serialize)]
+pub struct OidcClientResponse {
+    pub id: Uuid,
+    pub realm_id: Uuid,
+    pub client_id: String,
+    pub client_secret: Option<String>,
+    pub redirect_uris: String,
+    pub scopes: String,
+    pub web_origins: String,
+    pub managed_by_config: bool,
+    pub confidential: bool,
+}
+
+fn to_client_response(client: &OidcClient, secret: Option<String>) -> OidcClientResponse {
+    OidcClientResponse {
+        id: client.id,
+        realm_id: client.realm_id,
+        client_id: client.client_id.clone(),
+        client_secret: secret,
+        redirect_uris: client.redirect_uris.clone(),
+        scopes: client.scopes.clone(),
+        web_origins: client.web_origins.clone(),
+        managed_by_config: client.managed_by_config,
+        confidential: client.client_secret.is_some(),
+    }
 }
 
 pub async fn create_client_handler(
@@ -498,15 +535,18 @@ pub async fn create_client_handler(
         id: Uuid::new_v4(),
         realm_id: realm.id,
         client_id: payload.client_id,
-        client_secret: None, // Public client for now
+        client_secret: None, // Generated on create
         redirect_uris: redirect_uris_json,
         web_origins: web_origins_json,
         scopes: scopes_json,
         managed_by_config: false,
     };
 
-    state.oidc_service.register_client(&mut client).await?;
-    Ok((StatusCode::CREATED, Json(client)))
+    let secret = state.oidc_service.register_client(&mut client).await?;
+    Ok((
+        StatusCode::CREATED,
+        Json(to_client_response(&client, secret)),
+    ))
 }
 
 pub async fn get_client_handler(
@@ -514,7 +554,7 @@ pub async fn get_client_handler(
     Path((_realm, id)): Path<(String, Uuid)>,
 ) -> Result<impl IntoResponse> {
     let client = state.oidc_service.get_client(id).await?;
-    Ok((StatusCode::OK, Json(client)))
+    Ok((StatusCode::OK, Json(to_client_response(&client, None))))
 }
 
 pub async fn update_client_handler(
@@ -523,5 +563,29 @@ pub async fn update_client_handler(
     Json(payload): Json<crate::application::oidc_service::UpdateClientRequest>,
 ) -> Result<impl IntoResponse> {
     let client = state.oidc_service.update_client(id, payload).await?;
-    Ok((StatusCode::OK, Json(client)))
+    Ok((StatusCode::OK, Json(to_client_response(&client, None))))
+}
+
+pub async fn rotate_client_secret_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let client = state.oidc_service.get_client(id).await?;
+    if client.realm_id != realm.id {
+        return Err(Error::SecurityViolation(
+            "Client does not belong to this realm".to_string(),
+        ));
+    }
+
+    let (client, secret) = state.oidc_service.rotate_client_secret(id).await?;
+    Ok((
+        StatusCode::OK,
+        Json(to_client_response(&client, Some(secret))),
+    ))
 }

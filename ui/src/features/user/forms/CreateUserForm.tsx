@@ -7,20 +7,32 @@ import { useCreateUser } from '@/features/user/api/useCreateUser.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { FormInput } from '@/shared/ui/form-input.tsx'
 
+const emailSchema = z
+  .string()
+  .trim()
+  .email('Enter a valid email')
+  .or(z.literal(''))
+  .optional()
+
 const formSchema = z.object({
   username: z.string().min(3),
+  email: emailSchema,
   password: z.string().min(8),
 })
 
+type FormValues = z.infer<typeof formSchema>
+
 export function CreateUserForm() {
   const mutation = useCreateUser()
-  const form = useForm({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { username: '', password: '' },
+    defaultValues: { username: '', email: '', password: '' },
   })
 
-  const onSubmit = (values: z.infer<typeof formSchema>) =>
-    mutation.mutate(values, { onSuccess: () => form.reset() })
+  const onSubmit = (values: FormValues) => {
+    const email = values.email?.trim() || undefined
+    mutation.mutate({ ...values, email }, { onSuccess: () => form.reset() })
+  }
 
   // Floating Bar
   useFormPersistence(form, onSubmit, mutation.isPending)
@@ -34,6 +46,7 @@ export function CreateUserForm() {
       <Form {...form}>
         <div className="grid gap-4">
           <FormInput control={form.control} name="username" label="Username" />
+          <FormInput control={form.control} name="email" label="Email" type="email" />
           <FormInput control={form.control} name="password" label="Password" type="password" />
         </div>
       </Form>

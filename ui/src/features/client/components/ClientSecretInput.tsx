@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { Check, Copy, Eye, EyeOff } from 'lucide-react'
+import { Check, Copy, Eye, EyeOff, RotateCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -8,7 +8,17 @@ import { Button } from '@/shared/ui/button.tsx'
 import { Input } from '@/shared/ui/input.tsx'
 import { Label } from '@/shared/ui/label.tsx'
 
-export function ClientSecretInput({ secret }: { secret?: string | null }) {
+export function ClientSecretInput({
+  secret,
+  confidential = false,
+  onRotate,
+  isRotating = false,
+}: {
+  secret?: string | null
+  confidential?: boolean
+  onRotate?: () => void
+  isRotating?: boolean
+}) {
   const { t } = useTranslation('client')
 
   const [show, setShow] = useState(false)
@@ -23,48 +33,69 @@ export function ClientSecretInput({ secret }: { secret?: string | null }) {
     setTimeout(() => setCopied(false), 1000)
   }
 
-  if (!secret) return null
+  if (!secret && !confidential) return null
 
   return (
     <div className="space-y-2">
       <Label>{t('FORMS.EDIT_CLIENT.FIELDS.CLIENT_SECRET')}</Label>
 
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Input
-            readOnly
-            type={show ? 'text' : 'password'}
-            value={secret}
-            className="pr-10 font-mono text-sm"
-          />
+      <div className="flex flex-col gap-2">
+        {secret ? (
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                readOnly
+                type={show ? 'text' : 'password'}
+                value={secret}
+                className="pr-10 font-mono text-sm"
+              />
 
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground absolute top-0 right-0 h-full px-3"
+                onClick={() => setShow(!show)}
+              >
+                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <span className="sr-only">Toggle secret visibility</span>
+              </Button>
+            </div>
+
+            <Button
+              variant="outline"
+              size="icon"
+              type="button"
+              onClick={handleCopy}
+              disabled={copied}
+              className={`relative transition-all ${!copied ? 'hover:bg-accent hover:scale-105' : ''} ${copied ? 'animate-copyPulse theme-copy' : ''} `}
+            >
+              {copied ? (
+                <Check className="text-accent-foreground h-4 w-4" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+              <span className="sr-only">Copy secret</span>
+            </Button>
+          </div>
+        ) : (
+          <div className="text-muted-foreground rounded-md border border-dashed p-3 text-xs">
+            Client secret is hidden. Rotate to generate a new secret.
+          </div>
+        )}
+        {onRotate ? (
           <Button
+            variant="outline"
+            size="sm"
             type="button"
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground absolute top-0 right-0 h-full px-3"
-            onClick={() => setShow(!show)}
+            onClick={onRotate}
+            disabled={isRotating}
+            className="w-fit"
           >
-            {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            <span className="sr-only">Toggle secret visibility</span>
+            <RotateCw className="mr-2 h-3.5 w-3.5" />
+            {isRotating ? 'Rotating...' : 'Rotate secret'}
           </Button>
-        </div>
-
-        <Button
-          variant="outline"
-          size="icon"
-          type="button"
-          onClick={handleCopy}
-          disabled={copied}
-          className={`relative transition-all ${!copied ? 'hover:bg-accent hover:scale-105' : ''} ${copied ? 'animate-copyPulse theme-copy' : ''} `}
-        >
-          {copied ? (
-            <Check className="text-accent-foreground h-4 w-4" />
-          ) : (
-            <Copy className="h-4 w-4" />
-          )}
-          <span className="sr-only">Copy secret</span>
-        </Button>
+        ) : null}
       </div>
 
       <p className="text-muted-foreground text-[0.8rem]">

@@ -35,8 +35,11 @@ impl SqliteUserRepository {
 
         if let Some(query_text) = q {
             if !query_text.is_empty() {
-                builder.push(" AND username LIKE ");
+                builder.push(" AND (username LIKE ");
                 builder.push_bind(format!("%{}%", query_text));
+                builder.push(" OR email LIKE ");
+                builder.push_bind(format!("%{}%", query_text));
+                builder.push(")");
             }
         }
     }
@@ -62,6 +65,20 @@ impl UserRepository for SqliteUserRepository {
         skip_all,
         fields(telemetry = "span", db_table = "users", db_op = "select")
     )]
+    async fn find_by_email(&self, realm_id: &Uuid, email: &str) -> Result<Option<User>> {
+        let user = sqlx::query_as("SELECT * FROM users WHERE realm_id = ? AND email = ?")
+            .bind(realm_id.to_string())
+            .bind(email)
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(user)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "select")
+    )]
     async fn find_by_id(&self, id: &Uuid) -> Result<Option<User>> {
         let user = sqlx::query_as("SELECT * FROM users WHERE id = ?")
             .bind(id.to_string())
@@ -77,11 +94,12 @@ impl UserRepository for SqliteUserRepository {
     )]
     async fn save(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
-            "INSERT INTO users (id, realm_id, username, hashed_password) VALUES (?, ?, ?, ?)",
+            "INSERT INTO users (id, realm_id, username, email, hashed_password) VALUES (?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(user.realm_id.to_string())
         .bind(&user.username)
+        .bind(&user.email)
         .bind(&user.hashed_password);
 
         match tx {
@@ -107,10 +125,13 @@ impl UserRepository for SqliteUserRepository {
         fields(telemetry = "span", db_table = "users", db_op = "update")
     )]
     async fn update(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
-        let query = sqlx::query("UPDATE users SET username = ?, hashed_password = ? WHERE id = ?")
-            .bind(&user.username)
-            .bind(&user.hashed_password)
-            .bind(user.id.to_string());
+        let query = sqlx::query(
+            "UPDATE users SET username = ?, email = ?, hashed_password = ? WHERE id = ?",
+        )
+        .bind(&user.username)
+        .bind(&user.email)
+        .bind(&user.hashed_password)
+        .bind(user.id.to_string());
 
         match tx {
             Some(tx) => {

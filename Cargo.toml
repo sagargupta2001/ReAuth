@@ -43,6 +43,7 @@ sha2 = "0.10"
 hmac = "0.12"
 hex = "0.4"
 base64 = "0.22"
+aes-gcm = "0.10"
 rsa = { version = "0.10.0-rc.16", features = ["std", "sha2"] }
 rand = "0.10.0"
 

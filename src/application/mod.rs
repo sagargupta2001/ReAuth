@@ -17,6 +17,7 @@ pub mod realm_recovery_settings_service;
 pub mod realm_security_headers_service;
 pub mod realm_service;
 pub mod runtime_registry;
+pub mod secret_service;
 pub mod telemetry_service;
 pub mod theme_service;
 pub mod user_service;

@@ -24,7 +24,7 @@ async fn setup_observability_user(ctx: &TestContext) -> String {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "observer", "password")
+        .create_user(realm.id, "observer", "password", None)
         .await
         .expect("create user");
 

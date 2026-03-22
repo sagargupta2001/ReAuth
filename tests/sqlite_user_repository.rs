@@ -29,6 +29,7 @@ fn user(id: Uuid, realm_id: Uuid, username: &str, hashed_password: &str) -> User
         id,
         realm_id,
         username: username.to_string(),
+        email: None,
         hashed_password: hashed_password.to_string(),
     }
 }
@@ -57,10 +58,13 @@ async fn save_and_find_users_by_id_and_username() -> Result<()> {
     insert_realm(&db.pool, other_realm, "realm-other").await?;
 
     let alice = user(Uuid::new_v4(), realm_id, "alice", "hash1");
+    let mut alice = alice;
+    alice.email = Some("alice@example.com".to_string());
     repo.save(&alice, None).await?;
 
-    let by_id = repo.find_by_id(&alice.id).await?;
-    assert_eq!(by_id.unwrap().username, "alice");
+    let by_id = repo.find_by_id(&alice.id).await?.unwrap();
+    assert_eq!(by_id.username, "alice");
+    assert_eq!(by_id.email.as_deref(), Some("alice@example.com"));
 
     let by_username = repo.find_by_username(&realm_id, "alice").await?;
     assert_eq!(by_username.unwrap().id, alice.id);

@@ -6,6 +6,7 @@ import { apiClient } from '@/shared/api/client.ts'
 
 interface UpdateUserPayload {
   username: string
+  email?: string
 }
 
 export function useUpdateUser(userId: string) {

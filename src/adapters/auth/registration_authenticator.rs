@@ -101,25 +101,26 @@ impl LifecycleNode for RegistrationAuthenticator {
                 .await;
         }
 
+        let email_input = input
+            .get("email")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let email_value = email_input.or_else(|| {
+            if username.contains('@') && username.contains('.') {
+                Some(username.to_string())
+            } else {
+                None
+            }
+        });
+
         match self
             .user_service
-            .create_user(session.realm_id, username, password)
+            .create_user(session.realm_id, username, password, email_value.as_deref())
             .await
         {
             Ok(user) => {
                 session.user_id = Some(user.id);
-                let email_input = input
-                    .get("email")
-                    .and_then(|value| value.as_str())
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty());
-                let email_value = email_input.or_else(|| {
-                    if username.contains('@') && username.contains('.') {
-                        Some(username.to_string())
-                    } else {
-                        None
-                    }
-                });
                 if let Some(ctx) = session.context.as_object_mut() {
                     ctx.remove("error");
                     ctx.remove("password");

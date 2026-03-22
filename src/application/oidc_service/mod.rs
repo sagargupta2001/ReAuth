@@ -1,3 +1,4 @@
+use crate::application::secret_service::SecretService;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::ports::token_service::TokenService;
 use crate::{
@@ -42,6 +43,7 @@ pub struct OidcService {
     user_repo: Arc<dyn UserRepository>,
     auth_service: Arc<AuthService>,
     token_service: Arc<dyn TokenService>,
+    secret_service: Arc<SecretService>,
     // --- NEW DEPENDENCIES ---
     auth_session_repo: Arc<dyn AuthSessionRepository>,
     flow_store: Arc<dyn FlowStore>,
@@ -49,11 +51,13 @@ pub struct OidcService {
 }
 
 impl OidcService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         oidc_repo: Arc<dyn OidcRepository>,
         user_repo: Arc<dyn UserRepository>,
         auth_service: Arc<AuthService>,
         token_service: Arc<dyn TokenService>,
+        secret_service: Arc<SecretService>,
         auth_session_repo: Arc<dyn AuthSessionRepository>,
         flow_store: Arc<dyn FlowStore>,
         realm_repo: Arc<dyn RealmRepository>,
@@ -63,6 +67,7 @@ impl OidcService {
             user_repo,
             auth_service,
             token_service,
+            secret_service,
             auth_session_repo,
             flow_store,
             realm_repo,
@@ -282,28 +287,52 @@ impl OidcService {
 
     // --- CRUD and Helpers ---
 
-    pub async fn register_client(&self, client: &mut OidcClient) -> Result<()> {
-        if client.client_secret.is_none() {
-            let secret: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
+    fn generate_client_secret(&self) -> String {
+        Alphanumeric.sample_string(&mut rand::rng(), 32)
+    }
 
-            client.client_secret = Some(secret);
+    fn is_secret_encrypted(&self, value: &str) -> bool {
+        self.secret_service.is_encrypted(value)
+    }
+
+    fn ensure_secret_encrypted(&self, client: &mut OidcClient) -> Result<()> {
+        let Some(secret) = client.client_secret.as_deref() else {
+            return Ok(());
+        };
+        if self.is_secret_encrypted(secret) {
+            return Ok(());
         }
+        let encrypted = self.secret_service.encrypt(secret)?;
+        client.client_secret = Some(encrypted);
+        Ok(())
+    }
 
-        self.oidc_repo.create_client(client).await
+    pub async fn register_client(&self, client: &mut OidcClient) -> Result<Option<String>> {
+        let plaintext = match client.client_secret.as_deref() {
+            Some(secret) if !secret.trim().is_empty() => secret.to_string(),
+            _ => self.generate_client_secret(),
+        };
+        let encrypted = self.secret_service.encrypt_if_plain(&plaintext)?;
+        client.client_secret = Some(encrypted);
+
+        self.oidc_repo.create_client(client).await?;
+        Ok(Some(plaintext))
     }
 
     pub async fn register_client_with_tx(
         &self,
         client: &mut OidcClient,
         tx: Option<&mut dyn Transaction>,
-    ) -> Result<()> {
-        if client.client_secret.is_none() {
-            let secret: String = Alphanumeric.sample_string(&mut rand::rng(), 32);
+    ) -> Result<Option<String>> {
+        let plaintext = match client.client_secret.as_deref() {
+            Some(secret) if !secret.trim().is_empty() => secret.to_string(),
+            _ => self.generate_client_secret(),
+        };
+        let encrypted = self.secret_service.encrypt_if_plain(&plaintext)?;
+        client.client_secret = Some(encrypted);
 
-            client.client_secret = Some(secret);
-        }
-
-        self.oidc_repo.create_client_with_tx(client, tx).await
+        self.oidc_repo.create_client_with_tx(client, tx).await?;
+        Ok(Some(plaintext))
     }
 
     pub async fn find_client_by_client_id(
@@ -314,8 +343,29 @@ impl OidcService {
         self.oidc_repo.find_client_by_id(realm_id, client_id).await
     }
 
+    pub async fn find_client_by_client_id_with_secret(
+        &self,
+        realm_id: &Uuid,
+        client_id: &str,
+    ) -> Result<Option<OidcClient>> {
+        let client = self
+            .oidc_repo
+            .find_client_by_id(realm_id, client_id)
+            .await?;
+        if let Some(mut client) = client {
+            if let Some(secret) = client.client_secret.as_deref() {
+                let decrypted = self.secret_service.decrypt(secret)?;
+                client.client_secret = Some(decrypted);
+            }
+            return Ok(Some(client));
+        }
+        Ok(None)
+    }
+
     pub async fn update_client_record(&self, client: &OidcClient) -> Result<()> {
-        self.oidc_repo.update_client(client).await
+        let mut updated = client.clone();
+        self.ensure_secret_encrypted(&mut updated)?;
+        self.oidc_repo.update_client(&updated).await
     }
 
     pub async fn update_client_record_with_tx(
@@ -323,7 +373,9 @@ impl OidcService {
         client: &OidcClient,
         tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
-        self.oidc_repo.update_client_with_tx(client, tx).await
+        let mut updated = client.clone();
+        self.ensure_secret_encrypted(&mut updated)?;
+        self.oidc_repo.update_client_with_tx(&updated, tx).await
     }
 
     pub async fn list_clients(
@@ -364,8 +416,17 @@ impl OidcService {
                 serde_json::to_string(&origins).map_err(|e| Error::Unexpected(e.into()))?;
         }
 
-        self.oidc_repo.update_client(&client).await?;
+        self.update_client_record(&client).await?;
         Ok(client)
+    }
+
+    pub async fn rotate_client_secret(&self, id: Uuid) -> Result<(OidcClient, String)> {
+        let mut client = self.get_client(id).await?;
+        let plaintext = self.generate_client_secret();
+        let encrypted = self.secret_service.encrypt(&plaintext)?;
+        client.client_secret = Some(encrypted);
+        self.oidc_repo.update_client(&client).await?;
+        Ok((client, plaintext))
     }
 
     pub fn get_jwks(&self) -> Result<serde_json::Value> {

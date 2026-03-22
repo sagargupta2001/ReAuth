@@ -1,20 +1,27 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Trash2 } from 'lucide-react'
+import { Check, Copy, Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { useCreateClient } from '@/features/client/api/useCreateClient.ts'
 import { type CreateClientSchema, createClientSchema } from '@/features/client/schema/create.schema.ts'
-import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { Button } from '@/shared/ui/button.tsx'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
+import { Input } from '@/shared/ui/input.tsx'
+import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { FormInput } from '@/shared/ui/form-input.tsx'
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/shared/ui/form.tsx'
-import { Input } from '@/shared/ui/input.tsx'
 import { Separator } from '@/shared/ui/separator.tsx'
 
 export function CreateClientForm() {
   const { t } = useTranslation('client')
   const mutation = useCreateClient()
+  const navigate = useRealmNavigate()
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null)
+  const [createdClientId, setCreatedClientId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const schema = createClientSchema()
 
@@ -48,8 +55,10 @@ export function CreateClientForm() {
         web_origins: webOrigins,
       },
       {
-        onSuccess: () => {
+        onSuccess: (client) => {
           form.reset()
+          setCreatedSecret(client.client_secret ?? null)
+          setCreatedClientId(client.id)
         },
       },
     )
@@ -59,6 +68,57 @@ export function CreateClientForm() {
 
   return (
     <div className="max-w-2xl space-y-8">
+      <Dialog
+        open={createdSecret != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCreatedSecret(null)
+            setCopied(false)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Client secret generated</DialogTitle>
+            <DialogDescription>
+              Copy this secret now. You will not be able to view it again.
+            </DialogDescription>
+          </DialogHeader>
+          {createdSecret ? (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Input readOnly value={createdSecret} className="font-mono text-sm" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(createdSecret)
+                    setCopied(true)
+                  }}
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="default"
+                onClick={() => {
+                  setCreatedSecret(null)
+                  setCopied(false)
+                  if (createdClientId) {
+                    navigate(`/clients/${createdClientId}/settings`)
+                  } else {
+                    navigate('/clients')
+                  }
+                }}
+              >
+                Go to client settings
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
       <div>
         <h3 className="text-lg font-medium">{t('FORMS.CREATE_CLIENT.TITLE')}</h3>
         <p className="text-muted-foreground text-sm">{t('FORMS.CREATE_CLIENT.DESCRIPTION')}</p>

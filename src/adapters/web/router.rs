@@ -233,6 +233,10 @@ fn realm_routes(state: AppState) -> Router<AppState> {
             put(realm_email_handler::update_realm_email_settings_handler),
         )
         .route(
+            "/{id}/email-settings/test",
+            post(realm_email_handler::test_realm_email_settings_handler),
+        )
+        .route(
             "/{id}/recovery-settings",
             put(realm_recovery_handler::update_realm_recovery_settings_handler),
         )
@@ -573,9 +577,8 @@ fn client_routes(state: AppState) -> Router<AppState> {
             },
         ));
 
-    let write_routes = Router::new()
+    let create_routes = Router::new()
         .route("/", post(oidc_handler::create_client_handler))
-        .route("/{id}", put(oidc_handler::update_client_handler))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -583,7 +586,20 @@ fn client_routes(state: AppState) -> Router<AppState> {
             },
         ));
 
-    read_routes.merge(write_routes)
+    let update_routes = Router::new()
+        .route("/{id}", put(oidc_handler::update_client_handler))
+        .route(
+            "/{id}/rotate-secret",
+            post(oidc_handler::rotate_client_secret_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::CLIENT_UPDATE)
+            },
+        ));
+
+    read_routes.merge(create_routes).merge(update_routes)
 }
 
 fn flow_routes(state: AppState) -> Router<AppState> {

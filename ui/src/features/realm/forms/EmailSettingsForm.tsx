@@ -1,10 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { type Resolver, useForm } from 'react-hook-form'
 
 import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
 import { useRealmEmailSettings } from '@/features/realm/api/useRealmEmailSettings.ts'
+import { useTestRealmEmailSettings } from '@/features/realm/api/useTestRealmEmailSettings.ts'
 import { useUpdateRealmEmailSettings } from '@/features/realm/api/useUpdateRealmEmailSettings.ts'
 import {
   type EmailSettingsSchema,
@@ -12,6 +13,7 @@ import {
 } from '@/features/realm/schema/email-settings.schema.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
+import { Button } from '@/shared/ui/button.tsx'
 import {
   FormControl,
   FormDescription,
@@ -22,6 +24,7 @@ import {
 import { FormInput } from '@/shared/ui/form-input.tsx'
 import { Form } from '@/shared/ui/form.tsx'
 import { Switch } from '@/shared/ui/switch'
+import { Input } from '@/shared/ui/input.tsx'
 import {
   Select,
   SelectContent,
@@ -34,6 +37,8 @@ export function EmailSettingsForm() {
   const { data: realm } = useCurrentRealm()
   const { data: settings, isLoading } = useRealmEmailSettings()
   const updateMutation = useUpdateRealmEmailSettings(realm?.id || '')
+  const testMutation = useTestRealmEmailSettings(realm?.id || '')
+  const [testAddress, setTestAddress] = useState('')
 
   const form = useForm<EmailSettingsSchema>({
     resolver: zodResolver(emailSettingsSchema) as Resolver<EmailSettingsSchema>,
@@ -233,6 +238,49 @@ export function EmailSettingsForm() {
                   type="password"
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Test Email</CardTitle>
+            <CardDescription>
+              Send a test email using the current form values (without saving).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+              <Input
+                placeholder="Recipient email address"
+                value={testAddress}
+                onChange={(event) => setTestAddress(event.target.value)}
+                type="email"
+              />
+              <Button
+                type="button"
+                variant="default"
+                disabled={!testAddress || testMutation.isPending}
+                onClick={() => {
+                  const recipient = testAddress.trim()
+                  if (!recipient) return
+                  const values = form.getValues()
+                  testMutation.mutate({
+                    to_address: recipient,
+                    enabled: values.enabled,
+                    from_address: values.from_address || null,
+                    from_name: values.from_name || null,
+                    reply_to_address: values.reply_to_address || null,
+                    smtp_host: values.smtp_host || null,
+                    smtp_port: values.smtp_port || null,
+                    smtp_username: values.smtp_username || null,
+                    smtp_password: values.smtp_password || null,
+                    smtp_security: values.smtp_security,
+                  })
+                }}
+              >
+                Send Test Email
+              </Button>
             </div>
           </CardContent>
         </Card>
