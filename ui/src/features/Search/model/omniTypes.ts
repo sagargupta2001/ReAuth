@@ -33,6 +33,7 @@ export interface OmniStaticItem {
 export interface OmniSearchUser {
   id: string
   username: string
+  email?: string | null
 }
 
 export interface OmniSearchClient {
