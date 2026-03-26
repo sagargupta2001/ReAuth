@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface CacheFlushResponse {
   flushed: string
@@ -18,7 +19,7 @@ export function useCacheFlush() {
       )
     },
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({ queryKey: ['observability-cache-stats'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.observabilityCacheStats() })
       toast.success(`Cache flushed: ${data.flushed}`)
     },
     onError: () => toast.error('Failed to flush cache'),

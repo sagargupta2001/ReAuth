@@ -3,12 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import type { ThemeVersion } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useThemeVersions(themeId?: string) {
   const realm = useActiveRealm()
 
   return useQuery<ThemeVersion[]>({
-    queryKey: ['themes', realm, themeId, 'versions'],
+    queryKey: queryKeys.themeVersions(realm, themeId ?? ''),
     queryFn: () => apiClient.get<ThemeVersion[]>(`/api/realms/${realm}/themes/${themeId}/versions`),
     enabled: !!realm && !!themeId,
   })

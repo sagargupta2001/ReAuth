@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useRollbackFlow() {
   const realm = useActiveRealm()
@@ -20,10 +21,10 @@ export function useRollbackFlow() {
     onSuccess: () => {
       toast.success('Flow rolled back successfully')
       // Refresh details to show new active version
-      void queryClient.invalidateQueries({ queryKey: ['flow', flowId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flow(flowId) })
       // Refresh history list to update the "Active" badge
-      void queryClient.invalidateQueries({ queryKey: ['flow-versions', flowId] })
-      void queryClient.invalidateQueries({ queryKey: ['flow-draft'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flowVersions(flowId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flowDraft() })
     },
     onError: (err) => {
       toast.error('Rollback failed')

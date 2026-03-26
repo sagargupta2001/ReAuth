@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import { apiClient } from '@/shared/api/client.ts'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 interface UpdateUserPayload {
   username: string
@@ -19,8 +20,8 @@ export function useUpdateUser(userId: string) {
     },
     onSuccess: () => {
       toast.success('User updated successfully')
-      void queryClient.invalidateQueries({ queryKey: ['user', userId] })
-      void queryClient.invalidateQueries({ queryKey: ['users'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.user(userId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.users() })
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to update user')

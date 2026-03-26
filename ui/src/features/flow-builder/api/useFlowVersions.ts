@@ -2,6 +2,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface FlowVersion {
   id: string
@@ -23,7 +24,7 @@ export function useFlowVersions(flowId: string) {
   const realm = useActiveRealm()
 
   return useInfiniteQuery({
-    queryKey: ['flow-versions', flowId],
+    queryKey: queryKeys.flowVersions(flowId),
     queryFn: async ({ pageParam = 1 }) => {
       // 2. Call API with standard params
       return await apiClient.get<VersionListResponse>(

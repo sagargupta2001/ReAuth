@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface GroupRoleRow {
   id: string
@@ -26,7 +27,7 @@ export function useGroupRolesList(groupId: string, params: GroupRoleListParams) 
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-role-list', realm, groupId, params],
+    queryKey: queryKeys.groupRoleList(realm, groupId, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
@@ -48,7 +49,7 @@ export function useGroupRoleIds(groupId: string, scope: 'direct' | 'effective' =
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-roles', realm, groupId, scope],
+    queryKey: queryKeys.groupRoles(realm, groupId, scope),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('scope', scope)
@@ -62,9 +63,9 @@ export function useGroupRoleIds(groupId: string, scope: 'direct' | 'effective' =
 export function useManageGroupRoles(groupId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
-  const directQueryKey = ['group-roles', realm, groupId, 'direct']
-  const effectiveQueryKey = ['group-roles', realm, groupId, 'effective']
-  const listQueryKey = ['group-role-list', realm, groupId]
+  const directQueryKey = queryKeys.groupRoles(realm, groupId, 'direct')
+  const effectiveQueryKey = queryKeys.groupRoles(realm, groupId, 'effective')
+  const listQueryKey = queryKeys.groupRoleList(realm, groupId)
 
   const addMutation = useMutation({
     mutationFn: async (roleId: string) => {

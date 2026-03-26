@@ -4,6 +4,7 @@ import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { GroupTreeNode } from '@/features/group-tree/model/types'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface GroupChildrenParams {
   page?: number
@@ -17,7 +18,7 @@ export function useGroupChildrenList(groupId: string, params: GroupChildrenParam
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-children', realm, groupId, params],
+    queryKey: queryKeys.groupChildren(realm, groupId, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))

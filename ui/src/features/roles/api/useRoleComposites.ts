@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface RoleCompositeRow {
   id: string
@@ -26,7 +27,7 @@ export function useRoleCompositesList(roleId: string, params: RoleCompositeListP
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['role-composite-list', realm, roleId, params],
+    queryKey: queryKeys.roleCompositeList(realm, roleId, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
@@ -48,7 +49,7 @@ export function useRoleCompositeIds(roleId: string, scope: 'direct' | 'effective
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['role-composites', realm, roleId, scope],
+    queryKey: queryKeys.roleComposites(realm, roleId, scope),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('scope', scope)
@@ -62,9 +63,9 @@ export function useRoleCompositeIds(roleId: string, scope: 'direct' | 'effective
 export function useManageRoleComposites(roleId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
-  const directQueryKey = ['role-composites', realm, roleId, 'direct']
-  const effectiveQueryKey = ['role-composites', realm, roleId, 'effective']
-  const listQueryKey = ['role-composite-list', realm, roleId]
+  const directQueryKey = queryKeys.roleComposites(realm, roleId, 'direct')
+  const effectiveQueryKey = queryKeys.roleComposites(realm, roleId, 'effective')
+  const listQueryKey = queryKeys.roleCompositeList(realm, roleId)
 
   const addMutation = useMutation({
     mutationFn: async (childRoleId: string) => {

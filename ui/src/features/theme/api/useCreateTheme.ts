@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { ThemeDetails } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface CreateThemePayload {
   name: string
@@ -21,7 +22,7 @@ export function useCreateTheme() {
     },
     onSuccess: () => {
       toast.success('Theme created')
-      void queryClient.invalidateQueries({ queryKey: ['themes', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themes(realm) })
     },
     onError: (error: unknown) => {
       let msg = 'Failed to create theme'

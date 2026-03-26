@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ThemeDraft } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export type ThemeVersionSnapshotResponse = {
   version_id: string
@@ -15,7 +16,7 @@ export function useThemeVersionSnapshot(themeId?: string, versionId?: string | n
   const realm = useActiveRealm()
 
   return useQuery<ThemeVersionSnapshotResponse>({
-    queryKey: ['themes', realm, themeId, 'versions', versionId, 'snapshot'],
+    queryKey: queryKeys.themeVersionSnapshot(realm, themeId ?? '', versionId ?? ''),
     queryFn: () =>
       apiClient.get<ThemeVersionSnapshotResponse>(
         `/api/realms/${realm}/themes/${themeId}/versions/${versionId}/snapshot`,

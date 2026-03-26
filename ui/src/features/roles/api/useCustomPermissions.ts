@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
 import type { PermissionDef } from '@/features/roles/api/usePermissions'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface CreateCustomPermissionPayload {
   permission: string
@@ -21,7 +22,7 @@ export function useCreateCustomPermission() {
       return apiClient.post<PermissionDef>(`/api/realms/${realm}/rbac/permissions/custom`, payload)
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['permissions-definitions', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.permissionsDefinitions(realm) })
       toast.success('Custom permission created')
     },
     onError: () => toast.error('Failed to create permission'),
@@ -45,7 +46,7 @@ export function useUpdateCustomPermission() {
       )
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['permissions-definitions', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.permissionsDefinitions(realm) })
       toast.success('Custom permission updated')
     },
     onError: () => toast.error('Failed to update permission'),
@@ -61,7 +62,7 @@ export function useDeleteCustomPermission() {
       return apiClient.delete(`/api/realms/${realm}/rbac/permissions/custom/${id}`)
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['permissions-definitions', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.permissionsDefinitions(realm) })
       toast.success('Custom permission deleted')
     },
     onError: () => toast.error('Failed to delete permission'),

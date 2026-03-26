@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface NodeMetadata {
   id: string
@@ -19,7 +20,7 @@ export interface NodeMetadata {
 export function useNodes() {
   const realm = useActiveRealm()
   return useQuery({
-    queryKey: ['flow-nodes', realm],
+    queryKey: queryKeys.flowNodes(realm),
     queryFn: async () => {
       return apiClient.get<NodeMetadata[]>(`/api/realms/${realm}/flows/nodes`)
     },

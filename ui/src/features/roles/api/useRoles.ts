@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface Role {
   id: string
@@ -27,7 +28,7 @@ export function useRoles(params: RoleSearchParams) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['roles', realm, params],
+    queryKey: queryKeys.roles(realm, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))

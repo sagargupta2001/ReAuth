@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import type { TelemetryLog } from '../model/types'
@@ -23,7 +24,7 @@ export function useTelemetryLogs(
   options?: { enabled?: boolean },
 ) {
   return useQuery({
-    queryKey: ['observability-logs', params],
+    queryKey: queryKeys.observabilityLogs(params),
     queryFn: async () => {
       const query = new URLSearchParams()
       if (params.level) query.set('level', params.level)

@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import type { Realm } from '@/entities/realm/model/types.ts'
 import { apiClient } from '@/shared/api/client.ts'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 // Allow updating any subset of realm fields
 type UpdateRealmPayload = Partial<Realm>
@@ -25,20 +26,22 @@ export function useUpdateRealm(realmId: string) {
       const isRenamed = oldName !== newName
 
       // Update realms list immediately
-      queryClient.setQueryData<Realm[]>(['realms'], (old) => {
+      queryClient.setQueryData<Realm[]>(queryKeys.realms(), (old) => {
         if (!old) return [updatedRealm]
         return old.map((r) => (r.id === updatedRealm.id ? updatedRealm : r))
       })
 
       if (!isRenamed) {
-        void queryClient.invalidateQueries({ queryKey: ['realms'] })
-        void queryClient.invalidateQueries({ queryKey: ['realm'] })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.realms() })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.realm() })
         return
       }
 
       // 1) Put the updated realm object under BOTH keys so anyone asking oldName/newName gets valid data
-      queryClient.setQueryData(['realm', oldName], updatedRealm)
-      queryClient.setQueryData(['realm', newName], updatedRealm)
+      if (oldName) {
+        queryClient.setQueryData(queryKeys.realm(oldName), updatedRealm)
+      }
+      queryClient.setQueryData(queryKeys.realm(newName), updatedRealm)
 
       // 2) Navigate to the new path
 
@@ -62,9 +65,11 @@ export function useUpdateRealm(realmId: string) {
       // 3) After nav completes, remove the stale old key and invalidate the list
       // setTimeout 0 gives Router a tick to commit the new route
       setTimeout(() => {
-        queryClient.removeQueries({ queryKey: ['realm', oldName] })
-        void queryClient.invalidateQueries({ queryKey: ['realms'] })
-        void queryClient.invalidateQueries({ queryKey: ['realm'] })
+        if (oldName) {
+          queryClient.removeQueries({ queryKey: queryKeys.realm(oldName) })
+        }
+        void queryClient.invalidateQueries({ queryKey: queryKeys.realms() })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.realm() })
       }, 0)
     },
     onError: (err) => {

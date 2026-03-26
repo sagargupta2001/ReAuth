@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
 import { apiClient } from '@/shared/api/client.ts'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 import type { RealmRecoverySettings } from '@/entities/realm/model/types.ts'
 
@@ -9,7 +10,7 @@ export function useRealmRecoverySettings() {
   const { data: realm } = useCurrentRealm()
 
   return useQuery({
-    queryKey: ['realm-recovery-settings', realm?.id],
+    queryKey: queryKeys.realmRecoverySettings(realm?.id),
     queryFn: async () => {
       if (!realm?.id) {
         throw new Error('Realm not loaded')

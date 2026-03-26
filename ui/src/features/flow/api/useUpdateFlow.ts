@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { FlowSettingsSchema } from '@/features/flow/model/settings-schema.ts'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useUpdateFlow(flowId: string) {
   const realm = useActiveRealm()
@@ -24,9 +25,9 @@ export function useUpdateFlow(flowId: string) {
     onSuccess: () => {
       toast.success('Flow settings updated')
       // Refresh the flow details
-      void queryClient.invalidateQueries({ queryKey: ['flow-draft', realm, flowId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flowDraft(realm, flowId) })
       // Refresh the sidebar list (since name changed)
-      void queryClient.invalidateQueries({ queryKey: ['flows', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flows(realm) })
     },
     onError: (error: unknown) => {
       let msg = 'Failed to update flow'

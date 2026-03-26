@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface WebhookSubscriptionToggle {
   event_type: string
@@ -26,8 +27,10 @@ export function useUpdateWebhookSubscriptions() {
       }),
     onSuccess: (_, vars) => {
       toast.success('Webhook subscriptions updated')
-      void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
-      void queryClient.invalidateQueries({ queryKey: ['webhooks', realm, vars.endpointId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.webhooks(realm) })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.webhooksById(realm, vars.endpointId),
+      })
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to update webhook subscriptions')

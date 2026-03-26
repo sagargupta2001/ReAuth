@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function usePublishFlow() {
   const realm = useActiveRealm()
@@ -21,16 +22,16 @@ export function usePublishFlow() {
     onSuccess: () => {
       toast.success('Flow published successfully!')
       // 1. REFRESH SIDEBAR: Invalidate the specific binding hook
-      void queryClient.invalidateQueries({ queryKey: ['realm-bindings'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.realmBindings() })
 
       // 2. Refresh the Realm config itself (good practice)
-      void queryClient.invalidateQueries({ queryKey: ['realm', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.realm(realm) })
 
       // Invalidate queries to refresh the "Active Version" status in Details page
-      void queryClient.invalidateQueries({ queryKey: ['flow', flowId] })
-      void queryClient.invalidateQueries({ queryKey: ['flows'] })
-      void queryClient.invalidateQueries({ queryKey: ['flow-draft'] })
-      void queryClient.invalidateQueries({ queryKey: ['flow-versions', flowId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flow(flowId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flows() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flowDraft() })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flowVersions(flowId) })
     },
     onError: (error: unknown) => {
       // Show the validation error from the backend (e.g. "Dead end detected")

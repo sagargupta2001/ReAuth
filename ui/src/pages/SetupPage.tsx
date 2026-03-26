@@ -12,92 +12,70 @@ import {
 } from '@/components/card'
 import { Input } from '@/components/input'
 import { SETUP_SEALED_STORAGE_KEY } from '@/shared/config/setup'
-import { SETUP_COMPLETE_EVENT, getSetupRequired, markSetupSealed } from '@/shared/lib/setupStatus'
+import { useSetupBootstrap } from '@/features/setup/api/useSetupBootstrap'
+import { useSetupStatus } from '@/features/setup/api/useSetupStatus'
 import { useNavigate } from 'react-router-dom'
 
 export function SetupPage() {
   const navigate = useNavigate()
-  const [statusChecked, setStatusChecked] = useState(false)
   const [token, setToken] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const setupStatus = useSetupStatus()
+  const setupMutation = useSetupBootstrap()
+  const isSubmitting = setupMutation.isPending
 
   useEffect(() => {
-    let active = true
-    const run = async () => {
-      try {
-        const required = await getSetupRequired()
-        if (!active) return
-        if (!required) {
-          localStorage.setItem(SETUP_SEALED_STORAGE_KEY, '1')
-          window.location.replace(`${window.location.origin}/#/login`)
-          return
-        }
-        localStorage.removeItem(SETUP_SEALED_STORAGE_KEY)
-        setStatusChecked(true)
-      } catch (err) {
-        if (!active) return
-        setError(err instanceof Error ? err.message : 'Failed to check setup status.')
-        setStatusChecked(true)
-      }
+    if (setupStatus.isError) {
+      setError(
+        setupStatus.error instanceof Error
+          ? setupStatus.error.message
+          : 'Failed to check setup status.',
+      )
     }
-    void run()
+  }, [setupStatus.error, setupStatus.isError])
 
-    return () => {
-      active = false
+  useEffect(() => {
+    if (setupStatus.isLoading) return
+    if (!setupStatus.data?.required) {
+      localStorage.setItem(SETUP_SEALED_STORAGE_KEY, '1')
+      window.location.replace(`${window.location.origin}/#/login`)
+      return
     }
-  }, [])
+    localStorage.removeItem(SETUP_SEALED_STORAGE_KEY)
+  }, [setupStatus.data?.required, setupStatus.isLoading])
 
   const canSubmit =
     token.trim().length > 0 && username.trim().length > 0 && password.trim().length > 0
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!canSubmit || isSubmitting) return
-    setIsSubmitting(true)
+    if (!canSubmit || setupMutation.isPending) return
     setError(null)
     const trimmedToken = token.trim()
     const trimmedUsername = username.trim()
-    try {
-      const response = await fetch('/api/system/setup', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: trimmedToken,
-          username: trimmedUsername,
-          password,
-        }),
-      })
-      if (!response.ok) {
-        const body = await response.text()
-        let message = 'Setup failed.'
-        try {
-          const parsed = JSON.parse(body) as { error?: string }
-          message = parsed.error || message
-        } catch {
-          if (body.trim().length > 0) {
-            message = body
-          }
-        }
-        throw new Error(message)
-      }
-      markSetupSealed()
-      window.dispatchEvent(new Event(SETUP_COMPLETE_EVENT))
-      navigate('/login', { replace: true })
-      setTimeout(() => {
-        window.location.replace(`${window.location.origin}/#/login`)
-      }, 50)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Setup failed.')
-    } finally {
-      setIsSubmitting(false)
-    }
+    setupMutation.mutate(
+      {
+        token: trimmedToken,
+        username: trimmedUsername,
+        password,
+      },
+      {
+        onSuccess: () => {
+          navigate('/login', { replace: true })
+          setTimeout(() => {
+            window.location.replace(`${window.location.origin}/#/login`)
+          }, 50)
+        },
+        onError: (err) => {
+          setError(err instanceof Error ? err.message : 'Setup failed.')
+        },
+      },
+    )
   }
 
-  if (!statusChecked) {
+  if (setupStatus.isLoading) {
     return <div className="flex h-screen items-center justify-center">Checking setup...</div>
   }
 

@@ -8,16 +8,17 @@ import { Button } from '@/components/button'
 import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { useOidcAuth } from '@/features/auth/api/useOidcAuth'
 import { useRefreshToken } from '@/features/auth/api/useRefreshToken.ts'
+import { useSetupStatus } from '@/features/setup/api/useSetupStatus'
 import { PKCE_STORAGE_KEY } from '@/shared/config/oidc'
 import { REDIRECT_STORAGE_KEY } from '@/shared/config/redirect'
-import { getSetupRequired } from '@/shared/lib/setupStatus'
 
 export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const { accessToken, setSession } = useSessionStore()
   const location = useLocation()
   const navigate = useNavigate()
   const [isProcessing, setIsProcessing] = useState(true)
-  const [setupRequired, setSetupRequired] = useState<boolean | null>(null)
+  const setupStatus = useSetupStatus()
+  const setupRequired = setupStatus.data?.required ?? null
 
   // Ref to prevent double-firing in React 18 Strict Mode
   const processingRef = useRef(false)
@@ -26,6 +27,9 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
   const refreshTokenMutation = useRefreshToken()
 
   useEffect(() => {
+    if (setupStatus.isLoading || setupStatus.isError) {
+      return
+    }
     // --- 0. HASH ROUTER FIX (PRE-RENDER) ---
     // If backend sent us to /login (root path), jump to /#/login
     // IMPORTANT: Preserve the query string (search) so OIDC params aren't lost!
@@ -40,14 +44,11 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     }
 
     const handleAuth = async () => {
-      const required = await getSetupRequired()
-      if (required) {
-        setSetupRequired(true)
+      if (setupRequired) {
         navigate('/setup', { replace: true })
         setIsProcessing(false)
         return
       }
-      setSetupRequired(false)
 
       // 1. If we have a token, we are done.
       if (accessToken) {
@@ -134,10 +135,27 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     }
 
     void handleAuth()
-  }, [])
+  }, [accessToken, exchangeToken, navigate, refreshTokenMutation, setupRequired, setupStatus.isError, setupStatus.isLoading, setSession])
 
 
   // --- RENDER LOGIC ---
+
+  if (setupStatus.isError) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center p-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Setup Check Failed</AlertTitle>
+          <AlertDescription>
+            {setupStatus.error?.message || 'Failed to check setup status.'}
+          </AlertDescription>
+        </Alert>
+        <Button variant="outline" className="mt-4" onClick={() => setupStatus.refetch()}>
+          Retry
+        </Button>
+      </div>
+    )
+  }
 
   if (authorize.isError) {
     return (

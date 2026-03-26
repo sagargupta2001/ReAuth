@@ -5,6 +5,7 @@ import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { Session } from '@/entities/session/model/types'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface SessionSearchParams {
   page?: number
@@ -16,7 +17,7 @@ export function useSessions(params: SessionSearchParams) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['sessions', realm, params],
+    queryKey: queryKeys.sessions(realm, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
@@ -43,7 +44,7 @@ export function useRevokeSession() {
     onSuccess: () => {
       toast.success('Session revoked successfully')
       // Invalidate list to refresh UI
-      void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sessions() })
     },
     onError: (err: unknown) => {
       // If the backend says "Not Found" or "Invalid Token", it means the session
@@ -55,7 +56,7 @@ export function useRevokeSession() {
       if (errorMessage.includes('invalid') || errorMessage.includes('not found')) {
         toast.info('Session was already inactive or rotated.')
         // Refresh the list to show the NEW session ID
-        void queryClient.invalidateQueries({ queryKey: ['sessions'] })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.sessions() })
         return
       }
 

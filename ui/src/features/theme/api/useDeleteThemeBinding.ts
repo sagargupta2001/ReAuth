@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useDeleteThemeBinding(themeId: string) {
   const realm = useActiveRealm()
@@ -15,11 +16,11 @@ export function useDeleteThemeBinding(themeId: string) {
     },
     onSuccess: (_data, clientId) => {
       toast.success('Client override removed')
-      void queryClient.invalidateQueries({ queryKey: ['theme-bindings', realm, themeId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themeBindings(realm, themeId) })
       void queryClient.invalidateQueries({
-        queryKey: ['theme-bindings', 'client', realm, clientId],
+        queryKey: queryKeys.themeBindingClient(realm, clientId),
       })
-      void queryClient.invalidateQueries({ queryKey: ['theme-preview', realm, themeId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themePreview(realm, themeId) })
     },
     onError: (error: unknown) => {
       let msg = 'Failed to remove client override'

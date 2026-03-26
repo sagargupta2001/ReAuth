@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface GroupDeleteSummary {
   group_id: string
@@ -16,7 +17,7 @@ export function useGroupDeleteSummary(groupId: string, enabled = false) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-delete-summary', realm, groupId],
+    queryKey: queryKeys.groupDeleteSummary(realm, groupId),
     queryFn: async () => {
       return apiClient.get<GroupDeleteSummary>(
         `/api/realms/${realm}/rbac/groups/${groupId}/delete-summary`,

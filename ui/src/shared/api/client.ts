@@ -51,10 +51,9 @@ export async function refreshAccessToken(realmOverride?: string): Promise<string
 }
 
 /**
- * The Main Request Wrapper
+ * The low-level request wrapper returning a raw Response.
  */
-async function request<T>(endpoint: string, config: RequestConfig = {}): Promise<T> {
-  // 1. Get Token from Store
+async function requestRaw(endpoint: string, config: RequestConfig = {}): Promise<Response> {
   const token = useSessionStore.getState().accessToken
   const headers = new Headers(config.headers)
 
@@ -66,47 +65,29 @@ async function request<T>(endpoint: string, config: RequestConfig = {}): Promise
     headers.set('Content-Type', 'application/json')
   }
 
-  // 2. Perform Request
   const response = await fetch(endpoint, {
     ...config,
     headers,
     credentials: 'include',
   })
 
-  // 3. Handle 401 (Unauthorized) - The Interceptor Logic
   if (response.status === 401 && !config._isRetry) {
-    // If we are already hitting the refresh endpoint and it fails, stop.
     if (endpoint.includes('/auth/refresh')) {
       useSessionStore.getState().clearSession()
       throw new Error('Session expired')
     }
 
     try {
-      // A. Mutex Logic: If a refresh is already in progress, wait for it.
       const newToken = await refreshAccessToken()
-
-      // B. Update Global Store
       useSessionStore.getState().setSession(newToken)
-
-      // C. Retry Original Request
-      // We pass _isRetry: true to prevent an infinite loop if the server still says 401
-      return request<T>(endpoint, { ...config, _isRetry: true })
+      return requestRaw(endpoint, { ...config, _isRetry: true })
     } catch {
-      // D. Refresh Failed - User is truly logged out
       console.error('Refresh failed, forcing logout.')
       useSessionStore.getState().clearSession()
-
-      // [OPTIONAL] Redirect to login if needed, but allow AuthGuard to handle it usually
-      // const realm = getRealmFromUrl();
-      // window.location.href = `/#/login?realm=${realm}`;
-
       throw new Error('Session expired')
-    } finally {
-      // Reset handled inside refreshAccessToken
     }
   }
 
-  // 4. Handle other errors
   if (!response.ok) {
     const errorBody = await response.text()
     let errorMessage = `API Error: ${response.statusText}`
@@ -118,6 +99,15 @@ async function request<T>(endpoint: string, config: RequestConfig = {}): Promise
     }
     throw new Error(errorMessage)
   }
+
+  return response
+}
+
+/**
+ * The JSON request wrapper.
+ */
+async function request<T>(endpoint: string, config: RequestConfig = {}): Promise<T> {
+  const response = await requestRaw(endpoint, config)
 
   if (response.status === 204) {
     return {} as T
@@ -138,6 +128,19 @@ export const apiClient = {
 
   postForm: <T>(url: string, body: FormData, config?: RequestConfig) =>
     request<T>(url, { ...config, method: 'POST', body, skipContentType: true }),
+
+  postUrlEncoded: <T>(url: string, body: URLSearchParams, config?: RequestConfig) =>
+    request<T>(url, {
+      ...config,
+      method: 'POST',
+      body: body.toString(),
+      headers: {
+        ...(config?.headers || {}),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    }),
+
+  raw: (url: string, config?: RequestConfig) => requestRaw(url, config),
 
   delete: <T>(url: string, config?: RequestConfig) =>
     request<T>(url, { ...config, method: 'DELETE' }),

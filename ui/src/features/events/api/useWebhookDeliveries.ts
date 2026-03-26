@@ -4,6 +4,7 @@ import type { DeliveryLog } from '@/entities/events/model/types'
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface DeliveryQueryParams {
   page?: number
@@ -19,7 +20,7 @@ export function useWebhookDeliveries(endpointId?: string, params: DeliveryQueryP
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['webhook-deliveries', realm, endpointId, params],
+    queryKey: queryKeys.webhookDeliveries(realm, endpointId ?? '', params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page ?? 1))

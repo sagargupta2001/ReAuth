@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 // 1. Hook to Fetch Assigned Permissions
 export function useRolePermissions(roleId: string) {
   const realm = useActiveRealm()
   return useQuery({
-    queryKey: ['role-permissions', realm, roleId],
+    queryKey: queryKeys.rolePermissions(realm, roleId),
     queryFn: async () => {
       // Direct array return from our new backend endpoint
       return apiClient.get<string[]>(`/api/realms/${realm}/rbac/roles/${roleId}/permissions`)
@@ -19,7 +20,7 @@ export function useRolePermissions(roleId: string) {
 export function useManagePermissions(roleId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
-  const queryKey = ['role-permissions', realm, roleId]
+  const queryKey = queryKeys.rolePermissions(realm, roleId)
 
   // Single Toggle Mutation
   const toggleMutation = useMutation({

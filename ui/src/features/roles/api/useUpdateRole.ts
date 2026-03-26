@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
 import type { RoleFormValues } from '@/features/roles/schema/create.schema.ts'
-
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useUpdateRole(roleId: string) {
   const queryClient = useQueryClient()
@@ -17,8 +17,8 @@ export function useUpdateRole(roleId: string) {
     },
     onSuccess: () => {
       toast.success('Role updated successfully')
-      void queryClient.invalidateQueries({ queryKey: ['roles', realm] })
-      void queryClient.invalidateQueries({ queryKey: ['role', realm, roleId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.roles(realm) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.role(realm, roleId) })
     },
     onError: () => {
       toast.error('Failed to update role')

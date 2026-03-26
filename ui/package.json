@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "codemod:query-keys": "node scripts/codemods/normalize-query-keys.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
