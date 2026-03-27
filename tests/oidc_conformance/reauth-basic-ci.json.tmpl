@@ -1,0 +1,32 @@
+{
+  "alias": "${CONFORMANCE_ALIAS}",
+  "description": "ReAuth OIDC conformance (CI)",
+  "server": {
+    "discoveryUrl": "${REAUTH_BASE_URL}/api/realms/${REAUTH_REALM}/oidc/.well-known/openid-configuration"
+  },
+  "client": {
+    "client_id": "${OIDC_CLIENT_ID}"
+  },
+  "consent": {},
+  "browser": [
+    {
+      "match": "${REAUTH_BASE_URL}/#/login*",
+      "tasks": [
+        {
+          "task": "Login and consent",
+          "optional": true,
+          "match": "${REAUTH_BASE_URL}/#/login*",
+          "commands": [
+            ["wait", "css", "[name=username]", 15],
+            ["text", "css", "[name=username]", "${ADMIN_USERNAME}"],
+            ["wait", "css", "[name=password]", 15],
+            ["text", "css", "[name=password]", "${ADMIN_PASSWORD}"],
+            ["click", "css", "button[type=submit]"],
+            ["wait", "css", "button[data-intent=allow]", 15],
+            ["click", "css", "button[data-intent=allow]"]
+          ]
+        }
+      ]
+    }
+  ]
+}

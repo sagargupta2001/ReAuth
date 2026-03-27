@@ -626,6 +626,7 @@ export function FluidLoginScreen({
               variant={buttonVariant}
               className={cn(alignClass, sizeClass, fillWidthClass, fillHeightClass)}
               style={buttonStyle}
+              data-intent={intent || undefined}
               disabled={isLoading || (isAwaitingResend && (resendStatus === 'sending' || !canResend))}
               onClick={() => {
                 if (isAwaitingResend) {
