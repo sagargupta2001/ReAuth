@@ -24,6 +24,10 @@ export interface NodeMetadata {
   config_schema: Record<string, unknown>
   supports_ui: boolean
   default_template_key?: string | null
+  ui_surface?: 'form' | 'awaiting_action' | null
+  allowed_page_categories?: Array<
+    'auth' | 'consent' | 'awaiting_action' | 'verification' | 'mfa' | 'notification' | 'error' | 'custom'
+  >
 }
 
 interface FlowBuilderState {
@@ -31,6 +35,7 @@ interface FlowBuilderState {
   edges: Edge[]
   selectedNodeId: string | null
   nodeTypes: NodeMetadata[]
+  publishError: string | null
   onNodesChange: OnNodesChange
   onEdgesChange: OnEdgesChange
   onConnect: OnConnect
@@ -39,6 +44,7 @@ interface FlowBuilderState {
   setGraph: (nodes: Node[], edges: Edge[]) => void
   setNodeTypes: (types: NodeMetadata[]) => void
   updateNodeData: (id: string, newData: Record<string, unknown>) => void
+  setPublishError: (message: string | null) => void
 
   reset: () => void
 }
@@ -48,6 +54,7 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   nodeTypes: [],
+  publishError: null,
 
   onNodesChange: (changes: NodeChange[]) => {
     set({
@@ -98,7 +105,11 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
     })
   },
 
+  setPublishError: (message: string | null) => {
+    set({ publishError: message })
+  },
+
   reset: () => {
-    set({ nodes: [], edges: [], selectedNodeId: null })
+    set({ nodes: [], edges: [], selectedNodeId: null, publishError: null })
   },
 }))

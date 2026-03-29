@@ -111,6 +111,14 @@ pub struct DefaultOidcClientConfig {
     pub web_origins: Vec<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct ThemeConfig {
+    #[serde(default)]
+    pub default_theme_name: String,
+    #[serde(default)]
+    pub default_binding_name: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
     pub server: Server,
@@ -124,6 +132,8 @@ pub struct Settings {
     pub auth: AuthConfig,
     pub default_admin: DefaultAdminConfig,
     pub default_oidc_client: DefaultOidcClientConfig,
+    #[serde(default)]
+    pub theme: ThemeConfig,
     #[serde(default)]
     pub harbor: HarborConfig,
 }
@@ -192,6 +202,7 @@ impl Settings {
         self.apply_database_defaults();
         self.apply_observability_defaults();
         self.apply_harbor_defaults();
+        self.apply_theme_defaults();
     }
 
     fn apply_database_defaults(&mut self) {
@@ -235,6 +246,11 @@ impl Settings {
 
         let path = Path::new(base_dir).join("harbor");
         self.harbor.storage_dir = path.to_string_lossy().to_string();
+    }
+
+    fn apply_theme_defaults(&mut self) {
+        self.theme.default_theme_name = self.theme.default_theme_name.trim().to_string();
+        self.theme.default_binding_name = self.theme.default_binding_name.trim().to_string();
     }
 
     fn validate(&self) -> Result<(), config::ConfigError> {

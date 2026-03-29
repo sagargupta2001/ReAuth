@@ -3,6 +3,7 @@
 pub mod templates;
 
 use crate::application::flow_manager::templates::FlowTemplates;
+use crate::application::flow_publish_validator::FlowPublishValidator;
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::auth_flow::AuthFlow;
 use crate::domain::compiler::flow_compiler::FlowCompiler;
@@ -39,6 +40,7 @@ pub struct FlowManager {
     flow_repo: Arc<dyn FlowRepository>,
     realm_repo: Arc<dyn RealmRepository>,
     runtime_registry: Arc<RuntimeRegistry>,
+    publish_validator: Arc<dyn FlowPublishValidator>,
 }
 
 impl FlowManager {
@@ -47,12 +49,14 @@ impl FlowManager {
         flow_repo: Arc<dyn FlowRepository>,
         realm_repo: Arc<dyn RealmRepository>,
         runtime_registry: Arc<RuntimeRegistry>,
+        publish_validator: Arc<dyn FlowPublishValidator>,
     ) -> Self {
         Self {
             flow_store,
             flow_repo,
             realm_repo,
             runtime_registry,
+            publish_validator,
         }
     }
 
@@ -235,18 +239,23 @@ impl FlowManager {
         let graph_json_value: serde_json::Value = serde_json::from_str(&draft.graph_json)
             .map_err(|e| Error::Validation(format!("Draft JSON is corrupted: {}", e)))?;
 
-        // 3. Compile (Validates the graph logic)
+        // 3. Validate publish-time UI bindings
+        self.publish_validator
+            .validate(realm_id, &graph_json_value)
+            .await?;
+
+        // 4. Compile (Validates the graph logic)
         let execution_plan = FlowCompiler::compile(graph_json_value, &self.runtime_registry)?;
 
-        // 4. Serialize Artifact (Struct -> String)
+        // 5. Serialize Artifact (Struct -> String)
         let execution_artifact = serde_json::to_string(&execution_plan)
             .map_err(|e| Error::Unexpected(anyhow::anyhow!("Serialization error: {}", e)))?;
 
-        // 5. Calculate Next Version Number
+        // 6. Calculate Next Version Number
         let current_max = self.flow_store.get_latest_version_number(&flow_id).await?;
         let next_version = current_max.map(|v| v + 1).unwrap_or(1); // Start at v1
 
-        // 6. Ensure Parent Flow Exists (Promote Draft to Runtime if needed)
+        // 7. Ensure Parent Flow Exists (Promote Draft to Runtime if needed)
         // If this is a new custom flow, it might only exist in `flow_drafts`.
         // We need to ensure it exists in `auth_flows` before we attach a version to it.
         if self.flow_repo.find_flow_by_id(&flow_id).await?.is_none() {
@@ -265,7 +274,7 @@ impl FlowManager {
             self.flow_repo.create_flow(&new_flow, tx_ref).await?;
         }
 
-        // 7. Create Version Record
+        // 8. Create Version Record
         let version = FlowVersion {
             id: Uuid::new_v4().to_string(),
             flow_id: flow_id.to_string(),
@@ -280,7 +289,7 @@ impl FlowManager {
             .create_version_with_tx(&version, tx_ref)
             .await?;
 
-        // 8. Update Deployment (Point LIVE to this version)
+        // 9. Update Deployment (Point LIVE to this version)
         let deployment = FlowDeployment {
             id: Uuid::new_v4().to_string(),
             realm_id,
@@ -312,7 +321,7 @@ impl FlowManager {
                 .await?;
         }
 
-        // 9. Cleanup: Delete the draft
+        // 10. Cleanup: Delete the draft
         // Now safe because flow_versions references auth_flows, not flow_drafts
         let tx_ref = tx.as_deref_mut();
         self.flow_store

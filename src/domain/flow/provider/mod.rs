@@ -1,3 +1,4 @@
+use crate::domain::ui::{PageCategory, UiSurface};
 use serde_json::Value;
 
 /// The contract every Node Type must fulfill.
@@ -37,6 +38,16 @@ pub trait NodeProvider: Send + Sync {
     /// Default Fluid page key for UI-capable nodes.
     fn default_template_key(&self) -> Option<&'static str> {
         None
+    }
+
+    /// UI surface used for rendering (e.g., form vs awaiting action).
+    fn ui_surface(&self) -> Option<UiSurface> {
+        None
+    }
+
+    /// Allowed theme page categories for UI-capable nodes.
+    fn allowed_page_categories(&self) -> Vec<PageCategory> {
+        Vec::new()
     }
 
     /// (Optional) Default configuration values

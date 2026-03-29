@@ -90,6 +90,8 @@ fn node_metadata_round_trip() {
         outputs: vec!["out".to_string()],
         supports_ui: true,
         default_template_key: Some("login".to_string()),
+        ui_surface: Some(crate::domain::ui::UiSurface::Form),
+        allowed_page_categories: vec![crate::domain::ui::PageCategory::Auth],
     };
 
     let json = serde_json::to_string(&metadata).expect("serialize");
@@ -105,6 +107,11 @@ fn node_metadata_round_trip() {
     assert_eq!(decoded.outputs, metadata.outputs);
     assert_eq!(decoded.supports_ui, metadata.supports_ui);
     assert_eq!(decoded.default_template_key, metadata.default_template_key);
+    assert_eq!(decoded.ui_surface, metadata.ui_surface);
+    assert_eq!(
+        decoded.allowed_page_categories,
+        metadata.allowed_page_categories
+    );
 }
 
 #[tokio::test]

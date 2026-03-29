@@ -10,6 +10,7 @@
 - `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
 - `reauth/docs/memory/roadmaps/oidc-future-enhancements.md`
 - `reauth/docs/memory/roadmaps/theme-engine.md`
+- `reauth/docs/memory/roadmaps/flow-extensibility.md`
 - `reauth/docs/memory/roadmaps/embedded-scripting.md`
 - `reauth/docs/memory/roadmaps/flow-resume-design.md`
 
@@ -111,10 +112,12 @@
 - OIDC client secrets are **encrypted at rest** via a master key (AES-GCM), not hashed.
 
 ## Next
-- Generalize node/page binding into a first-class flow capability.
-  - Add node metadata for `ui_surface`, `default_template_key`, and allowed page categories.
-  - Make the inspector expose Fluid-page binding for any UI-capable node, not only authenticators.
-  - Validate published flows against the active theme and show missing-page warnings before runtime.
+- [x] Generalize node/page binding into a first-class flow capability.
+  - [x] Node metadata includes `ui_surface`, `default_template_key`, and allowed page categories.
+  - [x] Inspector exposes Fluid-page binding for any UI-capable node.
+  - [x] Binding stored in `config.ui.page_key` with `template_key` fallback.
+  - [x] Missing-template warnings respect UI bindings + node defaults.
+  - [x] Publish-time validation enforces page existence + category alignment for UI-capable nodes.
 - Add more executable node types.
   - OTP / email verification node.
   - Recovery token node.

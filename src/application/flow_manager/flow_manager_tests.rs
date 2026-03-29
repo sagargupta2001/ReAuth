@@ -1,12 +1,13 @@
 use super::*;
+use crate::application::flow_publish_validator::FlowPublishValidator;
 use crate::domain::auth_flow::AuthFlow;
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::domain::pagination::{PageRequest, PageResponse};
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::ports::flow_store::FlowStore;
 use crate::ports::realm_repository::RealmRepository;
 use async_trait::async_trait;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -441,7 +442,22 @@ fn build_manager(
     realm_repo: Arc<TestRealmRepo>,
     registry: RuntimeRegistry,
 ) -> FlowManager {
-    FlowManager::new(flow_store, flow_repo, realm_repo, Arc::new(registry))
+    FlowManager::new(
+        flow_store,
+        flow_repo,
+        realm_repo,
+        Arc::new(registry),
+        Arc::new(NoopPublishValidator),
+    )
+}
+
+struct NoopPublishValidator;
+
+#[async_trait]
+impl FlowPublishValidator for NoopPublishValidator {
+    async fn validate(&self, _realm_id: Uuid, _graph: &Value) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[tokio::test]

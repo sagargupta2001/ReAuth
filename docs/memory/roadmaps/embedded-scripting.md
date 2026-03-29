@@ -17,6 +17,7 @@
   - `ScriptingEngine` trait in `reauth_core` with `compile`, `execute`, `set_timeout`, `set_memory_limit`.
   - `ScriptContext` DTO (input + host functions + output).
   - `ScriptResult` with typed success/failure and structured error details.
+- Define **Signal/Intent bindings** for UI actions so Fluid components emit signals and the backend executes them.
 - Create **Engine Adapter Crate(s)**:
   - `crates/scripting/boa_adapter` and/or `crates/scripting/quickjs_adapter`.
   - Only adapter crates depend on Boa/rquickjs; core depends on a thin `scripting_core` interface.
@@ -30,6 +31,7 @@
 - Build **Hello World** script execution in flow executor:
   - `onExecute(context, form)` returns `{ action: "continue" | "challenge" | "reject" }`.
   - Log script timing and errors to observability.
+- Add **Publish-time script validation** for scripted UI nodes with Fluid schema checks.
 
 ## Next (Phase 2‑B)
 - Add **Sandboxing + Limits**:
@@ -56,9 +58,12 @@
 - Feature flags gate each engine implementation to keep the binary lean.
 
 ## Decisions (best‑practice defaults)
-- Default engine: Boa (memory‑safe Rust), with rquickjs optional for performance.
+- Default engine: **Boa-first** (memory‑safe Rust), with rquickjs optional later.
+- Limits defaults: **50ms** CPU for logic, **200ms** for UI scripts, **8MB** memory, **1,000,000** instruction budget per call.
+- Host API: minimal, read‑only context + secrets lookup + logging + time/crypto helpers.
 - Script limits are enforced even for trusted admins.
 - Scripts are sandboxed and run out‑of‑process if hard termination is needed later.
+- UI actions are signal-based; no raw client JS is executed in the browser.
 
 ## Risks / dependencies
 - Sandboxing is critical; a bad script must not block the main runtime.

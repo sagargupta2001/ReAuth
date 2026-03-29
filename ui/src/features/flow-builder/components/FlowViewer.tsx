@@ -32,6 +32,11 @@ function FlowViewerInternal({ nodes, edges }: FlowViewerProps) {
         zoomOnDoubleClick={false}
         proOptions={{ hideAttribution: true }}
         colorMode={isDark ? 'dark' : 'light'}
+        defaultEdgeOptions={{
+          type: 'smoothstep', // Options: 'default' (bezier), 'straight', 'step', 'smoothstep'
+          animated: false,   // You can also set global animation or styling here
+          style: { strokeWidth: 2 },
+        }}
       />
     </div>
   )

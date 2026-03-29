@@ -73,6 +73,7 @@ export interface ThemePageTemplate {
   key: string
   label: string
   description: string
+  category: 'auth' | 'consent' | 'awaiting_action' | 'verification' | 'mfa' | 'notification' | 'error' | 'custom'
   blueprint: ThemeBlueprint
 }
 

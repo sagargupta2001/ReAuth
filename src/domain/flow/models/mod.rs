@@ -1,3 +1,4 @@
+use crate::domain::ui::{PageCategory, UiSurface};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -63,6 +64,10 @@ pub struct NodeMetadata {
     pub supports_ui: bool,
     #[serde(default)]
     pub default_template_key: Option<String>,
+    #[serde(default)]
+    pub ui_surface: Option<UiSurface>,
+    #[serde(default)]
+    pub allowed_page_categories: Vec<PageCategory>,
 }
 
 #[cfg(test)]

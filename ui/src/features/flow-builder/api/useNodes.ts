@@ -15,6 +15,10 @@ export interface NodeMetadata {
   config_schema: Record<string, unknown>
   supports_ui: boolean
   default_template_key?: string | null
+  ui_surface?: 'form' | 'awaiting_action' | null
+  allowed_page_categories?: Array<
+    'auth' | 'consent' | 'awaiting_action' | 'verification' | 'mfa' | 'notification' | 'error' | 'custom'
+  >
 }
 
 export function useNodes() {

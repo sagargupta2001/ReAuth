@@ -5,6 +5,7 @@ pub mod email_delivery_service;
 pub mod flow_engine;
 pub mod flow_executor;
 pub mod flow_manager;
+pub mod flow_publish_validator;
 pub mod flow_service;
 pub mod harbor;
 pub mod metrics_service;

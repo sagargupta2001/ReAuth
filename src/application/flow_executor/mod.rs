@@ -726,9 +726,16 @@ fn as_number(value: &Value) -> Option<f64> {
 
 fn resolve_template_key(config: &Value) -> Option<String> {
     let explicit = config
-        .get("template_key")
+        .get("ui")
+        .and_then(|value| value.get("page_key"))
         .and_then(|value| value.as_str())
-        .map(|value| value.to_string());
+        .map(|value| value.to_string())
+        .or_else(|| {
+            config
+                .get("template_key")
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string())
+        });
     if explicit.is_some() {
         return explicit;
     }

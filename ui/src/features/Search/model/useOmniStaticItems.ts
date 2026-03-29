@@ -7,6 +7,7 @@ import {
   Laptop,
   Mail,
   Moon,
+  Palette,
   ScrollText,
   Settings,
   ShieldPlus,
@@ -17,12 +18,14 @@ import {
 } from 'lucide-react'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { useThemes } from '@/features/theme/api/useThemes'
 import { sidebarData } from '@/widgets/Sidebar/config/sidebar-data'
 
 import type { OmniStaticItem } from './omniTypes'
 
 export function useOmniStaticItems() {
   const realm = useActiveRealm()
+  const { data: themes = [] } = useThemes()
 
   return useMemo<OmniStaticItem[]>(() => {
     const items: OmniStaticItem[] = []
@@ -40,6 +43,19 @@ export function useOmniStaticItems() {
       }))
 
     items.push(...navItems)
+
+    const themeItems = themes.map((theme) => ({
+      id: `theme.activate.${theme.id}`,
+      label: `Activate Theme: ${theme.name}`,
+      description: theme.description ?? 'Activate the latest theme version',
+      group: 'Themes' as const,
+      kind: 'action' as const,
+      icon: Palette,
+      actionId: `theme.activate:${theme.id}`,
+      keywords: ['theme', 'activate', theme.name.toLowerCase()],
+    }))
+
+    items.push(...themeItems)
 
     items.push(
       {
@@ -526,5 +542,5 @@ export function useOmniStaticItems() {
     )
 
     return items
-  }, [realm])
+  }, [realm, themes])
 }

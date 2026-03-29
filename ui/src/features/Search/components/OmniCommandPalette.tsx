@@ -53,9 +53,11 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
+import { useActivateThemeLatest } from '@/features/theme/api/useActivateThemeLatest'
 
 const groupOrder = [
   'Suggested Actions',
+  'Themes',
   'Settings',
   'Observability',
   'Danger Zone',
@@ -115,6 +117,7 @@ export function OmniCommandPalette() {
   const { enableWebhook, disableWebhook } = useWebhookMutations()
   const rollWebhookSecret = useRollWebhookSecret()
   const deleteWebhook = useDeleteWebhook()
+  const activateThemeLatest = useActivateThemeLatest()
   const [query, setQuery] = React.useState('')
   const [activeItem, setActiveItem] = React.useState<OmniInspectorItem | null>(null)
   const [selectedValue, setSelectedValue] = React.useState('')
@@ -198,11 +201,16 @@ export function OmniCommandPalette() {
   const pkceRequired = Boolean(realmData?.pkce_required_public_clients)
 
   const executeAction = React.useCallback(
-    (actionId?: string) => {
+    async (actionId?: string) => {
       if (!actionId) return
       if (actionId === 'theme.light') setTheme('light')
       if (actionId === 'theme.dark') setTheme('dark')
       if (actionId === 'theme.system') setTheme('system')
+      if (actionId.startsWith('theme.activate:')) {
+        const themeId = actionId.replace('theme.activate:', '')
+        if (!realm || !themeId) return
+        activateThemeLatest.mutate(themeId)
+      }
       if (actionId === 'observability.clear-logs') {
         void clearLogs
           .mutateAsync(undefined)
@@ -219,7 +227,7 @@ export function OmniCommandPalette() {
         cacheFlush.mutate(undefined)
       }
     },
-    [cacheFlush, clearLogs, clearTraces, setTheme],
+    [activateThemeLatest, cacheFlush, clearLogs, clearTraces, realm, setTheme],
   )
 
   const handlePkceToggle = React.useCallback(

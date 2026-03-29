@@ -111,8 +111,17 @@ impl RealmService {
             self.realm_repo.update(&realm, Some(&mut *tx)).await?;
 
             // E. Create default theme (Pass TX)
+            let theme_name = settings.theme.default_theme_name.trim();
             self.theme_service
-                .create_system_theme_in_tx(realm.id, &mut *tx)
+                .create_system_theme_named_in_tx(
+                    realm.id,
+                    if theme_name.is_empty() {
+                        None
+                    } else {
+                        Some(theme_name.to_string())
+                    },
+                    &mut *tx,
+                )
                 .await?;
 
             Ok(realm)

@@ -22,8 +22,8 @@ pub struct NodeRegistryService {
 
 impl NodeRegistryService {
     pub fn new(runtime_registry: Arc<RuntimeRegistry>) -> Self {
-        Self {
-            providers: vec![
+        Self::with_providers(
+            vec![
                 Box::new(StartNode),
                 Box::new(ConditionNodeProvider),
                 Box::new(RecoveryIssueNodeProvider),
@@ -38,6 +38,16 @@ impl NodeRegistryService {
                 Box::new(AllowNode),
                 Box::new(DenyNode),
             ],
+            runtime_registry,
+        )
+    }
+
+    pub fn with_providers(
+        providers: Vec<Box<dyn NodeProvider>>,
+        runtime_registry: Arc<RuntimeRegistry>,
+    ) -> Self {
+        Self {
+            providers,
             runtime_registry,
         }
     }
@@ -57,6 +67,8 @@ impl NodeRegistryService {
                 config_schema: p.config_schema(),
                 supports_ui: p.supports_ui(),
                 default_template_key: p.default_template_key().map(|value| value.to_string()),
+                ui_surface: p.ui_surface(),
+                allowed_page_categories: p.allowed_page_categories(),
             })
             .collect()
     }

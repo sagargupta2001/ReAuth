@@ -5,14 +5,17 @@ import { toast } from 'sonner'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
 import { queryKeys } from '@/shared/lib/queryKeys'
+import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderStore'
 
 export function usePublishFlow() {
   const realm = useActiveRealm()
   const { flowId } = useParams()
   const queryClient = useQueryClient()
+  const setPublishError = useFlowBuilderStore((state) => state.setPublishError)
 
   return useMutation({
     mutationFn: async () => {
+      setPublishError(null)
       if (!flowId || !realm) throw new Error('Missing Flow ID or Realm')
 
       // Call the new publish endpoint
@@ -21,6 +24,7 @@ export function usePublishFlow() {
     },
     onSuccess: () => {
       toast.success('Flow published successfully!')
+      setPublishError(null)
       // 1. REFRESH SIDEBAR: Invalidate the specific binding hook
       void queryClient.invalidateQueries({ queryKey: queryKeys.realmBindings() })
 
@@ -41,6 +45,7 @@ export function usePublishFlow() {
         const errObj = error as Record<string, unknown>
         const response = errObj.response as Record<string, unknown> | undefined
         const responseData = response?.data as Record<string, unknown> | undefined
+        const responseCode = responseData?.code as string | undefined
         const body = errObj.body as Record<string, unknown> | undefined
 
         serverMessage =
@@ -48,8 +53,16 @@ export function usePublishFlow() {
           (body?.error as string) ||
           (errObj.message as string) ||
           serverMessage
+
+        if (responseCode === 'validation.failed') {
+          const prefix = 'Validation failed: '
+          if (serverMessage.startsWith(prefix)) {
+            serverMessage = serverMessage.slice(prefix.length)
+          }
+        }
       }
 
+      setPublishError(serverMessage)
       toast.error(`Publish Failed: ${serverMessage}`)
     },
   })

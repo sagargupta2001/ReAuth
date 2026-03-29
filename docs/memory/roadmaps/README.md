@@ -20,6 +20,8 @@ Example paths:
 - `reauth/docs/memory/roadmaps/auth-production-grade.md`
 - `reauth/docs/memory/roadmaps/theme-engine.md`
 - `reauth/docs/memory/roadmaps/embedded-scripting.md`
+- `reauth/docs/memory/roadmaps/flow-extensibility.md`
+- `reauth/docs/memory/roadmaps/flow-action-binding.md`
 - `reauth/docs/memory/roadmaps/harbor.md`
 - `reauth/docs/memory/roadmaps/ui-data-fetching.md`
 

@@ -156,6 +156,7 @@ export function FluidBuilderPage() {
         key: node.node_key,
         label,
         description: 'Custom page',
+        category: 'custom',
         blueprint: node.blueprint,
       })
     }

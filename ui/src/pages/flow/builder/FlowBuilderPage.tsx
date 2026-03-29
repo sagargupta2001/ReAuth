@@ -14,6 +14,7 @@ import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderSt
 import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { useActiveTheme } from '@/features/theme/api/useActiveTheme'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { Button } from '@/components/button'
 
 export function FlowBuilderPage() {
   const { flowId } = useParams()
@@ -22,8 +23,15 @@ export function FlowBuilderPage() {
   const draftId = flowId!
 
   const { data: draft, isLoading, isError } = useFlowDraft(flowId!)
-  const { setGraph, reset, nodes, nodeTypes } = useFlowBuilderStore()
+  const { setGraph, reset, nodes, nodeTypes, publishError, selectNode } = useFlowBuilderStore()
   const { data: activeTheme } = useActiveTheme()
+
+  const publishErrorNodeIds = useMemo(() => {
+    if (!publishError) return []
+    const matches = Array.from(publishError.matchAll(/node_id=([A-Za-z0-9_-]+)/g))
+    const ids = matches.map((match) => match[1]).filter(Boolean)
+    return Array.from(new Set(ids))
+  }, [publishError])
 
   const missingTemplates = useMemo(() => {
     if (!activeTheme) return []
@@ -33,10 +41,23 @@ export function FlowBuilderPage() {
 
     const keys = new Set<string>()
     nodes.forEach((node) => {
-      const config = (node.data as { config?: Record<string, unknown> })?.config
-      const explicit = typeof config?.template_key === 'string' ? config.template_key : undefined
       const nodeType = node.type ?? ''
-      const fallback = nodeTypeMap.get(nodeType)?.default_template_key ?? undefined
+      const nodeDefinition = nodeTypeMap.get(nodeType)
+      if (!nodeDefinition?.supports_ui) {
+        return
+      }
+      const config = (node.data as { config?: Record<string, unknown> })?.config
+      const ui =
+        typeof config?.ui === 'object' && config.ui
+          ? (config.ui as Record<string, unknown>)
+          : {}
+      const explicit =
+        typeof ui?.page_key === 'string'
+          ? (ui.page_key as string)
+          : typeof config?.template_key === 'string'
+            ? (config.template_key as string)
+            : undefined
+      const fallback = nodeDefinition?.default_template_key ?? undefined
       const key = explicit || fallback
       if (key) {
         keys.add(key)
@@ -102,6 +123,31 @@ export function FlowBuilderPage() {
             ) : null
           }
         />
+
+        {publishError && (
+          <div className="border-b px-6 py-3">
+            <Alert variant="destructive">
+              <AlertTitle>Publish blocked</AlertTitle>
+              <AlertDescription className="flex flex-wrap items-center gap-3">
+                <span>{publishError}</span>
+                {publishErrorNodeIds.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {publishErrorNodeIds.map((nodeId) => (
+                      <Button
+                        key={nodeId}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => selectNode(nodeId)}
+                      >
+                        Open {nodeId}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
 
         {missingTemplates.length > 0 && (
           <div className="border-b px-6 py-3">

@@ -895,8 +895,17 @@ fn extract_template_keys(graph: &Value) -> HashSet<String> {
         let explicit = node
             .get("data")
             .and_then(|value| value.get("config"))
-            .and_then(|value| value.get("template_key"))
-            .and_then(|value| value.as_str());
+            .and_then(|value| {
+                value
+                    .get("ui")
+                    .and_then(|ui| ui.get("page_key"))
+                    .and_then(|page| page.as_str())
+                    .or_else(|| {
+                        value
+                            .get("template_key")
+                            .and_then(|template| template.as_str())
+                    })
+            });
 
         let template = explicit
             .map(|value| value.to_string())
