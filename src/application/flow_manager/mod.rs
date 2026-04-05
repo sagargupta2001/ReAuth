@@ -4,6 +4,7 @@ pub mod templates;
 
 use crate::application::flow_manager::templates::FlowTemplates;
 use crate::application::flow_publish_validator::FlowPublishValidator;
+use crate::application::node_registry::NodeRegistryService;
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::auth_flow::AuthFlow;
 use crate::domain::compiler::flow_compiler::FlowCompiler;
@@ -41,6 +42,7 @@ pub struct FlowManager {
     realm_repo: Arc<dyn RealmRepository>,
     runtime_registry: Arc<RuntimeRegistry>,
     publish_validator: Arc<dyn FlowPublishValidator>,
+    node_registry: Arc<NodeRegistryService>,
 }
 
 impl FlowManager {
@@ -50,6 +52,7 @@ impl FlowManager {
         realm_repo: Arc<dyn RealmRepository>,
         runtime_registry: Arc<RuntimeRegistry>,
         publish_validator: Arc<dyn FlowPublishValidator>,
+        node_registry: Arc<NodeRegistryService>,
     ) -> Self {
         Self {
             flow_store,
@@ -57,6 +60,7 @@ impl FlowManager {
             realm_repo,
             runtime_registry,
             publish_validator,
+            node_registry,
         }
     }
 
@@ -244,18 +248,21 @@ impl FlowManager {
             .validate(realm_id, &graph_json_value)
             .await?;
 
-        // 4. Compile (Validates the graph logic)
+        // 4. Capture node contract versions at publish time
+        let node_contract_versions = self.build_node_contract_versions(&graph_json_value)?;
+
+        // 5. Compile (Validates the graph logic)
         let execution_plan = FlowCompiler::compile(graph_json_value, &self.runtime_registry)?;
 
-        // 5. Serialize Artifact (Struct -> String)
+        // 6. Serialize Artifact (Struct -> String)
         let execution_artifact = serde_json::to_string(&execution_plan)
             .map_err(|e| Error::Unexpected(anyhow::anyhow!("Serialization error: {}", e)))?;
 
-        // 6. Calculate Next Version Number
+        // 7. Calculate Next Version Number
         let current_max = self.flow_store.get_latest_version_number(&flow_id).await?;
         let next_version = current_max.map(|v| v + 1).unwrap_or(1); // Start at v1
 
-        // 7. Ensure Parent Flow Exists (Promote Draft to Runtime if needed)
+        // 8. Ensure Parent Flow Exists (Promote Draft to Runtime if needed)
         // If this is a new custom flow, it might only exist in `flow_drafts`.
         // We need to ensure it exists in `auth_flows` before we attach a version to it.
         if self.flow_repo.find_flow_by_id(&flow_id).await?.is_none() {
@@ -274,7 +281,7 @@ impl FlowManager {
             self.flow_repo.create_flow(&new_flow, tx_ref).await?;
         }
 
-        // 8. Create Version Record
+        // 9. Create Version Record
         let version = FlowVersion {
             id: Uuid::new_v4().to_string(),
             flow_id: flow_id.to_string(),
@@ -282,6 +289,7 @@ impl FlowManager {
             execution_artifact,
             graph_json: draft.graph_json.clone(),
             checksum: "TODO_HASH".to_string(),
+            node_contract_versions,
             created_at: Utc::now(),
         };
         let tx_ref = tx.as_deref_mut();
@@ -289,7 +297,7 @@ impl FlowManager {
             .create_version_with_tx(&version, tx_ref)
             .await?;
 
-        // 9. Update Deployment (Point LIVE to this version)
+        // 10. Update Deployment (Point LIVE to this version)
         let deployment = FlowDeployment {
             id: Uuid::new_v4().to_string(),
             realm_id,
@@ -321,7 +329,7 @@ impl FlowManager {
                 .await?;
         }
 
-        // 10. Cleanup: Delete the draft
+        // 11. Cleanup: Delete the draft
         // Now safe because flow_versions references auth_flows, not flow_drafts
         let tx_ref = tx.as_deref_mut();
         self.flow_store
@@ -329,6 +337,32 @@ impl FlowManager {
             .await?;
 
         Ok(version)
+    }
+
+    fn build_node_contract_versions(&self, graph: &serde_json::Value) -> Result<String> {
+        let nodes = graph
+            .get("nodes")
+            .and_then(|value| value.as_array())
+            .ok_or_else(|| Error::Validation("Missing nodes".to_string()))?;
+
+        let contract_map: std::collections::HashMap<String, String> = self
+            .node_registry
+            .get_available_nodes()
+            .into_iter()
+            .map(|node| (node.id, node.contract_version))
+            .collect();
+
+        let mut versions = std::collections::HashMap::new();
+        for node in nodes {
+            if let Some(node_type) = node.get("type").and_then(|value| value.as_str()) {
+                if let Some(version) = contract_map.get(node_type) {
+                    versions.insert(node_type.to_string(), version.clone());
+                }
+            }
+        }
+
+        serde_json::to_string(&versions)
+            .map_err(|err| Error::Unexpected(anyhow::anyhow!("Serialization error: {}", err)))
     }
 
     pub async fn get_deployed_version(

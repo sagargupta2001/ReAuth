@@ -198,6 +198,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.realm_repo.clone(),
         runtime_registry.clone(),
         publish_validator,
+        node_registry.clone(),
     ));
 
     // 5. OIDC & API Services

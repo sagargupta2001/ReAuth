@@ -318,6 +318,7 @@ fn build_version(id: Uuid, plan: &ExecutionPlan) -> FlowVersion {
         execution_artifact: serde_json::to_string(plan).unwrap(),
         graph_json: json!({}).to_string(),
         checksum: "checksum".to_string(),
+        node_contract_versions: "{}".to_string(),
         created_at: Utc::now(),
     }
 }
@@ -442,6 +443,175 @@ async fn execute_handle_input_rejects_and_returns_ui() {
         }
         other => panic!("unexpected result: {:?}", other),
     }
+}
+
+#[tokio::test]
+async fn execute_accepts_signal_payload() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let auth_node = ExecutionNode {
+        id: "auth-password".to_string(),
+        step_type: StepType::Authenticator,
+        next: HashMap::new(),
+        config: json!({ "auth_type": "core.auth.password" }),
+    };
+    let success_node = ExecutionNode {
+        id: "success".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({}),
+    };
+    let plan = build_plan("auth-password", vec![auth_node, success_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "auth-password".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let node = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "unused".to_string(),
+            context: json!({}),
+        },
+        NodeOutcome::Continue {
+            output: "success".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node("core.auth.password", node.clone(), StepType::Authenticator);
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(
+            session_id,
+            Some(json!({
+                "signal": {
+                    "type": "submit_node",
+                    "node_id": "auth-password",
+                    "payload": { "password": "secret" }
+                }
+            })),
+        )
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Success { redirect_url } => {
+            assert_eq!(redirect_url, "/");
+        }
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    assert_eq!(node.handle_calls(), 1);
+}
+
+#[tokio::test]
+async fn execute_rejects_unknown_signal_type() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let auth_node = ExecutionNode {
+        id: "auth-password".to_string(),
+        step_type: StepType::Authenticator,
+        next: HashMap::new(),
+        config: json!({ "auth_type": "core.auth.password" }),
+    };
+    let plan = build_plan("auth-password", vec![auth_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "auth-password".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let node = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "login".to_string(),
+            context: json!({}),
+        },
+        NodeOutcome::Reject {
+            error: "bad".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node("core.auth.password", node, StepType::Authenticator);
+
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
+    let err = executor
+        .execute(
+            session_id,
+            Some(json!({
+                "signal": {
+                    "type": "unknown",
+                    "node_id": "auth-password",
+                    "payload": { "password": "wrong" }
+                }
+            })),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, Error::Validation(_)));
+}
+
+#[tokio::test]
+async fn execute_rejects_signal_node_mismatch() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let auth_node = ExecutionNode {
+        id: "auth-password".to_string(),
+        step_type: StepType::Authenticator,
+        next: HashMap::new(),
+        config: json!({ "auth_type": "core.auth.password" }),
+    };
+    let plan = build_plan("auth-password", vec![auth_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "auth-password".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let node = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "login".to_string(),
+            context: json!({}),
+        },
+        NodeOutcome::Reject {
+            error: "bad".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node("core.auth.password", node, StepType::Authenticator);
+
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
+    let err = executor
+        .execute(
+            session_id,
+            Some(json!({
+                "signal": {
+                    "type": "submit_node",
+                    "node_id": "different-node",
+                    "payload": { "password": "wrong" }
+                }
+            })),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, Error::Validation(_)));
 }
 
 #[tokio::test]

@@ -26,12 +26,13 @@ export function FlowBuilderPage() {
   const { setGraph, reset, nodes, nodeTypes, publishError, selectNode } = useFlowBuilderStore()
   const { data: activeTheme } = useActiveTheme()
 
-  const publishErrorNodeIds = useMemo(() => {
-    if (!publishError) return []
-    const matches = Array.from(publishError.matchAll(/node_id=([A-Za-z0-9_-]+)/g))
+  const publishIssues = publishError?.issues ?? []
+  const fallbackPublishNodeIds = useMemo(() => {
+    if (!publishError || publishIssues.length) return []
+    const matches = Array.from(publishError.message.matchAll(/node_id=([A-Za-z0-9_-]+)/g))
     const ids = matches.map((match) => match[1]).filter(Boolean)
     return Array.from(new Set(ids))
-  }, [publishError])
+  }, [publishError, publishIssues.length])
 
   const missingTemplates = useMemo(() => {
     if (!activeTheme) return []
@@ -43,7 +44,7 @@ export function FlowBuilderPage() {
     nodes.forEach((node) => {
       const nodeType = node.type ?? ''
       const nodeDefinition = nodeTypeMap.get(nodeType)
-      if (!nodeDefinition?.supports_ui) {
+      if (!nodeDefinition?.capabilities?.supports_ui) {
         return
       }
       const config = (node.data as { config?: Record<string, unknown> })?.config
@@ -128,11 +129,34 @@ export function FlowBuilderPage() {
           <div className="border-b px-6 py-3">
             <Alert variant="destructive">
               <AlertTitle>Publish blocked</AlertTitle>
-              <AlertDescription className="flex flex-wrap items-center gap-3">
-                <span>{publishError}</span>
-                {publishErrorNodeIds.length > 0 && (
+              <AlertDescription className="flex flex-col gap-3">
+                <span>{publishError.message}</span>
+                {publishIssues.length > 0 && (
+                  <div className="space-y-2">
+                    {publishIssues.map((issue, index) => (
+                      <div key={`${issue.message}-${index}`} className="flex flex-wrap gap-2">
+                        <span className="text-xs text-muted-foreground">{issue.message}</span>
+                        {(issue.node_ids || []).length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {issue.node_ids.map((nodeId) => (
+                              <Button
+                                key={nodeId}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => selectNode(nodeId)}
+                              >
+                                Open {nodeId}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {publishIssues.length === 0 && fallbackPublishNodeIds.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {publishErrorNodeIds.map((nodeId) => (
+                    {fallbackPublishNodeIds.map((nodeId) => (
                       <Button
                         key={nodeId}
                         variant="outline"

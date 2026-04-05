@@ -63,10 +63,11 @@ impl ThemeRepository for SqliteThemeRepository {
     )]
     async fn update_theme(&self, theme: &Theme, tx: Option<&mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
-            "UPDATE themes SET name = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND realm_id = ?",
+            "UPDATE themes SET name = ?, description = ?, flow_binding_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND realm_id = ?",
         )
         .bind(&theme.name)
         .bind(&theme.description)
+        .bind(&theme.flow_binding_id)
         .bind(theme.id.to_string())
         .bind(theme.realm_id.to_string());
 
@@ -150,7 +151,7 @@ impl ThemeRepository for SqliteThemeRepository {
     )]
     async fn find_theme(&self, realm_id: &Uuid, theme_id: &Uuid) -> Result<Option<Theme>> {
         let row = sqlx::query(
-            "SELECT id, realm_id, name, description, is_system, created_at, updated_at FROM themes WHERE id = ? AND realm_id = ?",
+            "SELECT id, realm_id, name, description, flow_binding_id, is_system, created_at, updated_at FROM themes WHERE id = ? AND realm_id = ?",
         )
         .bind(theme_id.to_string())
         .bind(realm_id.to_string())
@@ -163,6 +164,7 @@ impl ThemeRepository for SqliteThemeRepository {
             realm_id: Self::parse_uuid(row.get::<String, _>("realm_id").as_str(), realm_id),
             name: row.get("name"),
             description: row.get("description"),
+            flow_binding_id: row.get("flow_binding_id"),
             is_system: row.get("is_system"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
@@ -180,7 +182,7 @@ impl ThemeRepository for SqliteThemeRepository {
         tx: Option<&mut dyn Transaction>,
     ) -> Result<Option<Theme>> {
         let query = sqlx::query(
-            "SELECT id, realm_id, name, description, is_system, created_at, updated_at FROM themes WHERE id = ? AND realm_id = ?",
+            "SELECT id, realm_id, name, description, flow_binding_id, is_system, created_at, updated_at FROM themes WHERE id = ? AND realm_id = ?",
         )
         .bind(theme_id.to_string())
         .bind(realm_id.to_string());
@@ -198,6 +200,7 @@ impl ThemeRepository for SqliteThemeRepository {
             realm_id: Self::parse_uuid(row.get::<String, _>("realm_id").as_str(), realm_id),
             name: row.get("name"),
             description: row.get("description"),
+            flow_binding_id: row.get("flow_binding_id"),
             is_system: row.get("is_system"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
@@ -210,7 +213,7 @@ impl ThemeRepository for SqliteThemeRepository {
     )]
     async fn list_themes(&self, realm_id: &Uuid) -> Result<Vec<Theme>> {
         let rows = sqlx::query(
-            "SELECT id, realm_id, name, description, is_system, created_at, updated_at FROM themes WHERE realm_id = ? ORDER BY created_at DESC",
+            "SELECT id, realm_id, name, description, flow_binding_id, is_system, created_at, updated_at FROM themes WHERE realm_id = ? ORDER BY created_at DESC",
         )
         .bind(realm_id.to_string())
         .fetch_all(&*self.pool)
@@ -225,6 +228,7 @@ impl ThemeRepository for SqliteThemeRepository {
                 realm_id: *realm_id,
                 name: row.get("name"),
                 description: row.get("description"),
+                flow_binding_id: row.get("flow_binding_id"),
                 is_system: row.get("is_system"),
                 created_at: row.get("created_at"),
                 updated_at: row.get("updated_at"),

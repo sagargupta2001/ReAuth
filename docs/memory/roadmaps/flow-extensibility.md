@@ -37,6 +37,10 @@
 - **Policy-as-data** library that standardizes policy DSL across nodes.
 - **Advanced runtime isolation** with optional out-of-process sandboxing for untrusted scripts.
 
+## Next actions
+- Add builder **Flow diagnostics** (publish errors with node jump links and inline guidance).
+- Define how to migrate node contracts across breaking changes.
+
 ## New nodes to explore
 - Webhook decision node (async pause/resume).
 - Risk scoring node (IP reputation, device fingerprint, geo).
@@ -73,3 +77,37 @@
 - Limits: default **50ms** CPU for logic scripts, **200ms** for UI scripts, **8MB** memory, and **1,000,000** instruction budget per call.
 - Deterministic UI: **Publish-time dry run** validates scripted UI patches against Fluid schema.
 - UI action wiring: **Signal/Intent bindings**, not raw client JS, to preserve session security.
+
+## Implementation checklist
+- [x] Add backend signal payload schema and validation.
+- [x] Extend auth execute endpoints for signal envelopes.
+- [x] Validate signal bindings and payload_map at publish time.
+- [x] Emit signal envelopes from Fluid runtime.
+- [x] Warn when payload_map resolves to undefined in UI.
+- [x] Build Action Binder UI in the theme editor.
+- [x] Inline editor validation for payload_map paths.
+- [x] Add mapping helpers for inputs/context paths.
+- [x] Add payload_map validation against component bindings.
+- [x] Add scripted UI node execution engine.
+- [x] Add node_id picker suggestions from flow graphs.
+- [x] Add scripted UI authoring UX (inline editor + file load).
+- [x] Add script sandbox limits for scripted UI execution.
+- [x] Add optional theme -> flow binding for Action Binder suggestions.
+- [x] Add manual flow selector in Theme Builder when no binding is present.
+- [x] Add publish-time dry-run validation for scripted UI patches.
+- [x] Add theme settings control to change/clear flow binding.
+- [x] Add integration tests for scripted UI dry-run validation.
+- [x] Add docs/examples for scripted UI patch payloads.
+- [x] Add script editor dialog with syntax highlighting.
+- [x] Add template-key suggestions in script editor.
+- [x] Add UI patch preview in script editor.
+- [x] Add schema-aware autocomplete + validation for ui_patch JSON.
+- [x] Add template-key insertion menu with search + keyboard nav.
+- [x] Render ui_patch preview with active theme tokens when available.
+- [x] Add schema-aware property key autocomplete for ui_patch JSON.
+- [x] Add template-key toolbar quick actions + current-page helper.
+- [x] Add inline schema docs/help for ui_patch JSON (hover hints).
+- [x] Add "Validate patch" button for ui_patch JSON.
+- [x] Add diff view for ui_patch preview.
+- [x] Define Node Capability Model shared by backend + UI.
+- [x] Introduce versioned Node Contract DTO and persist contract versions at publish time.

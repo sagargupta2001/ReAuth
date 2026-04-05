@@ -21,6 +21,7 @@ struct FlowVersionRow {
     execution_artifact: String,
     graph_json: String,
     checksum: String,
+    node_contract_versions: String,
     created_at: chrono::DateTime<Utc>,
 }
 
@@ -300,8 +301,8 @@ impl FlowStore for SqliteFlowStore {
     )]
     async fn create_version(&self, version: &FlowVersion) -> Result<()> {
         sqlx::query(
-            "INSERT INTO flow_versions (id, flow_id, version_number, execution_artifact, graph_json, checksum, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO flow_versions (id, flow_id, version_number, execution_artifact, graph_json, checksum, node_contract_versions, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
             .bind(&version.id)
             .bind(&version.flow_id)
@@ -309,6 +310,7 @@ impl FlowStore for SqliteFlowStore {
             .bind(&version.execution_artifact)
             .bind(&version.graph_json)
             .bind(&version.checksum)
+            .bind(&version.node_contract_versions)
             .bind(version.created_at)
             .execute(&*self.pool)
             .await
@@ -326,8 +328,8 @@ impl FlowStore for SqliteFlowStore {
         tx: Option<&mut dyn Transaction>,
     ) -> Result<()> {
         let query = sqlx::query(
-            "INSERT INTO flow_versions (id, flow_id, version_number, execution_artifact, graph_json, checksum, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO flow_versions (id, flow_id, version_number, execution_artifact, graph_json, checksum, node_contract_versions, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&version.id)
         .bind(&version.flow_id)
@@ -335,6 +337,7 @@ impl FlowStore for SqliteFlowStore {
         .bind(&version.execution_artifact)
         .bind(&version.graph_json)
         .bind(&version.checksum)
+        .bind(&version.node_contract_versions)
         .bind(version.created_at);
 
         if let Some(tx) = tx {
@@ -600,6 +603,7 @@ impl FlowStore for SqliteFlowStore {
                 execution_artifact: r.execution_artifact,
                 graph_json: r.graph_json,
                 checksum: r.checksum,
+                node_contract_versions: r.node_contract_versions,
                 created_at: r.created_at,
             }))
         } else {

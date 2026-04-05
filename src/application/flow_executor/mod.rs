@@ -13,6 +13,7 @@ use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
 use crate::domain::auth_session_action::AuthSessionAction;
 use crate::domain::execution::lifecycle::NodeOutcome;
 use crate::domain::execution::{ExecutionPlan, ExecutionResult, StepType};
+use crate::domain::flow::signal::FlowSignal;
 use crate::error::{Error, Result};
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
 use crate::ports::auth_session_repository::AuthSessionRepository;
@@ -90,6 +91,15 @@ impl FlowExecutor {
             .map_err(|e| Error::System(format!("Corrupt artifact: {}", e)))?;
 
         if let Some(input) = user_input {
+            let ParsedSignalInput {
+                signal,
+                payload: input,
+            } = parse_signal_input(input)?;
+
+            if let Some(signal) = &signal {
+                validate_signal_target(&session, signal)?;
+            }
+
             let current_node_def = plan
                 .nodes
                 .get(&session.current_node_id)
@@ -118,6 +128,11 @@ impl FlowExecutor {
                 );
 
                 let previous_config = inject_node_config(&mut session, &current_node_def.config);
+                let previous_signal = if let Some(signal) = signal.as_ref() {
+                    inject_signal_context(&mut session, signal)
+                } else {
+                    None
+                };
                 let outcome = worker
                     .handle_input(&mut session, input)
                     .instrument(handle_span)
@@ -154,6 +169,7 @@ impl FlowExecutor {
                         );
                         worker.on_exit(&mut session).instrument(exit_span).await?;
                         restore_node_config(&mut session, previous_config);
+                        restore_signal_context(&mut session, previous_signal);
                         session.current_node_id = next_id.clone();
                     }
                     NodeOutcome::Reject { .. } => {
@@ -166,6 +182,7 @@ impl FlowExecutor {
                         );
                         let ui_outcome = worker.execute(&mut session).instrument(exec_span).await?;
                         restore_node_config(&mut session, previous_config);
+                        restore_signal_context(&mut session, previous_signal);
                         self.session_repo.update(&session).await?;
                         if let NodeOutcome::SuspendForUI { screen, context } = ui_outcome {
                             let template_key = resolve_template_key(&current_node_def.config);
@@ -187,6 +204,7 @@ impl FlowExecutor {
                         context,
                     } => {
                         restore_node_config(&mut session, previous_config);
+                        restore_signal_context(&mut session, previous_signal);
                         let template_key = resolve_template_key(&current_node_def.config);
                         let context = attach_template_key(context, template_key.as_deref());
                         let context = ensure_template_key(context, "awaiting_action");
@@ -208,6 +226,7 @@ impl FlowExecutor {
                     }
                     _ => {
                         restore_node_config(&mut session, previous_config);
+                        restore_signal_context(&mut session, previous_signal);
                         return Err(Error::System("Unexpected outcome from handle_input".into()));
                     }
                 }
@@ -560,6 +579,79 @@ fn ensure_template_key(mut context: Value, default_key: &str) -> Value {
     }
 }
 
+struct ParsedSignalInput {
+    signal: Option<FlowSignal>,
+    payload: Value,
+}
+
+fn parse_signal_input(input: Value) -> Result<ParsedSignalInput> {
+    let Value::Object(map) = &input else {
+        return Ok(ParsedSignalInput {
+            signal: None,
+            payload: input,
+        });
+    };
+
+    let Some(signal_value) = map.get("signal") else {
+        return Ok(ParsedSignalInput {
+            signal: None,
+            payload: input,
+        });
+    };
+
+    let mut signal: FlowSignal = serde_json::from_value(signal_value.clone())
+        .map_err(|err| Error::Validation(format!("Invalid signal payload: {}", err)))?;
+
+    normalize_signal(&mut signal);
+
+    if !signal.is_allowed_type() {
+        return Err(Error::Validation(format!(
+            "Unsupported signal type '{}'",
+            signal.signal_type
+        )));
+    }
+
+    let payload = normalize_signal_payload(signal.payload.clone())?;
+
+    Ok(ParsedSignalInput {
+        signal: Some(signal),
+        payload,
+    })
+}
+
+fn normalize_signal(signal: &mut FlowSignal) {
+    signal.node_id = signal.node_id.take().and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
+}
+
+fn normalize_signal_payload(payload: Value) -> Result<Value> {
+    match payload {
+        Value::Null => Ok(serde_json::json!({})),
+        Value::Object(_) => Ok(payload),
+        _ => Err(Error::Validation(
+            "Signal payload must be an object".to_string(),
+        )),
+    }
+}
+
+fn validate_signal_target(session: &AuthenticationSession, signal: &FlowSignal) -> Result<()> {
+    if let Some(node_id) = signal.normalized_node_id() {
+        if node_id != session.current_node_id {
+            return Err(Error::Validation(format!(
+                "Signal node_id '{}' does not match current node",
+                node_id
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn inject_node_config(session: &mut AuthenticationSession, config: &Value) -> Option<Value> {
     let previous = session.context.get("node_config").cloned();
     match session.context {
@@ -579,6 +671,37 @@ fn restore_node_config(session: &mut AuthenticationSession, previous: Option<Val
             map.insert("node_config".to_string(), value);
         } else {
             map.remove("node_config");
+        }
+    }
+}
+
+fn inject_signal_context(
+    session: &mut AuthenticationSession,
+    signal: &FlowSignal,
+) -> Option<Value> {
+    let previous = session.context.get("signal").cloned();
+    let value = serde_json::json!({
+        "type": signal.signal_type,
+        "node_id": signal.normalized_node_id(),
+        "payload": signal.payload.clone(),
+    });
+    match session.context {
+        Value::Object(ref mut map) => {
+            map.insert("signal".to_string(), value);
+        }
+        _ => {
+            session.context = serde_json::json!({ "signal": value });
+        }
+    }
+    previous
+}
+
+fn restore_signal_context(session: &mut AuthenticationSession, previous: Option<Value>) {
+    if let Value::Object(ref mut map) = session.context {
+        if let Some(value) = previous {
+            map.insert("signal".to_string(), value);
+        } else {
+            map.remove("signal");
         }
     }
 }

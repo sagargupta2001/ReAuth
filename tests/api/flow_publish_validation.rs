@@ -124,6 +124,18 @@ async fn publish_flow_rejects_missing_theme_page_binding() {
     let json: serde_json::Value = serde_json::from_slice(&body).expect("error json");
     let message = json.get("error").and_then(|v| v.as_str()).unwrap_or("");
     assert!(message.contains("Missing theme pages"));
+    let issues = json
+        .get("details")
+        .and_then(|v| v.get("issues"))
+        .and_then(|v| v.as_array())
+        .expect("issues array");
+    assert!(issues.iter().any(|issue| {
+        issue
+            .get("node_ids")
+            .and_then(|v| v.as_array())
+            .map(|ids| ids.iter().any(|id| id == "password"))
+            .unwrap_or(false)
+    }));
 }
 
 #[tokio::test]
@@ -185,4 +197,16 @@ async fn publish_flow_rejects_category_mismatch() {
     let json: serde_json::Value = serde_json::from_slice(&body).expect("error json");
     let message = json.get("error").and_then(|v| v.as_str()).unwrap_or("");
     assert!(message.contains("Page category mismatches"));
+    let issues = json
+        .get("details")
+        .and_then(|v| v.get("issues"))
+        .and_then(|v| v.as_array())
+        .expect("issues array");
+    assert!(issues.iter().any(|issue| {
+        issue
+            .get("node_ids")
+            .and_then(|v| v.as_array())
+            .map(|ids| ids.iter().any(|id| id == "consent"))
+            .unwrap_or(false)
+    }));
 }

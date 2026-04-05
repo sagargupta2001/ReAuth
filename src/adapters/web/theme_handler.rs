@@ -33,6 +33,7 @@ pub struct ThemeSummary {
     pub realm_id: String,
     pub name: String,
     pub description: Option<String>,
+    pub flow_binding_id: Option<String>,
     pub is_system: bool,
     pub created_at: String,
     pub updated_at: String,
@@ -134,6 +135,7 @@ pub struct CreateThemeRequest {
 pub struct UpdateThemeRequest {
     pub name: Option<String>,
     pub description: Option<String>,
+    pub flow_binding_id: Option<Option<Uuid>>,
 }
 
 pub async fn resolve_theme_handler(
@@ -192,6 +194,7 @@ pub async fn create_theme_handler(
             realm_id: theme.realm_id.to_string(),
             name: theme.name,
             description: theme.description,
+            flow_binding_id: theme.flow_binding_id,
             is_system: theme.is_system,
             created_at: theme.created_at,
             updated_at: theme.updated_at,
@@ -219,7 +222,13 @@ pub async fn update_theme_handler(
 
     let theme = state
         .theme_service
-        .update_theme(realm.id, theme_uuid, payload.name, payload.description)
+        .update_theme(
+            realm.id,
+            theme_uuid,
+            payload.name,
+            payload.description,
+            payload.flow_binding_id,
+        )
         .await?;
 
     let active_version_id = state
@@ -238,6 +247,7 @@ pub async fn update_theme_handler(
             realm_id: theme.realm_id.to_string(),
             name: theme.name,
             description: theme.description,
+            flow_binding_id: theme.flow_binding_id,
             is_system: theme.is_system,
             created_at: theme.created_at,
             updated_at: theme.updated_at,
@@ -267,6 +277,7 @@ pub async fn list_themes_handler(
             realm_id: theme.realm_id.to_string(),
             name: theme.name,
             description: theme.description,
+            flow_binding_id: theme.flow_binding_id,
             is_system: theme.is_system,
             created_at: theme.created_at,
             updated_at: theme.updated_at,
@@ -331,6 +342,7 @@ pub async fn get_active_theme_handler(
             realm_id: theme.realm_id.to_string(),
             name: theme.name,
             description: theme.description,
+            flow_binding_id: theme.flow_binding_id,
             is_system: theme.is_system,
             created_at: theme.created_at,
             updated_at: theme.updated_at,
@@ -381,6 +393,7 @@ pub async fn get_theme_handler(
             realm_id: theme.realm_id.to_string(),
             name: theme.name,
             description: theme.description,
+            flow_binding_id: theme.flow_binding_id,
             is_system: theme.is_system,
             created_at: theme.created_at,
             updated_at: theme.updated_at,

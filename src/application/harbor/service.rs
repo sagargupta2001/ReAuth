@@ -1138,6 +1138,7 @@ impl HarborService {
                                     existing.id,
                                     None,
                                     Some(description),
+                                    None,
                                     tx.as_deref_mut(),
                                 )
                                 .await?;

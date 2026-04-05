@@ -87,6 +87,7 @@ fn version(
         execution_artifact: format!("artifact-{}", version_number),
         graph_json: "{}".to_string(),
         checksum: format!("chk-{}", version_number),
+        node_contract_versions: "{}".to_string(),
         created_at,
     }
 }

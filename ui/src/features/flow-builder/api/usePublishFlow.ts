@@ -40,12 +40,16 @@ export function usePublishFlow() {
     onError: (error: unknown) => {
       // Show the validation error from the backend (e.g. "Dead end detected")
       let serverMessage = 'Unknown validation error'
+      let issues: Array<{ message: string; node_ids: string[] }> = []
 
       if (error && typeof error === 'object') {
         const errObj = error as Record<string, unknown>
         const response = errObj.response as Record<string, unknown> | undefined
         const responseData = response?.data as Record<string, unknown> | undefined
         const responseCode = responseData?.code as string | undefined
+        const details = responseData?.details as
+          | { message?: string; issues?: Array<{ message?: string; node_ids?: string[] }> }
+          | undefined
         const body = errObj.body as Record<string, unknown> | undefined
 
         serverMessage =
@@ -53,6 +57,15 @@ export function usePublishFlow() {
           (body?.error as string) ||
           (errObj.message as string) ||
           serverMessage
+
+        if (details?.issues) {
+          issues = details.issues
+            .filter((issue) => issue && typeof issue.message === 'string')
+            .map((issue) => ({
+              message: issue.message ?? 'Validation failed',
+              node_ids: Array.isArray(issue.node_ids) ? issue.node_ids : [],
+            }))
+        }
 
         if (responseCode === 'validation.failed') {
           const prefix = 'Validation failed: '
@@ -62,7 +75,7 @@ export function usePublishFlow() {
         }
       }
 
-      setPublishError(serverMessage)
+      setPublishError({ message: serverMessage, issues })
       toast.error(`Publish Failed: ${serverMessage}`)
     },
   })

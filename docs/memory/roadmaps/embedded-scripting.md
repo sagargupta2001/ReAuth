@@ -68,3 +68,39 @@
 ## Risks / dependencies
 - Sandboxing is critical; a bad script must not block the main runtime.
 - Host API must remain minimal and stable to avoid coupling.
+
+## Scripted UI Patch Payloads (context.ui_patch)
+Scripted UI handlers can return a `challenge` outcome with UI updates:
+
+Minimal example (swap to a different page template):
+```json
+{
+  "outcome": "challenge",
+  "context": {
+    "template_key": "login"
+  }
+}
+```
+
+Patch example (inject or replace blocks on the active page):
+```json
+{
+  "outcome": "challenge",
+  "context": {
+    "template_key": "login",
+    "ui_patch": [
+      {
+        "id": "scripted-message",
+        "type": "Text",
+        "props": { "text": "Custom validation failed." }
+      }
+    ]
+  }
+}
+```
+
+Patch schema rules:
+- `context.ui_patch` must be a Fluid blueprint array (or `{ "nodes": [...] }` object).
+- Allowed node types: `Box`, `Text`, `Image`, `Icon`, `Input`, `Component`.
+- `Component` types must be one of: `Button`, `Divider`, `Input`, `Link`, `SocialProvider`.
+- Invalid patch payloads will fail publish-time validation.

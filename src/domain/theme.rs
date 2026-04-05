@@ -10,6 +10,7 @@ pub struct Theme {
     pub realm_id: Uuid,
     pub name: String,
     pub description: Option<String>,
+    pub flow_binding_id: Option<String>,
     pub is_system: bool,
     pub created_at: String,
     pub updated_at: String,

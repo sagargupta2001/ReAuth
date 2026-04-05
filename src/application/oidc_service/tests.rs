@@ -121,6 +121,7 @@ impl TestFlowStore {
                 execution_artifact: artifact.clone(),
                 graph_json: json!({}).to_string(),
                 checksum: "checksum".to_string(),
+                node_contract_versions: "{}".to_string(),
                 created_at: Utc::now(),
             }
         })

@@ -172,6 +172,81 @@ async fn ensure_password_browser_flow(ctx: &TestContext, realm: &Realm) {
         .expect("publish flow");
 }
 
+async fn attach_login_action_binding(ctx: &TestContext, realm: &Realm) {
+    let binding = ctx
+        .app_state
+        .theme_service
+        .resolve_binding(realm.id, None)
+        .await
+        .expect("resolve binding")
+        .expect("theme binding");
+
+    let mut draft = ctx
+        .app_state
+        .theme_service
+        .get_draft(realm.id, binding.theme_id)
+        .await
+        .expect("theme draft");
+
+    let login_node = draft
+        .nodes
+        .iter_mut()
+        .find(|node| node.node_key == "login")
+        .expect("login page");
+
+    let nodes = match login_node.blueprint {
+        serde_json::Value::Array(ref mut nodes) => nodes,
+        serde_json::Value::Object(ref mut map) => map
+            .get_mut("nodes")
+            .and_then(serde_json::Value::as_array_mut)
+            .expect("login nodes array"),
+        _ => panic!("unexpected login blueprint"),
+    };
+
+    let mut updated = false;
+    for node in nodes.iter_mut() {
+        let obj = match node.as_object_mut() {
+            Some(value) => value,
+            None => continue,
+        };
+        let node_type = obj.get("type").and_then(|value| value.as_str());
+        let component = obj.get("component").and_then(|value| value.as_str());
+        if node_type == Some("Component") && component == Some("Button") {
+            let props = obj
+                .entry("props")
+                .or_insert_with(|| serde_json::json!({}))
+                .as_object_mut()
+                .expect("button props");
+            props.insert(
+                "actions".to_string(),
+                serde_json::json!([
+                    {
+                        "trigger": "on_click",
+                        "signal": {
+                            "type": "submit_node",
+                            "node_id": "auth-password",
+                            "payload_map": {
+                                "username": "inputs.username",
+                                "password": "inputs.password"
+                            }
+                        }
+                    }
+                ]),
+            );
+            updated = true;
+            break;
+        }
+    }
+
+    assert!(updated, "login button not found for action binding");
+
+    ctx.app_state
+        .theme_service
+        .save_draft(realm.id, binding.theme_id, draft)
+        .await
+        .expect("save theme draft");
+}
+
 async fn register_oidc_client(
     ctx: &TestContext,
     realm_id: Uuid,
@@ -526,6 +601,94 @@ async fn auth_login_flow_challenge_and_execute_success() {
         Some("redirect")
     );
     assert_eq!(exec_json.get("url").and_then(|v| v.as_str()), Some("/"));
+
+    let refresh_token = ctx
+        .app_state
+        .session_repo
+        .find_by_id(&refresh_id)
+        .await
+        .expect("refresh token lookup")
+        .expect("refresh token missing");
+    assert_eq!(refresh_token.user_id, user.id);
+}
+
+#[tokio::test]
+#[serial(test_db)]
+async fn auth_login_flow_executes_signal_envelope() {
+    let ctx = TestContext::new().await;
+    let realm = setup_master_realm(&ctx).await;
+    attach_login_action_binding(&ctx, &realm).await;
+    ensure_password_browser_flow(&ctx, &realm).await;
+
+    let user = ctx
+        .app_state
+        .user_service
+        .create_user(realm.id, "signal-user", "password-123", None)
+        .await
+        .expect("create user");
+
+    let mut start_request = Request::builder()
+        .method("GET")
+        .uri(format!("/api/realms/{}/auth/login", DEFAULT_REALM_NAME))
+        .body(Body::empty())
+        .unwrap();
+    start_request
+        .extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+    let start_response = ctx.request(start_request).await;
+    assert_eq!(start_response.status(), StatusCode::OK);
+
+    let session_id = cookie_value(start_response.headers(), LOGIN_SESSION_COOKIE)
+        .and_then(|val| Uuid::parse_str(&val).ok())
+        .expect("login session cookie");
+
+    let payload = serde_json::json!({
+        "signal": {
+            "type": "submit_node",
+            "node_id": "auth-password",
+            "payload": {
+                "username": user.username,
+                "password": "password-123"
+            }
+        }
+    });
+
+    let mut exec_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/api/realms/{}/auth/login/execute",
+            DEFAULT_REALM_NAME
+        ))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(
+            header::COOKIE,
+            format!("{}={}", LOGIN_SESSION_COOKIE, session_id),
+        )
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+    exec_request
+        .extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+    let exec_response = ctx.request(exec_request).await;
+    assert_eq!(exec_response.status(), StatusCode::OK);
+
+    let refresh_id = cookie_value(exec_response.headers(), REFRESH_TOKEN_COOKIE)
+        .and_then(|val| Uuid::parse_str(&val).ok())
+        .expect("refresh token cookie");
+
+    let exec_body = exec_response
+        .into_body()
+        .collect()
+        .await
+        .expect("read body")
+        .to_bytes();
+    let exec_json: serde_json::Value = serde_json::from_slice(&exec_body).expect("redirect json");
+    assert_eq!(
+        exec_json.get("status").and_then(|v| v.as_str()),
+        Some("redirect")
+    );
 
     let refresh_token = ctx
         .app_state

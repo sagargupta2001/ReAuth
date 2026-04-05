@@ -17,6 +17,8 @@ import { Separator } from '@/components/separator'
 import { AutoForm } from '@/shared/ui/auto-form'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { useActiveTheme } from '@/features/theme/api/useActiveTheme'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
 
 import { useFlowBuilderStore } from '../store/flowBuilderStore'
 
@@ -27,6 +29,7 @@ export function NodeInspector() {
   const selectNode = useFlowBuilderStore((s) => s.selectNode)
   const updateNodeData = useFlowBuilderStore((s) => s.updateNodeData)
   const { data: activeTheme } = useActiveTheme()
+  const realmName = useActiveRealm()
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
   const nodeType = selectedNode?.type ?? ''
@@ -34,7 +37,7 @@ export function NodeInspector() {
   // 1. Lookup Schema based on Node Type (e.g., "core.auth.password")
   const nodeDefinition = nodeType ? nodeTypes.find((t) => t.id === nodeType) : undefined
   const configSchema = nodeDefinition?.config_schema
-  const supportsUi = nodeDefinition?.supports_ui ?? false
+  const supportsUi = nodeDefinition?.capabilities?.supports_ui ?? false
 
   const currentConfig = (selectedNode?.data?.config as Record<string, unknown>) || {}
   const currentUi =
@@ -52,8 +55,8 @@ export function NodeInspector() {
 
   const availablePages = useMemo(() => activeTheme?.pages ?? [], [activeTheme?.pages])
   const allowedCategories = useMemo(
-    () => nodeDefinition?.allowed_page_categories ?? [],
-    [nodeDefinition?.allowed_page_categories],
+    () => nodeDefinition?.capabilities?.allowed_page_categories ?? [],
+    [nodeDefinition?.capabilities?.allowed_page_categories],
   )
   const filteredPages = useMemo(() => {
     if (!allowedCategories.length) return availablePages
@@ -62,6 +65,31 @@ export function NodeInspector() {
         allowedCategories.includes(page.category) || page.category === 'custom',
     )
   }, [availablePages, allowedCategories])
+  const scriptTemplateKeys = useMemo(
+    () => availablePages.map((page) => page.key),
+    [availablePages],
+  )
+  const codeSuggestions =
+    nodeType === 'core.ui.scripted'
+      ? { script: scriptTemplateKeys }
+      : undefined
+  const codeEditorMeta =
+    nodeType === 'core.ui.scripted'
+      ? { currentTemplateKey: currentTemplate ?? undefined }
+      : undefined
+  const { data: themeSnapshot } = useThemeSnapshot(
+    realmName,
+    { pageKey: currentTemplate || 'login' },
+    { enabled: nodeType === 'core.ui.scripted' },
+  )
+  const codePreviewTheme = themeSnapshot
+    ? {
+        tokens: themeSnapshot.tokens,
+        layout: themeSnapshot.layout,
+        assets: themeSnapshot.assets,
+        nodes: themeSnapshot.nodes,
+      }
+    : undefined
   const [isTemplateOpen, setIsTemplateOpen] = useState(false)
   const selectedPage = useMemo(
     () => availablePages.find((page) => page.key === currentTemplate),
@@ -187,9 +215,9 @@ export function NodeInspector() {
               </div>
 
               <div className="border-muted ml-0.5 space-y-3 border-l-2 pl-3.5">
-                {nodeDefinition?.ui_surface ? (
+                {nodeDefinition?.capabilities?.ui_surface ? (
                   <div className="text-muted-foreground text-[10px] uppercase tracking-wide">
-                    UI Surface: {nodeDefinition.ui_surface.replace('_', ' ')}
+                    UI Surface: {nodeDefinition.capabilities.ui_surface.replace('_', ' ')}
                   </div>
                 ) : null}
                 <div className="space-y-1.5">
@@ -306,6 +334,9 @@ export function NodeInspector() {
                 schema={configSchema}
                 values={(selectedNode.data.config as Record<string, unknown>) || {}}
                 onChange={handleConfigChange}
+                codeSuggestions={codeSuggestions}
+                codePreviewTheme={codePreviewTheme}
+                codeEditorMeta={codeEditorMeta}
               />
             ) : (
               <div className="rounded-lg border border-dashed p-4 text-center">

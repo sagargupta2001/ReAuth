@@ -221,6 +221,7 @@ impl ThemeResolverService {
             realm_id,
             name,
             description,
+            flow_binding_id: None,
             is_system,
             created_at: "".to_string(),
             updated_at: "".to_string(),
@@ -326,8 +327,9 @@ impl ThemeResolverService {
         theme_id: Uuid,
         name: Option<String>,
         description: Option<String>,
+        flow_binding_id: Option<Option<Uuid>>,
     ) -> Result<Theme> {
-        if name.is_none() && description.is_none() {
+        if name.is_none() && description.is_none() && flow_binding_id.is_none() {
             return Err(Error::Validation(
                 "At least one field must be updated".to_string(),
             ));
@@ -356,6 +358,10 @@ impl ThemeResolverService {
             };
         }
 
+        if let Some(flow_binding_id) = flow_binding_id {
+            theme.flow_binding_id = flow_binding_id.map(|id| id.to_string());
+        }
+
         self.repo.update_theme(&theme, None).await?;
         self.repo
             .find_theme(&realm_id, &theme_id)
@@ -370,9 +376,10 @@ impl ThemeResolverService {
         theme_id: Uuid,
         name: Option<String>,
         description: Option<String>,
+        flow_binding_id: Option<Option<Uuid>>,
         mut tx: Option<&mut dyn Transaction>,
     ) -> Result<Theme> {
-        if name.is_none() && description.is_none() {
+        if name.is_none() && description.is_none() && flow_binding_id.is_none() {
             return Err(Error::Validation(
                 "At least one field must be updated".to_string(),
             ));
@@ -399,6 +406,10 @@ impl ThemeResolverService {
             } else {
                 Some(trimmed)
             };
+        }
+
+        if let Some(flow_binding_id) = flow_binding_id {
+            theme.flow_binding_id = flow_binding_id.map(|id| id.to_string());
         }
 
         self.repo.update_theme(&theme, tx.as_deref_mut()).await?;
@@ -1071,6 +1082,7 @@ impl ThemeResolverService {
             realm_id,
             name,
             description,
+            flow_binding_id: None,
             is_system,
             created_at: "".to_string(),
             updated_at: "".to_string(),

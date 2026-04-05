@@ -6,6 +6,7 @@ pub mod password_authenticator;
 pub mod recovery_issue_node;
 pub mod registration_authenticator;
 pub mod reset_password_authenticator;
+pub mod scripted_ui_authenticator;
 pub mod verify_email_otp_authenticator;
 
 use crate::adapters::auth::cookie_authenticator::CookieAuthenticator;
@@ -16,10 +17,12 @@ use crate::adapters::auth::password_authenticator::PasswordAuthenticator;
 use crate::adapters::auth::recovery_issue_node::RecoveryIssueNode;
 use crate::adapters::auth::registration_authenticator::RegistrationAuthenticator;
 use crate::adapters::auth::reset_password_authenticator::ResetPasswordAuthenticator;
+use crate::adapters::auth::scripted_ui_authenticator::ScriptedUiAuthenticator;
 use crate::adapters::auth::verify_email_otp_authenticator::VerifyEmailOtpAuthenticator;
 use crate::application::audit_service::AuditService;
 use crate::application::rbac_service::RbacService;
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::application::script_engine::BoaScriptEngine;
 use crate::application::user_service::UserService;
 use crate::domain::execution::StepType;
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
@@ -129,6 +132,15 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
     // 9. Cookie Authenticator (SSO)
     let cookie_node = Arc::new(CookieAuthenticator::new(ctx.session_repo));
     registry.register_node("core.auth.cookie", cookie_node, StepType::Authenticator);
+
+    // 10. Scripted UI Node
+    let script_engine = Arc::new(BoaScriptEngine);
+    let scripted_ui_node = Arc::new(ScriptedUiAuthenticator::new(script_engine));
+    registry.register_node(
+        "core.ui.scripted",
+        scripted_ui_node,
+        StepType::Authenticator,
+    );
 
     // 10. Terminal Nodes (Definitions only)
     // These nodes use the "Generic Handler" in the Executor loop above.

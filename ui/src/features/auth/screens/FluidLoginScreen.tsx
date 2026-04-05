@@ -8,6 +8,7 @@ import { Button } from '@/components/button'
 import { Separator } from '@/components/separator'
 import { Form, FormField } from '@/components/form'
 import { Input } from '@/components/input'
+import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { PasswordInput } from '@/shared/ui/password-input'
 import { loginSchema } from '@/features/auth/schema/login.schema'
 import type { AuthScreenProps } from '@/entities/auth/model/screenTypes'
@@ -26,6 +27,64 @@ import {
 } from '@/features/fluid/lib/themeUtils'
 
 type LoginFormValues = Record<string, string>
+
+type FluidSignal = {
+  type?: string
+  node_id?: string
+  payload_map?: Record<string, unknown>
+}
+
+type FluidAction = {
+  trigger?: string
+  signal?: FluidSignal
+}
+
+const normalizeTrigger = (value?: string) => {
+  const trimmed = value?.trim().toLowerCase() ?? ''
+  if (!trimmed) return ''
+  if (trimmed === 'onclick' || trimmed === 'click') return 'on_click'
+  if (trimmed === 'onsubmit' || trimmed === 'submit') return 'on_submit'
+  if (trimmed === 'onchange' || trimmed === 'change') return 'on_change'
+  if (trimmed === 'onload' || trimmed === 'load') return 'on_load'
+  return trimmed.replace('-', '_')
+}
+
+const nodeActions = (node: ThemeNode): FluidAction[] => {
+  const props = node.props ?? {}
+  const rawActions =
+    (props as Record<string, unknown>).actions ??
+    (node as unknown as Record<string, unknown>).actions
+  if (!Array.isArray(rawActions)) return []
+  return rawActions.filter((action) => action && typeof action === 'object') as FluidAction[]
+}
+
+const findActionInNode = (node: ThemeNode, trigger: string): FluidAction | null => {
+  const normalized = normalizeTrigger(trigger)
+  const actions = nodeActions(node)
+  const match = actions.find((action) => normalizeTrigger(action.trigger) === normalized)
+  if (match) return match
+  if (node.children) {
+    for (const child of node.children) {
+      const found = findActionInNode(child, normalized)
+      if (found) return found
+    }
+  }
+  if (node.slots) {
+    for (const slot of Object.values(node.slots)) {
+      const found = findActionInNode(slot, normalized)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const findActionInTree = (nodes: ThemeNode[], trigger: string): FluidAction | null => {
+  for (const node of nodes) {
+    const found = findActionInNode(node, trigger)
+    if (found) return found
+  }
+  return null
+}
 
 export function FluidLoginScreen({
   onSubmit,
@@ -63,6 +122,11 @@ export function FluidLoginScreen({
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>(
     'idle',
   )
+  const [payloadMapWarnings, setPayloadMapWarnings] = useState<string[]>([])
+  const [payloadMapActionMeta, setPayloadMapActionMeta] = useState<{
+    type?: string
+    node_id?: string
+  } | null>(null)
   const [autoStatus, setAutoStatus] = useState<'idle' | 'consumed' | 'expired' | 'error'>(
     'idle',
   )
@@ -96,6 +160,13 @@ export function FluidLoginScreen({
   }, [context?.email, form, templateKey])
 
   const displayError = localError || error || (context?.error as string) || null
+  const showPayloadMapWarning = import.meta.env.DEV && payloadMapWarnings.length > 0
+  const payloadMapWarningText = payloadMapWarnings.join(', ')
+  const payloadMapActionLabel = payloadMapActionMeta
+    ? `action=${payloadMapActionMeta.type ?? 'unknown'}${
+        payloadMapActionMeta.node_id ? `, node_id=${payloadMapActionMeta.node_id}` : ''
+      }`
+    : null
 
   const awaitingStatusMessage = useMemo(() => {
     if (templateKey !== 'awaiting_action') return null
@@ -202,7 +273,112 @@ export function FluidLoginScreen({
     [nodes],
   )
 
-  const handleSubmit = form.handleSubmit((values) => {
+  const submitAction = useMemo(() => findActionInTree(nodes, 'on_submit'), [nodes])
+
+  const resolveValuePath = (
+    source: Record<string, unknown>,
+    path: string,
+  ): unknown => {
+    if (!path) return source
+    const parts = path.split('.')
+    let current: unknown = source
+    for (const part of parts) {
+      if (!part) continue
+      if (!current || typeof current !== 'object') return undefined
+      current = (current as Record<string, unknown>)[part]
+    }
+    return current
+  }
+
+  const resolvePayloadPath = (
+    path: string,
+    values: Record<string, unknown>,
+  ): unknown => {
+    const trimmed = path.trim()
+    if (!trimmed) return undefined
+    const parts = trimmed.split('.')
+    const root = parts[0]
+    const remainder = parts.slice(1).join('.')
+    if (root === 'inputs') {
+      return resolveValuePath(values, remainder)
+    }
+    if (root === 'context') {
+      return resolveValuePath(contextualValues as Record<string, unknown>, remainder)
+    }
+    return undefined
+  }
+
+  const buildPayloadFromMap = (
+    payloadMap: Record<string, unknown> | undefined,
+    values: Record<string, unknown>,
+    actionMeta?: { type?: string; node_id?: string },
+  ) => {
+    if (!payloadMap || Array.isArray(payloadMap) || typeof payloadMap !== 'object') {
+      setPayloadMapWarnings([])
+      setPayloadMapActionMeta(null)
+      return { ...values }
+    }
+    const payload: Record<string, unknown> = {}
+    const missing: Array<{ key: string; path: string }> = []
+    for (const [key, mapping] of Object.entries(payloadMap)) {
+      if (!key.trim() || typeof mapping !== 'string') continue
+      const resolved = resolvePayloadPath(mapping, values)
+      if (resolved === undefined) {
+        missing.push({ key, path: mapping })
+        continue
+      }
+      payload[key] = resolved
+    }
+    if (missing.length > 0) {
+      setPayloadMapWarnings(missing.map((item) => `${item.key} <- ${item.path}`))
+      setPayloadMapActionMeta(actionMeta ?? null)
+      console.warn('[Fluid] payload_map unresolved values', {
+        template_key: templateKey,
+        action: actionMeta,
+        missing,
+      })
+    } else if (payloadMap && typeof payloadMap === 'object') {
+      setPayloadMapWarnings([])
+      setPayloadMapActionMeta(null)
+    }
+    return payload
+  }
+
+  const buildSignalEnvelope = (
+    action: FluidAction | null | undefined,
+    values: Record<string, unknown>,
+  ) => {
+    const signal = action?.signal ?? {}
+    const type =
+      typeof signal.type === 'string' && signal.type.trim()
+        ? signal.type.trim()
+        : 'submit_node'
+    const nodeId =
+      typeof signal.node_id === 'string' && signal.node_id.trim()
+        ? signal.node_id.trim()
+        : undefined
+    const payloadMap =
+      signal.payload_map && typeof signal.payload_map === 'object'
+        ? (signal.payload_map as Record<string, unknown>)
+        : undefined
+    const payload = buildPayloadFromMap(payloadMap, values, {
+      type,
+      node_id: nodeId,
+    })
+
+    return {
+      signal: {
+        type,
+        node_id: nodeId,
+        payload,
+      },
+    } as Record<string, unknown>
+  }
+
+  const processSubmission = (
+    values: Record<string, string>,
+    actionOverride?: FluidAction | null,
+  ) => {
     if (templateKey === 'awaiting_action') {
       return
     }
@@ -270,7 +446,16 @@ export function FluidLoginScreen({
       setLocalError(parsed.error.issues[0]?.message ?? 'Invalid login details.')
       return
     }
+    const action = actionOverride ?? submitAction
+    if (action) {
+      void onSubmit(buildSignalEnvelope(action, normalized))
+      return
+    }
     void onSubmit(normalized)
+  }
+
+  const handleSubmit = form.handleSubmit((values) => {
+    processSubmission(values)
   })
 
   const resolveContextValue = (path: string): unknown => {
@@ -603,6 +788,11 @@ export function FluidLoginScreen({
         if (component.toLowerCase() === 'button') {
           const variant = String(props.variant || 'primary')
           const intent = typeof props.intent === 'string' ? props.intent.trim() : ''
+          const actions = nodeActions(node)
+          const clickAction = actions.find(
+            (action) => normalizeTrigger(action.trigger) === 'on_click' && action.signal,
+          )
+          const hasClickAction = Boolean(clickAction)
           const isAwaitingResend =
             templateKey === 'awaiting_action' && intent.toLowerCase() === 'resend'
           const buttonVariant =
@@ -622,19 +812,27 @@ export function FluidLoginScreen({
               : String(props.label || 'Continue')
           return wrap(
             <Button
-              type={isAwaitingResend ? 'button' : 'submit'}
+              type={isAwaitingResend || hasClickAction ? 'button' : 'submit'}
               variant={buttonVariant}
               className={cn(alignClass, sizeClass, fillWidthClass, fillHeightClass)}
               style={buttonStyle}
               data-intent={intent || undefined}
               disabled={isLoading || (isAwaitingResend && (resendStatus === 'sending' || !canResend))}
-              onClick={() => {
+              onClick={(event) => {
                 if (isAwaitingResend) {
                   void handleResend()
                   return
                 }
                 if (intent) {
                   form.setValue('decision', intent)
+                }
+                if (clickAction) {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  void form
+                    .handleSubmit((values) => {
+                      processSubmission(values, clickAction)
+                    })()
                 }
               }}
             >
@@ -773,6 +971,15 @@ export function FluidLoginScreen({
                       {String(displayError)}
                     </div>
                   )}
+                  {showPayloadMapWarning && (
+                    <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900">
+                      <AlertTitle>Developer warning</AlertTitle>
+                      <AlertDescription>
+                        payload_map unresolved: {payloadMapWarningText}
+                        {payloadMapActionLabel ? ` (${payloadMapActionLabel})` : ''}
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   {formBlocks.length === 0 ? (
                     <div className="text-muted-foreground text-sm">
                       Add blocks to build this page.
@@ -805,6 +1012,15 @@ export function FluidLoginScreen({
                   <div className="text-destructive mb-2 rounded-md bg-red-50 p-3 text-sm font-medium">
                     {String(displayError)}
                   </div>
+                )}
+                {showPayloadMapWarning && (
+                  <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900">
+                    <AlertTitle>Developer warning</AlertTitle>
+                    <AlertDescription>
+                      payload_map unresolved: {payloadMapWarningText}
+                      {payloadMapActionLabel ? ` (${payloadMapActionLabel})` : ''}
+                    </AlertDescription>
+                  </Alert>
                 )}
                 {nonSplitBlocks.length === 0 ? (
                   <div className="text-muted-foreground text-sm">
