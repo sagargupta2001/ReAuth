@@ -3,7 +3,6 @@ export interface Theme {
   realm_id: string
   name: string
   description?: string | null
-  flow_binding_id?: string | null
   is_system: boolean
   created_at: string
   updated_at: string

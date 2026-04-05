@@ -1,12 +1,10 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 
 import { useUpdateTheme } from '@/features/theme/api/useUpdateTheme'
-import { useUpdateThemeFlowBinding } from '@/features/theme/api/useUpdateThemeFlowBinding'
 import type { Theme } from '@/entities/theme/model/types'
-import { useFlows } from '@/features/flow/api/useFlows'
 import {
   type ThemeSettingsSchema,
   themeSettingsSchema,
@@ -24,14 +22,6 @@ import {
 } from '@/shared/ui/form'
 import { FormInput } from '@/shared/ui/form-input'
 import { Textarea } from '@/shared/ui/textarea'
-import { Button } from '@/components/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/select'
 
 interface ThemeDetailsSettingsTabProps {
   theme: Theme
@@ -39,22 +29,6 @@ interface ThemeDetailsSettingsTabProps {
 
 export function ThemeDetailsSettingsTab({ theme }: ThemeDetailsSettingsTabProps) {
   const updateMutation = useUpdateTheme(theme.id)
-  const updateFlowBinding = useUpdateThemeFlowBinding(theme.id)
-  const { data: flows = [] } = useFlows()
-  const flowOptions = useMemo(
-    () => flows.filter((flow) => flow.is_draft),
-    [flows],
-  )
-  const boundFlow = useMemo(
-    () => flows.find((flow) => flow.id === theme.flow_binding_id) || null,
-    [flows, theme.flow_binding_id],
-  )
-  const boundFlowLabel = boundFlow
-    ? boundFlow.alias
-    : theme.flow_binding_id
-      ? theme.flow_binding_id
-      : 'Realm default browser flow'
-  const missingBoundFlow = Boolean(theme.flow_binding_id && !boundFlow)
 
   const form = useForm<ThemeSettingsSchema>({
     resolver: zodResolver(themeSettingsSchema),
@@ -125,71 +99,6 @@ export function ThemeDetailsSettingsTab({ theme }: ThemeDetailsSettingsTabProps)
           </Card>
         </form>
       </Form>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Flow Binding</CardTitle>
-          <CardDescription>
-            Link this theme to a flow draft so Action Binder suggestions match the flow graph.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold">Bound Flow</span>
-              {theme.flow_binding_id && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-[10px]"
-                  onClick={() => updateFlowBinding.mutate(null)}
-                  disabled={updateFlowBinding.isPending}
-                >
-                  Clear binding
-                </Button>
-              )}
-            </div>
-            <Select
-              value={theme.flow_binding_id ?? 'none'}
-              onValueChange={(value) => {
-                if (value === 'none') {
-                  updateFlowBinding.mutate(null)
-                  return
-                }
-                updateFlowBinding.mutate(value)
-              }}
-              disabled={updateFlowBinding.isPending}
-            >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Select flow draft" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No binding (use realm default)</SelectItem>
-                {missingBoundFlow && (
-                  <SelectItem value={theme.flow_binding_id as string}>
-                    Unknown flow ({theme.flow_binding_id})
-                  </SelectItem>
-                )}
-                {flowOptions.length === 0 ? (
-                  <SelectItem value="empty" disabled>
-                    No flow drafts available
-                  </SelectItem>
-                ) : (
-                  flowOptions.map((flow) => (
-                    <SelectItem key={flow.id} value={flow.id}>
-                      {flow.alias}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            <p className="text-muted-foreground text-[10px]">
-              Current: {boundFlowLabel}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>

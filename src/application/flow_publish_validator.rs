@@ -1068,7 +1068,6 @@ mod tests {
             realm_id,
             name: "Test Theme".to_string(),
             description: None,
-            flow_binding_id: None,
             is_system: true,
             created_at: "now".to_string(),
             updated_at: "now".to_string(),
