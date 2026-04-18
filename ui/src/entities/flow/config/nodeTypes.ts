@@ -9,6 +9,7 @@ export const flowNodeTypes = {
   'core.logic.condition': LogicNode,
   'core.logic.recovery_issue': LogicNode,
   'core.logic.issue_email_otp': LogicNode,
+  'core.logic.scripted': LogicNode,
 
   // --- AUTHENTICATORS (Workers) ---
   'core.auth.cookie': AuthenticatorNode,

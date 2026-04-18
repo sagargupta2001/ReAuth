@@ -75,7 +75,9 @@ export function NodeInspector() {
       : undefined
   const codeEditorMeta =
     nodeType === 'core.ui.scripted'
-      ? { currentTemplateKey: currentTemplate ?? undefined }
+      ? { mode: 'scripted_ui' as const, currentTemplateKey: currentTemplate ?? undefined }
+      : nodeType === 'core.logic.scripted'
+        ? { mode: 'scripted_logic' as const }
       : undefined
   const { data: themeSnapshot } = useThemeSnapshot(
     realmName,

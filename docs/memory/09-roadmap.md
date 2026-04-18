@@ -9,7 +9,8 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 - Roadmap: `reauth/docs/memory/roadmaps/auth-production-grade.md`
 - Unifies: identity flows, OIDC future hardening, Fluid page binding for auth nodes, and embedded scripting for custom auth logic.
 - Goal: ship production-grade login, registration, recovery, MFA, OIDC, and extensible UI-capable auth nodes.
-- Recent progress: recovery now has SMTP delivery, rate limiting, audit events, and session revocation on reset.
+- Recent progress: recovery now has SMTP delivery, rate limiting, audit events, and session revocation on reset; action binding and scripted UI tooling are in place.
+- Next implementation focus: `core.logic.scripted`, then subflow call/return semantics.
 
 ### Phase 0: Plugin Removal (Completed)
 - Status: Complete
@@ -25,6 +26,8 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 - Status: In Progress
 - Roadmap: `reauth/docs/memory/roadmaps/theme-engine.md`
 - Roadmap: `reauth/docs/memory/roadmaps/embedded-scripting.md`
+- Roadmap: `reauth/docs/memory/roadmaps/flow-extensibility.md`
+- Roadmap: `reauth/docs/memory/roadmaps/flow-action-binding.md`
 - Goal: deliver a theme engine + embedded scripting runtime that replaces plugin extensibility.
 
 ### Phase 3: Must-Have Identity Flows (MVP Parity)

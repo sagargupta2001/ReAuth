@@ -1,5 +1,7 @@
 use super::FlowExecutor;
+use crate::adapters::auth::scripted_logic_node::ScriptedLogicNode;
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::application::script_engine::BoaScriptEngine;
 use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
 use crate::domain::auth_session_action::AuthSessionAction;
 use crate::domain::execution::lifecycle::{LifecycleNode, NodeOutcome};
@@ -1131,4 +1133,131 @@ async fn execute_returns_pending_action_without_reexecuting_node() {
     }
 
     assert_eq!(node.execute_calls(), 0);
+}
+
+#[tokio::test]
+async fn execute_runs_scripted_logic_and_follows_success_path() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let logic_node = ExecutionNode {
+        id: "logic-script".to_string(),
+        step_type: StepType::Logic,
+        next: HashMap::from([
+            ("success".to_string(), "allow".to_string()),
+            ("failure".to_string(), "deny".to_string()),
+        ]),
+        config: json!({
+            "logic_type": "core.logic.scripted",
+            "script": "return { output: 'success', context: { risk_score: 87 } };"
+        }),
+    };
+    let allow_node = ExecutionNode {
+        id: "allow".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({}),
+    };
+    let deny_node = ExecutionNode {
+        id: "deny".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({ "is_failure": true }),
+    };
+    let plan = build_plan("logic-script", vec![logic_node, allow_node, deny_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "logic-script".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node(
+        "core.logic.scripted",
+        Arc::new(ScriptedLogicNode::new(Arc::new(BoaScriptEngine))),
+        StepType::Logic,
+    );
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(session_id, None)
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Success { .. } => {}
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
+    assert_eq!(updated.context.get("risk_score"), Some(&json!(87)));
+    assert_eq!(updated.status, SessionStatus::Completed);
+}
+
+#[tokio::test]
+async fn execute_runs_scripted_logic_and_follows_failure_path() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let logic_node = ExecutionNode {
+        id: "logic-script".to_string(),
+        step_type: StepType::Logic,
+        next: HashMap::from([
+            ("success".to_string(), "allow".to_string()),
+            ("failure".to_string(), "deny".to_string()),
+        ]),
+        config: json!({
+            "logic_type": "core.logic.scripted",
+            "script": "return { output: 'failure', remove_keys: ['username'] };"
+        }),
+    };
+    let allow_node = ExecutionNode {
+        id: "allow".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({}),
+    };
+    let deny_node = ExecutionNode {
+        id: "deny".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({ "is_failure": true }),
+    };
+    let plan = build_plan("logic-script", vec![logic_node, allow_node, deny_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let mut session = AuthenticationSession::new(realm_id, version_id, "logic-script".to_string());
+    session.update_context("username", json!("namas"));
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node(
+        "core.logic.scripted",
+        Arc::new(ScriptedLogicNode::new(Arc::new(BoaScriptEngine))),
+        StepType::Logic,
+    );
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(session_id, None)
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Failure { .. } => {}
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
+    assert!(updated.context.get("username").is_none());
+    assert_eq!(updated.status, SessionStatus::Failed);
 }

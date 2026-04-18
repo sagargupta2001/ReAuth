@@ -162,6 +162,10 @@
   - Swappable engine adapters only.
   - Minimal host API, strong limits, and observability before broader rollout.
 
+## Extensibility follow-up
+- [ ] Ship `core.logic.scripted` with typed outputs and publish-time validation.
+- [ ] Add subflow call/return semantics for reusable flow composition.
+
 ## Exit criteria for "production grade"
 - Registration, recovery, login, verification, and MFA all work end-to-end with audit coverage.
 - Every UI-capable node has an explicit screen contract and a Fluid page binding story.

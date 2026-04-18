@@ -14,7 +14,8 @@
 ## Current state
 - UI-capable nodes have page binding metadata and publish-time validation.
 - Basic node types exist for password, consent, recovery, OTP verification, and condition.
-- No user-defined custom nodes or embedded scripting runtime yet.
+- Scripted UI execution exists with publish-time dry-run validation, patch preview tooling, and sandbox limits.
+- No first-class scripted logic node or subflow runtime yet.
 
 ## Now (Foundation)
 - Define a **Node Capability Model** shared across backend and UI. Capabilities: `supports_ui`, `ui_surface`, `allowed_page_categories`, `async_pause`, `side_effects`, `requires_secrets`.
@@ -38,8 +39,9 @@
 - **Advanced runtime isolation** with optional out-of-process sandboxing for untrusted scripts.
 
 ## Next actions
-- Add builder **Flow diagnostics** (publish errors with node jump links and inline guidance).
+- Ship `core.logic.scripted` with typed outputs, runtime limits, and publish-time validation.
 - Define how to migrate node contracts across breaking changes.
+- Introduce subflow call/return semantics after scripted logic lands.
 
 ## New nodes to explore
 - Webhook decision node (async pause/resume).
@@ -92,10 +94,7 @@
 - [x] Add node_id picker suggestions from flow graphs.
 - [x] Add scripted UI authoring UX (inline editor + file load).
 - [x] Add script sandbox limits for scripted UI execution.
-- [x] Add optional theme -> flow binding for Action Binder suggestions.
-- [x] Add manual flow selector in Theme Builder when no binding is present.
 - [x] Add publish-time dry-run validation for scripted UI patches.
-- [x] Add theme settings control to change/clear flow binding.
 - [x] Add integration tests for scripted UI dry-run validation.
 - [x] Add docs/examples for scripted UI patch payloads.
 - [x] Add script editor dialog with syntax highlighting.
@@ -111,3 +110,11 @@
 - [x] Add diff view for ui_patch preview.
 - [x] Define Node Capability Model shared by backend + UI.
 - [x] Introduce versioned Node Contract DTO and persist contract versions at publish time.
+- [x] Add builder Flow diagnostics (publish errors with node jump links and inline guidance).
+- [x] Remove theme -> flow binding after switching Action Binder to flow-agnostic autocomplete.
+- [ ] Add `core.logic.scripted` execution engine and node contract.
+- [ ] Add publish-time validation for scripted logic outputs/config.
+- [ ] Expose scripted logic node in the builder palette and inspector.
+- [ ] Add integration tests for scripted logic execution paths.
+- [ ] Define node contract migration strategy for breaking changes.
+- [ ] Introduce subflow nodes with explicit call/return semantics.

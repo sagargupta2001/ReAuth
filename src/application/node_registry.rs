@@ -9,6 +9,7 @@ use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
 use crate::domain::flow::nodes::recovery_issue_node::RecoveryIssueNodeProvider;
 use crate::domain::flow::nodes::registration_node::RegistrationNodeProvider;
 use crate::domain::flow::nodes::reset_password_node::ResetPasswordNodeProvider;
+use crate::domain::flow::nodes::scripted_logic_node::ScriptedLogicNodeProvider;
 use crate::domain::flow::nodes::scripted_ui_node::ScriptedUiNodeProvider;
 use crate::domain::flow::nodes::start_node::StartNode;
 use crate::domain::flow::nodes::terminal_node::{AllowNode, DenyNode};
@@ -36,6 +37,7 @@ impl NodeRegistryService {
                 Box::new(RegistrationNodeProvider),
                 Box::new(ResetPasswordNodeProvider),
                 Box::new(VerifyEmailOtpNodeProvider),
+                Box::new(ScriptedLogicNodeProvider),
                 Box::new(ScriptedUiNodeProvider),
                 Box::new(AllowNode),
                 Box::new(DenyNode),
@@ -139,6 +141,6 @@ mod tests {
         assert!(ids.iter().any(|id| id == "core.logic.condition"));
         assert!(ids.iter().any(|id| id == "core.logic.recovery_issue"));
         assert!(!ids.iter().any(|id| id == "core.auth.otp"));
-        assert!(!ids.iter().any(|id| id == "core.logic.script"));
+        assert!(!ids.iter().any(|id| id == "core.logic.scripted"));
     }
 }

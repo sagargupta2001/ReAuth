@@ -166,6 +166,7 @@ interface AutoFormProps {
     nodes?: ThemeNode[]
   }
   codeEditorMeta?: {
+    mode?: 'default' | 'scripted_ui' | 'scripted_logic'
     currentTemplateKey?: string | null
   }
 }
@@ -363,6 +364,8 @@ function CodeEditorField({
   const preview = trimmed ? trimmed.split('\n').slice(0, 3).join('\n') : 'No script configured'
   const templateKeys = suggestions.filter(Boolean)
   const hasSuggestions = templateKeys.length > 0
+  const editorMode = editorMeta?.mode ?? 'default'
+  const supportsUiPatchPreview = editorMode === 'scripted_ui'
   const codeTheme = theme === 'dark' ? oneDark : undefined
   const [isTemplateMenuOpen, setIsTemplateMenuOpen] = React.useState(false)
   const firstTemplateKey = templateKeys[0] ?? 'login'
@@ -557,7 +560,7 @@ function CodeEditorField({
                 foldGutter: false,
               }}
             />
-            {hasSuggestions && (
+            {hasSuggestions && supportsUiPatchPreview && (
               <div className="flex flex-wrap items-center gap-2 text-[10px]">
                 <span className="text-muted-foreground">Template keys:</span>
                 <Button
@@ -616,7 +619,8 @@ function CodeEditorField({
                 </Popover>
               </div>
             )}
-            <div className="space-y-2">
+            {supportsUiPatchPreview && (
+              <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Label className="text-xs font-semibold">UI Patch Preview</Label>
@@ -735,7 +739,7 @@ function CodeEditorField({
                     <div className="h-64 overflow-auto bg-slate-950 p-3 text-[10px] font-mono text-slate-200">
                       {baseNodes.length === 0 && (
                         <div className="mb-2 text-[10px] text-slate-400">
-                          No base theme nodes available. Bind a theme to compare diffs.
+                          No base theme nodes available for diff comparison.
                         </div>
                       )}
                       {diff.map((line, index) => (
@@ -764,6 +768,7 @@ function CodeEditorField({
                 </p>
               )}
             </div>
+            )}
           </div>
           <DialogFooter>
             <Button

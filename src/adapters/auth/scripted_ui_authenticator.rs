@@ -1,5 +1,5 @@
 use crate::application::script_engine::{
-    ScriptEngine, ScriptExecutionContext, ScriptExecutionLimits,
+    execute_with_limits, ScriptEngine, ScriptExecutionContext, ScriptExecutionLimits,
 };
 use crate::domain::auth_session::AuthenticationSession;
 use crate::domain::execution::lifecycle::NodeOutcome;
@@ -9,8 +9,6 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::timeout;
 use tracing::instrument;
 
 pub struct ScriptedUiAuthenticator {
@@ -128,29 +126,6 @@ fn outcome_from_script(result: Value, default_screen: &str) -> Result<NodeOutcom
     }
 }
 
-async fn execute_with_timeout(
-    engine: Arc<dyn ScriptEngine>,
-    script: String,
-    ctx: ScriptExecutionContext,
-    limits: ScriptExecutionLimits,
-) -> Result<Value> {
-    let timeout_ms = limits.timeout_ms;
-    let handle = tokio::task::spawn_blocking(move || engine.execute(&script, ctx, limits));
-
-    if timeout_ms == 0 {
-        return handle
-            .await
-            .map_err(|err| Error::System(format!("Script join failed: {}", err)))?;
-    }
-
-    match timeout(Duration::from_millis(timeout_ms), handle).await {
-        Ok(result) => {
-            result.map_err(|err| Error::System(format!("Script join failed: {}", err)))?
-        }
-        Err(_) => Err(Error::Validation("Script execution timed out".to_string())),
-    }
-}
-
 #[async_trait]
 impl crate::domain::execution::lifecycle::LifecycleNode for ScriptedUiAuthenticator {
     #[instrument(
@@ -183,7 +158,7 @@ impl crate::domain::execution::lifecycle::LifecycleNode for ScriptedUiAuthentica
         let script = resolve_script(&config, signal_type)
             .ok_or_else(|| Error::Validation("Scripted UI node missing script".to_string()))?;
 
-        let result = execute_with_timeout(
+        let result = execute_with_limits(
             self.engine.clone(),
             script,
             ScriptExecutionContext {

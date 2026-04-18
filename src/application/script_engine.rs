@@ -1,5 +1,8 @@
 use boa_engine::{Context, Source};
 use serde_json::Value;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::timeout;
 
 use crate::error::{Error, Result};
 
@@ -18,6 +21,15 @@ pub struct ScriptExecutionLimits {
 }
 
 impl ScriptExecutionLimits {
+    pub fn for_logic() -> Self {
+        Self {
+            loop_iteration_limit: 1_000_000,
+            recursion_limit: 128,
+            stack_size_limit: 512,
+            timeout_ms: 50,
+        }
+    }
+
     pub fn for_ui() -> Self {
         Self {
             loop_iteration_limit: 1_000_000,
@@ -41,6 +53,29 @@ pub trait ScriptEngine: Send + Sync {
         ctx: ScriptExecutionContext,
         limits: ScriptExecutionLimits,
     ) -> Result<Value>;
+}
+
+pub async fn execute_with_limits(
+    engine: Arc<dyn ScriptEngine>,
+    script: String,
+    ctx: ScriptExecutionContext,
+    limits: ScriptExecutionLimits,
+) -> Result<Value> {
+    let timeout_ms = limits.timeout_ms;
+    let handle = tokio::task::spawn_blocking(move || engine.execute(&script, ctx, limits));
+
+    if timeout_ms == 0 {
+        return handle
+            .await
+            .map_err(|err| Error::System(format!("Script join failed: {}", err)))?;
+    }
+
+    match timeout(Duration::from_millis(timeout_ms), handle).await {
+        Ok(result) => {
+            result.map_err(|err| Error::System(format!("Script join failed: {}", err)))?
+        }
+        Err(_) => Err(Error::Validation("Script execution timed out".to_string())),
+    }
 }
 
 #[derive(Default)]

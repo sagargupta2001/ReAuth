@@ -84,7 +84,8 @@ Example (Fluid blueprint snippet):
   - Small connector/plug iconography to imply linkage.
 
 ## Next actions
-- Document signal/action binding payloads with examples in the public docs.
+- Wire `call_subflow` from Action Binder into executable backend subflow semantics.
+- Add searchable node targeting that is flow-agnostic and not coupled to theme bindings.
 
 ## Implementation checklist
 - [x] Define backend signal payload schema.
@@ -103,10 +104,7 @@ Example (Fluid blueprint snippet):
 - [x] Add script sandbox limits for scripted UI execution.
 - [x] Default node_id picker to realm browser flow when no flow draft is supplied.
 - [x] Update picker helper text to show flow source.
-- [x] Add optional theme -> flow binding for Action Binder suggestions.
-- [x] Add manual flow selector in Theme Builder when no binding is present.
 - [x] Add publish-time dry-run validation for scripted UI patches.
-- [x] Add theme settings control to change/clear flow binding.
 - [x] Add integration tests for scripted UI dry-run validation.
 - [x] Add docs/examples for scripted UI patch payloads.
 - [x] Add script editor dialog with syntax highlighting.
@@ -122,3 +120,7 @@ Example (Fluid blueprint snippet):
 - [x] Add diff view for ui_patch preview.
 - [x] Add end-to-end coverage for Action Binder -> signal execution (UI + API).
 - [x] Surface publish-time action binding failures with node jump links in builder.
+- [x] Remove theme -> flow binding from Action Binder and theme settings.
+- [x] Replace flow-bound node suggestions with local searchable node-id autocomplete.
+- [ ] Execute `call_subflow` signals end-to-end.
+- [ ] Document signal/action binding payloads in public docs.

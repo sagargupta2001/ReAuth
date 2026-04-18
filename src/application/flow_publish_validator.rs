@@ -80,6 +80,7 @@ impl FlowPublishValidator for UiBindingPublishValidator {
         let mut signal_node_errors: Vec<(String, Vec<String>)> = Vec::new();
         let mut signal_parse_errors: Vec<(String, Vec<String>)> = Vec::new();
         let mut payload_map_errors: Vec<(String, Vec<String>)> = Vec::new();
+        let mut scripted_logic_errors: Vec<(String, Vec<String>)> = Vec::new();
         let mut scripted_ui_errors: Vec<(String, Vec<String>)> = Vec::new();
 
         let script_engine = BoaScriptEngine;
@@ -89,17 +90,22 @@ impl FlowPublishValidator for UiBindingPublishValidator {
                 .get("type")
                 .and_then(|value| value.as_str())
                 .unwrap_or_default();
-            let metadata = match metadata_by_id.get(node_type) {
-                Some(meta) if meta.capabilities.supports_ui => meta,
-                _ => continue,
-            };
-
             let node_id = node
                 .get("id")
                 .and_then(|value| value.as_str())
                 .unwrap_or("unknown");
-
             let config = node.get("data").and_then(|value| value.get("config"));
+
+            if node_type == "core.logic.scripted" {
+                if let Some(message) = dry_run_scripted_logic(&script_engine, config, node_id) {
+                    scripted_logic_errors.push((message, vec![node_id.to_string()]));
+                }
+            }
+
+            let metadata = match metadata_by_id.get(node_type) {
+                Some(meta) if meta.capabilities.supports_ui => meta,
+                _ => continue,
+            };
 
             if node_type == "core.ui.scripted" {
                 if let Some(message) =
@@ -230,6 +236,7 @@ impl FlowPublishValidator for UiBindingPublishValidator {
             && signal_node_errors.is_empty()
             && signal_parse_errors.is_empty()
             && payload_map_errors.is_empty()
+            && scripted_logic_errors.is_empty()
             && scripted_ui_errors.is_empty()
         {
             return Ok(());
@@ -361,6 +368,22 @@ impl FlowPublishValidator for UiBindingPublishValidator {
                     .join(" | ")
             ));
         }
+        if !scripted_logic_errors.is_empty() {
+            for (message, node_ids) in &scripted_logic_errors {
+                issues.push(FlowPublishIssue {
+                    message: message.clone(),
+                    node_ids: node_ids.clone(),
+                });
+            }
+            parts.push(format!(
+                "Scripted logic validation failed: {}",
+                scripted_logic_errors
+                    .iter()
+                    .map(|(message, _)| message.clone())
+                    .collect::<Vec<String>>()
+                    .join(" | ")
+            ));
+        }
         if !scripted_ui_errors.is_empty() {
             for (message, node_ids) in &scripted_ui_errors {
                 issues.push(FlowPublishIssue {
@@ -468,6 +491,99 @@ struct ScriptedUiConfig {
     screen_id: Option<String>,
     ui_context: Option<Value>,
     signal_handlers: Option<HashMap<String, String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ScriptedLogicConfig {
+    script: Option<String>,
+}
+
+fn dry_run_scripted_logic(
+    engine: &dyn ScriptEngine,
+    config: Option<&Value>,
+    node_id: &str,
+) -> Option<String> {
+    let config_value = config
+        .cloned()
+        .unwrap_or_else(|| Value::Object(Default::default()));
+    let parsed: ScriptedLogicConfig = match serde_json::from_value(config_value) {
+        Ok(value) => value,
+        Err(err) => {
+            return Some(format!(
+                "node_id={} scripted_logic config invalid ({})",
+                node_id, err
+            ))
+        }
+    };
+
+    let script = match parsed.script.filter(|value| !value.trim().is_empty()) {
+        Some(script) => script,
+        None => {
+            return Some(format!(
+                "node_id={} scripted_logic config invalid (missing script)",
+                node_id
+            ))
+        }
+    };
+
+    let result = match engine.execute(
+        &script,
+        ScriptExecutionContext {
+            input: serde_json::json!({}),
+            context: serde_json::json!({}),
+            signal: serde_json::json!({ "type": "execute_script" }),
+        },
+        ScriptExecutionLimits::for_logic(),
+    ) {
+        Ok(value) => value,
+        Err(err) => {
+            return Some(format!(
+                "node_id={} scripted_logic failed ({})",
+                node_id, err
+            ))
+        }
+    };
+
+    if let Some(message) = validate_scripted_logic_result(&result) {
+        return Some(format!(
+            "node_id={} scripted_logic invalid ({})",
+            node_id, message
+        ));
+    }
+
+    None
+}
+
+fn validate_scripted_logic_result(value: &Value) -> Option<String> {
+    let Value::Object(map) = value else {
+        return Some("scripted logic handler must return an object".to_string());
+    };
+
+    if let Some(output) = map.get("output") {
+        let Some(output) = output.as_str() else {
+            return Some("output must be a string".to_string());
+        };
+        if output != "success" && output != "failure" {
+            return Some(format!("unsupported output '{}'", output));
+        }
+    }
+
+    if let Some(context) = map.get("context") {
+        if !context.is_null() && !context.is_object() {
+            return Some("context must be an object".to_string());
+        }
+    }
+
+    if let Some(remove_keys) = map.get("remove_keys") {
+        let Value::Array(items) = remove_keys else {
+            return Some("remove_keys must be an array".to_string());
+        };
+        if items.iter().any(|item| item.as_str().is_none()) {
+            return Some("remove_keys entries must be strings".to_string());
+        }
+    }
+
+    None
 }
 
 fn dry_run_scripted_ui(
@@ -744,6 +860,7 @@ mod tests {
     use crate::domain::execution::StepType;
     use crate::domain::flow::nodes::oidc_consent_node::OidcConsentNodeProvider;
     use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
+    use crate::domain::flow::nodes::scripted_logic_node::ScriptedLogicNodeProvider;
     use crate::domain::flow::nodes::scripted_ui_node::ScriptedUiNodeProvider;
     use crate::domain::flow::provider::NodeProvider;
     use crate::domain::theme::{
@@ -1089,6 +1206,7 @@ mod tests {
         registry.register_definition("core.auth.password", StepType::Authenticator);
         registry.register_definition("core.oidc.consent", StepType::Authenticator);
         registry.register_definition("core.ui.no_default", StepType::Authenticator);
+        registry.register_definition("core.logic.scripted", StepType::Logic);
         registry.register_definition("core.ui.scripted", StepType::Authenticator);
         let runtime_registry = Arc::new(registry);
 
@@ -1096,6 +1214,7 @@ mod tests {
             Box::new(PasswordNodeProvider),
             Box::new(OidcConsentNodeProvider),
             Box::new(NoDefaultUiNodeProvider),
+            Box::new(ScriptedLogicNodeProvider),
             Box::new(ScriptedUiNodeProvider),
         ];
         let node_registry = Arc::new(NodeRegistryService::with_providers(
@@ -1143,6 +1262,26 @@ mod tests {
                         "outputs": ["success", "failure"]
                     },
                     "next": {}
+                }
+            ],
+            "edges": []
+        })
+    }
+
+    fn build_scripted_logic_graph(script: &str) -> Value {
+        serde_json::json!({
+            "nodes": [
+                {
+                    "id": "scripted-logic-1",
+                    "type": "core.logic.scripted",
+                    "position": { "x": 0, "y": 0 },
+                    "data": {
+                        "label": "Scripted Logic",
+                        "config": {
+                            "script": script
+                        },
+                        "outputs": ["success", "failure"]
+                    }
                 }
             ],
             "edges": []
@@ -1402,5 +1541,27 @@ mod tests {
         let message = err.to_string();
         assert!(message.contains("Scripted UI validation failed"));
         assert!(message.contains("Unsupported node type"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_scripted_logic_invalid_output() {
+        let (validator, realm_id) = build_validator();
+        let graph = build_scripted_logic_graph("return { output: 'custom' };");
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("Scripted logic validation failed"));
+        assert!(message.contains("unsupported output 'custom'"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_scripted_logic_non_object_context() {
+        let (validator, realm_id) = build_validator();
+        let graph = build_scripted_logic_graph("return { context: 'bad' };");
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("Scripted logic validation failed"));
+        assert!(message.contains("context must be an object"));
     }
 }

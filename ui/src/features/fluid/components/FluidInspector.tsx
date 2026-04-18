@@ -313,15 +313,6 @@ export function FluidInspector({
     [rawActions],
   )
 
-  useEffect(() => {
-    if (!selectedBlock) return
-    if (rawActions.length === 0) return
-    const missing = rawActions.some((action) => !action.action_id)
-    if (missing) {
-      updateActions(actions)
-    }
-  }, [selectedBlock, rawActions, actions])
-
   const updateActions = (nextActions: InspectorAction[]) => {
     if (!selectedBlock) return
     const nextProps = { ...(selectedProps as Record<string, unknown>) }
@@ -331,6 +322,20 @@ export function FluidInspector({
     }))
     onUpdateSelectedBlock({ props: nextProps })
   }
+
+  useEffect(() => {
+    if (!selectedBlock) return
+    if (rawActions.length === 0) return
+    const missing = rawActions.some((action) => !action.action_id)
+    if (!missing) return
+
+    const nextProps = { ...(selectedProps as Record<string, unknown>) }
+    nextProps.actions = actions.map((action) => ({
+      ...action,
+      action_id: action.action_id ?? createActionId(),
+    }))
+    onUpdateSelectedBlock({ props: nextProps })
+  }, [selectedBlock, rawActions, actions, selectedProps, onUpdateSelectedBlock])
 
   const updateAction = (actionId: string, patch: Partial<InspectorAction>) => {
     const next = actions.map((action) =>
