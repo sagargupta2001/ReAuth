@@ -12,6 +12,7 @@ use crate::domain::flow::nodes::reset_password_node::ResetPasswordNodeProvider;
 use crate::domain::flow::nodes::scripted_logic_node::ScriptedLogicNodeProvider;
 use crate::domain::flow::nodes::scripted_ui_node::ScriptedUiNodeProvider;
 use crate::domain::flow::nodes::start_node::StartNode;
+use crate::domain::flow::nodes::subflow_node::SubflowNodeProvider;
 use crate::domain::flow::nodes::terminal_node::{AllowNode, DenyNode};
 use crate::domain::flow::nodes::verify_email_otp_node::VerifyEmailOtpNodeProvider;
 use crate::domain::flow::provider::NodeProvider;
@@ -38,6 +39,7 @@ impl NodeRegistryService {
                 Box::new(ResetPasswordNodeProvider),
                 Box::new(VerifyEmailOtpNodeProvider),
                 Box::new(ScriptedLogicNodeProvider),
+                Box::new(SubflowNodeProvider),
                 Box::new(ScriptedUiNodeProvider),
                 Box::new(AllowNode),
                 Box::new(DenyNode),

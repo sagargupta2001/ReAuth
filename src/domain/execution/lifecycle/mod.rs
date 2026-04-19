@@ -31,6 +31,12 @@ pub enum NodeOutcome {
         context: Value,
     },
 
+    /// Composition Node: Enter a deployed child flow and return to the parent on terminal outcome.
+    CallSubflow {
+        flow_version_id: uuid::Uuid,
+        start_node_id: String,
+    },
+
     /// Validation Failure: The user input was invalid (e.g., wrong password).
     /// Stay on the SAME node and re-render the UI with an error.
     Reject { error: String },

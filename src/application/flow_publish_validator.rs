@@ -71,6 +71,14 @@ impl FlowPublishValidator for UiBindingPublishValidator {
             .filter_map(|node| node.get("id").and_then(|value| value.as_str()))
             .map(|value| value.to_string())
             .collect();
+        let graph_node_types: HashMap<String, String> = nodes
+            .iter()
+            .filter_map(|node| {
+                let id = node.get("id").and_then(|value| value.as_str())?;
+                let node_type = node.get("type").and_then(|value| value.as_str())?;
+                Some((id.to_string(), node_type.to_string()))
+            })
+            .collect();
 
         let mut used_pages: HashMap<String, Vec<String>> = HashMap::new();
         let mut missing_pages: HashMap<String, Vec<String>> = HashMap::new();
@@ -215,16 +223,13 @@ impl FlowPublishValidator for UiBindingPublishValidator {
                     ));
                 }
 
-                if let Some(node_id) = signal.normalized_node_id() {
-                    if !graph_node_ids.contains(node_id) {
-                        signal_node_errors.push((
-                            format!(
-                                "page '{}' (nodes: {}) references node_id={}",
-                                page_key, node_tags, node_id
-                            ),
-                            nodes_for_page.clone(),
-                        ));
-                    }
+                if let Some(message) =
+                    validate_signal_target_binding(&signal, &graph_node_ids, &graph_node_types)
+                {
+                    signal_node_errors.push((
+                        format!("page '{}' (nodes: {}) {}", page_key, node_tags, message),
+                        nodes_for_page.clone(),
+                    ));
                 }
             }
         }
@@ -826,6 +831,38 @@ fn validate_payload_map(signal_value: &Value, input_names: &HashSet<String>) -> 
     }
 }
 
+fn validate_signal_target_binding(
+    signal: &FlowSignal,
+    graph_node_ids: &HashSet<String>,
+    graph_node_types: &HashMap<String, String>,
+) -> Option<String> {
+    match signal.signal_type.as_str() {
+        "call_subflow" => {
+            let node_id = match signal.normalized_node_id() {
+                Some(value) => value,
+                None => return Some("call_subflow requires node_id".to_string()),
+            };
+            if !graph_node_ids.contains(node_id) {
+                return Some(format!("references node_id={}", node_id));
+            }
+            if graph_node_types.get(node_id).map(String::as_str) != Some("core.logic.subflow") {
+                return Some(format!(
+                    "references node_id={} but call_subflow requires core.logic.subflow",
+                    node_id
+                ));
+            }
+            None
+        }
+        _ => {
+            let node_id = signal.normalized_node_id()?;
+            if !graph_node_ids.contains(node_id) {
+                return Some(format!("references node_id={}", node_id));
+            }
+            None
+        }
+    }
+}
+
 fn is_valid_payload_path(path: &str, input_names: &HashSet<String>) -> bool {
     let trimmed = path.trim();
     if trimmed.is_empty() {
@@ -1424,6 +1461,87 @@ mod tests {
         let message = err.to_string();
         assert!(message.contains("Signal bindings reference missing nodes"));
         assert!(message.contains("node_id=missing-node"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_call_subflow_without_node_id() {
+        let theme_id = Uuid::new_v4();
+        let node = theme_node(
+            theme_id,
+            "custom.signal",
+            json!({
+                "layout": "default",
+                "nodes": [
+                    {
+                        "type": "Component",
+                        "component": "Button",
+                        "props": {
+                            "label": "Continue",
+                            "actions": [
+                                {
+                                    "trigger": "on_click",
+                                    "signal": {
+                                        "type": "call_subflow"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }),
+        );
+
+        let (validator, realm_id) = build_validator_with_nodes(vec![node]);
+        let graph = graph_with_node(
+            "core.auth.password",
+            json!({ "ui": { "page_key": "custom.signal" } }),
+        );
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("Signal bindings reference missing nodes"));
+        assert!(message.contains("call_subflow requires node_id"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_call_subflow_targeting_non_subflow_node() {
+        let theme_id = Uuid::new_v4();
+        let node = theme_node(
+            theme_id,
+            "custom.signal",
+            json!({
+                "layout": "default",
+                "nodes": [
+                    {
+                        "type": "Component",
+                        "component": "Button",
+                        "props": {
+                            "label": "Continue",
+                            "actions": [
+                                {
+                                    "trigger": "on_click",
+                                    "signal": {
+                                        "type": "call_subflow",
+                                        "node_id": "node-1"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }),
+        );
+
+        let (validator, realm_id) = build_validator_with_nodes(vec![node]);
+        let graph = graph_with_node(
+            "core.auth.password",
+            json!({ "ui": { "page_key": "custom.signal" } }),
+        );
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("Signal bindings reference missing nodes"));
+        assert!(message.contains("call_subflow requires core.logic.subflow"));
     }
 
     #[tokio::test]

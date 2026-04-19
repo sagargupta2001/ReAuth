@@ -8,6 +8,7 @@ pub mod registration_authenticator;
 pub mod reset_password_authenticator;
 pub mod scripted_logic_node;
 pub mod scripted_ui_authenticator;
+pub mod subflow_node;
 pub mod verify_email_otp_authenticator;
 
 use crate::adapters::auth::cookie_authenticator::CookieAuthenticator;
@@ -20,6 +21,7 @@ use crate::adapters::auth::registration_authenticator::RegistrationAuthenticator
 use crate::adapters::auth::reset_password_authenticator::ResetPasswordAuthenticator;
 use crate::adapters::auth::scripted_logic_node::ScriptedLogicNode;
 use crate::adapters::auth::scripted_ui_authenticator::ScriptedUiAuthenticator;
+use crate::adapters::auth::subflow_node::SubflowNode;
 use crate::adapters::auth::verify_email_otp_authenticator::VerifyEmailOtpAuthenticator;
 use crate::application::audit_service::AuditService;
 use crate::application::rbac_service::RbacService;
@@ -28,6 +30,7 @@ use crate::application::script_engine::BoaScriptEngine;
 use crate::application::user_service::UserService;
 use crate::domain::execution::StepType;
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
+use crate::ports::flow_store::FlowStore;
 use crate::ports::login_attempt_repository::LoginAttemptRepository;
 use crate::ports::realm_recovery_settings_repository::RealmRecoverySettingsRepository;
 use crate::ports::realm_repository::RealmRepository;
@@ -45,6 +48,7 @@ pub struct BuiltinAuthContext {
     pub lockout_threshold: i64,
     pub lockout_duration_secs: i64,
     pub session_repo: Arc<dyn SessionRepository>,
+    pub flow_store: Arc<dyn FlowStore>,
     pub action_repo: Arc<dyn AuthSessionActionRepository>,
     pub recovery_attempt_repo: Arc<dyn RecoveryAttemptRepository>,
     pub audit_service: Arc<AuditService>,
@@ -142,7 +146,11 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
     let scripted_logic_node = Arc::new(ScriptedLogicNode::new(script_engine.clone()));
     registry.register_node("core.logic.scripted", scripted_logic_node, StepType::Logic);
 
-    // 12. Scripted UI Node
+    // 12. Subflow Node
+    let subflow_node = Arc::new(SubflowNode::new(ctx.flow_store.clone()));
+    registry.register_node("core.logic.subflow", subflow_node, StepType::Logic);
+
+    // 13. Scripted UI Node
     let scripted_ui_node = Arc::new(ScriptedUiAuthenticator::new(script_engine));
     registry.register_node(
         "core.ui.scripted",
@@ -150,13 +158,13 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
         StepType::Authenticator,
     );
 
-    // 13. Terminal Nodes (Definitions only)
+    // 14. Terminal Nodes (Definitions only)
     // These nodes use the "Generic Handler" in the Executor loop above.
     registry.register_definition("core.terminal.allow", StepType::Terminal);
     registry.register_definition("core.terminal.deny", StepType::Terminal);
 
-    // 14. Start Node
+    // 15. Start Node
     registry.register_definition("core.start", StepType::Logic);
-    // 15. Condition Logic Node
+    // 16. Condition Logic Node
     registry.register_definition("core.logic.condition", StepType::Logic);
 }

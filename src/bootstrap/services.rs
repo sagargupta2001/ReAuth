@@ -162,6 +162,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
             lockout_threshold: settings.auth.lockout_threshold,
             lockout_duration_secs: settings.auth.lockout_duration_secs,
             session_repo: repos.session_repo.clone(),
+            flow_store: repos.flow_store.clone(),
             action_repo: repos.auth_session_action_repo.clone(),
             recovery_attempt_repo: repos.recovery_attempt_repo.clone(),
             audit_service: audit_service.clone(),

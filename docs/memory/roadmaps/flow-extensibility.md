@@ -15,7 +15,7 @@
 - UI-capable nodes have page binding metadata and publish-time validation.
 - Basic node types exist for password, consent, recovery, OTP verification, and condition.
 - Scripted UI execution exists with publish-time dry-run validation, patch preview tooling, and sandbox limits.
-- No first-class scripted logic node or subflow runtime yet.
+- First-class scripted logic and subflow runtime primitives now exist in the core engine.
 
 ## Now (Foundation)
 - Define a **Node Capability Model** shared across backend and UI. Capabilities: `supports_ui`, `ui_surface`, `allowed_page_categories`, `async_pause`, `side_effects`, `requires_secrets`.
@@ -39,9 +39,9 @@
 - **Advanced runtime isolation** with optional out-of-process sandboxing for untrusted scripts.
 
 ## Next actions
-- Ship `core.logic.scripted` with typed outputs, runtime limits, and publish-time validation.
 - Define how to migrate node contracts across breaking changes.
-- Introduce subflow call/return semantics after scripted logic lands.
+- Document reusable composition patterns for scripted logic + subflows.
+- Start typed host API v1 for scripting.
 
 ## New nodes to explore
 - Webhook decision node (async pause/resume).
@@ -112,9 +112,11 @@
 - [x] Introduce versioned Node Contract DTO and persist contract versions at publish time.
 - [x] Add builder Flow diagnostics (publish errors with node jump links and inline guidance).
 - [x] Remove theme -> flow binding after switching Action Binder to flow-agnostic autocomplete.
-- [ ] Add `core.logic.scripted` execution engine and node contract.
-- [ ] Add publish-time validation for scripted logic outputs/config.
-- [ ] Expose scripted logic node in the builder palette and inspector.
-- [ ] Add integration tests for scripted logic execution paths.
+- [x] Add `core.logic.scripted` execution engine and node contract.
+- [x] Add publish-time validation for scripted logic outputs/config.
+- [x] Expose scripted logic node in the builder palette and inspector.
+- [x] Add integration tests for scripted logic execution paths.
 - [ ] Define node contract migration strategy for breaking changes.
-- [ ] Introduce subflow nodes with explicit call/return semantics.
+- [x] Introduce subflow nodes with explicit call/return semantics.
+- [x] Execute `call_subflow` signals end-to-end from Fluid Action Binder.
+- [ ] Document reusable scripted-logic/subflow composition patterns.

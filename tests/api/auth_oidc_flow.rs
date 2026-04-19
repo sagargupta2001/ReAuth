@@ -10,7 +10,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use sha2::{Digest, Sha256};
 
-use reauth::application::flow_manager::UpdateDraftRequest;
+use reauth::application::flow_manager::{CreateDraftRequest, UpdateDraftRequest};
 use reauth::application::realm_service::CreateRealmPayload;
 use reauth::bootstrap::app_state::SetupState;
 use reauth::constants::{DEFAULT_REALM_NAME, LOGIN_SESSION_COOKIE, REFRESH_TOKEN_COOKIE};
@@ -245,6 +245,182 @@ async fn attach_login_action_binding(ctx: &TestContext, realm: &Realm) {
         .save_draft(realm.id, binding.theme_id, draft)
         .await
         .expect("save theme draft");
+}
+
+async fn attach_login_call_subflow_binding(ctx: &TestContext, realm: &Realm, target_node_id: &str) {
+    let binding = ctx
+        .app_state
+        .theme_service
+        .resolve_binding(realm.id, None)
+        .await
+        .expect("resolve binding")
+        .expect("theme binding");
+
+    let mut draft = ctx
+        .app_state
+        .theme_service
+        .get_draft(realm.id, binding.theme_id)
+        .await
+        .expect("theme draft");
+
+    let login_node = draft
+        .nodes
+        .iter_mut()
+        .find(|node| node.node_key == "login")
+        .expect("login page");
+
+    let nodes = match login_node.blueprint {
+        serde_json::Value::Array(ref mut nodes) => nodes,
+        serde_json::Value::Object(ref mut map) => map
+            .get_mut("nodes")
+            .and_then(serde_json::Value::as_array_mut)
+            .expect("login nodes array"),
+        _ => panic!("unexpected login blueprint"),
+    };
+
+    let mut updated = false;
+    for node in nodes.iter_mut() {
+        let obj = match node.as_object_mut() {
+            Some(value) => value,
+            None => continue,
+        };
+        let node_type = obj.get("type").and_then(|value| value.as_str());
+        let component = obj.get("component").and_then(|value| value.as_str());
+        if node_type == Some("Component") && component == Some("Button") {
+            let props = obj
+                .entry("props")
+                .or_insert_with(|| serde_json::json!({}))
+                .as_object_mut()
+                .expect("button props");
+            props.insert(
+                "actions".to_string(),
+                serde_json::json!([
+                    {
+                        "trigger": "on_click",
+                        "signal": {
+                            "type": "call_subflow",
+                            "node_id": target_node_id,
+                            "payload_map": {}
+                        }
+                    }
+                ]),
+            );
+            updated = true;
+            break;
+        }
+    }
+
+    assert!(
+        updated,
+        "login button not found for call_subflow action binding"
+    );
+
+    ctx.app_state
+        .theme_service
+        .save_draft(realm.id, binding.theme_id, draft)
+        .await
+        .expect("save theme draft");
+}
+
+async fn create_and_publish_flow(
+    ctx: &TestContext,
+    realm: &Realm,
+    flow_type: &str,
+    name: &str,
+    graph: serde_json::Value,
+) -> Uuid {
+    let draft = ctx
+        .app_state
+        .flow_manager
+        .create_draft(
+            realm.id,
+            CreateDraftRequest {
+                name: name.to_string(),
+                description: None,
+                flow_type: flow_type.to_string(),
+            },
+        )
+        .await
+        .expect("create draft");
+
+    ctx.app_state
+        .flow_manager
+        .update_draft(
+            draft.id,
+            UpdateDraftRequest {
+                name: None,
+                description: None,
+                graph_json: Some(graph),
+            },
+        )
+        .await
+        .expect("update draft");
+
+    ctx.app_state
+        .flow_manager
+        .publish_flow(realm.id, draft.id)
+        .await
+        .expect("publish flow");
+
+    draft.id
+}
+
+async fn ensure_step_up_failure_flow(ctx: &TestContext, realm: &Realm) {
+    let graph = serde_json::json!({
+        "nodes": [
+            { "id": "start", "type": "core.start", "data": { "config": {} } },
+            { "id": "deny", "type": "core.terminal.deny", "data": { "config": { "is_failure": true } } }
+        ],
+        "edges": [
+            { "id": "e-start-deny", "source": "start", "target": "deny", "sourceHandle": "next" }
+        ]
+    });
+
+    let _ = create_and_publish_flow(ctx, realm, "step_up", "Step Up", graph).await;
+}
+
+async fn ensure_password_browser_flow_with_subflow(ctx: &TestContext, realm: &Realm) {
+    let flow_id = realm
+        .browser_flow_id
+        .as_ref()
+        .and_then(|id| Uuid::parse_str(id).ok())
+        .expect("browser flow id");
+
+    let graph = serde_json::json!({
+        "nodes": [
+            { "id": "start", "type": "core.start", "data": { "config": {} } },
+            { "id": "auth-password", "type": "core.auth.password", "data": { "config": { "auth_type": "core.auth.password" } } },
+            { "id": "call-step-up", "type": "core.logic.subflow", "data": { "config": { "logic_type": "core.logic.subflow", "flow_type": "step_up" } } },
+            { "id": "allow", "type": "core.terminal.allow", "data": { "config": {} } },
+            { "id": "deny", "type": "core.terminal.deny", "data": { "config": { "is_failure": true } } }
+        ],
+        "edges": [
+            { "id": "e-start-password", "source": "start", "target": "auth-password", "sourceHandle": "next" },
+            { "id": "e-password-allow", "source": "auth-password", "target": "allow", "sourceHandle": "success" },
+            { "id": "e-password-step-up", "source": "auth-password", "target": "call-step-up", "sourceHandle": "failure" },
+            { "id": "e-step-up-allow", "source": "call-step-up", "target": "allow", "sourceHandle": "success" },
+            { "id": "e-step-up-deny", "source": "call-step-up", "target": "deny", "sourceHandle": "failure" }
+        ]
+    });
+
+    ctx.app_state
+        .flow_manager
+        .update_draft(
+            flow_id,
+            UpdateDraftRequest {
+                name: None,
+                description: None,
+                graph_json: Some(graph),
+            },
+        )
+        .await
+        .expect("update draft");
+
+    ctx.app_state
+        .flow_manager
+        .publish_flow(realm.id, flow_id)
+        .await
+        .expect("publish flow");
 }
 
 async fn register_oidc_client(
@@ -698,6 +874,76 @@ async fn auth_login_flow_executes_signal_envelope() {
         .expect("refresh token lookup")
         .expect("refresh token missing");
     assert_eq!(refresh_token.user_id, user.id);
+}
+
+#[tokio::test]
+#[serial(test_db)]
+async fn auth_login_flow_executes_call_subflow_signal_envelope() {
+    let ctx = TestContext::new().await;
+    let realm = setup_master_realm(&ctx).await;
+    ensure_step_up_failure_flow(&ctx, &realm).await;
+    ensure_password_browser_flow_with_subflow(&ctx, &realm).await;
+    attach_login_call_subflow_binding(&ctx, &realm, "call-step-up").await;
+
+    let mut start_request = Request::builder()
+        .method("GET")
+        .uri(format!("/api/realms/{}/auth/login", DEFAULT_REALM_NAME))
+        .body(Body::empty())
+        .unwrap();
+    start_request
+        .extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+    let start_response = ctx.request(start_request).await;
+    assert_eq!(start_response.status(), StatusCode::OK);
+
+    let session_id = cookie_value(start_response.headers(), LOGIN_SESSION_COOKIE)
+        .and_then(|val| Uuid::parse_str(&val).ok())
+        .expect("login session cookie");
+
+    let payload = serde_json::json!({
+        "signal": {
+            "type": "call_subflow",
+            "node_id": "call-step-up",
+            "payload": {}
+        }
+    });
+
+    let mut exec_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/api/realms/{}/auth/login/execute",
+            DEFAULT_REALM_NAME
+        ))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(
+            header::COOKIE,
+            format!("{}={}", LOGIN_SESSION_COOKIE, session_id),
+        )
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+    exec_request
+        .extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+    let exec_response = ctx.request(exec_request).await;
+    assert_eq!(exec_response.status(), StatusCode::UNAUTHORIZED);
+
+    let exec_body = exec_response
+        .into_body()
+        .collect()
+        .await
+        .expect("read body")
+        .to_bytes();
+    let exec_json: serde_json::Value = serde_json::from_slice(&exec_body).expect("failure json");
+    assert_eq!(
+        exec_json.get("status").and_then(|v| v.as_str()),
+        Some("failure")
+    );
+    assert_eq!(
+        exec_json.get("message").and_then(|v| v.as_str()),
+        Some("Access Denied")
+    );
 }
 
 #[tokio::test]

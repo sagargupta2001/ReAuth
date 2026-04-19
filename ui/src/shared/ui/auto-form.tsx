@@ -537,90 +537,113 @@ function CodeEditorField({
         </div>
       </div>
       <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{label}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <CodeMirror
-              value={draftValue}
-              height="320px"
-              theme={codeTheme}
-              extensions={[javascript()]}
-              onChange={(val, viewUpdate) => {
-                setDraftValue(val)
-                editorViewRef.current = viewUpdate.view
-              }}
-              onCreateEditor={(view) => {
-                editorViewRef.current = view
-              }}
-              basicSetup={{
-                lineNumbers: true,
-                highlightActiveLine: true,
-                foldGutter: false,
-              }}
-            />
-            {hasSuggestions && supportsUiPatchPreview && (
-              <div className="flex flex-wrap items-center gap-2 text-[10px]">
-                <span className="text-muted-foreground">Template keys:</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-[10px]"
-                  onClick={() => insertSnippet(`\n  template_key: "${firstTemplateKey}"\n`)}
-                >
-                  Quick insert
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-[10px]"
-                  onClick={() =>
-                    insertSnippet(`\n  template_key: "${firstTemplateKey}"\n  ui_patch: []\n`)
-                  }
-                >
-                  Insert + patch
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 px-2 text-[10px]"
-                  onClick={() => insertSnippet(`\n  template_key: "${currentTemplateKey}"\n`)}
-                >
-                  Use current page
-                </Button>
-                <Popover open={isTemplateMenuOpen} onOpenChange={setIsTemplateMenuOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]">
-                      Search templates
+        <DialogContent
+          className={
+            supportsUiPatchPreview
+              ? 'h-[94vh] w-[96vw] max-w-[96vw] overflow-hidden p-0'
+              : 'h-[92vh] w-[94vw] max-w-[94vw] overflow-hidden p-0'
+          }
+        >
+          <div className="flex h-full flex-col">
+            <DialogHeader className="border-b px-6 py-4">
+              <DialogTitle>{label}</DialogTitle>
+            </DialogHeader>
+            <div
+              className={
+                supportsUiPatchPreview
+                  ? 'grid min-h-0 flex-1 gap-0 lg:grid-cols-[minmax(0,1.15fr)_minmax(420px,0.85fr)]'
+                  : 'min-h-0 flex-1'
+              }
+            >
+              <div className="flex min-h-0 flex-col gap-3 overflow-hidden px-6 py-4">
+                <div className="text-muted-foreground text-[11px]">
+                  {supportsUiPatchPreview
+                    ? 'Default script on the left, Fluid patch tooling on the right.'
+                    : 'Server-side logic script editor with file load and syntax highlighting.'}
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+                  <CodeMirror
+                    value={draftValue}
+                    height="100%"
+                    theme={codeTheme}
+                    extensions={[javascript()]}
+                    onChange={(val, viewUpdate) => {
+                      setDraftValue(val)
+                      editorViewRef.current = viewUpdate.view
+                    }}
+                    onCreateEditor={(view) => {
+                      editorViewRef.current = view
+                    }}
+                    basicSetup={{
+                      lineNumbers: true,
+                      highlightActiveLine: true,
+                      foldGutter: false,
+                    }}
+                  />
+                </div>
+                {hasSuggestions && supportsUiPatchPreview && (
+                  <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                    <span className="text-muted-foreground">Template keys:</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-[10px]"
+                      onClick={() => insertSnippet(`\n  template_key: "${firstTemplateKey}"\n`)}
+                    >
+                      Quick insert
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="w-64 p-0">
-                    <Command>
-                      <CommandInput placeholder="Search templates..." />
-                      <CommandList>
-                        <CommandEmpty>No templates found.</CommandEmpty>
-                        <CommandGroup>
-                          {templateKeys.map((key) => (
-                            <CommandItem
-                              key={key}
-                              onSelect={() => {
-                                insertSnippet(`\n  template_key: "${key}"\n`)
-                                setIsTemplateMenuOpen(false)
-                              }}
-                            >
-                              {key}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-[10px]"
+                      onClick={() =>
+                        insertSnippet(`\n  template_key: "${firstTemplateKey}"\n  ui_patch: []\n`)
+                      }
+                    >
+                      Insert + patch
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-[10px]"
+                      onClick={() => insertSnippet(`\n  template_key: "${currentTemplateKey}"\n`)}
+                    >
+                      Use current page
+                    </Button>
+                    <Popover open={isTemplateMenuOpen} onOpenChange={setIsTemplateMenuOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="h-7 px-2 text-[10px]">
+                          Search templates
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="start" className="w-64 p-0">
+                        <Command>
+                          <CommandInput placeholder="Search templates..." />
+                          <CommandList>
+                            <CommandEmpty>No templates found.</CommandEmpty>
+                            <CommandGroup>
+                              {templateKeys.map((key) => (
+                                <CommandItem
+                                  key={key}
+                                  onSelect={() => {
+                                    insertSnippet(`\n  template_key: "${key}"\n`)
+                                    setIsTemplateMenuOpen(false)
+                                  }}
+                                >
+                                  {key}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
               </div>
-            )}
-            {supportsUiPatchPreview && (
-              <div className="space-y-2">
+              {supportsUiPatchPreview && (
+                <div className="bg-muted/10 flex min-h-0 flex-col gap-3 overflow-hidden border-t px-6 py-4 lg:border-t-0 lg:border-l">
+                  <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Label className="text-xs font-semibold">UI Patch Preview</Label>
@@ -712,7 +735,7 @@ function CodeEditorField({
                   ))}
                 </div>
               ) : previewResult.nodes ? (
-                <div className="h-64 overflow-hidden rounded-md border">
+                <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
                   {previewMode === 'render' ? (
                     <FluidCanvas
                       tokens={
@@ -767,32 +790,34 @@ function CodeEditorField({
                   Preview renders once valid JSON is provided.
                 </p>
               )}
+                  </div>
+                </div>
+              )}
             </div>
-            )}
+            <DialogFooter className="border-t px-6 py-4">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setDraftValue(textValue)
+                  setIsEditorOpen(false)
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  onChange(draftValue)
+                  setIsEditorOpen(false)
+                }}
+              >
+                Save Script
+              </Button>
+            </DialogFooter>
           </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setDraftValue(textValue)
-                setIsEditorOpen(false)
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                onChange(draftValue)
-                setIsEditorOpen(false)
-              }}
-            >
-              Save Script
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

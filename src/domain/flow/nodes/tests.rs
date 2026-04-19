@@ -9,6 +9,7 @@ use super::registration_node::RegistrationNodeProvider;
 use super::reset_password_node::ResetPasswordNodeProvider;
 use super::scripted_logic_node::ScriptedLogicNodeProvider;
 use super::start_node::StartNode;
+use super::subflow_node::SubflowNodeProvider;
 use super::terminal_node::{AllowNode, DenyNode};
 use super::verify_email_otp_node::VerifyEmailOtpNodeProvider;
 use crate::domain::flow::provider::NodeProvider;
@@ -216,4 +217,18 @@ fn scripted_logic_node_metadata_is_consistent() {
             .map(|items| items.len()),
         Some(1)
     );
+}
+
+#[test]
+fn subflow_node_metadata_is_consistent() {
+    let node = SubflowNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.subflow");
+    assert_eq!(node.display_name(), "Call Subflow");
+    assert!(node.description().contains("deployed child flow"));
+    assert_eq!(node.icon(), "Workflow");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    assert!(node.config_schema().get("properties").is_some());
 }

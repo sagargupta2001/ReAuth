@@ -84,8 +84,8 @@ Example (Fluid blueprint snippet):
   - Small connector/plug iconography to imply linkage.
 
 ## Next actions
-- Wire `call_subflow` from Action Binder into executable backend subflow semantics.
-- Add searchable node targeting that is flow-agnostic and not coupled to theme bindings.
+- Document signal/action binding payloads in public docs.
+- Add builder guidance/snippets for when to use `submit_node` vs `call_subflow` vs `execute_script`.
 
 ## Implementation checklist
 - [x] Define backend signal payload schema.
@@ -122,5 +122,6 @@ Example (Fluid blueprint snippet):
 - [x] Surface publish-time action binding failures with node jump links in builder.
 - [x] Remove theme -> flow binding from Action Binder and theme settings.
 - [x] Replace flow-bound node suggestions with local searchable node-id autocomplete.
-- [ ] Execute `call_subflow` signals end-to-end.
+- [x] Execute `call_subflow` signals end-to-end.
 - [ ] Document signal/action binding payloads in public docs.
+- [ ] Add authoring guidance for choosing signal types.
