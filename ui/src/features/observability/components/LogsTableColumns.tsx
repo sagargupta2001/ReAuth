@@ -154,6 +154,7 @@ export function createLogColumns({ t, onSelectTrace }: LogColumnsOptions): Colum
         if (!traceId) {
           return <span className="text-xs text-muted-foreground">—</span>
         }
+        // Helper to shorten long IDs
         return (
           <button
             className="font-mono text-xs text-sky-400 hover:text-sky-300"
@@ -163,7 +164,6 @@ export function createLogColumns({ t, onSelectTrace }: LogColumnsOptions): Colum
               onSelectTrace(traceId)
             }}
           >
-            // Helper to shorten long IDs
             {formatIdentifier(traceId)}
           </button>
         )
