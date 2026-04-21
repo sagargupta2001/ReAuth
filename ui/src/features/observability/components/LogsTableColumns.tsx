@@ -163,6 +163,7 @@ export function createLogColumns({ t, onSelectTrace }: LogColumnsOptions): Colum
               onSelectTrace(traceId)
             }}
           >
+            // Helper to shorten long IDs
             {formatIdentifier(traceId)}
           </button>
         )
