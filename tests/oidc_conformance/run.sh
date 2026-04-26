@@ -82,11 +82,19 @@ popd >/dev/null
   npm run build
 )
 
+# Build the ReAuth binary before starting the readiness timer.
+# In CI, compiling from scratch can take longer than the readiness budget even when
+# the server would otherwise boot correctly once launched.
+(
+  cd "$ROOT_DIR"
+  cargo build --features embed-ui --bin reauth
+)
+
 (
   cd "$ROOT_DIR"
   export REAUTH__SERVER__PUBLIC_URL="$REAUTH_BASE_URL"
   export REAUTH__AUTH__ISSUER="$REAUTH_BASE_URL"
-  cargo run --features embed-ui --bin reauth -- --config "$REAUTH_CONFIG_FILE" > "$REAUTH_LOG" 2>&1 &
+  ./target/debug/reauth --config "$REAUTH_CONFIG_FILE" > "$REAUTH_LOG" 2>&1 &
   REAUTH_PID=$!
   echo "$REAUTH_PID" > "$ROOT_DIR/.tmp/reauth.pid"
 )
@@ -96,6 +104,10 @@ REAUTH_DISCOVERY_URL="$REAUTH_WAIT_URL/api/realms/$REAUTH_REALM/oidc/.well-known
 for i in {1..60}; do
   if curl -fsS "$REAUTH_DISCOVERY_URL" >/dev/null 2>&1; then
     break
+  fi
+  if ! kill -0 "$REAUTH_PID" >/dev/null 2>&1; then
+    echo "ReAuth exited before becoming ready. Check $REAUTH_LOG"
+    exit 1
   fi
   sleep 2
   if [[ $i -eq 60 ]]; then
