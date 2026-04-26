@@ -90,14 +90,13 @@ popd >/dev/null
   cargo build --features embed-ui --bin reauth
 )
 
-(
-  cd "$ROOT_DIR"
+pushd "$ROOT_DIR" >/dev/null
   export REAUTH__SERVER__PUBLIC_URL="$REAUTH_BASE_URL"
   export REAUTH__AUTH__ISSUER="$REAUTH_BASE_URL"
   ./target/debug/reauth --config "$REAUTH_CONFIG_FILE" > "$REAUTH_LOG" 2>&1 &
   REAUTH_PID=$!
   echo "$REAUTH_PID" > "$ROOT_DIR/.tmp/reauth.pid"
-)
+popd >/dev/null
 
 # Wait for ReAuth to boot
 REAUTH_DISCOVERY_URL="$REAUTH_WAIT_URL/api/realms/$REAUTH_REALM/oidc/.well-known/openid-configuration"
