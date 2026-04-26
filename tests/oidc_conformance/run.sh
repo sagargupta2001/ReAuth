@@ -6,7 +6,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 CONFORMANCE_SUITE_DIR=${CONFORMANCE_SUITE_DIR:-"$ROOT_DIR/.tmp/conformance-suite"}
 CONFORMANCE_SUITE_REF=${CONFORMANCE_SUITE_REF:-"release-v5.1.35"}
 CONFORMANCE_ALIAS=${CONFORMANCE_ALIAS:-"reauth"}
-CONFORMANCE_BASE_URL=${CONFORMANCE_BASE_URL:-"https://localhost:8443/"}
+CONFORMANCE_BASE_URL=${CONFORMANCE_BASE_URL:-"https://localhost.emobix.co.uk:8443/"}
 CONFORMANCE_MTLS_URL=${CONFORMANCE_MTLS_URL:-"https://localhost.emobix.co.uk:8444/"}
 REAUTH_BASE_URL=${REAUTH_BASE_URL:-""}
 REAUTH_WAIT_URL=${REAUTH_WAIT_URL:-"http://localhost:3000"}
@@ -136,9 +136,18 @@ if [[ -f "$CONFORMANCE_SUITE_DIR/scripts/requirements.txt" ]]; then
   python3 -m pip install -r "$CONFORMANCE_SUITE_DIR/scripts/requirements.txt"
 fi
 
-export CONFORMANCE_SERVER="$CONFORMANCE_BASE_URL"
-export CONFORMANCE_SERVER_MTLS="$CONFORMANCE_MTLS_URL"
 export PYTHONHTTPSVERIFY=0
+
+# The local Docker-based conformance suite is started in fintechlabs dev mode.
+# In that mode, run-test-plan.py intentionally skips API bearer-token auth and
+# uses the suite's built-in localhost.emobix.co.uk defaults.
+#
+# Only force explicit server-mode URLs when the caller also provides a
+# CONFORMANCE_TOKEN for an authenticated suite deployment.
+if [[ -n "${CONFORMANCE_TOKEN:-}" ]]; then
+  export CONFORMANCE_SERVER="$CONFORMANCE_BASE_URL"
+  export CONFORMANCE_SERVER_MTLS="$CONFORMANCE_MTLS_URL"
+fi
 
 python3 "$CONFORMANCE_SUITE_DIR/scripts/run-test-plan.py" \
   "oidcc-basic-certification-test-plan[server_metadata=discovery][client_registration=static_client]" \

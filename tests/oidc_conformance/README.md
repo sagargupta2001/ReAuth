@@ -17,7 +17,7 @@ make oidc-conformance
 ## Environment overrides
 - `CONFORMANCE_SUITE_DIR` (default: `.tmp/conformance-suite`)
 - `CONFORMANCE_SUITE_REF` (default: `release-v5.1.35`)
-- `CONFORMANCE_BASE_URL` (default: `https://localhost:8443/`)
+- `CONFORMANCE_BASE_URL` (default: `https://localhost.emobix.co.uk:8443/`)
 - `CONFORMANCE_MTLS_URL` (default: `https://localhost.emobix.co.uk:8444/`)
 - `REAUTH_BASE_URL` (auto-detected if unset)
 - `REAUTH_WAIT_URL` (default: `http://localhost:3000`)
@@ -28,4 +28,7 @@ make oidc-conformance
 ## Notes
 - The harness assumes ReAuth is serving the embedded UI so the conformance suite can drive
   login and consent.
+- The local Docker suite runs in fintechlabs dev mode, so bearer-token auth is not required for
+  `run-test-plan.py`. `CONFORMANCE_TOKEN` is only needed if you intentionally point the harness at
+  a separate authenticated conformance deployment.
 - Browser automation clicks the consent "Allow" button using `data-intent="allow"`.
