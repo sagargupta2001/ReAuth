@@ -7,7 +7,9 @@ use super::password_node::PasswordNodeProvider;
 use super::recovery_issue_node::RecoveryIssueNodeProvider;
 use super::registration_node::RegistrationNodeProvider;
 use super::reset_password_node::ResetPasswordNodeProvider;
+use super::scripted_logic_node::ScriptedLogicNodeProvider;
 use super::start_node::StartNode;
+use super::subflow_node::SubflowNodeProvider;
 use super::terminal_node::{AllowNode, DenyNode};
 use super::verify_email_otp_node::VerifyEmailOtpNodeProvider;
 use crate::domain::flow::provider::NodeProvider;
@@ -192,5 +194,41 @@ fn condition_node_metadata_is_consistent() {
     assert_eq!(node.category(), "Logic");
     assert_eq!(node.inputs(), vec!["default"]);
     assert_eq!(node.outputs(), vec!["true", "false"]);
+    assert!(node.config_schema().get("properties").is_some());
+}
+
+#[test]
+fn scripted_logic_node_metadata_is_consistent() {
+    let node = ScriptedLogicNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.scripted");
+    assert_eq!(node.display_name(), "Scripted Logic");
+    assert!(node.description().contains("JavaScript"));
+    assert_eq!(node.icon(), "Code2");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    let schema = node.config_schema();
+    assert!(schema.get("properties").is_some());
+    assert_eq!(
+        schema
+            .get("required")
+            .and_then(|value| value.as_array())
+            .map(|items| items.len()),
+        Some(1)
+    );
+}
+
+#[test]
+fn subflow_node_metadata_is_consistent() {
+    let node = SubflowNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.subflow");
+    assert_eq!(node.display_name(), "Call Subflow");
+    assert!(node.description().contains("deployed child flow"));
+    assert_eq!(node.icon(), "Workflow");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["success", "failure"]);
     assert!(node.config_schema().get("properties").is_some());
 }

@@ -13,7 +13,18 @@ import {
 } from '@xyflow/react'
 import { create } from 'zustand'
 
-export interface NodeMetadata {
+export interface NodeCapabilities {
+  supports_ui: boolean
+  ui_surface?: 'form' | 'awaiting_action' | null
+  allowed_page_categories?: Array<
+    'auth' | 'consent' | 'awaiting_action' | 'verification' | 'mfa' | 'notification' | 'error' | 'custom'
+  >
+  async_pause?: boolean
+  side_effects?: boolean
+  requires_secrets?: boolean
+}
+
+export interface NodeContract {
   id: string
   category: string
   display_name: string
@@ -22,23 +33,36 @@ export interface NodeMetadata {
   inputs: string[]
   outputs: string[]
   config_schema: Record<string, unknown>
-  supports_ui: boolean
   default_template_key?: string | null
+  contract_version?: string
+  capabilities: NodeCapabilities
+}
+
+export interface PublishIssue {
+  message: string
+  node_ids: string[]
+}
+
+export interface PublishError {
+  message: string
+  issues?: PublishIssue[]
 }
 
 interface FlowBuilderState {
   nodes: Node[]
   edges: Edge[]
   selectedNodeId: string | null
-  nodeTypes: NodeMetadata[]
+  nodeTypes: NodeContract[]
+  publishError: PublishError | null
   onNodesChange: OnNodesChange
   onEdgesChange: OnEdgesChange
   onConnect: OnConnect
   addNode: (node: Node) => void
   selectNode: (id: string | null) => void
   setGraph: (nodes: Node[], edges: Edge[]) => void
-  setNodeTypes: (types: NodeMetadata[]) => void
+  setNodeTypes: (types: NodeContract[]) => void
   updateNodeData: (id: string, newData: Record<string, unknown>) => void
+  setPublishError: (error: PublishError | null) => void
 
   reset: () => void
 }
@@ -48,6 +72,7 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   nodeTypes: [],
+  publishError: null,
 
   onNodesChange: (changes: NodeChange[]) => {
     set({
@@ -79,7 +104,7 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
     set({ nodes, edges })
   },
 
-  setNodeTypes: (types: NodeMetadata[]) => {
+  setNodeTypes: (types: NodeContract[]) => {
     set({ nodeTypes: types })
   },
 
@@ -98,7 +123,11 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
     })
   },
 
+  setPublishError: (error: PublishError | null) => {
+    set({ publishError: error })
+  },
+
   reset: () => {
-    set({ nodes: [], edges: [], selectedNodeId: null })
+    set({ nodes: [], edges: [], selectedNodeId: null, publishError: null })
   },
 }))

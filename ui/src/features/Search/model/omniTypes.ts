@@ -2,6 +2,7 @@ import type { ElementType } from 'react'
 
 export type OmniGroup =
   | 'Suggested Actions'
+  | 'Themes'
   | 'Navigation'
   | 'Settings'
   | 'Observability'

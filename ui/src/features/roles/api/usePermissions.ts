@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface PermissionDef {
   id: string
@@ -21,7 +22,7 @@ export function usePermissions(clientId?: string | null) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['permissions-definitions', realm, clientId ?? null],
+    queryKey: queryKeys.permissionsDefinitions(realm, clientId ?? null),
     queryFn: async () => {
       const query = new URLSearchParams()
       if (clientId) query.set('client_id', clientId)

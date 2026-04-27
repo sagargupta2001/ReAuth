@@ -1,14 +1,16 @@
 use super::*;
+use crate::application::flow_publish_validator::FlowPublishValidator;
+use crate::application::node_registry::NodeRegistryService;
 use crate::domain::auth_flow::AuthFlow;
 use crate::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use crate::domain::pagination::{PageRequest, PageResponse};
-use crate::error::Error;
+use crate::error::{Error, Result};
 use crate::ports::flow_store::FlowStore;
 use crate::ports::realm_repository::RealmRepository;
 use async_trait::async_trait;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 struct TestFlowStore {
     drafts: Mutex<HashMap<Uuid, FlowDraft>>,
@@ -431,6 +433,7 @@ fn build_version(flow_id: Uuid, version_number: i32, graph_json: String) -> Flow
         execution_artifact: "artifact".to_string(),
         graph_json,
         checksum: "checksum".to_string(),
+        node_contract_versions: "{}".to_string(),
         created_at: Utc::now(),
     }
 }
@@ -441,7 +444,25 @@ fn build_manager(
     realm_repo: Arc<TestRealmRepo>,
     registry: RuntimeRegistry,
 ) -> FlowManager {
-    FlowManager::new(flow_store, flow_repo, realm_repo, Arc::new(registry))
+    let runtime_registry = Arc::new(registry);
+    let node_registry = Arc::new(NodeRegistryService::new(runtime_registry.clone()));
+    FlowManager::new(
+        flow_store,
+        flow_repo,
+        realm_repo,
+        runtime_registry,
+        Arc::new(NoopPublishValidator),
+        node_registry,
+    )
+}
+
+struct NoopPublishValidator;
+
+#[async_trait]
+impl FlowPublishValidator for NoopPublishValidator {
+    async fn validate(&self, _realm_id: Uuid, _graph: &Value) -> Result<()> {
+        Ok(())
+    }
 }
 
 #[tokio::test]

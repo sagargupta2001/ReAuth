@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export type ThemeBindingSummary = {
   client_id: string
@@ -14,7 +15,7 @@ export function useThemeBindings(themeId?: string) {
   const realm = useActiveRealm()
 
   return useQuery<ThemeBindingSummary[]>({
-    queryKey: ['theme-bindings', realm, themeId],
+    queryKey: queryKeys.themeBindings(realm, themeId ?? ''),
     queryFn: () =>
       apiClient.get<ThemeBindingSummary[]>(
         `/api/realms/${realm}/themes/${themeId}/bindings`,

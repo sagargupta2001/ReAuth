@@ -6,12 +6,13 @@ import {
   isHarborJobActive,
   type HarborJobDetails,
 } from '@/features/harbor/api/harborApi'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useHarborJobDetails(jobId: string | null) {
   const realm = useActiveRealm()
 
   return useQuery<HarborJobDetails>({
-    queryKey: ['harbor-job-details', realm, jobId],
+    queryKey: queryKeys.harborJobDetails(realm, jobId ?? ''),
     queryFn: async () => {
       if (!realm || !jobId) throw new Error('Missing Harbor job context')
       return getHarborJobDetails({ realm, jobId })

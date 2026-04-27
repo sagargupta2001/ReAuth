@@ -10,10 +10,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/form'
 import { Input } from '@/components/input'
 import type { OidcClient } from '@/entities/oidc/model/types.ts'
-import type { ThemeSnapshot } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useUpdateClient } from '@/features/client/api/useUpdateClient.ts'
 import { useRotateClientSecret } from '@/features/client/api/useRotateClientSecret'
+import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
 import { useThemePages } from '@/features/theme/api/useThemePages'
 import { useThemes } from '@/features/theme/api/useThemes'
 import { useThemeVersions } from '@/features/theme/api/useThemeVersions'
@@ -30,7 +30,6 @@ import { Label } from '@/shared/ui/label.tsx'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
 import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
-import { apiClient } from '@/shared/api/client'
 
 import { ClientSecretInput } from './ClientSecretInput'
 
@@ -116,42 +115,15 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
     [themes, binding],
   )
 
-  const previewQuery = useMemo(() => {
-    if (!realm) return null
-    const search = new URLSearchParams()
-    search.set('client_id', client.client_id)
-    search.set('page_key', previewPageKey || 'login')
-    return `/api/realms/${realm}/theme/resolve?${search.toString()}`
-  }, [realm, client.client_id, previewPageKey])
-
-  const [previewState, setPreviewState] = useState<{
-    data: ThemeSnapshot | null
-    loading: boolean
-  }>({ data: null, loading: false })
-
-  useEffect(() => {
-    let cancelled = false
-    if (!previewOpen || !previewQuery) {
-      setPreviewState({ data: null, loading: false })
-      return
-    }
-    setPreviewState({ data: null, loading: true })
-    apiClient
-      .get(previewQuery)
-      .then((data) => {
-        if (!cancelled) {
-          setPreviewState({ data: data as ThemeSnapshot, loading: false })
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setPreviewState({ data: null, loading: false })
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [previewOpen, previewQuery])
+  const previewEnabled = previewOpen && !!realm
+  const { data: previewSnapshot, isLoading: isPreviewLoading } = useThemeSnapshot(
+    realm,
+    {
+      clientId: client.client_id,
+      pageKey: previewPageKey || 'login',
+    },
+    { enabled: previewEnabled },
+  )
 
   const onSubmit = (values: CreateClientSchema) => {
     mutation.mutate(
@@ -422,16 +394,16 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
             </Select>
           </div>
           <div className="h-[540px] overflow-hidden rounded-lg border">
-            {previewState.loading ? (
+            {isPreviewLoading ? (
               <div className="text-muted-foreground flex h-full items-center justify-center">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading preview...
               </div>
-            ) : previewState.data ? (
+            ) : previewSnapshot ? (
               <FluidCanvas
-                tokens={previewState.data.tokens}
-                layout={previewState.data.layout}
-                blocks={previewState.data.nodes}
-                assets={previewState.data.assets}
+                tokens={previewSnapshot.tokens}
+                layout={previewSnapshot.layout}
+                blocks={previewSnapshot.nodes}
+                assets={previewSnapshot.assets}
                 selectedNodeId={null}
                 isInspecting={false}
                 showChrome={false}

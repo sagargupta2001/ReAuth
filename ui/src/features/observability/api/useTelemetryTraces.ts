@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import type { TelemetryTrace } from '../model/types'
@@ -17,7 +18,7 @@ export interface TelemetryTraceQuery {
 
 export function useTelemetryTraces(params: TelemetryTraceQuery) {
   return useQuery({
-    queryKey: ['observability-traces', params],
+    queryKey: queryKeys.observabilityTraces(params),
     queryFn: async () => {
       const query = new URLSearchParams()
       if (params.search) query.set('search', params.search)

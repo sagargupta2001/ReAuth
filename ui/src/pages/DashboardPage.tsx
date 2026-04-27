@@ -1,4 +1,3 @@
-import { Button } from '@/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { RecentSales } from '@/features/RecentSales/RecentSales'
@@ -9,12 +8,6 @@ import { Overview } from '@/widgets/Overview/Overview'
 const DashboardPage = () => {
   return (
     <Main>
-      <div className="mb-2 flex items-center justify-between space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <div className="flex items-center space-x-2">
-          <Button>Download</Button>
-        </div>
-      </div>
       <Tabs orientation="vertical" defaultValue="overview" className="space-y-4">
         <div className="w-full overflow-x-auto pb-2">
           <TabsList>

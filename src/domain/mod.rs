@@ -26,5 +26,6 @@ pub mod session;
 pub mod telemetry;
 pub mod theme;
 pub mod theme_pages;
+pub mod ui;
 pub mod user;
 pub mod webhook;

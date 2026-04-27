@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import type { ThemeSnapshot } from '@/entities/theme/model/types'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 type ThemeSnapshotParams = {
   pageKey?: string
@@ -9,7 +10,11 @@ type ThemeSnapshotParams = {
   clientId?: string
 }
 
-export function useThemeSnapshot(realm?: string, params?: ThemeSnapshotParams) {
+export function useThemeSnapshot(
+  realm?: string,
+  params?: ThemeSnapshotParams,
+  options?: { enabled?: boolean },
+) {
   const searchParams = new URLSearchParams()
   if (params?.pageKey) {
     searchParams.set('page_key', params.pageKey)
@@ -23,11 +28,11 @@ export function useThemeSnapshot(realm?: string, params?: ThemeSnapshotParams) {
   const query = searchParams.toString()
 
   return useQuery<ThemeSnapshot>({
-    queryKey: ['theme-snapshot', realm, params?.pageKey, params?.nodeKey, params?.clientId],
+    queryKey: queryKeys.themeSnapshot(realm ?? '', params),
     queryFn: () =>
       apiClient.get<ThemeSnapshot>(
         `/api/realms/${realm}/theme/resolve${query ? `?${query}` : ''}`,
       ),
-    enabled: !!realm,
+    enabled: options?.enabled ?? !!realm,
   })
 }

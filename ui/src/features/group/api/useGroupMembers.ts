@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface GroupMemberRow {
   id: string
@@ -24,7 +25,7 @@ export function useGroupMembersList(groupId: string, params: GroupMemberListPara
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-member-list', realm, groupId, params],
+    queryKey: queryKeys.groupMemberList(realm, groupId, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
@@ -46,7 +47,7 @@ export function useGroupMemberIds(groupId: string) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['group-members', realm, groupId],
+    queryKey: queryKeys.groupMembers(realm, groupId),
     queryFn: async () => {
       return apiClient.get<string[]>(`/api/realms/${realm}/rbac/groups/${groupId}/members`)
     },
@@ -56,8 +57,8 @@ export function useGroupMemberIds(groupId: string) {
 export function useManageGroupMembers(groupId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
-  const queryKey = ['group-members', realm, groupId]
-  const listQueryKey = ['group-member-list', realm, groupId]
+  const queryKey = queryKeys.groupMembers(realm, groupId)
+  const listQueryKey = queryKeys.groupMemberList(realm, groupId)
 
   const addMutation = useMutation({
     mutationFn: async (userId: string) => {

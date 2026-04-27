@@ -233,6 +233,7 @@ mod tests {
             execution_artifact: "[]".to_string(),
             graph_json: "[]".to_string(),
             checksum: "sum".to_string(),
+            node_contract_versions: "{}".to_string(),
             created_at: now,
         };
         let deployment = FlowDeployment {

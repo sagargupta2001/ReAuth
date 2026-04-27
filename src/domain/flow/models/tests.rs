@@ -1,4 +1,4 @@
-use super::{FlowDeployment, FlowDraft, FlowVersion, NodeMetadata};
+use super::{FlowDeployment, FlowDraft, FlowVersion, NodeCapabilities, NodeContract};
 use chrono::{TimeZone, Utc};
 use serde_json::json;
 use sqlx::SqlitePool;
@@ -41,6 +41,7 @@ fn flow_version_round_trip() {
         execution_artifact: "artifact".to_string(),
         graph_json: "{}".to_string(),
         checksum: "checksum".to_string(),
+        node_contract_versions: "{}".to_string(),
         created_at: now,
     };
 
@@ -53,6 +54,10 @@ fn flow_version_round_trip() {
     assert_eq!(decoded.execution_artifact, version.execution_artifact);
     assert_eq!(decoded.graph_json, version.graph_json);
     assert_eq!(decoded.checksum, version.checksum);
+    assert_eq!(
+        decoded.node_contract_versions,
+        version.node_contract_versions
+    );
     assert_eq!(decoded.created_at, version.created_at);
 }
 
@@ -78,8 +83,8 @@ fn flow_deployment_round_trip() {
 }
 
 #[test]
-fn node_metadata_round_trip() {
-    let metadata = NodeMetadata {
+fn node_contract_round_trip() {
+    let metadata = NodeContract {
         id: "node".to_string(),
         category: "Logic".to_string(),
         display_name: "Node".to_string(),
@@ -88,12 +93,20 @@ fn node_metadata_round_trip() {
         config_schema: json!({"type": "object"}),
         inputs: vec!["in".to_string()],
         outputs: vec!["out".to_string()],
-        supports_ui: true,
         default_template_key: Some("login".to_string()),
+        contract_version: "1".to_string(),
+        capabilities: NodeCapabilities {
+            supports_ui: true,
+            ui_surface: Some(crate::domain::ui::UiSurface::Form),
+            allowed_page_categories: vec![crate::domain::ui::PageCategory::Auth],
+            async_pause: false,
+            side_effects: false,
+            requires_secrets: false,
+        },
     };
 
     let json = serde_json::to_string(&metadata).expect("serialize");
-    let decoded: NodeMetadata = serde_json::from_str(&json).expect("deserialize");
+    let decoded: NodeContract = serde_json::from_str(&json).expect("deserialize");
 
     assert_eq!(decoded.id, metadata.id);
     assert_eq!(decoded.category, metadata.category);
@@ -103,8 +116,20 @@ fn node_metadata_round_trip() {
     assert_eq!(decoded.config_schema, metadata.config_schema);
     assert_eq!(decoded.inputs, metadata.inputs);
     assert_eq!(decoded.outputs, metadata.outputs);
-    assert_eq!(decoded.supports_ui, metadata.supports_ui);
     assert_eq!(decoded.default_template_key, metadata.default_template_key);
+    assert_eq!(decoded.contract_version, metadata.contract_version);
+    assert_eq!(
+        decoded.capabilities.supports_ui,
+        metadata.capabilities.supports_ui
+    );
+    assert_eq!(
+        decoded.capabilities.ui_surface,
+        metadata.capabilities.ui_surface
+    );
+    assert_eq!(
+        decoded.capabilities.allowed_page_categories,
+        metadata.capabilities.allowed_page_categories
+    );
 }
 
 #[tokio::test]
@@ -136,7 +161,7 @@ async fn flow_models_from_row_parse_uuid_fields() {
     assert_eq!(draft.realm_id, realm_id);
 
     let version: FlowVersion = sqlx::query_as(
-        "SELECT ? as id, ? as flow_id, ? as version_number, ? as execution_artifact, ? as graph_json, ? as checksum, ? as created_at",
+        "SELECT ? as id, ? as flow_id, ? as version_number, ? as execution_artifact, ? as graph_json, ? as checksum, ? as node_contract_versions, ? as created_at",
     )
     .bind("version-1")
     .bind("flow-1")
@@ -144,6 +169,7 @@ async fn flow_models_from_row_parse_uuid_fields() {
     .bind("artifact")
     .bind("{}")
     .bind("checksum")
+    .bind("{}")
     .bind(now)
     .fetch_one(&pool)
     .await

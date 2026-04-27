@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { Ruler, Search, Type } from 'lucide-react'
+import { Ruler, Search, Type, X } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
@@ -85,6 +85,75 @@ function contrastRatio(foreground: string, background: string) {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
+type InspectorAction = {
+  action_id?: string
+  trigger?: string
+  signal?: {
+    type?: string
+    node_id?: string
+    payload_map?: Record<string, unknown>
+  }
+}
+
+const RECENT_ACTION_NODE_KEY = 'reauth.fluid.action-node-ids'
+const MAX_RECENT_ACTION_NODES = 20
+
+const readRecentActionNodeIds = () => {
+  if (typeof window === 'undefined') return [] as string[]
+  try {
+    const raw = window.localStorage.getItem(RECENT_ACTION_NODE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as string[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+const writeRecentActionNodeIds = (entries: string[]) => {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(RECENT_ACTION_NODE_KEY, JSON.stringify(entries))
+}
+
+const createActionId = () => {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+  return `action_${Date.now()}_${Math.random().toString(36).slice(2)}`
+}
+
+const validatePayloadPath = (path: string, inputNames: string[]) => {
+  const trimmed = path.trim()
+  if (!trimmed) return { valid: true, message: '' }
+  if (trimmed.startsWith('inputs.')) {
+    const rest = trimmed.slice('inputs.'.length)
+    const segments = rest.split('.')
+    const name = segments[0]?.trim()
+    if (!name) {
+      return { valid: false, message: 'Select an input name.' }
+    }
+    if (!inputNames.includes(name)) {
+      return { valid: false, message: `Unknown input '${name}'.` }
+    }
+    if (segments.some((segment) => !segment.trim())) {
+      return { valid: false, message: 'Input path segments cannot be empty.' }
+    }
+    return { valid: true, message: '' }
+  }
+  if (trimmed.startsWith('context.')) {
+    const rest = trimmed.slice('context.'.length)
+    const segments = rest.split('.')
+    if (!rest.trim()) {
+      return { valid: false, message: 'Context path is required.' }
+    }
+    if (segments.some((segment) => !segment.trim())) {
+      return { valid: false, message: 'Context path segments cannot be empty.' }
+    }
+    return { valid: true, message: '' }
+  }
+  return { valid: false, message: 'Path must start with inputs. or context.' }
+}
+
 function IconPicker({
   value,
   color,
@@ -159,6 +228,7 @@ interface FluidInspectorProps {
   tokens: Record<string, unknown>
   selectedBlock: ThemeNode | null
   validationErrors?: ThemeValidationError[]
+  inputNames: string[]
   onUpdateSelectedBlock: (partial: {
     props?: Record<string, unknown>
     layout?: Record<string, unknown>
@@ -172,11 +242,12 @@ export function FluidInspector({
   tokens,
   selectedBlock,
   validationErrors = [],
+  inputNames,
   onUpdateSelectedBlock,
 }: FluidInspectorProps) {
-  const selectedProps = selectedBlock?.props ?? {}
-  const selectedLayout = selectedBlock?.layout ?? {}
-  const selectedSize = selectedBlock?.size ?? {}
+  const selectedProps = useMemo(() => selectedBlock?.props ?? {}, [selectedBlock])
+  const selectedLayout = useMemo(() => selectedBlock?.layout ?? {}, [selectedBlock])
+  const selectedSize = useMemo(() => selectedBlock?.size ?? {}, [selectedBlock])
   const selectedType = selectedBlock?.type ?? ''
   const selectedComponent = selectedBlock?.component ?? ''
   const displayType =
@@ -204,6 +275,146 @@ export function FluidInspector({
         : [],
     [selectedBlock, validationErrors],
   )
+  const contextSuggestions = useMemo(
+    () => [
+      'context.username',
+      'context.email',
+      'context.client_id',
+      'context.realm',
+      'context.resume_token',
+      'context.action_type',
+    ],
+    [],
+  )
+  const supportsActions = useMemo(() => {
+    if (!selectedBlock) return false
+    if (selectedType === 'Input') return true
+    if (selectedType === 'Component') {
+      const component = selectedComponent.toLowerCase()
+      return component === 'button' || component === 'input'
+    }
+    return false
+  }, [selectedBlock, selectedType, selectedComponent])
+  const [activeTab, setActiveTab] = useState<'properties' | 'actions'>('properties')
+  const resolvedTab = supportsActions ? activeTab : 'properties'
+
+  const rawActions = useMemo<InspectorAction[]>(() => {
+    if (!selectedBlock) return []
+    const rawActions = (selectedProps as Record<string, unknown>).actions
+    if (!Array.isArray(rawActions)) return []
+    return rawActions.filter((action) => action && typeof action === 'object') as InspectorAction[]
+  }, [selectedBlock, selectedProps])
+  const actions = useMemo(
+    () =>
+      rawActions.map((action) => ({
+        ...action,
+        action_id: action.action_id ?? createActionId(),
+      })),
+    [rawActions],
+  )
+
+  const updateActions = (nextActions: InspectorAction[]) => {
+    if (!selectedBlock) return
+    const nextProps = { ...(selectedProps as Record<string, unknown>) }
+    nextProps.actions = nextActions.map((action) => ({
+      ...action,
+      action_id: action.action_id ?? createActionId(),
+    }))
+    onUpdateSelectedBlock({ props: nextProps })
+  }
+
+  useEffect(() => {
+    if (!selectedBlock) return
+    if (rawActions.length === 0) return
+    const missing = rawActions.some((action) => !action.action_id)
+    if (!missing) return
+
+    const nextProps = { ...(selectedProps as Record<string, unknown>) }
+    nextProps.actions = actions.map((action) => ({
+      ...action,
+      action_id: action.action_id ?? createActionId(),
+    }))
+    onUpdateSelectedBlock({ props: nextProps })
+  }, [selectedBlock, rawActions, actions, selectedProps, onUpdateSelectedBlock])
+
+  const updateAction = (actionId: string, patch: Partial<InspectorAction>) => {
+    const next = actions.map((action) =>
+      action.action_id === actionId ? { ...action, ...patch } : action,
+    )
+    updateActions(next)
+  }
+
+  const updateActionSignal = (
+    actionId: string,
+    patch: Partial<NonNullable<InspectorAction['signal']>>,
+  ) => {
+    const next = actions.map((action) => {
+      if (action.action_id !== actionId) return action
+      const signal = { ...(action.signal ?? {}), ...patch }
+      return { ...action, signal }
+    })
+    updateActions(next)
+  }
+
+  const updatePayloadMap = (actionId: string, entries: Array<{ key: string; path: string }>) => {
+    const payloadMap: Record<string, string> = {}
+    entries.forEach((entry) => {
+      const key = entry.key.trim()
+      const path = entry.path.trim()
+      if (key) {
+        payloadMap[key] = path
+      }
+    })
+    const next = actions.map((action) => {
+      if (action.action_id !== actionId) return action
+      const signal = { ...(action.signal ?? {}) }
+      if (Object.keys(payloadMap).length === 0) {
+        delete signal.payload_map
+      } else {
+        signal.payload_map = payloadMap
+      }
+      return { ...action, signal }
+    })
+    updateActions(next)
+  }
+
+  const addAction = () => {
+    updateActions([
+      ...actions,
+      {
+        action_id: createActionId(),
+        trigger: 'on_click',
+        signal: {
+          type: 'submit_node',
+        },
+      },
+    ])
+  }
+
+  const removeAction = (actionId: string) => {
+    updateActions(
+      actions.filter(
+        (action, index) => (action.action_id ?? `action-${index}`) !== actionId,
+      ),
+    )
+  }
+
+  const [recentActionNodeIds, setRecentActionNodeIds] = useState<string[]>(() =>
+    readRecentActionNodeIds(),
+  )
+
+  const recordRecentNodeId = (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    setRecentActionNodeIds((prev) => {
+      const next = [trimmed, ...prev.filter((entry) => entry !== trimmed)].slice(
+        0,
+        MAX_RECENT_ACTION_NODES,
+      )
+      writeRecentActionNodeIds(next)
+      return next
+    })
+  }
 
   const upsertSlot = (
     key: string,
@@ -255,10 +466,32 @@ export function FluidInspector({
                     </div>
                   </div>
                 )}
-                <div className="space-y-2">
-                  <Label>Block Type</Label>
-                  <Input value={displayType || 'Node'} disabled />
-                </div>
+                {supportsActions && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant={resolvedTab === 'properties' ? 'default' : 'outline'}
+                      className="h-8 px-3 text-xs"
+                      onClick={() => setActiveTab('properties')}
+                    >
+                      Properties
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={resolvedTab === 'actions' ? 'default' : 'outline'}
+                      className="h-8 px-3 text-xs"
+                      onClick={() => setActiveTab('actions')}
+                    >
+                      Actions
+                    </Button>
+                  </div>
+                )}
+                {resolvedTab === 'properties' ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Block Type</Label>
+                      <Input value={displayType || 'Node'} disabled />
+                    </div>
 
                 {selectedType === 'Text' && (
                   <div className="space-y-2">
@@ -914,7 +1147,211 @@ export function FluidInspector({
                   </Select>
                 </div>
               </>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-muted-foreground text-[11px]">
+                  Actions emit signals from this block into the auth flow.
+                </div>
+                {actions.length === 0 ? (
+                  <div className="text-muted-foreground text-xs">No actions configured yet.</div>
+                ) : (
+                  actions.map((action, index) => {
+                    const signal = action.signal ?? {}
+                    const actionId = action.action_id ?? `action-${index}`
+                    const payloadMap =
+                      signal.payload_map && typeof signal.payload_map === 'object'
+                        ? (signal.payload_map as Record<string, unknown>)
+                        : {}
+                    const entries = Object.entries(payloadMap).map(([key, value]) => ({
+                      key,
+                      path: String(value ?? ''),
+                    }))
+                    return (
+                      <div
+                        key={actionId}
+                        className="space-y-3 rounded-md border p-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-xs font-semibold">Action {index + 1}</div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => removeAction(actionId)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Trigger</Label>
+                          <Select
+                            value={String(action.trigger || 'on_click')}
+                            onValueChange={(value) =>
+                              updateAction(actionId, { trigger: value })
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Select trigger" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="on_click">On Click</SelectItem>
+                              <SelectItem value="on_submit">On Submit</SelectItem>
+                              <SelectItem value="on_change">On Change</SelectItem>
+                              <SelectItem value="on_load">On Load</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Signal Type</Label>
+                          <Select
+                            value={String(signal.type || 'submit_node')}
+                            onValueChange={(value) =>
+                              updateActionSignal(actionId, { type: value })
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Select signal type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="submit_node">Submit Node</SelectItem>
+                              <SelectItem value="validate_node">Validate Node</SelectItem>
+                              <SelectItem value="call_subflow">Call Subflow</SelectItem>
+                              <SelectItem value="execute_script">Execute Script</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Node ID (optional)</Label>
+                          <Input
+                            className="h-8 text-xs"
+                            value={String(signal.node_id || '')}
+                            placeholder="e.g. auth-password"
+                            list="recent-action-node-ids"
+                            onChange={(event) =>
+                              updateActionSignal(actionId, { node_id: event.target.value })
+                            }
+                            onBlur={(event) => recordRecentNodeId(event.target.value)}
+                          />
+                          {recentActionNodeIds.length > 0 && (
+                            <datalist id="recent-action-node-ids">
+                              {recentActionNodeIds.map((nodeId) => (
+                                <option key={`recent-node-${nodeId}`} value={nodeId} />
+                              ))}
+                            </datalist>
+                          )}
+                          <p className="text-muted-foreground text-[10px]">
+                            Autocomplete uses recently entered node IDs. Freeform values are
+                            allowed.
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-xs">Payload Map</Label>
+                          <div className="space-y-2">
+                            {entries.length === 0 ? (
+                              <div className="text-muted-foreground text-[11px]">
+                                No payload mapping yet.
+                              </div>
+                            ) : (
+                              entries.map((entry, entryIndex) => {
+                                const validation = validatePayloadPath(entry.path, inputNames)
+                                const pathInvalid = !validation.valid
+                                return (
+                                  <div key={`${entry.key}-${entryIndex}`} className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <Input
+                                        className="h-8 text-xs"
+                                        placeholder="payload key"
+                                        value={entry.key}
+                                        onChange={(event) => {
+                                          const next = [...entries]
+                                          next[entryIndex] = {
+                                            ...entry,
+                                            key: event.target.value,
+                                          }
+                                          updatePayloadMap(actionId, next)
+                                        }}
+                                      />
+                                      <Input
+                                        list={`payload-map-${index}-${entryIndex}`}
+                                        className={`h-8 text-xs ${
+                                          pathInvalid ? 'border-red-400 focus-visible:ring-red-400' : ''
+                                        }`}
+                                        placeholder="inputs.email"
+                                        value={entry.path}
+                                        onChange={(event) => {
+                                          const next = [...entries]
+                                          next[entryIndex] = {
+                                            ...entry,
+                                            path: event.target.value,
+                                          }
+                                          updatePayloadMap(actionId, next)
+                                        }}
+                                      />
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => {
+                                          const next = entries.filter((_, i) => i !== entryIndex)
+                                          updatePayloadMap(actionId, next)
+                                        }}
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                    <datalist id={`payload-map-${index}-${entryIndex}`}>
+                                      {inputNames.map((name) => (
+                                        <option key={`input-${name}`} value={`inputs.${name}`} />
+                                      ))}
+                                      {contextSuggestions.map((path) => (
+                                        <option key={`context-${path}`} value={path} />
+                                      ))}
+                                    </datalist>
+                                    {pathInvalid && (
+                                      <div className="text-[10px] text-red-600">
+                                        {validation.message}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                const next = [
+                                  ...entries,
+                                  { key: `payload_${entries.length + 1}`, path: '' },
+                                ]
+                                updatePayloadMap(actionId, next)
+                              }}
+                            >
+                              Add mapping
+                            </Button>
+                            <p className="text-muted-foreground text-[10px]">
+                              Use paths like <code>inputs.email</code> or{' '}
+                              <code>context.client_id</code>.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={addAction}
+                >
+                  Add action
+                </Button>
+              </div>
             )}
+          </>
+        )}
           </CardContent>
         </Card>
 

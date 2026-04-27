@@ -11,10 +11,11 @@ import {
   Split,
   UserPlus,
   XCircle,
+  Zap,
 } from 'lucide-react'
 
 import { Input } from '@/components/input'
-import { type NodeMetadata, useNodes } from '@/features/flow-builder/api/useNodes'
+import { type NodeContract, useNodes } from '@/features/flow-builder/api/useNodes'
 import { useFlowBuilderStore } from '@/features/flow-builder/store/flowBuilderStore'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +28,7 @@ const IconMap: Record<string, ElementType> = {
   Play: Play, // Added Play icon mapping
   UserPlus: UserPlus,
   Box: Box,
+  Zap: Zap,
 }
 
 export function NodePalette() {
@@ -49,7 +51,7 @@ export function NodePalette() {
     })
   }, [nodes, searchTerm])
 
-  const onDragStart = (event: DragEvent, node: NodeMetadata) => {
+  const onDragStart = (event: DragEvent, node: NodeContract) => {
     // 1. Pass Identification
     event.dataTransfer.setData('application/reactflow/type', node.id)
     event.dataTransfer.setData('application/reactflow/category', node.category)

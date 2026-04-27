@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ThemeSnapshot } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 type ThemePreviewParams = {
   pageKey?: string
@@ -21,7 +22,7 @@ export function useThemePreview(themeId?: string, params?: ThemePreviewParams) {
   const query = searchParams.toString()
 
   return useQuery<ThemeSnapshot>({
-    queryKey: ['theme-preview', realm, themeId, params?.pageKey, params?.nodeKey],
+    queryKey: queryKeys.themePreview(realm, themeId ?? '', params?.pageKey, params?.nodeKey),
     queryFn: () =>
       apiClient.get<ThemeSnapshot>(
         `/api/realms/${realm}/themes/${themeId}/preview${query ? `?${query}` : ''}`,

@@ -1,3 +1,4 @@
+use crate::domain::ui::PageCategory;
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -6,6 +7,7 @@ pub struct ThemePageTemplate {
     pub key: String,
     pub label: String,
     pub description: String,
+    pub category: PageCategory,
     pub blueprint: Value,
 }
 
@@ -13,6 +15,7 @@ struct ThemePageDefinition {
     key: &'static str,
     label: &'static str,
     description: &'static str,
+    category: PageCategory,
 }
 
 const SYSTEM_PAGES: &[ThemePageDefinition] = &[
@@ -20,51 +23,61 @@ const SYSTEM_PAGES: &[ThemePageDefinition] = &[
         key: "login",
         label: "Login",
         description: "Primary sign-in screen.",
+        category: PageCategory::Auth,
     },
     ThemePageDefinition {
         key: "register",
         label: "Register",
         description: "Account creation form.",
+        category: PageCategory::Auth,
     },
     ThemePageDefinition {
         key: "forgot_credentials",
         label: "Forgot Credentials",
         description: "Password reset entry.",
+        category: PageCategory::Auth,
     },
     ThemePageDefinition {
         key: "reset_password",
         label: "Reset Password",
         description: "Set a new password.",
+        category: PageCategory::Auth,
     },
     ThemePageDefinition {
         key: "awaiting_action",
         label: "Awaiting Action",
         description: "Waiting for an out-of-band action.",
+        category: PageCategory::AwaitingAction,
     },
     ThemePageDefinition {
         key: "verify_email",
         label: "Verify Email",
         description: "Email verification notice.",
+        category: PageCategory::Verification,
     },
     ThemePageDefinition {
         key: "mfa",
         label: "Multi-Factor",
         description: "OTP and challenge prompts.",
+        category: PageCategory::Mfa,
     },
     ThemePageDefinition {
         key: "consent",
         label: "Consent",
         description: "OIDC consent step.",
+        category: PageCategory::Consent,
     },
     ThemePageDefinition {
         key: "magic_link_sent",
         label: "Magic Link Sent",
         description: "Magic link confirmation.",
+        category: PageCategory::Notification,
     },
     ThemePageDefinition {
         key: "error",
         label: "Error",
         description: "Fallback error page.",
+        category: PageCategory::Error,
     },
 ];
 
@@ -75,6 +88,7 @@ pub fn system_pages() -> Vec<ThemePageTemplate> {
             key: page.key.to_string(),
             label: page.label.to_string(),
             description: page.description.to_string(),
+            category: page.category.clone(),
             blueprint: default_page_blueprint(page.key).unwrap_or_else(default_fallback_blueprint),
         })
         .collect()
@@ -93,6 +107,7 @@ pub fn custom_page_template(key: &str, blueprint: Value) -> ThemePageTemplate {
         key: key.to_string(),
         label: custom_page_label(key),
         description: "Custom page".to_string(),
+        category: PageCategory::Custom,
         blueprint,
     }
 }

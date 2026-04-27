@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 interface UpdateClientPayload {
   client_id: string
@@ -20,8 +21,8 @@ export function useUpdateClient(id: string) {
     },
     onSuccess: () => {
       toast.success('Client updated successfully')
-      void queryClient.invalidateQueries({ queryKey: ['client', realm, id] })
-      void queryClient.invalidateQueries({ queryKey: ['clients'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.client(realm, id) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.clients() })
     },
   })
 }

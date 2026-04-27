@@ -1,4 +1,5 @@
 use crate::domain::flow::provider::NodeProvider;
+use crate::domain::ui::{PageCategory, UiSurface};
 use serde_json::{json, Value};
 
 pub struct RecoveryIssueNodeProvider;
@@ -46,5 +47,13 @@ impl NodeProvider for RecoveryIssueNodeProvider {
 
     fn default_template_key(&self) -> Option<&'static str> {
         Some("awaiting_action")
+    }
+
+    fn ui_surface(&self) -> Option<UiSurface> {
+        Some(UiSurface::AwaitingAction)
+    }
+
+    fn allowed_page_categories(&self) -> Vec<PageCategory> {
+        vec![PageCategory::AwaitingAction]
     }
 }

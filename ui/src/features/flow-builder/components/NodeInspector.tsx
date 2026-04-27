@@ -17,6 +17,8 @@ import { Separator } from '@/components/separator'
 import { AutoForm } from '@/shared/ui/auto-form'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { useActiveTheme } from '@/features/theme/api/useActiveTheme'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
 
 import { useFlowBuilderStore } from '../store/flowBuilderStore'
 
@@ -27,6 +29,7 @@ export function NodeInspector() {
   const selectNode = useFlowBuilderStore((s) => s.selectNode)
   const updateNodeData = useFlowBuilderStore((s) => s.updateNodeData)
   const { data: activeTheme } = useActiveTheme()
+  const realmName = useActiveRealm()
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
   const nodeType = selectedNode?.type ?? ''
@@ -34,20 +37,73 @@ export function NodeInspector() {
   // 1. Lookup Schema based on Node Type (e.g., "core.auth.password")
   const nodeDefinition = nodeType ? nodeTypes.find((t) => t.id === nodeType) : undefined
   const configSchema = nodeDefinition?.config_schema
-  const supportsUi = nodeDefinition?.supports_ui ?? false
+  const supportsUi = nodeDefinition?.capabilities?.supports_ui ?? false
 
   const currentConfig = (selectedNode?.data?.config as Record<string, unknown>) || {}
+  const currentUi =
+    typeof currentConfig.ui === 'object' && currentConfig.ui
+      ? (currentConfig.ui as Record<string, unknown>)
+      : {}
   const fallbackTemplate = nodeDefinition?.default_template_key ?? undefined
   const explicitTemplate =
-    typeof currentConfig.template_key === 'string' ? currentConfig.template_key : undefined
+    typeof currentUi.page_key === 'string'
+      ? currentUi.page_key
+      : typeof currentConfig.template_key === 'string'
+        ? currentConfig.template_key
+        : undefined
   const currentTemplate = explicitTemplate ?? fallbackTemplate
 
   const availablePages = useMemo(() => activeTheme?.pages ?? [], [activeTheme?.pages])
+  const allowedCategories = useMemo(
+    () => nodeDefinition?.capabilities?.allowed_page_categories ?? [],
+    [nodeDefinition?.capabilities?.allowed_page_categories],
+  )
+  const filteredPages = useMemo(() => {
+    if (!allowedCategories.length) return availablePages
+    return availablePages.filter(
+      (page) =>
+        allowedCategories.includes(page.category) || page.category === 'custom',
+    )
+  }, [availablePages, allowedCategories])
+  const scriptTemplateKeys = useMemo(
+    () => availablePages.map((page) => page.key),
+    [availablePages],
+  )
+  const codeSuggestions =
+    nodeType === 'core.ui.scripted'
+      ? { script: scriptTemplateKeys }
+      : undefined
+  const codeEditorMeta =
+    nodeType === 'core.ui.scripted'
+      ? { mode: 'scripted_ui' as const, currentTemplateKey: currentTemplate ?? undefined }
+      : nodeType === 'core.logic.scripted'
+        ? { mode: 'scripted_logic' as const }
+      : undefined
+  const { data: themeSnapshot } = useThemeSnapshot(
+    realmName,
+    { pageKey: currentTemplate || 'login' },
+    { enabled: nodeType === 'core.ui.scripted' },
+  )
+  const codePreviewTheme = themeSnapshot
+    ? {
+        tokens: themeSnapshot.tokens,
+        layout: themeSnapshot.layout,
+        assets: themeSnapshot.assets,
+        nodes: themeSnapshot.nodes,
+      }
+    : undefined
   const [isTemplateOpen, setIsTemplateOpen] = useState(false)
   const selectedPage = useMemo(
     () => availablePages.find((page) => page.key === currentTemplate),
     [availablePages, currentTemplate],
   )
+  const templateAllowed = useMemo(() => {
+    if (!currentTemplate) return true
+    if (!selectedPage) return true
+    if (!allowedCategories.length) return true
+    if (selectedPage.category === 'custom') return true
+    return allowedCategories.includes(selectedPage.category)
+  }, [allowedCategories, currentTemplate, selectedPage])
   const templateExists = !activeTheme
     ? true
     : currentTemplate
@@ -66,20 +122,34 @@ export function NodeInspector() {
 
   const handleConfigChange = (newConfig: Record<string, unknown>) => {
     const templateKey = currentConfig.template_key
+    const ui = currentConfig.ui
+    const nextConfig = { ...newConfig } as Record<string, unknown>
+    if (templateKey && !('template_key' in nextConfig)) {
+      nextConfig.template_key = templateKey
+    }
+    if (ui && !('ui' in nextConfig)) {
+      nextConfig.ui = ui
+    }
     updateNodeData(selectedNode.id, {
       ...selectedNode.data,
-      config: templateKey && !('template_key' in newConfig)
-        ? { ...newConfig, template_key: templateKey }
-        : newConfig,
+      config: nextConfig,
     })
   }
 
   const handleTemplateChange = (value?: string) => {
     const nextConfig = { ...currentConfig }
+    const nextUi = { ...(currentUi || {}) }
     if (!value) {
+      delete nextUi.page_key
       delete nextConfig.template_key
     } else {
-      nextConfig.template_key = value
+      nextUi.page_key = value
+      delete nextConfig.template_key
+    }
+    if (Object.keys(nextUi).length) {
+      nextConfig.ui = nextUi
+    } else {
+      delete nextConfig.ui
     }
     updateNodeData(selectedNode.id, {
       ...selectedNode.data,
@@ -147,6 +217,11 @@ export function NodeInspector() {
               </div>
 
               <div className="border-muted ml-0.5 space-y-3 border-l-2 pl-3.5">
+                {nodeDefinition?.capabilities?.ui_surface ? (
+                  <div className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                    UI Surface: {nodeDefinition.capabilities.ui_surface.replace('_', ' ')}
+                  </div>
+                ) : null}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium">Page Template</Label>
                   <Popover open={isTemplateOpen} onOpenChange={setIsTemplateOpen}>
@@ -184,7 +259,7 @@ export function NodeInspector() {
                             </CommandItem>
                           </CommandGroup>
                           <CommandGroup>
-                            {availablePages.map((page) => (
+                            {filteredPages.map((page) => (
                               <CommandItem
                                 key={page.key}
                                 onSelect={() => {
@@ -216,6 +291,9 @@ export function NodeInspector() {
                   />
                   <p className="text-muted-foreground text-[10px]">
                     Assign a Fluid page key to this node.
+                    {allowedCategories.length
+                      ? ` Allowed categories: ${allowedCategories.join(', ')}.`
+                      : ''}
                   </p>
                 </div>
                 {!templateExists && currentTemplate && (
@@ -224,6 +302,15 @@ export function NodeInspector() {
                     <AlertDescription>
                       The active theme does not define the page “{currentTemplate}”. Users will
                       fall back to the system template.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                {templateExists && !templateAllowed && selectedPage && (
+                  <Alert>
+                    <AlertTitle>Template category mismatch</AlertTitle>
+                    <AlertDescription>
+                      This node expects pages in: {allowedCategories.join(', ')}. The selected
+                      page is categorized as {selectedPage.category}.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -249,6 +336,9 @@ export function NodeInspector() {
                 schema={configSchema}
                 values={(selectedNode.data.config as Record<string, unknown>) || {}}
                 onChange={handleConfigChange}
+                codeSuggestions={codeSuggestions}
+                codePreviewTheme={codePreviewTheme}
+                codeEditorMeta={codeEditorMeta}
               />
             ) : (
               <div className="rounded-lg border border-dashed p-4 text-center">

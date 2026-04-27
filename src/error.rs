@@ -1,5 +1,6 @@
 //! Defines the custom `Error` and `Result` types for the crate application.
 
+use crate::domain::flow::models::FlowPublishValidation;
 use http::header::InvalidHeaderValue;
 
 /// A specialized `Result` type for crate operations.
@@ -82,6 +83,9 @@ pub enum Error {
 
     #[error("Validation failed: {0}")]
     Validation(String),
+
+    #[error("Validation failed: {0}")]
+    FlowPublishValidation(FlowPublishValidation),
 
     #[error("Not found: {0}")]
     NotFound(String),

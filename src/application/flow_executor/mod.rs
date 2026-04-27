@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -12,7 +12,8 @@ use crate::domain::audit::NewAuditEvent;
 use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
 use crate::domain::auth_session_action::AuthSessionAction;
 use crate::domain::execution::lifecycle::NodeOutcome;
-use crate::domain::execution::{ExecutionPlan, ExecutionResult, StepType};
+use crate::domain::execution::{ExecutionNode, ExecutionPlan, ExecutionResult, StepType};
+use crate::domain::flow::signal::FlowSignal;
 use crate::error::{Error, Result};
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
 use crate::ports::auth_session_repository::AuthSessionRepository;
@@ -38,6 +39,21 @@ pub enum ActionStatus {
     Pending,
     Consumed,
     Expired,
+}
+
+const SUBFLOW_STACK_KEY: &str = "subflow_stack";
+const SUBFLOW_RESULT_KEY: &str = "subflow_result";
+const MAX_SUBFLOW_DEPTH: usize = 8;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SubflowFrame {
+    parent_flow_version_id: Uuid,
+    parent_node_id: String,
+}
+
+enum SignalDispatchTarget {
+    CurrentNode,
+    TargetNode(String),
 }
 
 impl FlowExecutor {
@@ -80,16 +96,44 @@ impl FlowExecutor {
             return Ok(result);
         }
 
-        let version = self
-            .flow_store
-            .get_version(&session.flow_version_id)
-            .await?
-            .ok_or(Error::System("Flow version missing".into()))?;
+        let plan = self.load_execution_plan(session.flow_version_id).await?;
+        let mut active_signal: Option<FlowSignal> = None;
 
-        let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
-            .map_err(|e| Error::System(format!("Corrupt artifact: {}", e)))?;
+        if let Some(input) = user_input.take() {
+            let ParsedSignalInput {
+                signal,
+                payload: parsed_input,
+            } = parse_signal_input(input)?;
+
+            let dispatch_target = signal
+                .as_ref()
+                .map(|value| resolve_signal_dispatch(&session, &plan, value))
+                .transpose()?;
+
+            if let Some(SignalDispatchTarget::TargetNode(target_node_id)) = dispatch_target {
+                let target_node_def = plan
+                    .nodes
+                    .get(&target_node_id)
+                    .cloned()
+                    .ok_or(Error::System("Signal target missing from graph".into()))?;
+                self.execute_signal_target_node(
+                    &mut session,
+                    target_node_id,
+                    target_node_def,
+                    signal.as_ref().expect("signal target requires signal"),
+                )
+                .await?;
+            } else {
+                active_signal = signal;
+                user_input = Some(parsed_input);
+            }
+        }
 
         if let Some(input) = user_input {
+            if let Some(signal) = &active_signal {
+                validate_current_node_signal_target(&session, signal)?;
+            }
+
             let current_node_def = plan
                 .nodes
                 .get(&session.current_node_id)
@@ -118,6 +162,11 @@ impl FlowExecutor {
                 );
 
                 let previous_config = inject_node_config(&mut session, &current_node_def.config);
+                let previous_signal = if let Some(signal) = active_signal.as_ref() {
+                    inject_signal_context(&mut session, signal)
+                } else {
+                    None
+                };
                 let outcome = worker
                     .handle_input(&mut session, input)
                     .instrument(handle_span)
@@ -154,6 +203,7 @@ impl FlowExecutor {
                         );
                         worker.on_exit(&mut session).instrument(exit_span).await?;
                         restore_node_config(&mut session, previous_config);
+                        restore_signal_context(&mut session, previous_signal);
                         session.current_node_id = next_id.clone();
                     }
                     NodeOutcome::Reject { .. } => {
@@ -166,6 +216,7 @@ impl FlowExecutor {
                         );
                         let ui_outcome = worker.execute(&mut session).instrument(exec_span).await?;
                         restore_node_config(&mut session, previous_config);
+                        restore_signal_context(&mut session, previous_signal);
                         self.session_repo.update(&session).await?;
                         if let NodeOutcome::SuspendForUI { screen, context } = ui_outcome {
                             let template_key = resolve_template_key(&current_node_def.config);
@@ -187,6 +238,7 @@ impl FlowExecutor {
                         context,
                     } => {
                         restore_node_config(&mut session, previous_config);
+                        restore_signal_context(&mut session, previous_signal);
                         let template_key = resolve_template_key(&current_node_def.config);
                         let context = attach_template_key(context, template_key.as_deref());
                         let context = ensure_template_key(context, "awaiting_action");
@@ -208,6 +260,7 @@ impl FlowExecutor {
                     }
                     _ => {
                         restore_node_config(&mut session, previous_config);
+                        restore_signal_context(&mut session, previous_signal);
                         return Err(Error::System("Unexpected outcome from handle_input".into()));
                     }
                 }
@@ -216,6 +269,7 @@ impl FlowExecutor {
 
         // 2. Main Execution Loop
         loop {
+            let plan = self.load_execution_plan(session.flow_version_id).await?;
             let node_def = plan
                 .nodes
                 .get(&session.current_node_id)
@@ -320,17 +374,45 @@ impl FlowExecutor {
                             .await?;
                         return Ok(result);
                     }
-                    NodeOutcome::FlowSuccess { user_id: _ } => {
-                        session.status = SessionStatus::Completed;
+                    NodeOutcome::CallSubflow {
+                        flow_version_id,
+                        start_node_id,
+                    } => {
+                        let parent_flow_version_id = session.flow_version_id;
+                        let exit_span = info_span!(
+                            "flow.node.on_exit",
+                            telemetry = "span",
+                            node_id = %node_id,
+                            step_type = %step_type
+                        );
+                        worker.on_exit(&mut session).instrument(exit_span).await?;
                         restore_node_config(&mut session, previous_config);
+                        self.enter_subflow(
+                            &mut session,
+                            parent_flow_version_id,
+                            node_id.clone(),
+                            flow_version_id,
+                            start_node_id,
+                        )?;
+                    }
+                    NodeOutcome::FlowSuccess { user_id } => {
+                        restore_node_config(&mut session, previous_config);
+                        session.user_id = Some(user_id);
+                        if self.unwind_subflow(&mut session, "success").await? {
+                            continue;
+                        }
+                        session.status = SessionStatus::Completed;
                         self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Success {
                             redirect_url: "/".to_string(),
                         });
                     }
                     NodeOutcome::FlowFailure { reason } => {
-                        session.status = SessionStatus::Failed;
                         restore_node_config(&mut session, previous_config);
+                        if self.unwind_subflow(&mut session, "failure").await? {
+                            continue;
+                        }
+                        session.status = SessionStatus::Failed;
                         self.session_repo.update(&session).await?;
                         return Ok(ExecutionResult::Failure { reason });
                     }
@@ -384,6 +466,10 @@ impl FlowExecutor {
                             .get("is_failure")
                             .and_then(|v| v.as_bool())
                             .unwrap_or(false);
+                        let terminal_output = if is_failure { "failure" } else { "success" };
+                        if self.unwind_subflow(&mut session, terminal_output).await? {
+                            continue;
+                        }
 
                         return if is_failure {
                             session.status = SessionStatus::Failed;
@@ -506,15 +592,7 @@ impl FlowExecutor {
     }
 
     async fn heal_session(&self, session: &mut AuthenticationSession) -> Result<()> {
-        let version = self
-            .flow_store
-            .get_version(&session.flow_version_id)
-            .await?
-            .ok_or(Error::System("Version not found".into()))?;
-
-        let plan: ExecutionPlan = serde_json::from_str(&version.execution_artifact)
-            .map_err(|e| Error::System(format!("Corrupt artifact: {}", e)))?;
-
+        let plan = self.load_execution_plan(session.flow_version_id).await?;
         session.current_node_id = plan.start_node_id;
         session.status = SessionStatus::Active;
         session.user_id = None;
@@ -523,6 +601,179 @@ impl FlowExecutor {
         self.session_repo.update(session).await?;
         Ok(())
     }
+
+    async fn load_execution_plan(&self, flow_version_id: Uuid) -> Result<ExecutionPlan> {
+        let version = self
+            .flow_store
+            .get_version(&flow_version_id)
+            .await?
+            .ok_or(Error::System("Flow version missing".into()))?;
+
+        serde_json::from_str(&version.execution_artifact)
+            .map_err(|e| Error::System(format!("Corrupt artifact: {}", e)))
+    }
+
+    fn enter_subflow(
+        &self,
+        session: &mut AuthenticationSession,
+        parent_flow_version_id: Uuid,
+        parent_node_id: String,
+        child_flow_version_id: Uuid,
+        child_start_node_id: String,
+    ) -> Result<()> {
+        let mut stack = read_subflow_stack(session)?;
+        if stack.len() >= MAX_SUBFLOW_DEPTH {
+            return Err(Error::Validation(
+                "Subflow nesting limit exceeded".to_string(),
+            ));
+        }
+        stack.push(SubflowFrame {
+            parent_flow_version_id,
+            parent_node_id,
+        });
+        write_subflow_stack(session, &stack);
+        session.flow_version_id = child_flow_version_id;
+        session.current_node_id = child_start_node_id;
+        Ok(())
+    }
+
+    async fn unwind_subflow(
+        &self,
+        session: &mut AuthenticationSession,
+        output: &str,
+    ) -> Result<bool> {
+        let mut stack = read_subflow_stack(session)?;
+        let Some(frame) = stack.pop() else {
+            return Ok(false);
+        };
+
+        let parent_plan = self
+            .load_execution_plan(frame.parent_flow_version_id)
+            .await?;
+        let parent_node = parent_plan
+            .nodes
+            .get(&frame.parent_node_id)
+            .ok_or_else(|| Error::System("Parent subflow node missing from plan".into()))?;
+
+        let next_id = parent_node
+            .next
+            .get(output)
+            .or_else(|| parent_node.next.get("default"))
+            .ok_or_else(|| {
+                Error::Validation(format!(
+                    "Subflow parent node '{}' missing '{}' output path",
+                    frame.parent_node_id, output
+                ))
+            })?
+            .clone();
+
+        write_subflow_stack(session, &stack);
+        session.flow_version_id = frame.parent_flow_version_id;
+        session.current_node_id = next_id;
+        session.update_context(
+            SUBFLOW_RESULT_KEY,
+            serde_json::json!({
+                "parent_node_id": frame.parent_node_id,
+                "output": output,
+                "flow_version_id": frame.parent_flow_version_id.to_string(),
+            }),
+        );
+        Ok(true)
+    }
+
+    async fn execute_signal_target_node(
+        &self,
+        session: &mut AuthenticationSession,
+        node_id: String,
+        node_def: ExecutionNode,
+        signal: &FlowSignal,
+    ) -> Result<()> {
+        let worker_key = node_def
+            .config
+            .get("logic_type")
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| {
+                Error::Validation(format!("Signal target '{}' is not executable", node_id))
+            })?;
+        let worker = self
+            .registry
+            .get_node(worker_key)
+            .ok_or_else(|| Error::System(format!("Worker not found: {}", worker_key)))?;
+        let step_type = format!("{:?}", node_def.step_type);
+
+        let previous_config = inject_node_config(session, &node_def.config);
+        let previous_signal = inject_signal_context(session, signal);
+
+        let enter_span = info_span!(
+            "flow.node.on_enter",
+            telemetry = "span",
+            node_id = %node_id,
+            step_type = %step_type,
+            worker = %worker_key
+        );
+        worker.on_enter(session).instrument(enter_span).await?;
+
+        let exec_span = info_span!(
+            "flow.node.execute",
+            telemetry = "span",
+            node_id = %node_id,
+            step_type = %step_type,
+            worker = %worker_key
+        );
+        let outcome = worker.execute(session).instrument(exec_span).await?;
+
+        match outcome {
+            NodeOutcome::CallSubflow {
+                flow_version_id,
+                start_node_id,
+            } => {
+                let parent_flow_version_id = session.flow_version_id;
+                let exit_span = info_span!(
+                    "flow.node.on_exit",
+                    telemetry = "span",
+                    node_id = %node_id,
+                    step_type = %step_type,
+                    worker = %worker_key
+                );
+                worker.on_exit(session).instrument(exit_span).await?;
+                restore_node_config(session, previous_config);
+                restore_signal_context(session, previous_signal);
+                self.enter_subflow(
+                    session,
+                    parent_flow_version_id,
+                    node_id,
+                    flow_version_id,
+                    start_node_id,
+                )?;
+                Ok(())
+            }
+            other => {
+                restore_node_config(session, previous_config);
+                restore_signal_context(session, previous_signal);
+                Err(Error::Validation(format!(
+                    "Signal target returned unsupported outcome: {:?}",
+                    other
+                )))
+            }
+        }
+    }
+}
+
+fn read_subflow_stack(session: &AuthenticationSession) -> Result<Vec<SubflowFrame>> {
+    let raw = session
+        .context
+        .get(SUBFLOW_STACK_KEY)
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    serde_json::from_value(raw)
+        .map_err(|err| Error::System(format!("Invalid subflow stack state: {}", err)))
+}
+
+fn write_subflow_stack(session: &mut AuthenticationSession, stack: &[SubflowFrame]) {
+    session.update_context(
+        SUBFLOW_STACK_KEY,
+        serde_json::to_value(stack).unwrap_or_else(|_| serde_json::json!([])),
+    );
 }
 
 fn attach_template_key(mut context: Value, template_key: Option<&str>) -> Value {
@@ -560,6 +811,123 @@ fn ensure_template_key(mut context: Value, default_key: &str) -> Value {
     }
 }
 
+struct ParsedSignalInput {
+    signal: Option<FlowSignal>,
+    payload: Value,
+}
+
+fn parse_signal_input(input: Value) -> Result<ParsedSignalInput> {
+    let Value::Object(map) = &input else {
+        return Ok(ParsedSignalInput {
+            signal: None,
+            payload: input,
+        });
+    };
+
+    let Some(signal_value) = map.get("signal") else {
+        return Ok(ParsedSignalInput {
+            signal: None,
+            payload: input,
+        });
+    };
+
+    let mut signal: FlowSignal = serde_json::from_value(signal_value.clone())
+        .map_err(|err| Error::Validation(format!("Invalid signal payload: {}", err)))?;
+
+    normalize_signal(&mut signal);
+
+    if !signal.is_allowed_type() {
+        return Err(Error::Validation(format!(
+            "Unsupported signal type '{}'",
+            signal.signal_type
+        )));
+    }
+
+    let payload = normalize_signal_payload(signal.payload.clone())?;
+
+    Ok(ParsedSignalInput {
+        signal: Some(signal),
+        payload,
+    })
+}
+
+fn normalize_signal(signal: &mut FlowSignal) {
+    signal.node_id = signal.node_id.take().and_then(|value| {
+        let trimmed = value.trim().to_string();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        }
+    });
+}
+
+fn normalize_signal_payload(payload: Value) -> Result<Value> {
+    match payload {
+        Value::Null => Ok(serde_json::json!({})),
+        Value::Object(_) => Ok(payload),
+        _ => Err(Error::Validation(
+            "Signal payload must be an object".to_string(),
+        )),
+    }
+}
+
+fn validate_current_node_signal_target(
+    session: &AuthenticationSession,
+    signal: &FlowSignal,
+) -> Result<()> {
+    if let Some(node_id) = signal.normalized_node_id() {
+        if node_id != session.current_node_id {
+            return Err(Error::Validation(format!(
+                "Signal node_id '{}' does not match current node",
+                node_id
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn resolve_signal_dispatch(
+    session: &AuthenticationSession,
+    plan: &ExecutionPlan,
+    signal: &FlowSignal,
+) -> Result<SignalDispatchTarget> {
+    if signal.signal_type != "call_subflow" {
+        return Ok(SignalDispatchTarget::CurrentNode);
+    }
+
+    let node_id = signal
+        .normalized_node_id()
+        .ok_or_else(|| Error::Validation("call_subflow signal requires node_id".to_string()))?;
+    let node_def = plan.nodes.get(node_id).ok_or_else(|| {
+        Error::Validation(format!(
+            "Signal node_id '{}' does not exist in this flow",
+            node_id
+        ))
+    })?;
+
+    if node_id == session.current_node_id {
+        return Err(Error::Validation(
+            "call_subflow signal cannot target the current node".to_string(),
+        ));
+    }
+
+    if node_def.step_type != StepType::Logic
+        || node_def
+            .config
+            .get("logic_type")
+            .and_then(|value| value.as_str())
+            != Some("core.logic.subflow")
+    {
+        return Err(Error::Validation(format!(
+            "Signal node_id '{}' must target a core.logic.subflow node",
+            node_id
+        )));
+    }
+
+    Ok(SignalDispatchTarget::TargetNode(node_id.to_string()))
+}
+
 fn inject_node_config(session: &mut AuthenticationSession, config: &Value) -> Option<Value> {
     let previous = session.context.get("node_config").cloned();
     match session.context {
@@ -579,6 +947,37 @@ fn restore_node_config(session: &mut AuthenticationSession, previous: Option<Val
             map.insert("node_config".to_string(), value);
         } else {
             map.remove("node_config");
+        }
+    }
+}
+
+fn inject_signal_context(
+    session: &mut AuthenticationSession,
+    signal: &FlowSignal,
+) -> Option<Value> {
+    let previous = session.context.get("signal").cloned();
+    let value = serde_json::json!({
+        "type": signal.signal_type,
+        "node_id": signal.normalized_node_id(),
+        "payload": signal.payload.clone(),
+    });
+    match session.context {
+        Value::Object(ref mut map) => {
+            map.insert("signal".to_string(), value);
+        }
+        _ => {
+            session.context = serde_json::json!({ "signal": value });
+        }
+    }
+    previous
+}
+
+fn restore_signal_context(session: &mut AuthenticationSession, previous: Option<Value>) {
+    if let Value::Object(ref mut map) = session.context {
+        if let Some(value) = previous {
+            map.insert("signal".to_string(), value);
+        } else {
+            map.remove("signal");
         }
     }
 }
@@ -726,9 +1125,16 @@ fn as_number(value: &Value) -> Option<f64> {
 
 fn resolve_template_key(config: &Value) -> Option<String> {
     let explicit = config
-        .get("template_key")
+        .get("ui")
+        .and_then(|value| value.get("page_key"))
         .and_then(|value| value.as_str())
-        .map(|value| value.to_string());
+        .map(|value| value.to_string())
+        .or_else(|| {
+            config
+                .get("template_key")
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string())
+        });
     if explicit.is_some() {
         return explicit;
     }

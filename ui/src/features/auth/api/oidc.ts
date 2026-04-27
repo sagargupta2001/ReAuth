@@ -1,3 +1,4 @@
+import { apiClient } from '@/shared/api/client'
 import { OIDC_CONFIG } from '@/shared/config/oidc'
 
 export interface TokenResponse {
@@ -35,18 +36,9 @@ export const oidcApi = {
     params.append('client_id', OIDC_CONFIG.clientId)
     params.append('code_verifier', verifier)
 
-    // OIDC spec requires 'application/x-www-form-urlencoded'
-    const res = await fetch(`/api/realms/${OIDC_CONFIG.realm}/oidc/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params,
-    })
-
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({}))
-      throw new Error(errorData.error || `Token exchange failed: ${res.statusText}`)
-    }
-
-    return (await res.json()) as Promise<TokenResponse>
+    return apiClient.postUrlEncoded<TokenResponse>(
+      `/api/realms/${OIDC_CONFIG.realm}/oidc/token`,
+      params,
+    )
   },
 }

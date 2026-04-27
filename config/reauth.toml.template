@@ -56,6 +56,10 @@
 # redirect_uris = [] # Leave empty to derive from server.public_url + ui.dev_url
 # web_origins = [] # Leave empty to derive from server.public_url + ui.dev_url
 
+# [theme]
+# default_theme_name = "ReAuth Default"
+# default_binding_name = "" # Optional: activate a different theme by name after seed import
+
 # [harbor]
 # async_import_threshold_resources = 25
 # async_export_threshold_resources = 50

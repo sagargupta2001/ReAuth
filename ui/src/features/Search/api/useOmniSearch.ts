@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 import type { OmniSearchResponse } from '@/features/Search/model/omniTypes'
 
@@ -11,7 +12,7 @@ export function useOmniSearch(query: string, limit = 6) {
   const accessToken = useSessionStore((state) => state.accessToken)
 
   return useQuery({
-    queryKey: ['omni-search', realm, query, limit],
+    queryKey: queryKeys.omniSearch(realm, query, limit),
     queryFn: async () => {
       const params = new URLSearchParams()
       params.set('q', query)

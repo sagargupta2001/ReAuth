@@ -4,6 +4,7 @@ import type { WebhookEndpointDetails } from '@/entities/events/model/types'
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface WebhookListParams {
   page?: number
@@ -17,7 +18,7 @@ export function useWebhooks(params: WebhookListParams) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['webhooks', realm, params],
+    queryKey: queryKeys.webhooks(realm, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       if (params.page) query.set('page', String(params.page))
@@ -40,7 +41,7 @@ export function useWebhook(endpointId?: string) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['webhooks', realm, endpointId],
+    queryKey: queryKeys.webhooksById(realm, endpointId ?? ''),
     queryFn: () =>
       apiClient.get<WebhookEndpointDetails>(`/api/realms/${realm}/webhooks/${endpointId}`),
     enabled: !!realm && !!endpointId,

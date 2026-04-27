@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import { apiClient } from '@/shared/api/client.ts'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 interface CreateUserPayload {
   username: string
@@ -23,7 +24,7 @@ export function useCreateUser() {
     },
     onSuccess: () => {
       toast.success('User created successfully')
-      void queryClient.invalidateQueries({ queryKey: ['users'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.users() })
       navigate('/users')
     },
     onError: (error) => {

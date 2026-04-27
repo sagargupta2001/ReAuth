@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { FlowDraft } from '@/entities/flow/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 interface CreateDraftPayload {
   name: string
@@ -18,7 +19,7 @@ export function useCreateDraft() {
       apiClient.post<FlowDraft>(`/api/realms/${realm}/flows/drafts`, payload),
     onSuccess: () => {
       // Refresh the sidebar list
-      void queryClient.invalidateQueries({ queryKey: ['flows', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flows(realm) })
     },
   })
 }

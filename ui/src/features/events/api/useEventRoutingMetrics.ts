@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface EventRoutingMetrics {
   window_hours: number
@@ -14,7 +15,7 @@ export function useEventRoutingMetrics(windowHours = 24) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['event-routing-metrics', realm, windowHours],
+    queryKey: queryKeys.eventRoutingMetrics(realm, windowHours),
     queryFn: async () =>
       apiClient.get<EventRoutingMetrics>(
         `/api/realms/${realm}/webhooks/metrics?window_hours=${windowHours}`,

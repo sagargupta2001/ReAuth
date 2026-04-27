@@ -20,6 +20,12 @@ import { useCurrentRealm } from '@/features/realm/api/useRealm'
 import { useUpdateRealmOptimistic } from '@/features/realm/api/useUpdateRealmOptimistic'
 import { useOmniSearch } from '@/features/Search/api/useOmniSearch'
 import { useIncludeSpansPreference } from '@/features/observability/lib/observabilityPreferences'
+import { useTelemetryClearLogs, useTelemetryClearTraces } from '@/features/observability/api/useTelemetryCleanup'
+import { useCacheFlush } from '@/features/observability/api/useCacheFlush'
+import { fetchUser } from '@/features/user/api/useUser'
+import { fetchClient } from '@/features/client/api/useClient'
+import { fetchRole } from '@/features/roles/api/useRole'
+import { fetchGroup } from '@/features/group/api/useGroup'
 import { CommandEntityRow } from '@/features/Search/components/CommandEntityRow'
 import { CommandSettingRow } from '@/features/Search/components/CommandSettingRow'
 import { PaletteInspector } from '@/features/Search/components/PaletteInspector'
@@ -38,19 +44,20 @@ import { useSearch } from '@/features/Search/model/searchContext'
 import type { OmniInspectorItem, OmniStaticItem } from '@/features/Search/model/omniTypes'
 import { buildHaystack, rankItems } from '@/features/Search/model/omniRanking'
 import { useRecentOmniItems } from '@/features/Search/model/useRecentOmniItems'
+import { useWebhookMutations } from '@/features/events/api/useWebhookMutations'
+import { useRollWebhookSecret } from '@/features/events/api/useRollWebhookSecret'
+import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useDebouncedValue } from '@/shared/hooks/useDebouncedValue'
+import { queryKeys } from '@/shared/lib/queryKeys'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { apiClient } from '@/shared/api/client'
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
-import type { User } from '@/entities/user/model/types'
-import type { OidcClient } from '@/entities/oidc/model/types'
-import type { Role } from '@/features/roles/api/useRoles'
-import type { Group as RealmGroup } from '@/entities/group/model/types'
+import { useActivateThemeLatest } from '@/features/theme/api/useActivateThemeLatest'
 
 const groupOrder = [
   'Suggested Actions',
+  'Themes',
   'Settings',
   'Observability',
   'Danger Zone',
@@ -104,6 +111,13 @@ export function OmniCommandPalette() {
   const { data: realmData } = useCurrentRealm()
   const updateRealm = useUpdateRealmOptimistic(realmData?.id || '', realmData?.name || '')
   const { includeSpans, setIncludeSpans } = useIncludeSpansPreference()
+  const clearLogs = useTelemetryClearLogs()
+  const clearTraces = useTelemetryClearTraces()
+  const cacheFlush = useCacheFlush()
+  const { enableWebhook, disableWebhook } = useWebhookMutations()
+  const rollWebhookSecret = useRollWebhookSecret()
+  const deleteWebhook = useDeleteWebhook()
+  const activateThemeLatest = useActivateThemeLatest()
   const [query, setQuery] = React.useState('')
   const [activeItem, setActiveItem] = React.useState<OmniInspectorItem | null>(null)
   const [selectedValue, setSelectedValue] = React.useState('')
@@ -187,37 +201,33 @@ export function OmniCommandPalette() {
   const pkceRequired = Boolean(realmData?.pkce_required_public_clients)
 
   const executeAction = React.useCallback(
-    (actionId?: string) => {
+    async (actionId?: string) => {
       if (!actionId) return
       if (actionId === 'theme.light') setTheme('light')
       if (actionId === 'theme.dark') setTheme('dark')
       if (actionId === 'theme.system') setTheme('system')
+      if (actionId.startsWith('theme.activate:')) {
+        const themeId = actionId.replace('theme.activate:', '')
+        if (!realm || !themeId) return
+        activateThemeLatest.mutate(themeId)
+      }
       if (actionId === 'observability.clear-logs') {
-        void apiClient
-          .post<{ deleted: number }>('/api/system/observability/logs/clear', {})
-          .then((data) => {
-            toast.success(`Logs cleared: ${data.deleted}`)
-          })
+        void clearLogs
+          .mutateAsync(undefined)
+          .then((data) => toast.success(`Logs cleared: ${data.deleted}`))
           .catch(() => toast.error('Failed to clear logs'))
       }
       if (actionId === 'observability.clear-traces') {
-        void apiClient
-          .post<{ deleted: number }>('/api/system/observability/traces/clear', {})
-          .then((data) => {
-            toast.success(`Traces cleared: ${data.deleted}`)
-          })
+        void clearTraces
+          .mutateAsync(undefined)
+          .then((data) => toast.success(`Traces cleared: ${data.deleted}`))
           .catch(() => toast.error('Failed to clear traces'))
       }
       if (actionId === 'observability.flush-cache') {
-        void apiClient
-          .post<{ flushed: string }>('/api/system/observability/cache/flush', {})
-          .then((data) => {
-            toast.success(`Cache flushed: ${data.flushed}`)
-          })
-          .catch(() => toast.error('Failed to flush cache'))
+        cacheFlush.mutate(undefined)
       }
     },
-    [setTheme],
+    [activateThemeLatest, cacheFlush, clearLogs, clearTraces, realm, setTheme],
   )
 
   const handlePkceToggle = React.useCallback(
@@ -244,51 +254,40 @@ export function OmniCommandPalette() {
   const handleWebhookEnable = React.useCallback(
     (id: string) =>
       runWebhookAction('enable', async () => {
-        await apiClient.post(`/api/realms/${realm}/webhooks/${id}/enable`, {})
+        await enableWebhook.mutateAsync(id)
         toast.success('Webhook enabled')
-        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
-        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm, id] })
-        void queryClient.invalidateQueries({ queryKey: ['omni-search', realm] })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.omniSearch(realm) })
       }),
-    [queryClient, realm, runWebhookAction],
+    [enableWebhook, queryClient, realm, runWebhookAction],
   )
 
   const handleWebhookDisable = React.useCallback(
     (id: string) =>
       runWebhookAction('disable', async () => {
-        await apiClient.post(`/api/realms/${realm}/webhooks/${id}/disable`, {
-          reason: 'Disabled via Omni',
-        })
+        await disableWebhook.mutateAsync({ endpointId: id, reason: 'Disabled via Omni' })
         toast.success('Webhook disabled')
-        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
-        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm, id] })
-        void queryClient.invalidateQueries({ queryKey: ['omni-search', realm] })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.omniSearch(realm) })
       }),
-    [queryClient, realm, runWebhookAction],
+    [disableWebhook, queryClient, realm, runWebhookAction],
   )
 
   const handleWebhookRollSecret = React.useCallback(
     (id: string) =>
       runWebhookAction('roll', async () => {
-        await apiClient.post(`/api/realms/${realm}/webhooks/${id}/roll-secret`, {})
-        toast.success('Signing secret rotated')
-        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
-        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm, id] })
-        void queryClient.invalidateQueries({ queryKey: ['omni-search', realm] })
+        await rollWebhookSecret.mutateAsync(id)
+        void queryClient.invalidateQueries({ queryKey: queryKeys.omniSearch(realm) })
       }),
-    [queryClient, realm, runWebhookAction],
+    [queryClient, realm, rollWebhookSecret, runWebhookAction],
   )
 
   const handleWebhookDelete = React.useCallback(
     (id: string) =>
       runWebhookAction('delete', async () => {
-        await apiClient.delete(`/api/realms/${realm}/webhooks/${id}`)
-        toast.success('Webhook deleted')
+        await deleteWebhook.mutateAsync(id)
         setOpen(false)
-        void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
-        void queryClient.invalidateQueries({ queryKey: ['omni-search', realm] })
+        void queryClient.invalidateQueries({ queryKey: queryKeys.omniSearch(realm) })
       }),
-    [queryClient, realm, runWebhookAction, setOpen],
+    [deleteWebhook, queryClient, realm, runWebhookAction, setOpen],
   )
 
   const openDangerConfirm = React.useCallback(
@@ -638,33 +637,32 @@ export function OmniCommandPalette() {
 
     rankedUsers.slice(0, 3).forEach((user) => {
       void queryClient.prefetchQuery({
-        queryKey: ['user', user.id],
-        queryFn: () => apiClient.get<User>(`/api/realms/${realm}/users/${user.id}`),
+        queryKey: queryKeys.user(user.id),
+        queryFn: () => fetchUser(realm, user.id),
         staleTime: 30_000,
       })
     })
 
     rankedClients.slice(0, 3).forEach((client) => {
       void queryClient.prefetchQuery({
-        queryKey: ['client', realm, client.id],
-        queryFn: () => apiClient.get<OidcClient>(`/api/realms/${realm}/clients/${client.id}`),
+        queryKey: queryKeys.client(realm, client.id),
+        queryFn: () => fetchClient(realm, client.id),
         staleTime: 30_000,
       })
     })
 
     rankedRoles.slice(0, 3).forEach((role) => {
       void queryClient.prefetchQuery({
-        queryKey: ['role', realm, role.id],
-        queryFn: () => apiClient.get<Role>(`/api/realms/${realm}/rbac/roles/${role.id}`),
+        queryKey: queryKeys.role(realm, role.id),
+        queryFn: () => fetchRole(realm, role.id),
         staleTime: 30_000,
       })
     })
 
     rankedGroups.slice(0, 3).forEach((group) => {
       void queryClient.prefetchQuery({
-        queryKey: ['group', realm, group.id],
-        queryFn: () =>
-          apiClient.get<RealmGroup>(`/api/realms/${realm}/rbac/groups/${group.id}`),
+        queryKey: queryKeys.group(realm, group.id),
+        queryFn: () => fetchGroup(realm, group.id),
         staleTime: 30_000,
       })
     })

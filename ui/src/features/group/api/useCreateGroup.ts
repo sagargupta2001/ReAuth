@@ -6,6 +6,7 @@ import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { GroupFormValues } from '@/features/group/schema/create.schema'
 import type { Group } from '@/entities/group/model/types'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useCreateGroup() {
   const queryClient = useQueryClient()
@@ -18,7 +19,7 @@ export function useCreateGroup() {
     },
     onSuccess: (data: Group) => {
       toast.success('Group created successfully')
-      void queryClient.invalidateQueries({ queryKey: ['groups', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups(realm) })
       navigate(`/groups/${data.id}`)
     },
     onError: () => {

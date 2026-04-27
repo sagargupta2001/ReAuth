@@ -9,6 +9,7 @@ import {
   summarizeImportResult,
   type HarborImportResponse,
 } from '@/features/harbor/api/harborApi'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useHarborImportBundle() {
   const realm = useActiveRealm()
@@ -67,7 +68,7 @@ export function useHarborImportBundle() {
           description: `${summary.created} created · ${summary.updated} updated`,
         })
       }
-      void queryClient.invalidateQueries({ queryKey: ['harbor-jobs', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.harborJobs(realm) })
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to import Harbor bundle')

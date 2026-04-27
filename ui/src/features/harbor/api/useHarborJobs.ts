@@ -2,12 +2,13 @@ import { useQuery } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { isHarborJobActive, listHarborJobs } from '@/features/harbor/api/harborApi'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useHarborJobs(limit = 20) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['harbor-jobs', realm, limit],
+    queryKey: queryKeys.harborJobs(realm, limit),
     queryFn: async () => {
       if (!realm) throw new Error('Missing realm')
       return listHarborJobs({ realm, limit })

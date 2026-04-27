@@ -255,10 +255,8 @@ fn apply_client_payload(
 
     let secret = payload.client_secret.as_deref().map(str::trim);
     match secret {
-        Some(REDACTED_SECRET) | None => {
-            if !preserve_secret_if_redacted {
-                client.client_secret = None;
-            }
+        Some(REDACTED_SECRET) | None if !preserve_secret_if_redacted => {
+            client.client_secret = None;
         }
         Some(value) if !value.is_empty() => {
             client.client_secret = Some(value.to_string());

@@ -4,9 +4,13 @@ import { LockKeyhole } from 'lucide-react'
 import { cn } from '@/lib/utils.ts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
 
-export function AuthenticatorNode({ data, selected }: NodeProps) {
+export function AuthenticatorNode({ data, selected, type }: NodeProps) {
   // 1. Get outputs from backend data, or default to standard auth outputs
   const outputs = Array.isArray(data.outputs) ? (data.outputs as string[]) : ['success', 'failure']
+  const authType = (data.config as Record<string, unknown>)?.auth_type
+    ? String((data.config as Record<string, unknown>).auth_type)
+    : type || 'Authenticator'
+  const authLabel = authType.split('.').pop() || authType
 
   // Helper to determine color based on handle name
   const getHandleColor = (id: string) => {
@@ -46,11 +50,7 @@ export function AuthenticatorNode({ data, selected }: NodeProps) {
           <div className="flex flex-col">
             <span className="text-muted-foreground text-[10px] font-bold tracking-wider uppercase">
               {/* Show the specific type if available (e.g. Cookie vs Password) */}
-              {(data.config as Record<string, unknown>)?.auth_type
-                ? String((data.config as Record<string, unknown>).auth_type)
-                    .split('.')
-                    .pop()
-                : 'Authenticator'}
+              {authLabel}
             </span>
             <CardTitle
               className="w-40 truncate text-sm leading-none font-medium"

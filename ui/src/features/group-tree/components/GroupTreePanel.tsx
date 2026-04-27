@@ -17,6 +17,7 @@ import { toast } from 'sonner'
 import { Input } from '@/components/input'
 import type { Group } from '@/entities/group/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { fetchGroup } from '@/features/group/api/useGroup'
 import {
   fetchGroupChildren,
   fetchGroupRoots,
@@ -34,7 +35,7 @@ import {
 } from '@/features/group-tree/lib/tree-utils'
 import { GroupTreeItem } from '@/features/group-tree/components/GroupTreeItem'
 import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
-import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 import { cn } from '@/lib/utils'
 
 interface GroupTreePanelProps {
@@ -234,7 +235,7 @@ export function GroupTreePanel({
     (parentId: string | null | undefined) => {
       if (!parentId) return
       queryClient.invalidateQueries({
-        queryKey: ['group-children', realm, parentId],
+        queryKey: queryKeys.groupChildren(realm, parentId),
         exact: false,
       })
     },
@@ -393,18 +394,19 @@ export function GroupTreePanel({
       let safety = 0
 
       while (currentId && safety < 25) {
-        const cached: Group | undefined = queryClient.getQueryData<Group>([
-          'group',
-          realm,
-          currentId,
-        ])
+        const activeId = currentId
+        if (!activeId) break
+        const cached = queryClient.getQueryData<Group>(queryKeys.group(realm, activeId))
         const group: Group =
           cached ??
-          (await apiClient.get<Group>(`/api/realms/${realm}/rbac/groups/${currentId}`))
+          (await queryClient.fetchQuery({
+            queryKey: queryKeys.group(realm, activeId),
+            queryFn: () => fetchGroup(realm, activeId),
+          }))
         const parentId: string | null = group.parent_id ?? null
         if (!parentId) break
         ancestors.unshift(parentId)
-        currentId = parentId
+        currentId = parentId ?? null
         safety += 1
       }
 

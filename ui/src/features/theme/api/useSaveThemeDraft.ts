@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { ThemeDraft } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useSaveThemeDraft(themeId: string) {
   const realm = useActiveRealm()
@@ -16,8 +17,8 @@ export function useSaveThemeDraft(themeId: string) {
     },
     onSuccess: () => {
       toast.success('Theme draft saved')
-      void queryClient.invalidateQueries({ queryKey: ['themes', realm, themeId, 'draft'] })
-      void queryClient.invalidateQueries({ queryKey: ['theme-preview', realm, themeId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themeDraft(realm, themeId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themePreview(realm, themeId) })
     },
     onError: (error: unknown) => {
       let msg = 'Failed to save theme draft'

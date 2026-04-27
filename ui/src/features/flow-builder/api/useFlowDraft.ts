@@ -3,12 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { FlowDraft } from '@/entities/flow/model/types.ts'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useFlowDraft(draftId: string) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['flow-draft', realm, draftId],
+    queryKey: queryKeys.flowDraft(realm, draftId),
     queryFn: async () => {
       const draft = await apiClient.get<{
         graph_json: string | unknown
@@ -48,9 +49,9 @@ export function useSaveDraft() {
     },
     onSuccess: (_, { draftId }) => {
       // Invalidate the cache so next fetch gets latest
-      void queryClient.invalidateQueries({ queryKey: ['flow-draft', realm, draftId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flowDraft(realm, draftId) })
       // Also refresh list in sidebar
-      void queryClient.invalidateQueries({ queryKey: ['flow-drafts', realm] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flowDrafts(realm) })
     },
   })
 }

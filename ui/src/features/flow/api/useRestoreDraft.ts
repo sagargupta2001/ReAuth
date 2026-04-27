@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useRestoreDraft() {
   const realm = useActiveRealm()
@@ -20,7 +21,7 @@ export function useRestoreDraft() {
     onSuccess: () => {
       toast.success('Draft restored from history')
       // Refresh the visual overview immediately
-      void queryClient.invalidateQueries({ queryKey: ['flow-draft'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.flowDraft() })
     },
     onError: (err) => {
       toast.error('Failed to restore draft')

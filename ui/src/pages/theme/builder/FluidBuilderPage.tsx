@@ -115,13 +115,35 @@ function collectNodeIds(nodes: ThemeNode[]) {
   return ids
 }
 
+function collectInputNames(nodes: ThemeNode[]) {
+  const names = new Set<string>()
+  const visit = (node: ThemeNode) => {
+    const type = String(node.type || '')
+    const component = String(node.component || '').toLowerCase()
+    if (type === 'Input' || (type === 'Component' && component === 'input')) {
+      const name = String(node.props?.name || '').trim()
+      if (name) {
+        names.add(name)
+      }
+    }
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(visit)
+    }
+    if (node.slots) {
+      Object.values(node.slots).forEach(visit)
+    }
+  }
+  nodes.forEach(visit)
+  return Array.from(names).sort()
+}
+
 export function FluidBuilderPage() {
   const { themeId } = useParams()
-  const realm = useActiveRealm()
+  const realmName = useActiveRealm()
   const [searchParams] = useSearchParams()
   const requestedPage = searchParams.get('page')?.trim() || null
-  const appliedPageParam = useRef(false)
   const { data, isLoading, isError } = useTheme(themeId)
+  const appliedPageParam = useRef(false)
   const { data: pages = [] } = useThemePages(themeId)
   const {
     data: draft,
@@ -156,6 +178,7 @@ export function FluidBuilderPage() {
         key: node.node_key,
         label,
         description: 'Custom page',
+        category: 'custom',
         blueprint: node.blueprint,
       })
     }
@@ -357,6 +380,7 @@ export function FluidBuilderPage() {
   const activeNodes = useMemo(() => {
     return extractNodesFromBlueprint(activeBlueprint).nodes
   }, [activeBlueprint])
+  const inputNames = useMemo(() => collectInputNames(activeNodes), [activeNodes])
   const activeValidationErrors = useMemo<ThemeValidationError[]>(() => {
     if (validationErrors.length === 0) return []
     const activeIds = collectNodeIds(activeNodes)
@@ -512,21 +536,21 @@ export function FluidBuilderPage() {
         }
         onPublish={() => void handlePublish()}
         actions={
-          themeId && realm ? (
+          themeId && realmName ? (
             <HarborResourceActions
               scope="theme"
               id={themeId}
               resourceLabel={data.theme.name}
               invalidateKeys={[
-                ['themes', realm],
-                ['themes', realm, themeId],
-                ['themes', realm, themeId, 'draft'],
-                ['themes', realm, themeId, 'assets'],
-                ['themes', realm, themeId, 'versions'],
-                ['theme-pages', realm, themeId],
-                ['theme-template-gaps', realm, themeId],
-                ['theme-bindings', realm, themeId],
-                ['theme-preview', realm, themeId],
+                ['themes', realmName],
+                ['themes', realmName, themeId],
+                ['themes', realmName, themeId, 'draft'],
+                ['themes', realmName, themeId, 'assets'],
+                ['themes', realmName, themeId, 'versions'],
+                ['theme-pages', realmName, themeId],
+                ['theme-template-gaps', realmName, themeId],
+                ['theme-bindings', realmName, themeId],
+                ['theme-preview', realmName, themeId],
               ]}
             />
           ) : null
@@ -546,7 +570,6 @@ export function FluidBuilderPage() {
           </Alert>
         </div>
       )}
-
       <div className="relative flex flex-1 overflow-hidden">
         <FluidPrimarySidebar activePanel={activePanel} onSelectPanel={setActivePanel} />
         {activePanel === 'sections' ? (
@@ -594,6 +617,7 @@ export function FluidBuilderPage() {
           tokens={draftState.tokens}
           selectedBlock={selectedBlock}
           validationErrors={activeValidationErrors}
+          inputNames={inputNames}
           onUpdateSelectedBlock={handleUpdateSelectedNode}
         />
       </div>

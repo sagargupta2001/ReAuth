@@ -136,9 +136,23 @@ impl ThemeResolverService {
         realm_id: Uuid,
         tx: &mut dyn Transaction,
     ) -> Result<Theme> {
+        self.create_system_theme_named_in_tx(realm_id, None, tx)
+            .await
+    }
+
+    pub async fn create_system_theme_named_in_tx(
+        &self,
+        realm_id: Uuid,
+        name: Option<String>,
+        tx: &mut dyn Transaction,
+    ) -> Result<Theme> {
+        let theme_name = name
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| DEFAULT_THEME_NAME.to_string());
         self.create_theme_in_tx(
             realm_id,
-            DEFAULT_THEME_NAME.to_string(),
+            theme_name,
             Some("System default theme".to_string()),
             true,
             tx,
@@ -147,12 +161,22 @@ impl ThemeResolverService {
     }
 
     pub async fn ensure_default_theme(&self, realm_id: Uuid) -> Result<Theme> {
+        self.ensure_default_theme_named(realm_id, DEFAULT_THEME_NAME)
+            .await
+    }
+
+    pub async fn ensure_default_theme_named(&self, realm_id: Uuid, name: &str) -> Result<Theme> {
+        let target_name = if name.trim().is_empty() {
+            DEFAULT_THEME_NAME
+        } else {
+            name.trim()
+        };
         let mut existing = self
             .repo
             .list_themes(&realm_id)
             .await?
             .into_iter()
-            .find(|theme| theme.name == DEFAULT_THEME_NAME);
+            .find(|theme| theme.name == target_name);
         if let Some(theme) = existing.as_mut() {
             if !theme.is_system {
                 self.repo.set_theme_system(&theme.id, true, None).await?;
@@ -164,7 +188,7 @@ impl ThemeResolverService {
 
         self.create_theme_internal(
             realm_id,
-            DEFAULT_THEME_NAME.to_string(),
+            target_name.to_string(),
             Some("System default theme".to_string()),
             true,
         )
@@ -1274,6 +1298,26 @@ impl ThemeResolverService {
         version_id: &Uuid,
     ) -> Result<Option<ThemeVersion>> {
         self.repo.get_version(theme_id, version_id).await
+    }
+
+    pub async fn activate_theme_by_name(&self, realm_id: Uuid, name: &str) -> Result<bool> {
+        let target = name.trim();
+        if target.is_empty() {
+            return Ok(false);
+        }
+        let themes = self.repo.list_themes(&realm_id).await?;
+        let Some(theme) = themes.into_iter().find(|theme| theme.name == target) else {
+            return Ok(false);
+        };
+        let versions = self.repo.list_versions(&theme.id).await?;
+        let Some(latest) = versions
+            .into_iter()
+            .max_by_key(|version| version.version_number)
+        else {
+            return Ok(false);
+        };
+        self.activate_version(realm_id, theme.id, latest.id).await?;
+        Ok(true)
     }
 
     pub async fn upsert_client_binding(

@@ -2,15 +2,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useWebhookMutations() {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
 
   const invalidateWebhooks = (endpointId?: string) => {
-    void queryClient.invalidateQueries({ queryKey: ['webhooks', realm] })
+    void queryClient.invalidateQueries({ queryKey: queryKeys.webhooks(realm) })
     if (endpointId) {
-      void queryClient.invalidateQueries({ queryKey: ['webhooks', realm, endpointId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.webhooksById(realm, endpointId) })
     }
   }
 

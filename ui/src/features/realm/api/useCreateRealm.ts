@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import type { Realm } from '@/entities/realm/model/types.ts'
 import { apiClient } from '@/shared/api/client.ts'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 interface CreateRealmPayload {
   name: string
@@ -19,7 +20,7 @@ export function useCreateRealm() {
     },
     onSuccess: (newRealm) => {
       // Invalidate the list cache so the Realm Switcher updates immediately
-      queryClient.invalidateQueries({ queryKey: ['realms'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.realms() })
 
       // This automatically updates the `useActiveRealm` hook and loads the dashboard.
       navigate(`/${newRealm.name}`)

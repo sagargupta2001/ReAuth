@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { ThemeDraft } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useStartThemeDraftFromVersion(themeId: string) {
   const realm = useActiveRealm()
@@ -18,9 +19,9 @@ export function useStartThemeDraftFromVersion(themeId: string) {
     },
     onSuccess: () => {
       toast.success('Draft created from version')
-      void queryClient.invalidateQueries({ queryKey: ['theme-draft', realm, themeId] })
-      void queryClient.invalidateQueries({ queryKey: ['theme-pages', realm, themeId] })
-      void queryClient.invalidateQueries({ queryKey: ['theme-preview', realm, themeId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themeDraft(realm, themeId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themePages(realm, themeId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themePreview(realm, themeId) })
     },
     onError: () => {
       toast.error('Failed to start draft from version')

@@ -162,6 +162,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
             lockout_threshold: settings.auth.lockout_threshold,
             lockout_duration_secs: settings.auth.lockout_duration_secs,
             session_repo: repos.session_repo.clone(),
+            flow_store: repos.flow_store.clone(),
             action_repo: repos.auth_session_action_repo.clone(),
             recovery_attempt_repo: repos.recovery_attempt_repo.clone(),
             audit_service: audit_service.clone(),
@@ -172,7 +173,10 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     // Wrap in Arc for shared use
     let runtime_registry = Arc::new(registry_impl);
 
-    // 3. Executor & Manager (The Heart)
+    // 3. Node Registry
+    let node_registry = Arc::new(NodeRegistryService::new(runtime_registry.clone()));
+
+    // 4. Executor & Manager (The Heart)
     let flow_executor = Arc::new(FlowExecutor::new(
         repos.auth_session_repo.clone(),
         repos.flow_store.clone(),
@@ -182,14 +186,23 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         Some(audit_service.clone()),
     ));
 
+    let publish_validator = Arc::new(
+        crate::application::flow_publish_validator::UiBindingPublishValidator::new(
+            theme_service.clone(),
+            node_registry.clone(),
+        ),
+    );
+
     let flow_manager = Arc::new(FlowManager::new(
         repos.flow_store.clone(),
         repos.flow_repo.clone(),
         repos.realm_repo.clone(),
         runtime_registry.clone(),
+        publish_validator,
+        node_registry.clone(),
     ));
 
-    // 4. OIDC & API Services
+    // 5. OIDC & API Services
     let oidc_service = Arc::new(OidcService::new(
         repos.oidc_repo.clone(),
         repos.user_repo.clone(),
@@ -200,8 +213,6 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.flow_store.clone(),
         repos.realm_repo.clone(),
     ));
-
-    let node_registry = Arc::new(NodeRegistryService::new(runtime_registry.clone()));
 
     let mut harbor_registry = HarborRegistry::new();
     harbor_registry.register(Arc::new(ThemeHarborProvider::new(theme_service.clone())));

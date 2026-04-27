@@ -1,65 +1,46 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { Button } from '@/components/button'
-import {
-  SETUP_COMPLETE_EVENT,
-  clearSetupStatusCache,
-  getSetupRequired,
-  markSetupSealed,
-} from '@/shared/lib/setupStatus'
+import { useSetupStatus } from '@/features/setup/api/useSetupStatus'
+import { SETUP_COMPLETE_EVENT, clearSetupSeal, markSetupSealed } from '@/shared/lib/setupStatus'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 type SetupGateProps = {
   children: React.ReactNode
 }
 
-type GateState = 'checking' | 'required' | 'sealed' | 'error'
-
 export function SetupGate({ children }: SetupGateProps) {
   const location = useLocation()
   const navigate = useNavigate()
-  const [state, setState] = useState<GateState>('checking')
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const setupStatus = useSetupStatus()
   const redirectingRef = useRef(false)
-
-  useEffect(() => {
-    let active = true
-
-    const run = async () => {
-      try {
-        const required = await getSetupRequired()
-        if (!active) return
-        setState(required ? 'required' : 'sealed')
-      } catch (err) {
-        if (!active) return
-        setError(err instanceof Error ? err.message : 'Failed to check setup status.')
-        setState('error')
-      }
-    }
-
-    void run()
-
-    return () => {
-      active = false
-    }
-  }, [])
 
   useEffect(() => {
     const onComplete = () => {
       markSetupSealed()
-      setState('sealed')
+      queryClient.setQueryData(queryKeys.setupStatus(), { required: false })
     }
     window.addEventListener(SETUP_COMPLETE_EVENT, onComplete)
     return () => {
       window.removeEventListener(SETUP_COMPLETE_EVENT, onComplete)
     }
-  }, [])
+  }, [queryClient])
 
   useEffect(() => {
     if (redirectingRef.current) return
 
     const isSetupRoute = location.pathname === '/setup' || location.pathname === '/setup/'
+    const state = setupStatus.isLoading
+      ? 'checking'
+      : setupStatus.isError
+        ? 'error'
+        : setupStatus.data?.required
+          ? 'required'
+          : 'sealed'
 
     if (state === 'required' && !isSetupRoute) {
       redirectingRef.current = true
@@ -70,31 +51,22 @@ export function SetupGate({ children }: SetupGateProps) {
       redirectingRef.current = true
       navigate('/login', { replace: true })
     }
-  }, [location.pathname, navigate, state])
+  }, [location.pathname, navigate, setupStatus.data?.required, setupStatus.isError, setupStatus.isLoading])
 
-  if (state === 'checking') {
+  if (setupStatus.isLoading) {
     return <div className="flex h-screen items-center justify-center">Checking setup...</div>
   }
 
-  if (state === 'error') {
+  if (setupStatus.isError) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-        <p>{error || 'Failed to check setup status.'}</p>
+        <p>{setupStatus.error?.message || 'Failed to check setup status.'}</p>
         <Button
           variant="outline"
           onClick={() => {
             redirectingRef.current = false
-            setError(null)
-            setState('checking')
-            clearSetupStatusCache()
-            void getSetupRequired()
-              .then((required) => {
-                setState(required ? 'required' : 'sealed')
-              })
-              .catch((err) => {
-                setError(err instanceof Error ? err.message : 'Failed to check setup status.')
-                setState('error')
-              })
+            clearSetupSeal()
+            void setupStatus.refetch()
           }}
         >
           Retry

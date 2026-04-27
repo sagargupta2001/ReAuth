@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface TelemetryLogTargetsQuery {
   level?: string
@@ -12,7 +13,7 @@ export interface TelemetryLogTargetsQuery {
 
 export function useTelemetryLogTargets(params: TelemetryLogTargetsQuery) {
   return useQuery({
-    queryKey: ['observability-log-targets', params],
+    queryKey: queryKeys.observabilityLogTargets(params),
     queryFn: async () => {
       const query = new URLSearchParams()
       if (params.level) query.set('level', params.level)

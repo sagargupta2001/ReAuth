@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface RoleMemberRow {
   id: string
@@ -25,7 +26,7 @@ export function useRoleMembersList(roleId: string, params: RoleMemberListParams)
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['role-member-list', realm, roleId, params],
+    queryKey: queryKeys.roleMemberList(realm, roleId, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))
@@ -47,7 +48,7 @@ export function useRoleMemberIds(roleId: string, scope: 'direct' | 'effective' =
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['role-members', realm, roleId, scope],
+    queryKey: queryKeys.roleMembers(realm, roleId, scope),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('scope', scope)
@@ -61,9 +62,9 @@ export function useRoleMemberIds(roleId: string, scope: 'direct' | 'effective' =
 export function useManageRoleMembers(roleId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
-  const queryKey = ['role-members', realm, roleId, 'direct']
-  const effectiveQueryKey = ['role-members', realm, roleId, 'effective']
-  const listQueryKey = ['role-member-list', realm, roleId]
+  const queryKey = queryKeys.roleMembers(realm, roleId, 'direct')
+  const effectiveQueryKey = queryKeys.roleMembers(realm, roleId, 'effective')
+  const listQueryKey = queryKeys.roleMemberList(realm, roleId)
 
   const addMutation = useMutation({
     mutationFn: async (userId: string) => {

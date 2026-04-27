@@ -4,6 +4,7 @@ import type { PaginatedResponse } from '@/entities/oidc/model/types.ts'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import type { User } from '@/entities/user/model/types.ts'
 import { apiClient } from '@/shared/api/client.ts'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface UserSearchParams {
   page?: number
@@ -17,7 +18,7 @@ export function useUsers(params: UserSearchParams) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['users', realm, params],
+    queryKey: queryKeys.users(realm, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))

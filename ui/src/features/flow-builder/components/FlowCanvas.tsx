@@ -49,7 +49,7 @@ export function FlowCanvas() {
       })
 
       // 2. Create Node
-      const config: Record<string, string> = {}
+      const config: Record<string, unknown> = {}
       if (droppedCategory === 'Authenticator') {
         config.auth_type = droppedId
       }
@@ -57,7 +57,7 @@ export function FlowCanvas() {
         config.logic_type = droppedId
       }
       if (droppedDefaultTemplateKey) {
-        config.template_key = droppedDefaultTemplateKey
+        config.ui = { page_key: droppedDefaultTemplateKey }
       }
 
       const newNode = {
@@ -96,6 +96,11 @@ export function FlowCanvas() {
         nodeTypes={flowNodeTypes}
         proOptions={proOptions}
         colorMode={isDark ? 'dark' : 'light'}
+        defaultEdgeOptions={{
+          type: 'smoothstep', // Options: 'default' (bezier), 'straight', 'step', 'smoothstep'
+          animated: false, // You can also set global animation or styling here
+          style: { strokeWidth: 2 },
+        }}
       >
         <Background color={isDark ? '#333' : '#aaa'} gap={16} />
         <Controls />

@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { ThemeAsset } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useUploadThemeAsset(themeId: string) {
   const realm = useActiveRealm()
@@ -21,7 +22,7 @@ export function useUploadThemeAsset(themeId: string) {
     },
     onSuccess: () => {
       toast.success('Asset uploaded')
-      void queryClient.invalidateQueries({ queryKey: ['themes', realm, themeId, 'assets'] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themeAssets(realm, themeId) })
     },
     onError: (error: unknown) => {
       let msg = 'Failed to upload asset'

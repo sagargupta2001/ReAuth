@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { ThemeSettingsSchema } from '@/features/theme/model/settings-schema'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useUpdateTheme(themeId: string) {
   const realm = useActiveRealm()
@@ -19,9 +20,9 @@ export function useUpdateTheme(themeId: string) {
     },
     onSuccess: () => {
       toast.success('Theme settings updated')
-      void queryClient.invalidateQueries({ queryKey: ['themes', realm] })
-      void queryClient.invalidateQueries({ queryKey: ['themes', realm, themeId] })
-      void queryClient.invalidateQueries({ queryKey: ['theme-preview', realm, themeId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themes(realm) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themes(realm, themeId) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.themePreview(realm, themeId) })
     },
     onError: (error: unknown) => {
       let msg = 'Failed to update theme'

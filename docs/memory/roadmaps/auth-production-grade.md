@@ -10,6 +10,7 @@
 - `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
 - `reauth/docs/memory/roadmaps/oidc-future-enhancements.md`
 - `reauth/docs/memory/roadmaps/theme-engine.md`
+- `reauth/docs/memory/roadmaps/flow-extensibility.md`
 - `reauth/docs/memory/roadmaps/embedded-scripting.md`
 - `reauth/docs/memory/roadmaps/flow-resume-design.md`
 
@@ -111,10 +112,12 @@
 - OIDC client secrets are **encrypted at rest** via a master key (AES-GCM), not hashed.
 
 ## Next
-- Generalize node/page binding into a first-class flow capability.
-  - Add node metadata for `ui_surface`, `default_template_key`, and allowed page categories.
-  - Make the inspector expose Fluid-page binding for any UI-capable node, not only authenticators.
-  - Validate published flows against the active theme and show missing-page warnings before runtime.
+- [x] Generalize node/page binding into a first-class flow capability.
+  - [x] Node metadata includes `ui_surface`, `default_template_key`, and allowed page categories.
+  - [x] Inspector exposes Fluid-page binding for any UI-capable node.
+  - [x] Binding stored in `config.ui.page_key` with `template_key` fallback.
+  - [x] Missing-template warnings respect UI bindings + node defaults.
+  - [x] Publish-time validation enforces page existence + category alignment for UI-capable nodes.
 - Add more executable node types.
   - OTP / email verification node.
   - Recovery token node.
@@ -159,11 +162,16 @@
   - Swappable engine adapters only.
   - Minimal host API, strong limits, and observability before broader rollout.
 
+## Extensibility follow-up
+- [x] Ship `core.logic.scripted` with typed outputs and publish-time validation.
+- [x] Add subflow call/return semantics for reusable flow composition.
+- [ ] Add end-to-end `call_subflow` action coverage from Fluid Action Binder.
+
 ## Exit criteria for "production grade"
 - Registration, recovery, login, verification, and MFA all work end-to-end with audit coverage.
 - Every UI-capable node has an explicit screen contract and a Fluid page binding story.
 - Palette nodes are either executable in runtime or hidden from the builder.
-- OIDC endpoints pass a conformance suite and emit spec-aligned errors.
+- OIDC endpoints emit spec-aligned errors and have strong automated integration coverage for the flows ReAuth chooses to support.
 - Confidential-client secrets are handled with a production-safe storage/rotation story.
 - Suspicious auth activity is observable through logs/events with actionable context.
 

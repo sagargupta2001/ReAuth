@@ -1,4 +1,5 @@
 use crate::domain::flow::provider::NodeProvider;
+use crate::domain::ui::{PageCategory, UiSurface};
 use serde_json::{json, Value};
 
 pub struct VerifyEmailOtpNodeProvider;
@@ -48,5 +49,13 @@ impl NodeProvider for VerifyEmailOtpNodeProvider {
 
     fn default_template_key(&self) -> Option<&'static str> {
         Some("verify_email")
+    }
+
+    fn ui_surface(&self) -> Option<UiSurface> {
+        Some(UiSurface::Form)
+    }
+
+    fn allowed_page_categories(&self) -> Vec<PageCategory> {
+        vec![PageCategory::Verification]
     }
 }

@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { exportHarborArchive } from '@/features/harbor/api/harborApi'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useHarborExportArchive() {
   const realm = useActiveRealm()
@@ -24,7 +25,7 @@ export function useHarborExportArchive() {
       toast.error(error.message || 'Failed to export Harbor bundle')
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['harbor-jobs', realm] })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.harborJobs(realm) })
     },
   })
 }

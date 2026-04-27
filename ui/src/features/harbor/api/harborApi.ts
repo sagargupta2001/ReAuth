@@ -1,10 +1,4 @@
-import { useSessionStore } from '@/entities/session/model/sessionStore'
-import { refreshAccessToken } from '@/shared/api/client'
-
-type HarborRequestConfig = RequestInit & {
-  _isRetry?: boolean
-  skipContentType?: boolean
-}
+import { apiClient } from '@/shared/api/client'
 
 export type HarborAsyncResponse = {
   job_id: string
@@ -107,50 +101,6 @@ export function isHarborJobActive(job: HarborJob) {
   return ['queued', 'processing', 'running', 'pending'].includes(job.status.toLowerCase())
 }
 
-async function harborRequest(url: string, config: HarborRequestConfig = {}): Promise<Response> {
-  const token = useSessionStore.getState().accessToken
-  const headers = new Headers(config.headers)
-
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
-  }
-
-  if (!headers.has('Content-Type') && !config.skipContentType && typeof config.body === 'string') {
-    headers.set('Content-Type', 'application/json')
-  }
-
-  const response = await fetch(url, {
-    ...config,
-    headers,
-    credentials: 'include',
-  })
-
-  if (response.status === 401 && !config._isRetry) {
-    try {
-      const newToken = await refreshAccessToken()
-      useSessionStore.getState().setSession(newToken)
-      return harborRequest(url, { ...config, _isRetry: true })
-    } catch {
-      useSessionStore.getState().clearSession()
-      throw new Error('Session expired')
-    }
-  }
-
-  if (!response.ok) {
-    const errorBody = await response.text()
-    let errorMessage = `API Error: ${response.statusText}`
-    try {
-      const json = JSON.parse(errorBody)
-      errorMessage = json.error || errorMessage
-    } catch {
-      /* ignore json parse error */
-    }
-    throw new Error(errorMessage)
-  }
-
-  return response
-}
-
 function extractFilename(response: Response, fallback: string) {
   const disposition = response.headers.get('content-disposition')
   if (!disposition) return fallback
@@ -168,16 +118,19 @@ export async function exportHarborArchive(params: {
   asyncMode?: boolean
 }): Promise<HarborExportArchiveResult> {
   const query = params.asyncMode !== undefined ? `?async=${params.asyncMode}` : ''
-  const response = await harborRequest(`/api/realms/${params.realm}/harbor/export/archive${query}`, {
-    method: 'POST',
-    body: JSON.stringify({
-      scope: params.scope,
-      id: params.id,
-      include_secrets: params.includeSecrets ?? false,
-      selection: params.selection,
-      archive_format: params.archiveFormat ?? 'zip',
-    }),
-  })
+  const response = await apiClient.raw(
+    `/api/realms/${params.realm}/harbor/export/archive${query}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        scope: params.scope,
+        id: params.id,
+        include_secrets: params.includeSecrets ?? false,
+        selection: params.selection,
+        archive_format: params.archiveFormat ?? 'zip',
+      }),
+    },
+  )
 
   const contentType = response.headers.get('content-type') ?? ''
   if (contentType.includes('application/json')) {
@@ -204,31 +157,25 @@ export async function listHarborJobs(params: {
 }): Promise<HarborJob[]> {
   const query = new URLSearchParams()
   if (params.limit) query.set('limit', String(params.limit))
-  const response = await harborRequest(
+  return apiClient.get<HarborJob[]>(
     `/api/realms/${params.realm}/harbor/jobs${query.toString() ? `?${query.toString()}` : ''}`,
-    { method: 'GET' },
   )
-
-  return (await response.json()) as HarborJob[]
 }
 
 export async function getHarborJobDetails(params: {
   realm: string
   jobId: string
 }): Promise<HarborJobDetails> {
-  const response = await harborRequest(
+  return apiClient.get<HarborJobDetails>(
     `/api/realms/${params.realm}/harbor/jobs/${params.jobId}/details`,
-    { method: 'GET' },
   )
-
-  return (await response.json()) as HarborJobDetails
 }
 
 export async function downloadHarborJobArtifact(params: {
   realm: string
   jobId: string
 }): Promise<{ blob: Blob; filename: string }> {
-  const response = await harborRequest(
+  const response = await apiClient.raw(
     `/api/realms/${params.realm}/harbor/jobs/${params.jobId}/download`,
     { method: 'GET' },
   )
@@ -259,16 +206,10 @@ export async function importHarborArchive(params: {
   form.append('conflict_policy', params.conflictPolicy)
   form.append('dry_run', String(params.dryRun))
 
-  const response = await harborRequest(
+  return apiClient.postForm<HarborImportResponse>(
     `/api/realms/${params.realm}/harbor/import/archive${suffix ? `?${suffix}` : ''}`,
-    {
-      method: 'POST',
-      body: form,
-      skipContentType: true,
-    },
+    form,
   )
-
-  return (await response.json()) as HarborImportResponse
 }
 
 export async function importHarborBundle(params: {
@@ -285,19 +226,14 @@ export async function importHarborBundle(params: {
   if (params.asyncMode !== undefined) query.set('async', params.asyncMode ? 'true' : 'false')
   const suffix = query.toString()
 
-  const response = await harborRequest(
+  return apiClient.post<HarborImportResponse>(
     `/api/realms/${params.realm}/harbor/import${suffix ? `?${suffix}` : ''}`,
     {
-      method: 'POST',
-      body: JSON.stringify({
-        scope: params.scope,
-        id: params.id,
-        bundle: params.bundle,
-        conflict_policy: params.conflictPolicy,
-        dry_run: params.dryRun,
-      }),
+      scope: params.scope,
+      id: params.id,
+      bundle: params.bundle,
+      conflict_policy: params.conflictPolicy,
+      dry_run: params.dryRun,
     },
   )
-
-  return (await response.json()) as HarborImportResponse
 }

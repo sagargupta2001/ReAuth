@@ -4,6 +4,7 @@ import type { PaginatedResponse } from '@/entities/oidc/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { Group } from '@/entities/group/model/types'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export interface GroupSearchParams {
   page?: number
@@ -17,7 +18,7 @@ export function useGroups(params: GroupSearchParams) {
   const realm = useActiveRealm()
 
   return useQuery({
-    queryKey: ['groups', realm, params],
+    queryKey: queryKeys.groups(realm, params),
     queryFn: async () => {
       const query = new URLSearchParams()
       query.set('page', String(params.page || 1))

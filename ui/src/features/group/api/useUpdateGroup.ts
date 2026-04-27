@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { GroupFormValues } from '@/features/group/schema/create.schema'
 import { apiClient } from '@/shared/api/client'
+import { queryKeys } from '@/shared/lib/queryKeys'
 
 export function useUpdateGroup(groupId: string) {
   const queryClient = useQueryClient()
@@ -15,8 +16,8 @@ export function useUpdateGroup(groupId: string) {
     },
     onSuccess: () => {
       toast.success('Group updated')
-      void queryClient.invalidateQueries({ queryKey: ['groups', realm] })
-      void queryClient.invalidateQueries({ queryKey: ['group', realm, groupId] })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.groups(realm) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.group(realm, groupId) })
     },
     onError: () => {
       toast.error('Failed to update group')

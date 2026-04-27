@@ -197,6 +197,7 @@ fn build_version(artifact: &str) -> FlowVersion {
         execution_artifact: artifact.to_string(),
         graph_json: "{}".to_string(),
         checksum: "checksum".to_string(),
+        node_contract_versions: "{}".to_string(),
         created_at: chrono::Utc::now(),
     }
 }

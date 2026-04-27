@@ -1,5 +1,8 @@
 use super::FlowExecutor;
+use crate::adapters::auth::scripted_logic_node::ScriptedLogicNode;
+use crate::adapters::auth::subflow_node::SubflowNode;
 use crate::application::runtime_registry::RuntimeRegistry;
+use crate::application::script_engine::BoaScriptEngine;
 use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
 use crate::domain::auth_session_action::AuthSessionAction;
 use crate::domain::execution::lifecycle::{LifecycleNode, NodeOutcome};
@@ -118,11 +121,19 @@ impl AuthSessionActionRepository for TestAuthSessionActionRepo {
 #[derive(Default)]
 struct TestFlowStore {
     versions: Mutex<HashMap<Uuid, FlowVersion>>,
+    deployments: Mutex<HashMap<(Uuid, String), FlowDeployment>>,
 }
 
 impl TestFlowStore {
     fn insert_version(&self, id: Uuid, version: FlowVersion) {
         self.versions.lock().unwrap().insert(id, version);
+    }
+
+    fn insert_deployment(&self, realm_id: Uuid, flow_type: &str, deployment: FlowDeployment) {
+        self.deployments
+            .lock()
+            .unwrap()
+            .insert((realm_id, flow_type.to_string()), deployment);
     }
 }
 
@@ -178,10 +189,15 @@ impl FlowStore for TestFlowStore {
 
     async fn get_deployment(
         &self,
-        _realm_id: &Uuid,
-        _flow_type: &str,
+        realm_id: &Uuid,
+        flow_type: &str,
     ) -> Result<Option<FlowDeployment>> {
-        Ok(None)
+        Ok(self
+            .deployments
+            .lock()
+            .unwrap()
+            .get(&(*realm_id, flow_type.to_string()))
+            .cloned())
     }
 
     async fn get_latest_version_number(&self, _flow_id: &Uuid) -> Result<Option<i32>> {
@@ -318,6 +334,7 @@ fn build_version(id: Uuid, plan: &ExecutionPlan) -> FlowVersion {
         execution_artifact: serde_json::to_string(plan).unwrap(),
         graph_json: json!({}).to_string(),
         checksum: "checksum".to_string(),
+        node_contract_versions: "{}".to_string(),
         created_at: Utc::now(),
     }
 }
@@ -442,6 +459,175 @@ async fn execute_handle_input_rejects_and_returns_ui() {
         }
         other => panic!("unexpected result: {:?}", other),
     }
+}
+
+#[tokio::test]
+async fn execute_accepts_signal_payload() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let auth_node = ExecutionNode {
+        id: "auth-password".to_string(),
+        step_type: StepType::Authenticator,
+        next: HashMap::new(),
+        config: json!({ "auth_type": "core.auth.password" }),
+    };
+    let success_node = ExecutionNode {
+        id: "success".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({}),
+    };
+    let plan = build_plan("auth-password", vec![auth_node, success_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "auth-password".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let node = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "unused".to_string(),
+            context: json!({}),
+        },
+        NodeOutcome::Continue {
+            output: "success".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node("core.auth.password", node.clone(), StepType::Authenticator);
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(
+            session_id,
+            Some(json!({
+                "signal": {
+                    "type": "submit_node",
+                    "node_id": "auth-password",
+                    "payload": { "password": "secret" }
+                }
+            })),
+        )
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Success { redirect_url } => {
+            assert_eq!(redirect_url, "/");
+        }
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    assert_eq!(node.handle_calls(), 1);
+}
+
+#[tokio::test]
+async fn execute_rejects_unknown_signal_type() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let auth_node = ExecutionNode {
+        id: "auth-password".to_string(),
+        step_type: StepType::Authenticator,
+        next: HashMap::new(),
+        config: json!({ "auth_type": "core.auth.password" }),
+    };
+    let plan = build_plan("auth-password", vec![auth_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "auth-password".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let node = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "login".to_string(),
+            context: json!({}),
+        },
+        NodeOutcome::Reject {
+            error: "bad".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node("core.auth.password", node, StepType::Authenticator);
+
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
+    let err = executor
+        .execute(
+            session_id,
+            Some(json!({
+                "signal": {
+                    "type": "unknown",
+                    "node_id": "auth-password",
+                    "payload": { "password": "wrong" }
+                }
+            })),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, Error::Validation(_)));
+}
+
+#[tokio::test]
+async fn execute_rejects_signal_node_mismatch() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let auth_node = ExecutionNode {
+        id: "auth-password".to_string(),
+        step_type: StepType::Authenticator,
+        next: HashMap::new(),
+        config: json!({ "auth_type": "core.auth.password" }),
+    };
+    let plan = build_plan("auth-password", vec![auth_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "auth-password".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let node = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "login".to_string(),
+            context: json!({}),
+        },
+        NodeOutcome::Reject {
+            error: "bad".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node("core.auth.password", node, StepType::Authenticator);
+
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
+    let err = executor
+        .execute(
+            session_id,
+            Some(json!({
+                "signal": {
+                    "type": "submit_node",
+                    "node_id": "different-node",
+                    "payload": { "password": "wrong" }
+                }
+            })),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, Error::Validation(_)));
 }
 
 #[tokio::test]
@@ -961,4 +1147,579 @@ async fn execute_returns_pending_action_without_reexecuting_node() {
     }
 
     assert_eq!(node.execute_calls(), 0);
+}
+
+#[tokio::test]
+async fn execute_runs_scripted_logic_and_follows_success_path() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let logic_node = ExecutionNode {
+        id: "logic-script".to_string(),
+        step_type: StepType::Logic,
+        next: HashMap::from([
+            ("success".to_string(), "allow".to_string()),
+            ("failure".to_string(), "deny".to_string()),
+        ]),
+        config: json!({
+            "logic_type": "core.logic.scripted",
+            "script": "return { output: 'success', context: { risk_score: 87 } };"
+        }),
+    };
+    let allow_node = ExecutionNode {
+        id: "allow".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({}),
+    };
+    let deny_node = ExecutionNode {
+        id: "deny".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({ "is_failure": true }),
+    };
+    let plan = build_plan("logic-script", vec![logic_node, allow_node, deny_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "logic-script".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node(
+        "core.logic.scripted",
+        Arc::new(ScriptedLogicNode::new(Arc::new(BoaScriptEngine))),
+        StepType::Logic,
+    );
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(session_id, None)
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Success { .. } => {}
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
+    assert_eq!(updated.context.get("risk_score"), Some(&json!(87)));
+    assert_eq!(updated.status, SessionStatus::Completed);
+}
+
+#[tokio::test]
+async fn execute_runs_scripted_logic_and_follows_failure_path() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let logic_node = ExecutionNode {
+        id: "logic-script".to_string(),
+        step_type: StepType::Logic,
+        next: HashMap::from([
+            ("success".to_string(), "allow".to_string()),
+            ("failure".to_string(), "deny".to_string()),
+        ]),
+        config: json!({
+            "logic_type": "core.logic.scripted",
+            "script": "return { output: 'failure', remove_keys: ['username'] };"
+        }),
+    };
+    let allow_node = ExecutionNode {
+        id: "allow".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({}),
+    };
+    let deny_node = ExecutionNode {
+        id: "deny".to_string(),
+        step_type: StepType::Terminal,
+        next: HashMap::new(),
+        config: json!({ "is_failure": true }),
+    };
+    let plan = build_plan("logic-script", vec![logic_node, allow_node, deny_node]);
+    let version = build_version(version_id, &plan);
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let mut session = AuthenticationSession::new(realm_id, version_id, "logic-script".to_string());
+    session.update_context("username", json!("namas"));
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node(
+        "core.logic.scripted",
+        Arc::new(ScriptedLogicNode::new(Arc::new(BoaScriptEngine))),
+        StepType::Logic,
+    );
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(session_id, None)
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Failure { .. } => {}
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
+    assert!(updated.context.get("username").is_none());
+    assert_eq!(updated.status, SessionStatus::Failed);
+}
+
+#[tokio::test]
+async fn execute_enters_subflow_and_returns_child_ui() {
+    let realm_id = Uuid::new_v4();
+    let parent_version_id = Uuid::new_v4();
+    let child_version_id = Uuid::new_v4();
+
+    let parent_plan = build_plan(
+        "call-step-up",
+        vec![
+            ExecutionNode {
+                id: "call-step-up".to_string(),
+                step_type: StepType::Logic,
+                next: HashMap::from([
+                    ("success".to_string(), "allow".to_string()),
+                    ("failure".to_string(), "deny".to_string()),
+                ]),
+                config: json!({
+                    "logic_type": "core.logic.subflow",
+                    "flow_type": "step_up"
+                }),
+            },
+            ExecutionNode {
+                id: "allow".to_string(),
+                step_type: StepType::Terminal,
+                next: HashMap::new(),
+                config: json!({}),
+            },
+            ExecutionNode {
+                id: "deny".to_string(),
+                step_type: StepType::Terminal,
+                next: HashMap::new(),
+                config: json!({ "is_failure": true }),
+            },
+        ],
+    );
+    let child_plan = build_plan(
+        "child-auth",
+        vec![ExecutionNode {
+            id: "child-auth".to_string(),
+            step_type: StepType::Authenticator,
+            next: HashMap::from([("success".to_string(), "child-allow".to_string())]),
+            config: json!({ "auth_type": "core.auth.email" }),
+        }],
+    );
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(
+        parent_version_id,
+        build_version(parent_version_id, &parent_plan),
+    );
+    flow_store.insert_version(
+        child_version_id,
+        build_version(child_version_id, &child_plan),
+    );
+    flow_store.insert_deployment(
+        realm_id,
+        "step_up",
+        FlowDeployment {
+            id: Uuid::new_v4().to_string(),
+            realm_id,
+            flow_type: "step_up".to_string(),
+            active_version_id: child_version_id.to_string(),
+            updated_at: Utc::now(),
+        },
+    );
+
+    let session =
+        AuthenticationSession::new(realm_id, parent_version_id, "call-step-up".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let child_ui = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "child-screen".to_string(),
+            context: json!({ "message": "step up required" }),
+        },
+        NodeOutcome::Continue {
+            output: "success".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node(
+        "core.logic.subflow",
+        Arc::new(SubflowNode::new(flow_store.clone())),
+        StepType::Logic,
+    );
+    registry.register_node("core.auth.email", child_ui, StepType::Authenticator);
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(session_id, None)
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Challenge { screen_id, context } => {
+            assert_eq!(screen_id, "child-screen");
+            assert_eq!(context.get("message"), Some(&json!("step up required")));
+        }
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
+    assert_eq!(updated.flow_version_id, child_version_id);
+    assert_eq!(updated.current_node_id, "child-auth");
+    assert!(updated.context.get("subflow_stack").is_some());
+}
+
+#[tokio::test]
+async fn execute_signal_call_subflow_enters_child_flow() {
+    let realm_id = Uuid::new_v4();
+    let parent_version_id = Uuid::new_v4();
+    let child_version_id = Uuid::new_v4();
+
+    let parent_plan = build_plan(
+        "auth-password",
+        vec![
+            ExecutionNode {
+                id: "auth-password".to_string(),
+                step_type: StepType::Authenticator,
+                next: HashMap::from([
+                    ("success".to_string(), "allow".to_string()),
+                    ("failure".to_string(), "call-step-up".to_string()),
+                ]),
+                config: json!({ "auth_type": "core.auth.password" }),
+            },
+            ExecutionNode {
+                id: "call-step-up".to_string(),
+                step_type: StepType::Logic,
+                next: HashMap::from([
+                    ("success".to_string(), "allow".to_string()),
+                    ("failure".to_string(), "deny".to_string()),
+                ]),
+                config: json!({
+                    "logic_type": "core.logic.subflow",
+                    "flow_type": "step_up"
+                }),
+            },
+            ExecutionNode {
+                id: "allow".to_string(),
+                step_type: StepType::Terminal,
+                next: HashMap::new(),
+                config: json!({}),
+            },
+            ExecutionNode {
+                id: "deny".to_string(),
+                step_type: StepType::Terminal,
+                next: HashMap::new(),
+                config: json!({ "is_failure": true }),
+            },
+        ],
+    );
+    let child_plan = build_plan(
+        "child-auth",
+        vec![ExecutionNode {
+            id: "child-auth".to_string(),
+            step_type: StepType::Authenticator,
+            next: HashMap::from([("success".to_string(), "child-allow".to_string())]),
+            config: json!({ "auth_type": "core.auth.email" }),
+        }],
+    );
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(
+        parent_version_id,
+        build_version(parent_version_id, &parent_plan),
+    );
+    flow_store.insert_version(
+        child_version_id,
+        build_version(child_version_id, &child_plan),
+    );
+    flow_store.insert_deployment(
+        realm_id,
+        "step_up",
+        FlowDeployment {
+            id: Uuid::new_v4().to_string(),
+            realm_id,
+            flow_type: "step_up".to_string(),
+            active_version_id: child_version_id.to_string(),
+            updated_at: Utc::now(),
+        },
+    );
+
+    let session =
+        AuthenticationSession::new(realm_id, parent_version_id, "auth-password".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let current_auth = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "login".to_string(),
+            context: json!({}),
+        },
+        NodeOutcome::Continue {
+            output: "success".to_string(),
+        },
+    ));
+    let child_ui = Arc::new(ScriptedNode::new(
+        NodeOutcome::SuspendForUI {
+            screen: "child-screen".to_string(),
+            context: json!({ "message": "step up required" }),
+        },
+        NodeOutcome::Continue {
+            output: "success".to_string(),
+        },
+    ));
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node(
+        "core.logic.subflow",
+        Arc::new(SubflowNode::new(flow_store.clone())),
+        StepType::Logic,
+    );
+    registry.register_node(
+        "core.auth.password",
+        current_auth.clone(),
+        StepType::Authenticator,
+    );
+    registry.register_node("core.auth.email", child_ui, StepType::Authenticator);
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(
+            session_id,
+            Some(json!({
+                "signal": {
+                    "type": "call_subflow",
+                    "node_id": "call-step-up",
+                    "payload": {}
+                }
+            })),
+        )
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Challenge { screen_id, context } => {
+            assert_eq!(screen_id, "child-screen");
+            assert_eq!(context.get("message"), Some(&json!("step up required")));
+        }
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    assert_eq!(current_auth.handle_calls(), 0);
+
+    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
+    assert_eq!(updated.flow_version_id, child_version_id);
+    assert_eq!(updated.current_node_id, "child-auth");
+    assert_eq!(
+        updated
+            .context
+            .get("signal")
+            .and_then(|value| value.get("type")),
+        None
+    );
+}
+
+#[tokio::test]
+async fn execute_unwinds_subflow_terminal_result_into_parent_path() {
+    let realm_id = Uuid::new_v4();
+    let parent_version_id = Uuid::new_v4();
+    let child_version_id = Uuid::new_v4();
+
+    let parent_plan = build_plan(
+        "call-step-up",
+        vec![
+            ExecutionNode {
+                id: "call-step-up".to_string(),
+                step_type: StepType::Logic,
+                next: HashMap::from([
+                    ("success".to_string(), "allow".to_string()),
+                    ("failure".to_string(), "deny".to_string()),
+                ]),
+                config: json!({
+                    "logic_type": "core.logic.subflow",
+                    "flow_type": "step_up"
+                }),
+            },
+            ExecutionNode {
+                id: "allow".to_string(),
+                step_type: StepType::Terminal,
+                next: HashMap::new(),
+                config: json!({}),
+            },
+            ExecutionNode {
+                id: "deny".to_string(),
+                step_type: StepType::Terminal,
+                next: HashMap::new(),
+                config: json!({ "is_failure": true }),
+            },
+        ],
+    );
+    let child_plan = build_plan(
+        "child-deny",
+        vec![ExecutionNode {
+            id: "child-deny".to_string(),
+            step_type: StepType::Terminal,
+            next: HashMap::new(),
+            config: json!({ "is_failure": true }),
+        }],
+    );
+
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(
+        parent_version_id,
+        build_version(parent_version_id, &parent_plan),
+    );
+    flow_store.insert_version(
+        child_version_id,
+        build_version(child_version_id, &child_plan),
+    );
+    flow_store.insert_deployment(
+        realm_id,
+        "step_up",
+        FlowDeployment {
+            id: Uuid::new_v4().to_string(),
+            realm_id,
+            flow_type: "step_up".to_string(),
+            active_version_id: child_version_id.to_string(),
+            updated_at: Utc::now(),
+        },
+    );
+
+    let mut session =
+        AuthenticationSession::new(realm_id, parent_version_id, "call-step-up".to_string());
+    session.update_context(
+        "subflow_stack",
+        json!([{
+            "parent_flow_version_id": parent_version_id,
+            "parent_node_id": "call-step-up"
+        }]),
+    );
+    session.flow_version_id = child_version_id;
+    session.current_node_id = "child-deny".to_string();
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node(
+        "core.logic.subflow",
+        Arc::new(SubflowNode::new(flow_store.clone())),
+        StepType::Logic,
+    );
+
+    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
+    let result = executor
+        .execute(session_id, None)
+        .await
+        .expect("execute failed");
+
+    match result {
+        ExecutionResult::Failure { reason } => assert_eq!(reason, "Access Denied"),
+        other => panic!("unexpected result: {:?}", other),
+    }
+
+    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
+    assert_eq!(updated.status, SessionStatus::Failed);
+    assert_eq!(updated.flow_version_id, parent_version_id);
+    assert_eq!(updated.current_node_id, "deny");
+    assert_eq!(
+        updated
+            .context
+            .get("subflow_result")
+            .and_then(|value| value.get("output")),
+        Some(&json!("failure"))
+    );
+}
+
+#[tokio::test]
+async fn execute_rejects_call_subflow_signal_for_non_subflow_target() {
+    let realm_id = Uuid::new_v4();
+    let version_id = Uuid::new_v4();
+
+    let plan = build_plan(
+        "auth-password",
+        vec![
+            ExecutionNode {
+                id: "auth-password".to_string(),
+                step_type: StepType::Authenticator,
+                next: HashMap::from([("success".to_string(), "allow".to_string())]),
+                config: json!({ "auth_type": "core.auth.password" }),
+            },
+            ExecutionNode {
+                id: "script-check".to_string(),
+                step_type: StepType::Logic,
+                next: HashMap::from([("success".to_string(), "allow".to_string())]),
+                config: json!({
+                    "logic_type": "core.logic.scripted",
+                    "script": "return { output: 'success' };"
+                }),
+            },
+            ExecutionNode {
+                id: "allow".to_string(),
+                step_type: StepType::Terminal,
+                next: HashMap::new(),
+                config: json!({}),
+            },
+        ],
+    );
+    let version = build_version(version_id, &plan);
+    let flow_store = Arc::new(TestFlowStore::default());
+    flow_store.insert_version(version_id, version);
+
+    let session = AuthenticationSession::new(realm_id, version_id, "auth-password".to_string());
+    let session_id = session.id;
+    let repo = Arc::new(TestAuthSessionRepo::default());
+    repo.insert(session);
+
+    let mut registry = RuntimeRegistry::new();
+    registry.register_node(
+        "core.auth.password",
+        Arc::new(ScriptedNode::new(
+            NodeOutcome::SuspendForUI {
+                screen: "login".to_string(),
+                context: json!({}),
+            },
+            NodeOutcome::Continue {
+                output: "success".to_string(),
+            },
+        )),
+        StepType::Authenticator,
+    );
+    registry.register_node(
+        "core.logic.scripted",
+        Arc::new(ScriptedLogicNode::new(Arc::new(BoaScriptEngine))),
+        StepType::Logic,
+    );
+
+    let executor = new_executor(repo, flow_store, Arc::new(registry));
+    let err = executor
+        .execute(
+            session_id,
+            Some(json!({
+                "signal": {
+                    "type": "call_subflow",
+                    "node_id": "script-check",
+                    "payload": {}
+                }
+            })),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, Error::Validation(message) if message.contains("core.logic.subflow")));
 }
