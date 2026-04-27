@@ -38,10 +38,7 @@ type SortField = (typeof SORT_FIELDS)[number]
 
 type SortDir = (typeof SORT_DIRS)[number]
 
-function isTraceSpan(log: TelemetryLog) {
-  return log.target === 'trace.span' || log.message === 'trace.span'
-}
-
+const isTraceSpan = (log: TelemetryLog) => log.target === 'trace.span' || log.message === 'trace.span';
 function parseNumber(value?: string) {
   if (!value) return undefined
   const parsed = Number(value)

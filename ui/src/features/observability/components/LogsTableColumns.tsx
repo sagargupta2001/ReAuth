@@ -157,12 +157,13 @@ export function createLogColumns({ t, onSelectTrace }: LogColumnsOptions): Colum
         return (
           <button
             className="font-mono text-xs text-sky-400 hover:text-sky-300"
+            title={traceId}
             onClick={(event) => {
               event.stopPropagation()
               onSelectTrace(traceId)
             }}
           >
-            {traceId}
+            {formatIdentifier(traceId)}
           </button>
         )
       },
