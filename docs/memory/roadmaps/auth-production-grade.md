@@ -171,7 +171,7 @@
 - Registration, recovery, login, verification, and MFA all work end-to-end with audit coverage.
 - Every UI-capable node has an explicit screen contract and a Fluid page binding story.
 - Palette nodes are either executable in runtime or hidden from the builder.
-- OIDC endpoints pass a conformance suite and emit spec-aligned errors.
+- OIDC endpoints emit spec-aligned errors and have strong automated integration coverage for the flows ReAuth chooses to support.
 - Confidential-client secrets are handled with a production-safe storage/rotation story.
 - Suspicious auth activity is observable through logs/events with actionable context.
 

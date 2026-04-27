@@ -1,4 +1,4 @@
-.PHONY: run-before-raising-pr fmt clippy test test-docs coverage ui-build ui-lint ui-test ui-coverage summary dev embed clean-tmp oidc-conformance
+.PHONY: run-before-raising-pr fmt clippy test test-docs coverage ui-build ui-lint ui-test ui-coverage summary dev embed clean-tmp
 
 # Colors
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -134,9 +134,6 @@ ui-test:
 
 ui-coverage:
 	cd ui && npm run coverage
-
-oidc-conformance:
-	./tests/oidc_conformance/run.sh
 
 dev:
 	cargo run
