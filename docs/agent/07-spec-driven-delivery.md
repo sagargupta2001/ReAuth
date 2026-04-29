@@ -49,6 +49,10 @@ Use concise kebab-case filenames:
 - Keep business rules independently testable.
 - Separate new entities from modified entities.
 - Be explicit about module impact.
+- For auth/security features, document capability scope explicitly:
+  - system/operator prerequisites
+  - realm policy
+  - flow composition
 - Call out edge cases early.
 - Keep out-of-scope items concrete so they actually constrain implementation.
 - Add test scenarios that map directly to acceptance.

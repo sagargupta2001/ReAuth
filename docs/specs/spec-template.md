@@ -122,6 +122,19 @@ Use this section when the feature touches login, registration, recovery, OIDC, o
 
 ---
 
+## Availability / Admin UX
+
+Use this section for capabilities that can be turned on/off or placed differently across journeys.
+
+- System/operator prerequisites: [none / describe]
+- Realm policy: [none / describe]
+- Flow composition: [none / describe]
+- Builder behavior: [hide / disable / warn / validate / describe]
+- Simple mode UX: [recommended toggles/presets or none]
+- Advanced mode UX: [flow-builder behavior or none]
+
+---
+
 ## Test Scenarios
 
 Scenarios that must pass before the feature is complete:

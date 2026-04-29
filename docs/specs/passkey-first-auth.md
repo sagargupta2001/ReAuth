@@ -34,6 +34,10 @@ As a realm admin, I want ReAuth to support passkey-first browser authentication 
 8. The system must persist credential metadata needed for future assertions, including credential ID, public key, sign counter, transports, backup eligibility/state, and timestamps.
 9. If the browser or platform does not support WebAuthn, the flow must degrade cleanly to the next configured branch.
 10. All passkey registration and assertion outcomes must emit audit events for success, failure, cancellation, and replay/mismatch attempts.
+11. Passkey availability must follow ReAuth's capability scoping model:
+   - system/operator capability determines whether passkeys can run at all
+   - realm policy determines whether passkeys are allowed and what fallback rules apply
+   - flow composition determines where passkeys appear in specific journeys
 
 **Edge cases:**
 - A challenge is replayed, expired, or submitted from the wrong origin.
@@ -177,6 +181,76 @@ Use this section when the feature touches login, registration, recovery, OIDC, o
 
 ---
 
+## Availability / Admin UX
+
+Use this section for capabilities that can be turned on/off or placed differently across journeys.
+
+- System/operator prerequisites:
+  - configured WebAuthn RP ID
+  - configured allowed origins for the RP
+  - HTTPS-capable deployment outside local development
+- Realm policy:
+  - `passkeys_enabled`
+  - passkey policy for timeout, discoverable credential preference, and password fallback allowance
+  - realm policy decides whether password fallback is allowed at all
+- Flow composition:
+  - browser flow may use passkey-first with password fallback
+  - reauth flow may use passkey-required with no fallback branch
+  - registration flow may include post-registration passkey enrollment
+- Builder behavior:
+  - hide or disable passkey nodes when system prerequisites are missing
+  - warn or fail publish when a flow uses passkey nodes while the realm policy disables passkeys
+- Simple mode UX:
+  - realm settings page exposes "Enable passkeys"
+  - optional preset such as "Use recommended passkey-first browser flow"
+- Advanced mode UX:
+  - flow builder exposes explicit passkey nodes and fallback branches
+  - admins can allow passkeys at the realm level without placing them in every flow
+
+---
+
+## Implementation Phases
+
+### Phase 1: Passkey Foundation
+
+- Add domain models, repositories, and migrations for WebAuthn credentials and challenges.
+- Add system-level config for RP ID and allowed origins.
+- Add realm-level passkey settings and policy storage.
+- Add WebAuthn service abstractions for challenge issuance and verification.
+
+### Phase 2: Assertion Primitive
+
+- Implement `core.auth.passkey_assert`.
+- Add public assertion-options and assertion-verify endpoints.
+- Support identifier-assisted and discoverable-credential login attempts.
+- Emit audit events for assertion success/failure/cancellation/replay.
+
+### Phase 3: Enrollment Primitive
+
+- Implement `core.auth.passkey_enroll`.
+- Add registration-options and registration-verify endpoints.
+- Support enrollment for authenticated or otherwise verified users only.
+- Persist credential metadata and block duplicate registrations with `excludeCredentials`.
+
+### Phase 4: Passkey-First Browser UX
+
+- Add simple-mode realm toggle and recommended browser-flow preset.
+- Update browser login UI for passkey-first prompts, unsupported-browser states, and password fallback.
+- Add builder validation and node availability behavior tied to system and realm capability checks.
+
+### Phase 5: Reauth + Hardening
+
+- Add passkey-first or passkey-required reauth flow support.
+- Harden suspicious counter/backed-up state handling and operator diagnostics.
+- Add cleanup jobs, additional metrics, and documentation for rollout/fallback operations.
+
+### Immediate Goal
+
+- Start with Phase 1 and Phase 2.
+- Do not redesign the entire login UX before the assertion primitive works end to end.
+
+---
+
 ## Test Scenarios
 
 Scenarios that must pass before the feature is complete:
@@ -217,6 +291,5 @@ List nearby but intentionally excluded work:
 ## Open Questions
 
 - [ ] Do we allow identifier-less sign-in only, or always keep identifier-assisted fallback in the first pass?
-- [ ] Should password fallback be realm-wide policy, flow-level policy, or both?
 - [ ] Do we store WebAuthn challenges in a dedicated table or reuse existing auth action persistence with a new action type?
 - [ ] What is the first-pass reauth policy window for sensitive actions?

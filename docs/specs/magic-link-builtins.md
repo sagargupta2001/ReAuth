@@ -34,6 +34,10 @@ As a realm admin, I want ReAuth to provide built-in magic-link login nodes so th
 8. Delivery must use the configured email delivery channel and produce a usable waiting-screen state even when the operator is using local-development fallback delivery.
 9. Magic-link login must be available as a built-in browser-flow branch, not as a separate scripting capability.
 10. Password or passkey fallback remains flow-configurable; magic link is an additional built-in primitive, not the only browser login mode.
+11. Magic-link availability must follow ReAuth's capability scoping model:
+   - system/operator capability determines whether delivery can work at all
+   - realm policy determines whether magic links are allowed and how they behave
+   - flow composition determines where magic links appear in specific journeys
 
 **Edge cases:**
 - A user requests multiple links and clicks an older one after a newer token has been sent.
@@ -144,6 +148,32 @@ Use this section when the feature touches login, registration, recovery, OIDC, o
 - Existing nodes modified: browser flow defaults, awaiting-action UI, email delivery service
 - Async pause/resume impact: reuses existing async action token, resend, and polling flow
 - Theme or Fluid page impact: login pages need “email me a link” actions; waiting pages use `magic_link_sent` or equivalent template
+
+---
+
+## Availability / Admin UX
+
+Use this section for capabilities that can be turned on/off or placed differently across journeys.
+
+- System/operator prerequisites:
+  - configured public URL for resume links
+  - configured email delivery channel or accepted local-development fallback mode
+- Realm policy:
+  - `magic_link_enabled`
+  - token TTL, resend cooldown, rate limits, and email template overrides
+  - realm policy decides whether magic-link login is allowed at all
+- Flow composition:
+  - browser login may offer magic link as an alternative branch
+  - another flow, such as admin reauth, may omit magic links entirely
+- Builder behavior:
+  - hide or disable magic-link nodes when public URL or delivery prerequisites are missing
+  - warn or fail publish when a flow depends on magic-link nodes while the realm policy disables them
+- Simple mode UX:
+  - realm settings page exposes "Enable magic-link login"
+  - optional preset such as "Add magic-link option to browser login"
+- Advanced mode UX:
+  - flow builder exposes identifier, issue, and resume-oriented magic-link primitives
+  - admins can allow magic links at the realm level without using them in every flow
 
 ---
 
