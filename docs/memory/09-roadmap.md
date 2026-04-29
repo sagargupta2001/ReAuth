@@ -7,10 +7,10 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 ### Current Primary Track: Production-Grade Auth Flows
 - Status: In Progress
 - Roadmap: `reauth/docs/memory/roadmaps/auth-production-grade.md`
-- Unifies: identity flows, OIDC future hardening, Fluid page binding for auth nodes, and embedded scripting for custom auth logic.
+- Unifies: identity flows, OIDC future hardening, Fluid page binding for auth nodes, and reusable built-in flow primitives.
 - Goal: ship production-grade login, registration, recovery, MFA, OIDC, and extensible UI-capable auth nodes.
-- Recent progress: recovery now has SMTP delivery, rate limiting, audit events, and session revocation on reset; action binding, scripted UI tooling, scripted logic, subflow composition, and Action Binder `call_subflow` execution are in place.
-- Next implementation focus: typed scripting host API v1, then node-contract migration strategy.
+- Recent progress: recovery now has SMTP delivery, rate limiting, audit events, session revocation on reset, subflow composition, and Action Binder `call_subflow` execution.
+- Next implementation focus: passkey-first auth primitives, magic-link flows, and node-contract migration strategy.
 
 ### Phase 0: Plugin Removal (Completed)
 - Status: Complete
@@ -22,15 +22,12 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 - Roadmap: `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
 - Goal: bring protocol compliance and the engine to production-grade security.
 
-### Phase 2: Native Extensibility (Fluid + Scripting)
+### Phase 2: Native Extensibility (Fluid + Built-In Flow Primitives)
 - Status: In Progress
 - Roadmap: `reauth/docs/memory/roadmaps/theme-engine.md`
-- Roadmap: `reauth/docs/memory/roadmaps/embedded-scripting.md`
 - Roadmap: `reauth/docs/memory/roadmaps/flow-extensibility.md`
 - Roadmap: `reauth/docs/memory/roadmaps/flow-action-binding.md`
-- Roadmap: `reauth/docs/memory/roadmaps/script-editor-scope.md`
-- Roadmap: `reauth/docs/memory/roadmaps/scripting-next-level.md`
-- Goal: deliver a theme engine + embedded scripting runtime that replaces plugin extensibility.
+- Goal: deliver a theme engine plus reusable built-in auth/flow nodes that replace plugin extensibility.
 
 ### Phase 3: Must-Have Identity Flows (MVP Parity)
 - Status: Planned
@@ -55,5 +52,4 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `reauth/doc
 ## Risks and dependencies
 - Flow engine pause/resume is a prerequisite for email verification and recovery flows.
 - Theme engine depends on stable page/block schemas and resolver contracts.
-- Embedded scripting safety and sandboxing will gate advanced extensibility.
 - SDKs depend on stable, well-documented API contracts and error semantics.

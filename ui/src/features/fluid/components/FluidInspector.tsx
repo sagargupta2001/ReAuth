@@ -1216,7 +1216,6 @@ export function FluidInspector({
                               <SelectItem value="submit_node">Submit Node</SelectItem>
                               <SelectItem value="validate_node">Validate Node</SelectItem>
                               <SelectItem value="call_subflow">Call Subflow</SelectItem>
-                              <SelectItem value="execute_script">Execute Script</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

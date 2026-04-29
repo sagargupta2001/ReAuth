@@ -41,6 +41,5 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 - `roadmaps/remove-plugin.md`
 - `roadmaps/auth-production-grade.md`
 - `roadmaps/theme-engine.md`
-- `roadmaps/embedded-scripting.md`
 - `roadmaps/oidc-future-enhancements.md`
 - `adr/README.md`

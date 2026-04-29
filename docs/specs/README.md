@@ -28,7 +28,13 @@ Each spec should define:
 
 - `docs/agent/` tells you how to work in this codebase.
 - `docs/memory/` gives deeper architectural and product context.
-- `specs/` is the build contract for an individual feature.
+- `docs/specs/` is the build contract for an individual feature.
+
+## Current Specs
+
+- `passkey-first-auth.md`
+- `magic-link-builtins.md`
+- `spec-template.md`
 
 ## Rule
 

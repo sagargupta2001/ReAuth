@@ -45,7 +45,7 @@ Area-specific examples:
 
 For new features or meaningful changes:
 
-1. Create or update a spec in `specs/`.
+1. Create or update a spec in `docs/specs/`.
 2. Align the implementation plan with the spec.
 3. Implement the smallest coherent vertical slice.
 4. Add or update tests with the change.
@@ -55,4 +55,4 @@ For new features or meaningful changes:
 
 - `docs/agent/` is the implementation workflow and engineering-rules entrypoint.
 - `docs/memory/` is the deeper architectural and product memory.
-- `specs/` is the source of truth for feature-level implementation scope and acceptance.
+- `docs/specs/` is the source of truth for feature-level implementation scope and acceptance.

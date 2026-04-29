@@ -7,8 +7,6 @@ pub mod password_node;
 pub mod recovery_issue_node;
 pub mod registration_node;
 pub mod reset_password_node;
-pub mod scripted_logic_node;
-pub mod scripted_ui_node;
 pub mod start_node;
 pub mod subflow_node;
 pub mod terminal_node;

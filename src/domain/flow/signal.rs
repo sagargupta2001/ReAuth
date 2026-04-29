@@ -1,12 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const ALLOWED_SIGNAL_TYPES: &[&str] = &[
-    "submit_node",
-    "validate_node",
-    "call_subflow",
-    "execute_script",
-];
+pub const ALLOWED_SIGNAL_TYPES: &[&str] = &["submit_node", "validate_node", "call_subflow"];
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FlowSignalEnvelope {

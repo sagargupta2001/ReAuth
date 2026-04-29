@@ -16,8 +16,6 @@ const SCREEN_MAP: Record<string, FunctionComponent<AuthScreenProps>> = {
   'core.auth.reset_password': FluidLoginScreen,
   'core.auth.verify_email_otp': FluidLoginScreen,
   'core.oidc.consent': FluidLoginScreen,
-  'core.ui.scripted': FluidLoginScreen,
-  'scripted-ui': FluidLoginScreen,
   'core.awaiting-action': FluidLoginScreen,
   'awaiting-action': FluidLoginScreen,
 

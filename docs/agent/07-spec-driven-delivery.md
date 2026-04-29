@@ -1,6 +1,6 @@
 # Spec-Driven Delivery
 
-Every meaningful feature should start from a spec in `specs/`.
+Every meaningful feature should start from a spec in `docs/specs/`.
 
 ## Why
 
@@ -30,7 +30,7 @@ A tiny refactor or a local bug fix may not need a new spec, but it should still 
 ## Workflow
 
 1. Identify whether an existing spec already covers the work.
-2. If not, create a new spec from `specs/spec-template.md`.
+2. If not, create a new spec from `docs/specs/spec-template.md`.
 3. Mark it `Draft` while the shape is still being clarified.
 4. Move it to `Ready` once scope, rules, and acceptance are stable enough to build.
 5. Implement against the spec.
@@ -40,9 +40,9 @@ A tiny refactor or a local bug fix may not need a new spec, but it should still 
 
 Use concise kebab-case filenames:
 
-- `specs/passkey-foundation.md`
-- `specs/magic-link-login.md`
-- `specs/realm-security-headers.md`
+- `docs/specs/passkey-first-auth.md`
+- `docs/specs/magic-link-builtins.md`
+- `docs/specs/realm-security-headers.md`
 
 ## Guidance for writing a good spec
 
@@ -74,7 +74,7 @@ In this case, update the existing spec if one exists.
 ## Relationship to roadmap docs
 
 - `docs/memory/roadmaps/` explains strategic direction.
-- `specs/` explains implementation-ready feature scope.
+- `docs/specs/` explains implementation-ready feature scope.
 
 Roadmaps are broad and evolving.
 Specs should be narrower and directly buildable.

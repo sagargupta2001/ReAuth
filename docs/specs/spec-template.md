@@ -112,7 +112,7 @@ PATCH /api/realms/{realm}/[path]
 
 ## Flow / Auth Impact
 
-Use this section when the feature touches login, registration, recovery, OIDC, scripted nodes, or flow builder behavior.
+Use this section when the feature touches login, registration, recovery, OIDC, or flow builder behavior.
 
 - Flow types affected: [browser / registration / reset / direct / none]
 - New nodes: [if any]
