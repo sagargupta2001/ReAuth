@@ -1,6 +1,0 @@
-CREATE TABLE IF NOT EXISTS theme_draft_meta (
-    theme_id TEXT PRIMARY KEY,
-    draft_exists INTEGER NOT NULL DEFAULT 0,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (theme_id) REFERENCES themes(id) ON DELETE CASCADE
-);

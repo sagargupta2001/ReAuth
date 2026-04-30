@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tsconfigPaths(), tailwindcss()],
     server: {
+      port: env.PORT,
+      staticPort: true,
       proxy: {
         '/api': {
           target: proxyTarget,
