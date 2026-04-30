@@ -1,8 +1,6 @@
 use super::FlowExecutor;
-use crate::adapters::auth::scripted_logic_node::ScriptedLogicNode;
 use crate::adapters::auth::subflow_node::SubflowNode;
 use crate::application::runtime_registry::RuntimeRegistry;
-use crate::application::script_engine::BoaScriptEngine;
 use crate::domain::auth_session::{AuthenticationSession, SessionStatus};
 use crate::domain::auth_session_action::AuthSessionAction;
 use crate::domain::execution::lifecycle::{LifecycleNode, NodeOutcome};
@@ -270,14 +268,14 @@ impl FlowStore for TestFlowStore {
     }
 }
 
-struct ScriptedNode {
+struct TestNode {
     execute_outcome: Mutex<NodeOutcome>,
     handle_outcome: Mutex<NodeOutcome>,
     handle_calls: Mutex<usize>,
     execute_calls: Mutex<usize>,
 }
 
-impl ScriptedNode {
+impl TestNode {
     fn new(execute_outcome: NodeOutcome, handle_outcome: NodeOutcome) -> Self {
         Self {
             execute_outcome: Mutex::new(execute_outcome),
@@ -297,7 +295,7 @@ impl ScriptedNode {
 }
 
 #[async_trait]
-impl LifecycleNode for ScriptedNode {
+impl LifecycleNode for TestNode {
     async fn execute(&self, _session: &mut AuthenticationSession) -> Result<NodeOutcome> {
         let mut calls = self.execute_calls.lock().unwrap();
         *calls += 1;
@@ -383,7 +381,7 @@ async fn execute_handle_input_forces_password_success_path() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "unused".to_string(),
             context: json!({}),
@@ -434,7 +432,7 @@ async fn execute_handle_input_rejects_and_returns_ui() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "login".to_string(),
             context: json!({ "error": "bad_password" }),
@@ -489,7 +487,7 @@ async fn execute_accepts_signal_payload() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "unused".to_string(),
             context: json!({}),
@@ -548,7 +546,7 @@ async fn execute_rejects_unknown_signal_type() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "login".to_string(),
             context: json!({}),
@@ -600,7 +598,7 @@ async fn execute_rejects_signal_node_mismatch() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "login".to_string(),
             context: json!({}),
@@ -652,7 +650,7 @@ async fn execute_reject_without_ui_is_error() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::Continue {
             output: "success".to_string(),
         },
@@ -699,7 +697,7 @@ async fn execute_rejects_unexpected_handle_input_outcome() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "unused".to_string(),
             context: json!({}),
@@ -747,7 +745,7 @@ async fn execute_rejects_handle_input_without_path() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "unused".to_string(),
             context: json!({}),
@@ -985,7 +983,7 @@ async fn execute_heals_inactive_session_and_ignores_input() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "login".to_string(),
             context: json!({}),
@@ -1041,7 +1039,7 @@ async fn execute_returns_awaiting_action_and_stores_action() {
     repo.insert(session);
 
     let token = "resume-token";
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::SuspendForAsync {
             action_type: "email_verify".to_string(),
             token: token.to_string(),
@@ -1122,7 +1120,7 @@ async fn execute_returns_pending_action_without_reexecuting_node() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let node = Arc::new(ScriptedNode::new(
+    let node = Arc::new(TestNode::new(
         NodeOutcome::FlowFailure {
             reason: "should not execute".to_string(),
         },
@@ -1147,133 +1145,6 @@ async fn execute_returns_pending_action_without_reexecuting_node() {
     }
 
     assert_eq!(node.execute_calls(), 0);
-}
-
-#[tokio::test]
-async fn execute_runs_scripted_logic_and_follows_success_path() {
-    let realm_id = Uuid::new_v4();
-    let version_id = Uuid::new_v4();
-
-    let logic_node = ExecutionNode {
-        id: "logic-script".to_string(),
-        step_type: StepType::Logic,
-        next: HashMap::from([
-            ("success".to_string(), "allow".to_string()),
-            ("failure".to_string(), "deny".to_string()),
-        ]),
-        config: json!({
-            "logic_type": "core.logic.scripted",
-            "script": "return { output: 'success', context: { risk_score: 87 } };"
-        }),
-    };
-    let allow_node = ExecutionNode {
-        id: "allow".to_string(),
-        step_type: StepType::Terminal,
-        next: HashMap::new(),
-        config: json!({}),
-    };
-    let deny_node = ExecutionNode {
-        id: "deny".to_string(),
-        step_type: StepType::Terminal,
-        next: HashMap::new(),
-        config: json!({ "is_failure": true }),
-    };
-    let plan = build_plan("logic-script", vec![logic_node, allow_node, deny_node]);
-    let version = build_version(version_id, &plan);
-
-    let flow_store = Arc::new(TestFlowStore::default());
-    flow_store.insert_version(version_id, version);
-
-    let session = AuthenticationSession::new(realm_id, version_id, "logic-script".to_string());
-    let session_id = session.id;
-    let repo = Arc::new(TestAuthSessionRepo::default());
-    repo.insert(session);
-
-    let mut registry = RuntimeRegistry::new();
-    registry.register_node(
-        "core.logic.scripted",
-        Arc::new(ScriptedLogicNode::new(Arc::new(BoaScriptEngine))),
-        StepType::Logic,
-    );
-
-    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
-    let result = executor
-        .execute(session_id, None)
-        .await
-        .expect("execute failed");
-
-    match result {
-        ExecutionResult::Success { .. } => {}
-        other => panic!("unexpected result: {:?}", other),
-    }
-
-    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
-    assert_eq!(updated.context.get("risk_score"), Some(&json!(87)));
-    assert_eq!(updated.status, SessionStatus::Completed);
-}
-
-#[tokio::test]
-async fn execute_runs_scripted_logic_and_follows_failure_path() {
-    let realm_id = Uuid::new_v4();
-    let version_id = Uuid::new_v4();
-
-    let logic_node = ExecutionNode {
-        id: "logic-script".to_string(),
-        step_type: StepType::Logic,
-        next: HashMap::from([
-            ("success".to_string(), "allow".to_string()),
-            ("failure".to_string(), "deny".to_string()),
-        ]),
-        config: json!({
-            "logic_type": "core.logic.scripted",
-            "script": "return { output: 'failure', remove_keys: ['username'] };"
-        }),
-    };
-    let allow_node = ExecutionNode {
-        id: "allow".to_string(),
-        step_type: StepType::Terminal,
-        next: HashMap::new(),
-        config: json!({}),
-    };
-    let deny_node = ExecutionNode {
-        id: "deny".to_string(),
-        step_type: StepType::Terminal,
-        next: HashMap::new(),
-        config: json!({ "is_failure": true }),
-    };
-    let plan = build_plan("logic-script", vec![logic_node, allow_node, deny_node]);
-    let version = build_version(version_id, &plan);
-
-    let flow_store = Arc::new(TestFlowStore::default());
-    flow_store.insert_version(version_id, version);
-
-    let mut session = AuthenticationSession::new(realm_id, version_id, "logic-script".to_string());
-    session.update_context("username", json!("namas"));
-    let session_id = session.id;
-    let repo = Arc::new(TestAuthSessionRepo::default());
-    repo.insert(session);
-
-    let mut registry = RuntimeRegistry::new();
-    registry.register_node(
-        "core.logic.scripted",
-        Arc::new(ScriptedLogicNode::new(Arc::new(BoaScriptEngine))),
-        StepType::Logic,
-    );
-
-    let executor = new_executor(repo.clone(), flow_store, Arc::new(registry));
-    let result = executor
-        .execute(session_id, None)
-        .await
-        .expect("execute failed");
-
-    match result {
-        ExecutionResult::Failure { .. } => {}
-        other => panic!("unexpected result: {:?}", other),
-    }
-
-    let updated = repo.find_by_id(&session_id).await.unwrap().unwrap();
-    assert!(updated.context.get("username").is_none());
-    assert_eq!(updated.status, SessionStatus::Failed);
 }
 
 #[tokio::test]
@@ -1348,7 +1219,7 @@ async fn execute_enters_subflow_and_returns_child_ui() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let child_ui = Arc::new(ScriptedNode::new(
+    let child_ui = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "child-screen".to_string(),
             context: json!({ "message": "step up required" }),
@@ -1466,7 +1337,7 @@ async fn execute_signal_call_subflow_enters_child_flow() {
     let repo = Arc::new(TestAuthSessionRepo::default());
     repo.insert(session);
 
-    let current_auth = Arc::new(ScriptedNode::new(
+    let current_auth = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "login".to_string(),
             context: json!({}),
@@ -1475,7 +1346,7 @@ async fn execute_signal_call_subflow_enters_child_flow() {
             output: "success".to_string(),
         },
     ));
-    let child_ui = Arc::new(ScriptedNode::new(
+    let child_ui = Arc::new(TestNode::new(
         NodeOutcome::SuspendForUI {
             screen: "child-screen".to_string(),
             context: json!({ "message": "step up required" }),
@@ -1665,8 +1536,8 @@ async fn execute_rejects_call_subflow_signal_for_non_subflow_target() {
                 step_type: StepType::Logic,
                 next: HashMap::from([("success".to_string(), "allow".to_string())]),
                 config: json!({
-                    "logic_type": "core.logic.scripted",
-                    "script": "return { output: 'success' };"
+                    "logic_type": "core.logic.condition",
+                    "expression": "true"
                 }),
             },
             ExecutionNode {
@@ -1689,7 +1560,7 @@ async fn execute_rejects_call_subflow_signal_for_non_subflow_target() {
     let mut registry = RuntimeRegistry::new();
     registry.register_node(
         "core.auth.password",
-        Arc::new(ScriptedNode::new(
+        Arc::new(TestNode::new(
             NodeOutcome::SuspendForUI {
                 screen: "login".to_string(),
                 context: json!({}),
@@ -1700,12 +1571,6 @@ async fn execute_rejects_call_subflow_signal_for_non_subflow_target() {
         )),
         StepType::Authenticator,
     );
-    registry.register_node(
-        "core.logic.scripted",
-        Arc::new(ScriptedLogicNode::new(Arc::new(BoaScriptEngine))),
-        StepType::Logic,
-    );
-
     let executor = new_executor(repo, flow_store, Arc::new(registry));
     let err = executor
         .execute(

@@ -10,7 +10,7 @@ Use this file to orient yourself before editing code.
 - `tests/`: backend integration and contract-style tests
 - `docs/memory/`: architecture, product memory, and roadmaps
 - `docs/agent/`: required implementation guidance and workflow
-- `specs/`: feature specs used for spec-driven development
+- `docs/specs/`: feature specs used for spec-driven development
 
 ## Backend map
 

@@ -6,8 +6,6 @@ pub mod password_authenticator;
 pub mod recovery_issue_node;
 pub mod registration_authenticator;
 pub mod reset_password_authenticator;
-pub mod scripted_logic_node;
-pub mod scripted_ui_authenticator;
 pub mod subflow_node;
 pub mod verify_email_otp_authenticator;
 
@@ -19,14 +17,11 @@ use crate::adapters::auth::password_authenticator::PasswordAuthenticator;
 use crate::adapters::auth::recovery_issue_node::RecoveryIssueNode;
 use crate::adapters::auth::registration_authenticator::RegistrationAuthenticator;
 use crate::adapters::auth::reset_password_authenticator::ResetPasswordAuthenticator;
-use crate::adapters::auth::scripted_logic_node::ScriptedLogicNode;
-use crate::adapters::auth::scripted_ui_authenticator::ScriptedUiAuthenticator;
 use crate::adapters::auth::subflow_node::SubflowNode;
 use crate::adapters::auth::verify_email_otp_authenticator::VerifyEmailOtpAuthenticator;
 use crate::application::audit_service::AuditService;
 use crate::application::rbac_service::RbacService;
 use crate::application::runtime_registry::RuntimeRegistry;
-use crate::application::script_engine::BoaScriptEngine;
 use crate::application::user_service::UserService;
 use crate::domain::execution::StepType;
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
@@ -139,32 +134,17 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
     let cookie_node = Arc::new(CookieAuthenticator::new(ctx.session_repo));
     registry.register_node("core.auth.cookie", cookie_node, StepType::Authenticator);
 
-    // 10. Shared script engine
-    let script_engine = Arc::new(BoaScriptEngine);
-
-    // 11. Scripted Logic Node
-    let scripted_logic_node = Arc::new(ScriptedLogicNode::new(script_engine.clone()));
-    registry.register_node("core.logic.scripted", scripted_logic_node, StepType::Logic);
-
-    // 12. Subflow Node
+    // 10. Subflow Node
     let subflow_node = Arc::new(SubflowNode::new(ctx.flow_store.clone()));
     registry.register_node("core.logic.subflow", subflow_node, StepType::Logic);
 
-    // 13. Scripted UI Node
-    let scripted_ui_node = Arc::new(ScriptedUiAuthenticator::new(script_engine));
-    registry.register_node(
-        "core.ui.scripted",
-        scripted_ui_node,
-        StepType::Authenticator,
-    );
-
-    // 14. Terminal Nodes (Definitions only)
+    // 11. Terminal Nodes (Definitions only)
     // These nodes use the "Generic Handler" in the Executor loop above.
     registry.register_definition("core.terminal.allow", StepType::Terminal);
     registry.register_definition("core.terminal.deny", StepType::Terminal);
 
-    // 15. Start Node
+    // 12. Start Node
     registry.register_definition("core.start", StepType::Logic);
-    // 16. Condition Logic Node
+    // 13. Condition Logic Node
     registry.register_definition("core.logic.condition", StepType::Logic);
 }

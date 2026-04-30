@@ -154,7 +154,7 @@ reauth/
 - Agent onboarding docs: `docs/agent/`
 - Memory docs: `docs/memory/`
 - Feature roadmaps: `docs/memory/roadmaps/`
-- Feature specs: `specs/`
+- Feature specs: `docs/specs/`
 - Webhooks event engine roadmap: `docs/memory/roadmaps/webhooks.md`
 
 ---

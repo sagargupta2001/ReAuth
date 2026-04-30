@@ -3,7 +3,6 @@
 ## Goal
 - Turn ReAuth's auth stack into a production-grade system across browser login, registration, recovery, MFA, OIDC, theming, and extensibility.
 - Make flow-canvas nodes map cleanly to Fluid pages wherever a node renders UI.
-- Add a secure custom logic node with an embedded JavaScript runtime that stays swappable behind a stable abstraction.
 
 ## Aligned roadmap inputs
 - `reauth/docs/memory/roadmaps/identity-flows.md`
@@ -11,7 +10,6 @@
 - `reauth/docs/memory/roadmaps/oidc-future-enhancements.md`
 - `reauth/docs/memory/roadmaps/theme-engine.md`
 - `reauth/docs/memory/roadmaps/flow-extensibility.md`
-- `reauth/docs/memory/roadmaps/embedded-scripting.md`
 - `reauth/docs/memory/roadmaps/flow-resume-design.md`
 
 ## Current state (code-aligned)
@@ -106,7 +104,6 @@
 - [x] Break-glass CLI: `reauth admin reset-password --user <username>`.
 
 ## Decisions (locked)
-- Custom script nodes are **Logic nodes**, not Steps; they can optionally request UI via `template_key`.
 - Recovery flows are **single entry-point** with internal branching for username vs password recovery.
 - OIDC consent is a **dedicated node** with OIDC-specific metadata handling.
 - OIDC client secrets are **encrypted at rest** via a master key (AES-GCM), not hashed.
@@ -130,11 +127,6 @@
   - Backup/recovery path design before enforcement.
 
 ## Later
-- Add a secure custom logic node backed by embedded JavaScript.
-  - Core owns a `ScriptingEngine` trait and typed host API.
-  - Engine adapters own Boa/rquickjs dependencies so the runtime remains swappable.
-  - The flow node stores script source/version plus optional UI page binding.
-  - Scripts run with timeout, memory, and host API limits.
 - Expand advanced OIDC/security capabilities.
   - Scope-aware `/userinfo` claims filtering.
   - Consent persistence and richer prompt handling.
@@ -158,12 +150,7 @@
 - Fluid integration
   - Every UI-capable auth node can resolve a page in the active theme.
   - Default system pages stay available as safe fallback.
-- Embedded scripting
-  - Swappable engine adapters only.
-  - Minimal host API, strong limits, and observability before broader rollout.
-
 ## Extensibility follow-up
-- [x] Ship `core.logic.scripted` with typed outputs and publish-time validation.
 - [x] Add subflow call/return semantics for reusable flow composition.
 - [ ] Add end-to-end `call_subflow` action coverage from Fluid Action Binder.
 
@@ -178,7 +165,6 @@
 ## Risks / dependencies
 - Email delivery, template rendering, and anti-abuse controls gate registration/recovery.
 - The current executor architecture needs a small generalization to support non-authenticator workers cleanly.
-- Embedded scripting is only acceptable with strict sandboxing and resource limits.
 - UI/page binding needs stable screen contracts; otherwise page selection becomes decorative instead of executable.
 
 ## Open questions

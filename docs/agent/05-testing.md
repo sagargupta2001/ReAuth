@@ -69,5 +69,5 @@ cd ui && npm run lint
 
 ## Testing and specs
 
-- Every feature spec in `specs/` should include explicit test scenarios.
+- Every feature spec in `docs/specs/` should include explicit test scenarios.
 - Before marking a spec implemented, ensure those scenarios are covered by code or documented manual verification when automation is not yet feasible.

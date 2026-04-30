@@ -66,3 +66,27 @@ graph TD
 - Configuration and environment settings in `/src/config.rs`.
 - Logging and observability via tracing.
 - Caching and eventing via adapters.
+
+## Capability scoping model
+
+Auth capabilities should be expressed at three different layers:
+
+- System/operator capability:
+  - deployment-level prerequisites and global configuration
+  - examples: SMTP availability, public URL, WebAuthn RP ID/origins
+- Realm policy:
+  - realm-scoped enablement and security defaults
+  - examples: feature flags, TTLs, fallback rules, resend/rate-limit policy
+- Flow composition:
+  - where the journey actually uses the capability
+  - examples: browser login branch, reauth step, post-registration enrollment
+
+Design consequences:
+
+- A realm-level disable should not require deleting flow nodes.
+- Flow graphs should still decide whether a capability appears in a specific journey.
+- Builder validation should check both graph correctness and capability availability.
+- New auth methods should usually introduce:
+  - built-in node(s)
+  - realm policy/config
+  - system prerequisites where needed

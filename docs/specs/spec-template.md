@@ -112,13 +112,26 @@ PATCH /api/realms/{realm}/[path]
 
 ## Flow / Auth Impact
 
-Use this section when the feature touches login, registration, recovery, OIDC, scripted nodes, or flow builder behavior.
+Use this section when the feature touches login, registration, recovery, OIDC, or flow builder behavior.
 
 - Flow types affected: [browser / registration / reset / direct / none]
 - New nodes: [if any]
 - Existing nodes modified: [if any]
 - Async pause/resume impact: [none / describe]
 - Theme or Fluid page impact: [none / describe]
+
+---
+
+## Availability / Admin UX
+
+Use this section for capabilities that can be turned on/off or placed differently across journeys.
+
+- System/operator prerequisites: [none / describe]
+- Realm policy: [none / describe]
+- Flow composition: [none / describe]
+- Builder behavior: [hide / disable / warn / validate / describe]
+- Simple mode UX: [recommended toggles/presets or none]
+- Advanced mode UX: [flow-builder behavior or none]
 
 ---
 

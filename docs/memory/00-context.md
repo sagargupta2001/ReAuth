@@ -8,7 +8,7 @@ ReAuth is a single-binary, self-hosted IdP inspired by Keycloak, built with Rust
 - Multi-realm identity and authorization management.
 - Extensible auth flows via a visual flow builder.
 - Basic RBAC with clear, auditable policies.
-- Native extensibility via a theme engine and embedded scripting (no external plugins).
+- Native extensibility via a theme engine and built-in flow primitives (no external plugins).
 - Developer-friendly local setup (SQLite, minimal infra).
 - High performance with minimal footprint and fast startup.
 
@@ -23,6 +23,17 @@ ReAuth is a single-binary, self-hosted IdP inspired by Keycloak, built with Rust
 - Hexagonal architecture (backend)
 - Feature-sliced design (FSD) for UI
 - Styling via shadcn + Tailwind
+
+## Product rules
+- Security-sensitive capabilities should be first-class built-ins, not embedded code.
+- Feature availability should be modeled across:
+  - system/operator capability
+  - realm policy
+  - flow composition
+- Settings decide what is allowed; flows decide what is experienced.
+- ReAuth should offer both:
+  - simple admin UX with feature toggles and presets
+  - advanced admin UX with explicit flow composition
 
 ## Current features (high-level)
 - Multi-realm
