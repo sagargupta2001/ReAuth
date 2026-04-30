@@ -18,25 +18,15 @@ import { SearchProvider } from '@/features/Search/model/searchContext.tsx';
 import '@/shared/config/i18n';
 import { DEFAULT_THEME } from '@/shared/config/theme.ts';
 
+import { injectAuthInterceptor } from '@/shared/api/client';
+import { useSessionStore } from '@/entities/session/model/sessionStore';
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// Inject dependency to avoid circular dependency / FSD layer violations
+injectAuthInterceptor(
+  () => useSessionStore.getState().accessToken,
+  (token) => useSessionStore.getState().setSession(token),
+  () => useSessionStore.getState().clearSession()
+);
 
 const root = ReactDOMClient.createRoot(document.getElementById('root')!)
 

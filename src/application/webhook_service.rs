@@ -1,7 +1,8 @@
-use crate::adapters::observability::telemetry_store::TelemetryDatabase;
 use crate::domain::events::{EventEnvelope, EVENT_VERSION_V1};
+use crate::domain::telemetry::DeliveryLog;
 use crate::domain::webhook::{WebhookEndpoint, WebhookSubscription};
 use crate::error::{Error, Result};
+use crate::ports::telemetry_repository::TelemetryRepository;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::ports::webhook_repository::WebhookRepository;
 use chrono::Utc;
@@ -81,7 +82,7 @@ pub struct WebhookTestResult {
 }
 
 struct TestDeliveryLogEntry<'a> {
-    telemetry_db: &'a TelemetryDatabase,
+    telemetry_repo: &'a dyn TelemetryRepository,
     event_id: String,
     realm_id: Uuid,
     target_id: String,
@@ -98,14 +99,14 @@ pub struct WebhookService {
     repo: Arc<dyn WebhookRepository>,
     tx_manager: Arc<dyn TransactionManager>,
     http_client: reqwest::Client,
-    telemetry_db: TelemetryDatabase,
+    telemetry_repo: Arc<dyn TelemetryRepository>,
 }
 
 impl WebhookService {
     pub fn new(
         repo: Arc<dyn WebhookRepository>,
         tx_manager: Arc<dyn TransactionManager>,
-        telemetry_db: TelemetryDatabase,
+        telemetry_repo: Arc<dyn TelemetryRepository>,
     ) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(5))
@@ -115,7 +116,7 @@ impl WebhookService {
             repo,
             tx_manager,
             http_client,
-            telemetry_db,
+            telemetry_repo,
         }
     }
 
@@ -486,7 +487,7 @@ impl WebhookService {
         };
 
         let log_entry = TestDeliveryLogEntry {
-            telemetry_db: &self.telemetry_db,
+            telemetry_repo: &*self.telemetry_repo,
             event_id: event_id.to_string(),
             realm_id,
             target_id: endpoint_id.to_string(),
@@ -522,30 +523,26 @@ async fn log_test_delivery(entry: TestDeliveryLogEntry<'_>) -> anyhow::Result<()
     let delivery_id = Uuid::new_v4().to_string();
     let delivered_at = Utc::now().to_rfc3339();
 
-    sqlx::query(
-        "INSERT INTO delivery_logs (
-            id, event_id, realm_id, target_type, target_id, event_type, event_version, attempt,
-            payload, payload_compressed, response_status, response_body, error, error_chain, latency_ms, delivered_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    )
-    .bind(delivery_id)
-    .bind(entry.event_id)
-    .bind(entry.realm_id.to_string())
-    .bind("webhook")
-    .bind(entry.target_id)
-    .bind(entry.event_type)
-    .bind(EVENT_VERSION_V1)
-    .bind(1_i64)
-    .bind(entry.payload_json)
-    .bind(false)
-    .bind(entry.response_status)
-    .bind(entry.response_body)
-    .bind(entry.error)
-    .bind(entry.error_chain)
-    .bind(entry.latency_ms)
-    .bind(delivered_at)
-    .execute(&**entry.telemetry_db)
-    .await?;
+    let new_log = DeliveryLog {
+        id: delivery_id,
+        event_id: entry.event_id,
+        realm_id: Some(entry.realm_id),
+        target_type: "webhook".to_string(),
+        target_id: entry.target_id,
+        event_type: entry.event_type,
+        event_version: EVENT_VERSION_V1.to_string(),
+        attempt: 1_i64,
+        payload: entry.payload_json,
+        payload_compressed: false,
+        response_status: entry.response_status,
+        response_body: entry.response_body,
+        error: entry.error,
+        error_chain: entry.error_chain,
+        latency_ms: Some(entry.latency_ms),
+        delivered_at,
+    };
+
+    entry.telemetry_repo.insert_delivery_log(&new_log).await?;
 
     Ok(())
 }

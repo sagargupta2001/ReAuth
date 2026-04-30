@@ -3,7 +3,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { getCookie, removeCookie, setCookie } from '@/lib/cookies'
 import { DEFAULT_THEME, THEME_COOKIE_MAX_AGE, THEME_COOKIE_NAME } from '@/shared/config/theme.ts'
 
-import { ThemeContext, type Theme, type ResolvedTheme } from './ThemeContext'
+import { ThemeContext, type Theme, type ResolvedTheme } from '@/shared/theme/ThemeContext'
 
 type ThemeProviderProps = {
   children: ReactNode

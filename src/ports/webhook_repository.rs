@@ -56,4 +56,12 @@ pub trait WebhookRepository: Send + Sync {
         tx: Option<&mut dyn Transaction>,
     ) -> Result<()>;
     async fn list_subscriptions(&self, endpoint_id: &Uuid) -> Result<Vec<WebhookSubscription>>;
+
+    async fn record_webhook_success(&self, endpoint_id: &Uuid) -> Result<()>;
+    async fn record_webhook_failure(
+        &self,
+        endpoint_id: &Uuid,
+        reason: &str,
+        max_failures: i64,
+    ) -> Result<()>;
 }

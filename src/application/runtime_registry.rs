@@ -1,12 +1,7 @@
 use crate::domain::execution::{lifecycle::LifecycleNode, StepType};
+use crate::domain::flow::node_registry::{NodeDefinition, NodeRegistry};
 use std::collections::HashMap;
 use std::sync::Arc;
-
-/// Definition Metadata for the Compiler.
-#[derive(Clone)]
-pub struct NodeDefinition {
-    pub step_type: StepType,
-}
 
 pub struct RuntimeRegistry {
     /// The Workers (Executables)
@@ -46,8 +41,10 @@ impl RuntimeRegistry {
     pub fn get_node(&self, key: &str) -> Option<Arc<dyn LifecycleNode>> {
         self.nodes.get(key).cloned()
     }
+}
 
-    pub fn get_definition(&self, key: &str) -> Option<NodeDefinition> {
+impl NodeRegistry for RuntimeRegistry {
+    fn get_definition(&self, key: &str) -> Option<NodeDefinition> {
         self.definitions.get(key).cloned()
     }
 }

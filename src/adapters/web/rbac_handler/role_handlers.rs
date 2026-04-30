@@ -1,14 +1,12 @@
+use super::record_audit;
+use super::*;
 use crate::adapters::web::auth_middleware::AuthUser;
 use crate::application::rbac_service::{
-    CreateCustomPermissionPayload, CreateGroupPayload, CreateRolePayload,
-    UpdateCustomPermissionPayload,
+    CreateCustomPermissionPayload, CreateRolePayload, UpdateCustomPermissionPayload,
 };
-use crate::domain::audit::NewAuditEvent;
 use crate::domain::pagination::PageRequest;
 use crate::domain::permissions::{self, PermissionDef, ResourceGroup};
-use crate::domain::rbac::{
-    GroupMemberFilter, GroupRoleFilter, RoleCompositeFilter, RoleMemberFilter, UserRoleFilter,
-};
+use crate::domain::rbac::{RoleCompositeFilter, RoleMemberFilter, UserRoleFilter};
 use crate::error::{Error, Result};
 use crate::AppState;
 use axum::extract::Query;
@@ -18,35 +16,8 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use serde::Deserialize;
 use serde_json::json;
-use tracing::error;
 use uuid::Uuid;
-
-async fn record_audit(
-    state: &AppState,
-    realm_id: Uuid,
-    actor_id: Uuid,
-    action: &str,
-    target_type: &str,
-    target_id: Option<String>,
-    metadata: serde_json::Value,
-) {
-    let event = NewAuditEvent {
-        realm_id,
-        actor_user_id: Some(actor_id),
-        action: action.to_string(),
-        target_type: target_type.to_string(),
-        target_id,
-        metadata,
-    };
-
-    if let Err(err) = state.audit_service.record(event).await {
-        error!("Failed to write audit event: {:?}", err);
-    }
-}
-
-// POST /api/realms/{realm}/rbac/roles
 pub async fn create_role_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -81,40 +52,6 @@ pub async fn create_role_handler(
 
     Ok((StatusCode::CREATED, Json(role)))
 }
-
-// POST /api/realms/{realm}/rbac/groups
-pub async fn create_group_handler(
-    State(state): State<AppState>,
-    Extension(AuthUser(actor)): Extension<AuthUser>,
-    Path(realm_name): Path<String>,
-    Json(payload): Json<CreateGroupPayload>,
-) -> Result<impl IntoResponse> {
-    // 1. Resolve Realm ID
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    // 2. Pass realm ID to service
-    let group = state.rbac_service.create_group(realm.id, payload).await?;
-
-    let group_name = group.name.clone();
-    record_audit(
-        &state,
-        realm.id,
-        actor.id,
-        "rbac.group.created",
-        "group",
-        Some(group.id.to_string()),
-        json!({ "name": group_name }),
-    )
-    .await;
-
-    Ok((StatusCode::CREATED, Json(group)))
-}
-
-// GET /api/realms/{realm}/rbac/roles
 pub async fn list_roles_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
@@ -130,220 +67,6 @@ pub async fn list_roles_handler(
 
     Ok((StatusCode::OK, Json(response)))
 }
-
-#[derive(Deserialize)]
-pub struct GroupListQuery {
-    #[serde(flatten)]
-    pub page: PageRequest,
-}
-
-#[derive(Deserialize)]
-pub struct GroupTreeQuery {
-    #[serde(flatten)]
-    pub page: PageRequest,
-}
-
-#[derive(Deserialize)]
-pub struct GroupDeleteQuery {
-    pub cascade: Option<bool>,
-}
-
-// GET /api/realms/{realm}/rbac/groups
-pub async fn list_groups_handler(
-    State(state): State<AppState>,
-    Path(realm_name): Path<String>,
-    Query(req): Query<GroupListQuery>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let response = state.rbac_service.list_groups(realm.id, req.page).await?;
-    Ok((StatusCode::OK, Json(response)))
-}
-
-// GET /api/realms/{realm}/rbac/groups/tree
-pub async fn list_group_roots_handler(
-    State(state): State<AppState>,
-    Path(realm_name): Path<String>,
-    Query(req): Query<GroupTreeQuery>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let response = state
-        .rbac_service
-        .list_group_roots(realm.id, req.page)
-        .await?;
-    Ok((StatusCode::OK, Json(response)))
-}
-
-// GET /api/realms/{realm}/rbac/groups/{id}/children
-pub async fn list_group_children_handler(
-    State(state): State<AppState>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Query(req): Query<GroupTreeQuery>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let response = state
-        .rbac_service
-        .list_group_children(realm.id, group_id, req.page)
-        .await?;
-    Ok((StatusCode::OK, Json(response)))
-}
-
-// GET /api/realms/{realm}/rbac/groups/{id}
-pub async fn get_group_handler(
-    State(state): State<AppState>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let group = state.rbac_service.get_group(realm.id, group_id).await?;
-    Ok((StatusCode::OK, Json(group)))
-}
-
-// GET /api/realms/{realm}/rbac/groups/{id}/delete-summary
-pub async fn get_group_delete_summary_handler(
-    State(state): State<AppState>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let summary = state
-        .rbac_service
-        .get_group_delete_summary(realm.id, group_id)
-        .await?;
-    Ok((StatusCode::OK, Json(summary)))
-}
-
-// PUT /api/realms/{realm}/rbac/groups/{id}
-pub async fn update_group_handler(
-    State(state): State<AppState>,
-    Extension(AuthUser(actor)): Extension<AuthUser>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Json(payload): Json<CreateGroupPayload>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let updated_group = state
-        .rbac_service
-        .update_group(realm.id, group_id, payload)
-        .await?;
-
-    let group_name = updated_group.name.clone();
-    record_audit(
-        &state,
-        realm.id,
-        actor.id,
-        "rbac.group.updated",
-        "group",
-        Some(group_id.to_string()),
-        json!({ "name": group_name }),
-    )
-    .await;
-
-    Ok((StatusCode::OK, Json(updated_group)))
-}
-
-// DELETE /api/realms/{realm}/rbac/groups/{id}
-pub async fn delete_group_handler(
-    State(state): State<AppState>,
-    Extension(AuthUser(actor)): Extension<AuthUser>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Query(query): Query<GroupDeleteQuery>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let cascade = query.cascade.unwrap_or(false);
-    state
-        .rbac_service
-        .delete_group(realm.id, group_id, cascade)
-        .await?;
-
-    record_audit(
-        &state,
-        realm.id,
-        actor.id,
-        "rbac.group.deleted",
-        "group",
-        Some(group_id.to_string()),
-        json!({ "cascade": cascade }),
-    )
-    .await;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
-// POST /api/realms/{realm}/rbac/groups/{id}/move
-pub async fn move_group_handler(
-    State(state): State<AppState>,
-    Extension(AuthUser(actor)): Extension<AuthUser>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Json(payload): Json<MoveGroupPayload>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    state
-        .rbac_service
-        .move_group(
-            realm.id,
-            group_id,
-            payload.parent_id,
-            payload.before_id,
-            payload.after_id,
-        )
-        .await?;
-
-    record_audit(
-        &state,
-        realm.id,
-        actor.id,
-        "rbac.group.moved",
-        "group",
-        Some(group_id.to_string()),
-        json!({
-            "parent_id": payload.parent_id.map(|id| id.to_string()),
-            "before_id": payload.before_id.map(|id| id.to_string()),
-            "after_id": payload.after_id.map(|id| id.to_string()),
-        }),
-    )
-    .await;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
-// GET /api/realms/{realm}/clients/{client_id}/roles
 pub async fn list_client_roles_handler(
     State(state): State<AppState>,
     Path((realm_name, client_id)): Path<(String, Uuid)>,
@@ -362,13 +85,6 @@ pub async fn list_client_roles_handler(
 
     Ok((StatusCode::OK, Json(response)))
 }
-
-#[derive(Deserialize)]
-pub struct AssignPermissionPayload {
-    pub permission: String,
-}
-
-// POST /api/realms/{realm}/rbac/roles/{role_id}/permissions
 pub async fn assign_permission_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -400,30 +116,6 @@ pub async fn assign_permission_handler(
 
     Ok((StatusCode::OK, Json(json!({}))))
 }
-
-#[derive(Deserialize)]
-pub struct AssignRolePayload {
-    pub role_id: Uuid,
-}
-
-#[derive(Deserialize)]
-pub struct AssignGroupMemberPayload {
-    pub user_id: Uuid,
-}
-
-#[derive(Deserialize)]
-pub struct AssignGroupRolePayload {
-    pub role_id: Uuid,
-}
-
-#[derive(Deserialize)]
-pub struct MoveGroupPayload {
-    pub parent_id: Option<Uuid>,
-    pub before_id: Option<Uuid>,
-    pub after_id: Option<Uuid>,
-}
-
-// POST /api/realms/{realm}/users/{user_id}/roles
 pub async fn assign_user_role_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -454,270 +146,6 @@ pub async fn assign_user_role_handler(
 
     Ok(StatusCode::NO_CONTENT)
 }
-
-// POST /api/realms/{realm}/rbac/groups/{group_id}/members
-pub async fn assign_user_to_group_handler(
-    State(state): State<AppState>,
-    Extension(AuthUser(actor)): Extension<AuthUser>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Json(payload): Json<AssignGroupMemberPayload>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    state
-        .rbac_service
-        .assign_user_to_group(realm.id, payload.user_id, group_id)
-        .await?;
-
-    record_audit(
-        &state,
-        realm.id,
-        actor.id,
-        "rbac.user.group.assigned",
-        "user",
-        Some(payload.user_id.to_string()),
-        json!({ "group_id": group_id.to_string() }),
-    )
-    .await;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
-// DELETE /api/realms/{realm}/rbac/groups/{group_id}/members/{user_id}
-pub async fn remove_user_from_group_handler(
-    State(state): State<AppState>,
-    Extension(AuthUser(actor)): Extension<AuthUser>,
-    Path((realm_name, group_id, user_id)): Path<(String, Uuid, Uuid)>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    state
-        .rbac_service
-        .remove_user_from_group(realm.id, user_id, group_id)
-        .await?;
-
-    record_audit(
-        &state,
-        realm.id,
-        actor.id,
-        "rbac.user.group.removed",
-        "user",
-        Some(user_id.to_string()),
-        json!({ "group_id": group_id.to_string() }),
-    )
-    .await;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
-// GET /api/realms/{realm}/rbac/groups/{group_id}/members
-pub async fn list_group_members_handler(
-    State(state): State<AppState>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let users = state
-        .rbac_service
-        .get_group_member_ids(realm.id, group_id)
-        .await?;
-
-    Ok((StatusCode::OK, Json(users)))
-}
-
-#[derive(Deserialize)]
-pub struct GroupMembersListQuery {
-    #[serde(flatten)]
-    pub page: PageRequest,
-    pub filter: Option<String>, // all | members | non-members
-}
-
-// GET /api/realms/{realm}/rbac/groups/{group_id}/members/list
-pub async fn list_group_members_page_handler(
-    State(state): State<AppState>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Query(query): Query<GroupMembersListQuery>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let filter = match query.filter.as_deref().unwrap_or("all") {
-        "all" => GroupMemberFilter::All,
-        "members" => GroupMemberFilter::Members,
-        "non-members" => GroupMemberFilter::NonMembers,
-        _ => GroupMemberFilter::All,
-    };
-
-    let response = state
-        .rbac_service
-        .list_group_members(realm.id, group_id, filter, query.page)
-        .await?;
-
-    Ok((StatusCode::OK, Json(response)))
-}
-
-// POST /api/realms/{realm}/rbac/groups/{group_id}/roles
-pub async fn assign_role_to_group_handler(
-    State(state): State<AppState>,
-    Extension(AuthUser(actor)): Extension<AuthUser>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Json(payload): Json<AssignGroupRolePayload>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    state
-        .rbac_service
-        .assign_role_to_group(realm.id, payload.role_id, group_id)
-        .await?;
-
-    record_audit(
-        &state,
-        realm.id,
-        actor.id,
-        "rbac.group.role.assigned",
-        "group",
-        Some(group_id.to_string()),
-        json!({ "role_id": payload.role_id.to_string() }),
-    )
-    .await;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
-// DELETE /api/realms/{realm}/rbac/groups/{group_id}/roles/{role_id}
-pub async fn remove_role_from_group_handler(
-    State(state): State<AppState>,
-    Extension(AuthUser(actor)): Extension<AuthUser>,
-    Path((realm_name, group_id, role_id)): Path<(String, Uuid, Uuid)>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    state
-        .rbac_service
-        .remove_role_from_group(realm.id, role_id, group_id)
-        .await?;
-
-    record_audit(
-        &state,
-        realm.id,
-        actor.id,
-        "rbac.group.role.removed",
-        "group",
-        Some(group_id.to_string()),
-        json!({ "role_id": role_id.to_string() }),
-    )
-    .await;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
-#[derive(Deserialize)]
-pub struct GroupRolesScopeQuery {
-    pub scope: Option<String>,
-}
-
-// GET /api/realms/{realm}/rbac/groups/{group_id}/roles?scope=direct|effective
-pub async fn list_group_roles_handler(
-    State(state): State<AppState>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Query(query): Query<GroupRolesScopeQuery>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let scope = query.scope.unwrap_or_else(|| "direct".to_string());
-
-    let roles = match scope.as_str() {
-        "direct" => {
-            state
-                .rbac_service
-                .get_group_role_ids(realm.id, group_id)
-                .await?
-        }
-        "effective" => {
-            state
-                .rbac_service
-                .get_effective_group_role_ids(realm.id, group_id)
-                .await?
-        }
-        _ => {
-            return Err(Error::Validation(
-                "Invalid scope. Use 'direct' or 'effective'.".into(),
-            ))
-        }
-    };
-
-    Ok((StatusCode::OK, Json(roles)))
-}
-
-#[derive(Deserialize)]
-pub struct GroupRolesListQuery {
-    #[serde(flatten)]
-    pub page: PageRequest,
-    pub filter: Option<String>, // all | direct | effective | unassigned
-}
-
-// GET /api/realms/{realm}/rbac/groups/{group_id}/roles/list
-pub async fn list_group_roles_page_handler(
-    State(state): State<AppState>,
-    Path((realm_name, group_id)): Path<(String, Uuid)>,
-    Query(query): Query<GroupRolesListQuery>,
-) -> Result<impl IntoResponse> {
-    let realm = state
-        .realm_service
-        .find_by_name(&realm_name)
-        .await?
-        .ok_or(Error::RealmNotFound(realm_name))?;
-
-    let filter = match query.filter.as_deref().unwrap_or("all") {
-        "all" => GroupRoleFilter::All,
-        "assigned" => GroupRoleFilter::Direct,
-        "direct" => GroupRoleFilter::Direct,
-        "effective" => GroupRoleFilter::Effective,
-        "unassigned" => GroupRoleFilter::Unassigned,
-        _ => GroupRoleFilter::All,
-    };
-
-    let response = state
-        .rbac_service
-        .list_group_roles(realm.id, group_id, filter, query.page)
-        .await?;
-
-    Ok((StatusCode::OK, Json(response)))
-}
-
-#[derive(Deserialize)]
-pub struct UserRolesScopeQuery {
-    pub scope: Option<String>,
-}
-
-// GET /api/realms/{realm}/users/{user_id}/roles?scope=direct|effective
 pub async fn list_user_roles_handler(
     State(state): State<AppState>,
     Path((realm_name, user_id)): Path<(String, Uuid)>,
@@ -753,15 +181,6 @@ pub async fn list_user_roles_handler(
 
     Ok((StatusCode::OK, Json(roles)))
 }
-
-#[derive(Deserialize)]
-pub struct UserRolesListQuery {
-    #[serde(flatten)]
-    pub page: PageRequest,
-    pub filter: Option<String>, // all | direct | effective | unassigned
-}
-
-// GET /api/realms/{realm}/users/{user_id}/roles/list
 pub async fn list_user_roles_page_handler(
     State(state): State<AppState>,
     Path((realm_name, user_id)): Path<(String, Uuid)>,
@@ -788,13 +207,6 @@ pub async fn list_user_roles_page_handler(
 
     Ok((StatusCode::OK, Json(response)))
 }
-
-#[derive(Deserialize)]
-pub struct RoleCompositesScopeQuery {
-    pub scope: Option<String>,
-}
-
-// GET /api/realms/{realm}/rbac/roles/{role_id}/composites?scope=direct|effective
 pub async fn list_role_composites_handler(
     State(state): State<AppState>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
@@ -830,15 +242,6 @@ pub async fn list_role_composites_handler(
 
     Ok((StatusCode::OK, Json(roles)))
 }
-
-#[derive(Deserialize)]
-pub struct RoleCompositesListQuery {
-    #[serde(flatten)]
-    pub page: PageRequest,
-    pub filter: Option<String>, // all | direct | effective | unassigned
-}
-
-// GET /api/realms/{realm}/rbac/roles/{role_id}/composites/list
 pub async fn list_role_composites_page_handler(
     State(state): State<AppState>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
@@ -865,8 +268,6 @@ pub async fn list_role_composites_page_handler(
 
     Ok((StatusCode::OK, Json(response)))
 }
-
-// POST /api/realms/{realm}/rbac/roles/{role_id}/composites
 pub async fn assign_composite_role_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -898,7 +299,6 @@ pub async fn assign_composite_role_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// DELETE /api/realms/{realm}/rbac/roles/{role_id}/composites/{child_role_id}
 pub async fn remove_composite_role_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -929,7 +329,6 @@ pub async fn remove_composite_role_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// DELETE /api/realms/{realm}/users/{user_id}/roles/{role_id}
 pub async fn remove_user_role_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -960,7 +359,6 @@ pub async fn remove_user_role_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// DELETE /api/realms/{realm}/rbac/roles/{id}
 pub async fn delete_role_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -987,7 +385,6 @@ pub async fn delete_role_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// GET /api/realms/{realm}/rbac/roles/{id}
 pub async fn get_role_handler(
     State(state): State<AppState>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
@@ -1002,7 +399,6 @@ pub async fn get_role_handler(
     Ok((StatusCode::OK, Json(role)))
 }
 
-// PUT /api/realms/{realm}/rbac/roles/{id}
 pub async fn update_role_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -1038,13 +434,6 @@ pub async fn update_role_handler(
 
     Ok((StatusCode::OK, Json(updated_role)))
 }
-
-#[derive(Deserialize)]
-pub struct PermissionsQuery {
-    pub client_id: Option<Uuid>,
-}
-
-// GET /api/realms/{realm}/rbac/permissions
 pub async fn list_permissions_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
@@ -1090,8 +479,6 @@ pub async fn list_permissions_handler(
 
     Ok((StatusCode::OK, Json(groups)))
 }
-
-// POST /api/realms/{realm}/rbac/permissions/custom
 pub async fn create_custom_permission_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -1135,7 +522,6 @@ pub async fn create_custom_permission_handler(
     Ok((StatusCode::CREATED, Json(response)))
 }
 
-// PUT /api/realms/{realm}/rbac/permissions/custom/{id}
 pub async fn update_custom_permission_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -1179,7 +565,6 @@ pub async fn update_custom_permission_handler(
     Ok((StatusCode::OK, Json(response)))
 }
 
-// DELETE /api/realms/{realm}/rbac/permissions/custom/{id}
 pub async fn delete_custom_permission_handler(
     State(state): State<AppState>,
     Extension(AuthUser(actor)): Extension<AuthUser>,
@@ -1210,17 +595,6 @@ pub async fn delete_custom_permission_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(Deserialize)]
-pub struct PermissionPayload {
-    pub permission: String,
-}
-
-#[derive(Deserialize)]
-pub struct BulkPermissionPayload {
-    pub permissions: Vec<String>,
-    pub action: String, // "add" or "remove"
-}
-
 // GET /roles/:id/permissions
 pub async fn list_role_permissions_handler(
     State(state): State<AppState>,
@@ -1238,13 +612,6 @@ pub async fn list_role_permissions_handler(
         .await?;
     Ok(Json(perms)) // Returns ["user:read", "client:write"]
 }
-
-#[derive(Deserialize)]
-pub struct RoleMembersQuery {
-    pub scope: Option<String>,
-}
-
-// GET /api/realms/{realm}/rbac/roles/{id}/members?scope=direct|effective
 pub async fn list_role_members_handler(
     State(state): State<AppState>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
@@ -1280,15 +647,6 @@ pub async fn list_role_members_handler(
 
     Ok((StatusCode::OK, Json(users)))
 }
-
-#[derive(Deserialize)]
-pub struct RoleMembersListQuery {
-    #[serde(flatten)]
-    pub page: PageRequest,
-    pub filter: Option<String>, // all | direct | effective | unassigned
-}
-
-// GET /api/realms/{realm}/rbac/roles/{id}/members/list
 pub async fn list_role_members_page_handler(
     State(state): State<AppState>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
@@ -1316,7 +674,6 @@ pub async fn list_role_members_page_handler(
     Ok((StatusCode::OK, Json(response)))
 }
 
-// DELETE /roles/:id/permissions (Body: { permission: "..." })
 // OR Query param ?permission=... (Cleaner for DELETE). Let's use Body for consistency with Assign.
 // Axum allows body in DELETE but it's sometimes frowned upon.
 // A better REST pattern: DELETE /roles/:id/permissions/:permission

@@ -1,13 +1,13 @@
-use crate::adapters::observability::telemetry_store::TelemetryDatabase;
-use crate::adapters::persistence::connection::Database;
 use crate::application::telemetry_service::TelemetryService;
 use crate::application::webhook_service::WebhookService;
 use crate::domain::telemetry::DeliveryLog;
 use crate::error::{Error, Result};
+use crate::ports::telemetry_repository::TelemetryRepository;
+use crate::ports::webhook_repository::WebhookRepository;
 use chrono::Utc;
 use serde::Serialize;
-use sqlx::Row;
 use std::error::Error as StdError;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -24,19 +24,19 @@ pub struct ReplayDeliveryResult {
 }
 
 pub struct DeliveryReplayService {
-    telemetry_service: std::sync::Arc<TelemetryService>,
-    webhook_service: std::sync::Arc<WebhookService>,
-    telemetry_db: TelemetryDatabase,
-    db: Database,
+    telemetry_service: Arc<TelemetryService>,
+    webhook_service: Arc<WebhookService>,
+    telemetry_repo: Arc<dyn TelemetryRepository>,
+    webhook_repo: Arc<dyn WebhookRepository>,
     http_client: reqwest::Client,
 }
 
 impl DeliveryReplayService {
     pub fn new(
-        telemetry_service: std::sync::Arc<TelemetryService>,
-        webhook_service: std::sync::Arc<WebhookService>,
-        telemetry_db: TelemetryDatabase,
-        db: Database,
+        telemetry_service: Arc<TelemetryService>,
+        webhook_service: Arc<WebhookService>,
+        telemetry_repo: Arc<dyn TelemetryRepository>,
+        webhook_repo: Arc<dyn WebhookRepository>,
     ) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(5))
@@ -45,8 +45,8 @@ impl DeliveryReplayService {
         Self {
             telemetry_service,
             webhook_service,
-            telemetry_db,
-            db,
+            telemetry_repo,
+            webhook_repo,
             http_client,
         }
     }
@@ -124,13 +124,16 @@ impl DeliveryReplayService {
                     .await?;
 
                 if !is_success {
-                    self.record_webhook_failure(
-                        &endpoint_id.to_string(),
-                        error.as_deref().unwrap_or(""),
-                    )
-                    .await?;
+                    self.webhook_repo
+                        .record_webhook_failure(
+                            &endpoint_id,
+                            error.as_deref().unwrap_or(""),
+                            MAX_CONSECUTIVE_FAILURES,
+                        )
+                        .await?;
                 } else {
-                    self.record_webhook_success(&endpoint_id.to_string())
+                    self.webhook_repo
+                        .record_webhook_success(&endpoint_id)
                         .await?;
                 }
 
@@ -156,7 +159,9 @@ impl DeliveryReplayService {
                         latency_ms,
                     )
                     .await?;
-                self.record_webhook_failure(&endpoint_id.to_string(), &error)
+
+                self.webhook_repo
+                    .record_webhook_failure(&endpoint_id, &error, MAX_CONSECUTIVE_FAILURES)
                     .await?;
 
                 Ok(ReplayDeliveryResult {
@@ -184,94 +189,28 @@ impl DeliveryReplayService {
         let delivery_id = Uuid::new_v4().to_string();
         let attempt = log.attempt + 1;
 
-        sqlx::query(
-            "INSERT INTO delivery_logs (
-                id, event_id, realm_id, target_type, target_id, event_type, event_version, attempt,
-                payload, payload_compressed, response_status, response_body, error, error_chain, latency_ms, delivered_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&delivery_id)
-        .bind(&log.event_id)
-        .bind(log.realm_id.map(|id| id.to_string()))
-        .bind(&log.target_type)
-        .bind(&log.target_id)
-        .bind(&log.event_type)
-        .bind(&log.event_version)
-        .bind(attempt)
-        .bind(&log.payload)
-        .bind(log.payload_compressed)
-        .bind(response_status)
-        .bind(response_body)
-        .bind(error)
-        .bind(error_chain)
-        .bind(latency_ms)
-        .bind(delivered_at)
-        .execute(&*self.telemetry_db)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
-
-        Ok(delivery_id)
-    }
-
-    async fn record_webhook_success(&self, endpoint_id: &str) -> Result<()> {
-        sqlx::query(
-            "UPDATE webhook_endpoints
-             SET consecutive_failures = 0, last_fired_at = CURRENT_TIMESTAMP, last_failure_at = NULL, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?",
-        )
-        .bind(endpoint_id)
-        .execute(&*self.db)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(())
-    }
-
-    async fn record_webhook_failure(&self, endpoint_id: &str, reason: &str) -> Result<()> {
-        let row = sqlx::query(
-            "SELECT consecutive_failures
-             FROM webhook_endpoints
-             WHERE id = ?",
-        )
-        .bind(endpoint_id)
-        .fetch_optional(&*self.db)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
-
-        let Some(row) = row else {
-            return Ok(());
+        let new_log = DeliveryLog {
+            id: delivery_id.clone(),
+            event_id: log.event_id.clone(),
+            realm_id: log.realm_id,
+            target_type: log.target_type.clone(),
+            target_id: log.target_id.clone(),
+            event_type: log.event_type.clone(),
+            event_version: log.event_version.clone(),
+            attempt,
+            payload: log.payload.clone(),
+            payload_compressed: log.payload_compressed,
+            response_status,
+            response_body,
+            error,
+            error_chain,
+            latency_ms: Some(latency_ms),
+            delivered_at,
         };
 
-        let failures: i64 = row.get("consecutive_failures");
-        let next_failures = failures + 1;
+        self.telemetry_repo.insert_delivery_log(&new_log).await?;
 
-        if next_failures >= MAX_CONSECUTIVE_FAILURES {
-            sqlx::query(
-                "UPDATE webhook_endpoints
-                 SET consecutive_failures = ?, status = ?, disabled_at = CURRENT_TIMESTAMP,
-                     disabled_reason = ?, last_failure_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?",
-            )
-            .bind(next_failures)
-            .bind("disabled_system")
-            .bind(reason)
-            .bind(endpoint_id)
-            .execute(&*self.db)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-        } else {
-            sqlx::query(
-                "UPDATE webhook_endpoints
-                 SET consecutive_failures = ?, last_failure_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?",
-            )
-            .bind(next_failures)
-            .bind(endpoint_id)
-            .execute(&*self.db)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-        }
-
-        Ok(())
+        Ok(delivery_id)
     }
 }
 

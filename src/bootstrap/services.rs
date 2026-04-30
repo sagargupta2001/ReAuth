@@ -1,5 +1,4 @@
 use crate::adapters::auth::{register_builtins, BuiltinAuthContext};
-use crate::adapters::observability::telemetry_store::TelemetryDatabase;
 use crate::application::audit_service::AuditService;
 use crate::application::email_delivery_service::EmailDeliveryService;
 use crate::application::flow_executor::FlowExecutor;
@@ -58,6 +57,8 @@ pub struct Services {
     pub flow_executor: Arc<FlowExecutor>,
 }
 
+use crate::ports::telemetry_repository::TelemetryRepository;
+
 pub struct ServiceInitContext<'a> {
     pub settings: &'a Settings,
     pub repos: &'a Repositories,
@@ -65,7 +66,7 @@ pub struct ServiceInitContext<'a> {
     pub event_publisher: Arc<dyn EventPublisher>,
     pub outbox_repo: Arc<dyn OutboxRepository>,
     pub token_service: &'a Arc<JwtService>,
-    pub telemetry_db: &'a TelemetryDatabase,
+    pub telemetry_repo: Arc<dyn TelemetryRepository>,
     pub tx_manager: &'a Arc<dyn TransactionManager>,
 }
 
@@ -77,7 +78,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         event_publisher,
         outbox_repo,
         token_service,
-        telemetry_db,
+        telemetry_repo,
         tx_manager,
     } = ctx;
     // 1. Foundation Services
@@ -91,7 +92,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     let webhook_service = Arc::new(WebhookService::new(
         repos.webhook_repo.clone(),
         tx_manager.clone(),
-        telemetry_db.clone(),
+        telemetry_repo.clone(),
     ));
     let theme_service = Arc::new(ThemeResolverService::new(
         repos.theme_repo.clone(),

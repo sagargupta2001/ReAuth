@@ -19,6 +19,7 @@ pub trait TelemetryRepository: Send + Sync {
         &self,
         query: DeliveryLogQuery,
     ) -> Result<PageResponse<DeliveryLog>>;
+    async fn insert_delivery_log(&self, log: &DeliveryLog) -> Result<()>;
     async fn get_delivery_metrics(
         &self,
         realm_id: Option<uuid::Uuid>,
