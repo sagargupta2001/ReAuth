@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { Ruler, Search, Type, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
@@ -20,70 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/select'
-
-function normalizeColorValue(value: string) {
-  const hex = value.trim()
-  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex)) {
-    return hex
-  }
-  return '#111827'
-}
-
-type Rgb = { r: number; g: number; b: number }
-
-function parseColor(value: string): Rgb | null {
-  const input = value.trim()
-  const hexMatch = input.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
-  if (hexMatch) {
-    const hex = hexMatch[1]
-    const expanded =
-      hex.length === 3
-        ? hex
-            .split('')
-            .map((char) => `${char}${char}`)
-            .join('')
-        : hex
-    const r = Number.parseInt(expanded.slice(0, 2), 16)
-    const g = Number.parseInt(expanded.slice(2, 4), 16)
-    const b = Number.parseInt(expanded.slice(4, 6), 16)
-    return { r, g, b }
-  }
-  const rgbMatch = input.match(
-    /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*[\d.]+)?\s*\)$/i,
-  )
-  if (rgbMatch) {
-    return {
-      r: Number.parseInt(rgbMatch[1], 10),
-      g: Number.parseInt(rgbMatch[2], 10),
-      b: Number.parseInt(rgbMatch[3], 10),
-    }
-  }
-  return null
-}
-
-function relativeLuminance({ r, g, b }: Rgb) {
-  const toLinear = (channel: number) => {
-    const normalized = channel / 255
-    return normalized <= 0.03928
-      ? normalized / 12.92
-      : Math.pow((normalized + 0.055) / 1.055, 2.4)
-  }
-  const rLin = toLinear(r)
-  const gLin = toLinear(g)
-  const bLin = toLinear(b)
-  return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin
-}
-
-function contrastRatio(foreground: string, background: string) {
-  const fg = parseColor(foreground)
-  const bg = parseColor(background)
-  if (!fg || !bg) return null
-  const l1 = relativeLuminance(fg)
-  const l2 = relativeLuminance(bg)
-  const lighter = Math.max(l1, l2)
-  const darker = Math.min(l1, l2)
-  return (lighter + 0.05) / (darker + 0.05)
-}
+import { contrastRatio } from '@/shared/lib/colorUtils'
+import { TypographyControls } from './inspector/TypographyControls'
+import { SpacingControls } from './inspector/SpacingControls'
 
 type InspectorAction = {
   action_id?: string
@@ -1354,66 +1293,19 @@ export function FluidInspector({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Typography</CardTitle>
-            <CardDescription>Font overrides for this block.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Type className="h-3.5 w-3.5" />
-              <span>Typography</span>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="font-size">Font Size</Label>
-                <Input
-                  id="font-size"
-                  value={String(selectedProps.font_size || '')}
-                  placeholder="e.g. 16px"
-                  disabled={!selectedBlock}
-                  onChange={(event) =>
-                  onUpdateSelectedBlock({ props: { font_size: event.target.value } })
-                  }
-                />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="font-weight">Font Weight</Label>
-                <Input
-                  id="font-weight"
-                  value={String(selectedProps.font_weight || '')}
-                  placeholder="e.g. 600 or bold"
-                  disabled={!selectedBlock}
-                  onChange={(event) =>
-                  onUpdateSelectedBlock({ props: { font_weight: event.target.value } })
-                  }
-                />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="font-color">Color</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  aria-label="Font color"
-                  className="h-8 w-8 cursor-pointer rounded-md border bg-transparent p-0"
-                  value={normalizeColorValue(String(selectedProps.color || '#111827'))}
-                  disabled={!selectedBlock}
-                  onChange={(event) =>
-                  onUpdateSelectedBlock({ props: { color: event.target.value } })
-                  }
-                />
-                <Input
-                  id="font-color"
-                  value={String(selectedProps.color || '')}
-                  placeholder="#111827"
-                  disabled={!selectedBlock}
-                  onChange={(event) =>
-                  onUpdateSelectedBlock({ props: { color: event.target.value } })
-                  }
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <TypographyControls
+          fontSize={String(selectedProps.font_size || '')}
+          fontWeight={String(selectedProps.font_weight || '')}
+          color={String(selectedProps.color || '#111827')}
+          disabled={!selectedBlock}
+          onChange={({ font_size, font_weight, color }) => {
+            const updates: Record<string, unknown> = {}
+            if (font_size !== undefined) updates.font_size = font_size
+            if (font_weight !== undefined) updates.font_weight = font_weight
+            if (color !== undefined) updates.color = color
+            onUpdateSelectedBlock({ props: updates })
+          }}
+        />
 
         {selectedType === 'Text' && (
           <Card>
@@ -1443,47 +1335,19 @@ export function FluidInspector({
           </Card>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Spacing</CardTitle>
-            <CardDescription>Padding and margins.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Ruler className="h-3.5 w-3.5" />
-              <span>Padding</span>
-            </div>
-            <Input
-              value={String(selectedProps.padding || '')}
-              disabled={!selectedBlock}
-              onChange={(event) =>
-                onUpdateSelectedBlock({ props: { padding: event.target.value } })
-              }
-            />
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Ruler className="h-3.5 w-3.5" />
-              <span>Margin Top</span>
-            </div>
-            <Input
-              value={String(selectedProps.margin_top || '')}
-              disabled={!selectedBlock}
-              onChange={(event) =>
-                onUpdateSelectedBlock({ props: { margin_top: event.target.value } })
-              }
-            />
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Ruler className="h-3.5 w-3.5" />
-              <span>Margin Bottom</span>
-            </div>
-            <Input
-              value={String(selectedProps.margin_bottom || '')}
-              disabled={!selectedBlock}
-              onChange={(event) =>
-                onUpdateSelectedBlock({ props: { margin_bottom: event.target.value } })
-              }
-            />
-          </CardContent>
-        </Card>
+        <SpacingControls
+          padding={String(selectedProps.padding || '')}
+          marginTop={String(selectedProps.margin_top || '')}
+          marginBottom={String(selectedProps.margin_bottom || '')}
+          disabled={!selectedBlock}
+          onChange={({ padding, margin_top, margin_bottom }) => {
+            const updates: Record<string, unknown> = {}
+            if (padding !== undefined) updates.padding = padding
+            if (margin_top !== undefined) updates.margin_top = margin_top
+            if (margin_bottom !== undefined) updates.margin_bottom = margin_bottom
+            onUpdateSelectedBlock({ props: updates })
+          }}
+        />
       </div>
     </aside>
   )

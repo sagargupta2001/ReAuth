@@ -1,14 +1,14 @@
-use crate::adapters::observability::telemetry_store::TelemetryDatabase;
-use crate::adapters::persistence::connection::Database;
 use crate::application::telemetry_service::TelemetryService;
 use crate::application::webhook_service::WebhookService;
 use crate::domain::telemetry::DeliveryLog;
 use crate::error::{Error, Result};
+use crate::ports::http_client::{HttpDeliveryClient, HttpDeliveryRequest};
+use crate::ports::telemetry_repository::TelemetryRepository;
+use crate::ports::webhook_repository::WebhookRepository;
 use chrono::Utc;
 use serde::Serialize;
-use sqlx::Row;
-use std::error::Error as StdError;
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Instant;
 use uuid::Uuid;
 
 const MAX_CONSECUTIVE_FAILURES: i64 = 10;
@@ -24,29 +24,26 @@ pub struct ReplayDeliveryResult {
 }
 
 pub struct DeliveryReplayService {
-    telemetry_service: std::sync::Arc<TelemetryService>,
-    webhook_service: std::sync::Arc<WebhookService>,
-    telemetry_db: TelemetryDatabase,
-    db: Database,
-    http_client: reqwest::Client,
+    telemetry_service: Arc<TelemetryService>,
+    webhook_service: Arc<WebhookService>,
+    telemetry_repo: Arc<dyn TelemetryRepository>,
+    webhook_repo: Arc<dyn WebhookRepository>,
+    http_client: Arc<dyn HttpDeliveryClient>,
 }
 
 impl DeliveryReplayService {
     pub fn new(
-        telemetry_service: std::sync::Arc<TelemetryService>,
-        webhook_service: std::sync::Arc<WebhookService>,
-        telemetry_db: TelemetryDatabase,
-        db: Database,
+        telemetry_service: Arc<TelemetryService>,
+        webhook_service: Arc<WebhookService>,
+        telemetry_repo: Arc<dyn TelemetryRepository>,
+        webhook_repo: Arc<dyn WebhookRepository>,
+        http_client: Arc<dyn HttpDeliveryClient>,
     ) -> Self {
-        let http_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .build()
-            .expect("Failed to build HTTP client");
         Self {
             telemetry_service,
             webhook_service,
-            telemetry_db,
-            db,
+            telemetry_repo,
+            webhook_repo,
             http_client,
         }
     }
@@ -84,27 +81,35 @@ impl DeliveryReplayService {
 
         let signature = sign_payload(&endpoint.signing_secret, &log.payload);
         let start = Instant::now();
-        let method = parse_http_method(&endpoint.http_method);
-        let mut request = self
-            .http_client
-            .request(method, &endpoint.url)
-            .header("Content-Type", "application/json")
-            .header("Reauth-Event-Id", &log.event_id)
-            .header("Reauth-Event-Type", &log.event_type)
-            .header("Reauth-Event-Version", &log.event_version)
-            .header("Reauth-Signature", signature);
+
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+        headers.insert("Reauth-Event-Id".to_string(), log.event_id.clone());
+        headers.insert("Reauth-Event-Type".to_string(), log.event_type.clone());
+        headers.insert(
+            "Reauth-Event-Version".to_string(),
+            log.event_version.clone(),
+        );
+        headers.insert("Reauth-Signature".to_string(), signature);
 
         for (key, value) in &endpoint.custom_headers {
-            request = request.header(key, value);
+            headers.insert(key.clone(), value.clone());
         }
 
-        let response = request.body(log.payload.clone()).send().await;
+        let request = HttpDeliveryRequest {
+            method: endpoint.http_method.clone(),
+            url: endpoint.url.clone(),
+            headers,
+            body: log.payload.clone(),
+        };
+
+        let response = self.http_client.send(request).await;
         let latency_ms = start.elapsed().as_millis() as i64;
 
         match response {
             Ok(resp) => {
-                let status_code = resp.status().as_u16() as i64;
-                let body = resp.text().await.unwrap_or_default();
+                let status_code = resp.status_code as i64;
+                let body = resp.body;
                 let is_success = (200..300).contains(&status_code);
                 let error = if is_success {
                     None
@@ -124,13 +129,16 @@ impl DeliveryReplayService {
                     .await?;
 
                 if !is_success {
-                    self.record_webhook_failure(
-                        &endpoint_id.to_string(),
-                        error.as_deref().unwrap_or(""),
-                    )
-                    .await?;
+                    self.webhook_repo
+                        .record_webhook_failure(
+                            &endpoint_id,
+                            error.as_deref().unwrap_or(""),
+                            MAX_CONSECUTIVE_FAILURES,
+                        )
+                        .await?;
                 } else {
-                    self.record_webhook_success(&endpoint_id.to_string())
+                    self.webhook_repo
+                        .record_webhook_success(&endpoint_id)
                         .await?;
                 }
 
@@ -144,8 +152,8 @@ impl DeliveryReplayService {
                 })
             }
             Err(err) => {
-                let error = err.to_string();
-                let error_chain = collect_error_chain(&err);
+                let error = err.message.clone();
+                let error_chain = err.error_chain.clone();
                 let new_delivery_id = self
                     .insert_delivery_log(
                         &log,
@@ -156,7 +164,9 @@ impl DeliveryReplayService {
                         latency_ms,
                     )
                     .await?;
-                self.record_webhook_failure(&endpoint_id.to_string(), &error)
+
+                self.webhook_repo
+                    .record_webhook_failure(&endpoint_id, &error, MAX_CONSECUTIVE_FAILURES)
                     .await?;
 
                 Ok(ReplayDeliveryResult {
@@ -184,105 +194,29 @@ impl DeliveryReplayService {
         let delivery_id = Uuid::new_v4().to_string();
         let attempt = log.attempt + 1;
 
-        sqlx::query(
-            "INSERT INTO delivery_logs (
-                id, event_id, realm_id, target_type, target_id, event_type, event_version, attempt,
-                payload, payload_compressed, response_status, response_body, error, error_chain, latency_ms, delivered_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        )
-        .bind(&delivery_id)
-        .bind(&log.event_id)
-        .bind(log.realm_id.map(|id| id.to_string()))
-        .bind(&log.target_type)
-        .bind(&log.target_id)
-        .bind(&log.event_type)
-        .bind(&log.event_version)
-        .bind(attempt)
-        .bind(&log.payload)
-        .bind(log.payload_compressed)
-        .bind(response_status)
-        .bind(response_body)
-        .bind(error)
-        .bind(error_chain)
-        .bind(latency_ms)
-        .bind(delivered_at)
-        .execute(&*self.telemetry_db)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
+        let new_log = DeliveryLog {
+            id: delivery_id.clone(),
+            event_id: log.event_id.clone(),
+            realm_id: log.realm_id,
+            target_type: log.target_type.clone(),
+            target_id: log.target_id.clone(),
+            event_type: log.event_type.clone(),
+            event_version: log.event_version.clone(),
+            attempt,
+            payload: log.payload.clone(),
+            payload_compressed: log.payload_compressed,
+            response_status,
+            response_body,
+            error,
+            error_chain,
+            latency_ms: Some(latency_ms),
+            delivered_at,
+        };
+
+        self.telemetry_repo.insert_delivery_log(&new_log).await?;
 
         Ok(delivery_id)
     }
-
-    async fn record_webhook_success(&self, endpoint_id: &str) -> Result<()> {
-        sqlx::query(
-            "UPDATE webhook_endpoints
-             SET consecutive_failures = 0, last_fired_at = CURRENT_TIMESTAMP, last_failure_at = NULL, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ?",
-        )
-        .bind(endpoint_id)
-        .execute(&*self.db)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
-        Ok(())
-    }
-
-    async fn record_webhook_failure(&self, endpoint_id: &str, reason: &str) -> Result<()> {
-        let row = sqlx::query(
-            "SELECT consecutive_failures
-             FROM webhook_endpoints
-             WHERE id = ?",
-        )
-        .bind(endpoint_id)
-        .fetch_optional(&*self.db)
-        .await
-        .map_err(|e| Error::Unexpected(e.into()))?;
-
-        let Some(row) = row else {
-            return Ok(());
-        };
-
-        let failures: i64 = row.get("consecutive_failures");
-        let next_failures = failures + 1;
-
-        if next_failures >= MAX_CONSECUTIVE_FAILURES {
-            sqlx::query(
-                "UPDATE webhook_endpoints
-                 SET consecutive_failures = ?, status = ?, disabled_at = CURRENT_TIMESTAMP,
-                     disabled_reason = ?, last_failure_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?",
-            )
-            .bind(next_failures)
-            .bind("disabled_system")
-            .bind(reason)
-            .bind(endpoint_id)
-            .execute(&*self.db)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-        } else {
-            sqlx::query(
-                "UPDATE webhook_endpoints
-                 SET consecutive_failures = ?, last_failure_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?",
-            )
-            .bind(next_failures)
-            .bind(endpoint_id)
-            .execute(&*self.db)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
-        }
-
-        Ok(())
-    }
-}
-
-fn collect_error_chain(error: &reqwest::Error) -> Vec<String> {
-    let mut chain = Vec::new();
-    let mut current: Option<&(dyn StdError + 'static)> = Some(error);
-    while let Some(err) = current {
-        chain.push(err.to_string());
-        current = err.source();
-    }
-    chain
 }
 
 fn serialize_error_chain(chain: &[String]) -> Option<String> {
@@ -290,10 +224,6 @@ fn serialize_error_chain(chain: &[String]) -> Option<String> {
         return None;
     }
     serde_json::to_string(chain).ok()
-}
-
-fn parse_http_method(method: &str) -> reqwest::Method {
-    reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST)
 }
 
 fn sign_payload(secret: &str, payload: &str) -> String {

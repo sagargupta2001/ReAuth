@@ -54,3 +54,10 @@ Usually create:
 - page integration only where the route surface changes
 
 Create new shared abstractions only after seeing repeated usage across multiple features.
+
+
+## React Performance & Rendering
+
+- Avoid creating "God Components" (files exceeding ~500 lines) that mix complex state management, data fetching, and large UI trees.
+- Break down massive components into smaller, composable presentational components.
+- Push state down to child components or use fine-grained selectors (e.g., Zustand) to prevent excessive top-level re-renders during local state changes (like typing in an input field).

@@ -1,5 +1,5 @@
-use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::execution::StepType;
+use crate::domain::flow::node_registry::NodeRegistry;
 use crate::error::{Error, Result};
 use std::collections::HashSet;
 
@@ -23,7 +23,7 @@ impl GraphValidator {
     pub fn validate(
         nodes: &[GraphNode],
         edges: &[GraphEdge],
-        registry: &RuntimeRegistry,
+        registry: &dyn NodeRegistry,
     ) -> Result<()> {
         if nodes.is_empty() {
             return Err(Error::Validation("Flow cannot be empty".into()));
@@ -70,9 +70,20 @@ impl GraphValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::application::runtime_registry::RuntimeRegistry;
     use crate::domain::execution::StepType;
+    use crate::domain::flow::node_registry::{NodeDefinition, NodeRegistry};
     use crate::error::Error;
+    use std::collections::HashMap;
+
+    struct MockRegistry {
+        defs: HashMap<String, NodeDefinition>,
+    }
+
+    impl NodeRegistry for MockRegistry {
+        fn get_definition(&self, key: &str) -> Option<NodeDefinition> {
+            self.defs.get(key).cloned()
+        }
+    }
 
     #[test]
     fn valid_graph_passes_validation() {
@@ -92,9 +103,21 @@ mod tests {
             source_handle: None,
         }];
 
-        let mut registry = RuntimeRegistry::new();
-        registry.register_definition("core.start", StepType::Logic);
-        registry.register_definition("core.end", StepType::Terminal);
+        let mut registry = MockRegistry {
+            defs: HashMap::new(),
+        };
+        registry.defs.insert(
+            "core.start".to_string(),
+            NodeDefinition {
+                step_type: StepType::Logic,
+            },
+        );
+        registry.defs.insert(
+            "core.end".to_string(),
+            NodeDefinition {
+                step_type: StepType::Terminal,
+            },
+        );
 
         GraphValidator::validate(&nodes, &edges, &registry).unwrap();
     }
@@ -107,8 +130,15 @@ mod tests {
         }];
         let edges = Vec::new();
 
-        let mut registry = RuntimeRegistry::new();
-        registry.register_definition("core.logic", StepType::Logic);
+        let mut registry = MockRegistry {
+            defs: HashMap::new(),
+        };
+        registry.defs.insert(
+            "core.logic".to_string(),
+            NodeDefinition {
+                step_type: StepType::Logic,
+            },
+        );
 
         let err = GraphValidator::validate(&nodes, &edges, &registry).unwrap_err();
         match err {

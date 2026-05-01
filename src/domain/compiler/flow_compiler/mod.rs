@@ -1,6 +1,7 @@
 use super::validator::{GraphEdge, GraphNode, GraphValidator};
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::execution::{ExecutionNode, ExecutionPlan};
+use crate::domain::flow::node_registry::NodeRegistry;
 use crate::error::{Error, Result};
 use std::collections::{HashMap, HashSet};
 

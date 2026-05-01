@@ -10,6 +10,7 @@ pub mod log_stream_handler;
 pub mod middleware;
 pub mod observability_handler;
 pub mod oidc_handler;
+pub mod outbound_http_client;
 pub mod rbac_handler;
 pub mod realm_email_handler;
 mod realm_handler;

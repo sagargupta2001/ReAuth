@@ -449,4 +449,78 @@ impl WebhookRepository for SqliteWebhookRepository {
             })
             .collect())
     }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "webhook_endpoints", db_op = "update")
+    )]
+    async fn record_webhook_success(&self, endpoint_id: &Uuid) -> Result<()> {
+        sqlx::query(
+            "UPDATE webhook_endpoints
+             SET consecutive_failures = 0, last_fired_at = CURRENT_TIMESTAMP, last_failure_at = NULL, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?",
+        )
+        .bind(endpoint_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "webhook_endpoints", db_op = "update")
+    )]
+    async fn record_webhook_failure(
+        &self,
+        endpoint_id: &Uuid,
+        reason: &str,
+        max_failures: i64,
+    ) -> Result<()> {
+        let row = sqlx::query(
+            "SELECT consecutive_failures
+             FROM webhook_endpoints
+             WHERE id = ?",
+        )
+        .bind(endpoint_id.to_string())
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let Some(row) = row else {
+            return Ok(());
+        };
+
+        let failures: i64 = row.get("consecutive_failures");
+        let next_failures = failures + 1;
+
+        if next_failures >= max_failures {
+            sqlx::query(
+                "UPDATE webhook_endpoints
+                 SET consecutive_failures = ?, status = ?, disabled_at = CURRENT_TIMESTAMP,
+                     disabled_reason = ?, last_failure_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?",
+            )
+            .bind(next_failures)
+            .bind("disabled_system")
+            .bind(reason)
+            .bind(endpoint_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        } else {
+            sqlx::query(
+                "UPDATE webhook_endpoints
+                 SET consecutive_failures = ?, last_failure_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?",
+            )
+            .bind(next_failures)
+            .bind(endpoint_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        }
+
+        Ok(())
+    }
 }

@@ -1,6 +1,6 @@
 import { Toaster } from 'sonner'
 
-import { useTheme } from '@/app/providers/ThemeContext'
+import { useTheme } from '@/shared/theme/ThemeContext'
 import { HashRouteNormalizer } from '@/app/HashRouteNormalizer'
 
 import { AppRouter } from './AppRouter'

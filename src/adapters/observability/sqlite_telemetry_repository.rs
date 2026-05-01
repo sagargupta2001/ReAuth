@@ -612,6 +612,40 @@ impl TelemetryRepository for SqliteTelemetryRepository {
 
     #[instrument(
         skip_all,
+        fields(telemetry = "span", db_table = "delivery_logs", db_op = "insert")
+    )]
+    async fn insert_delivery_log(&self, log: &DeliveryLog) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO delivery_logs (
+                id, event_id, realm_id, target_type, target_id, event_type, event_version, attempt,
+                payload, payload_compressed, response_status, response_body, error, error_chain, latency_ms, delivered_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind(&log.id)
+        .bind(&log.event_id)
+        .bind(log.realm_id.map(|id| id.to_string()))
+        .bind(&log.target_type)
+        .bind(&log.target_id)
+        .bind(&log.event_type)
+        .bind(&log.event_version)
+        .bind(log.attempt)
+        .bind(&log.payload)
+        .bind(log.payload_compressed)
+        .bind(log.response_status)
+        .bind(&log.response_body)
+        .bind(&log.error)
+        .bind(&log.error_chain)
+        .bind(log.latency_ms)
+        .bind(&log.delivered_at)
+        .execute(self.pool.as_ref())
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(())
+    }
+
+    #[instrument(
+        skip_all,
         fields(telemetry = "span", db_table = "delivery_logs", db_op = "select")
     )]
     async fn get_delivery_metrics(

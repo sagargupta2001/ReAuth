@@ -1,10 +1,24 @@
-import { useSessionStore } from '@/entities/session/model/sessionStore'
 import { resolveRealmFromLocation } from '@/shared/lib/realm'
 
 // Extend the config to track retries
 type RequestConfig = RequestInit & {
   _isRetry?: boolean // Internal flag to prevent infinite loops
   skipContentType?: boolean
+}
+
+// Interceptors for Dependency Injection
+let getAccessToken: () => string | null = () => null
+let setAccessToken: (token: string) => void = () => {}
+let clearSession: () => void = () => {}
+
+export function injectAuthInterceptor(
+  get: () => string | null,
+  set: (token: string) => void,
+  clear: () => void
+) {
+  getAccessToken = get
+  setAccessToken = set
+  clearSession = clear
 }
 
 // Singleton Promise to handle "Thundering Herd" (multiple 401s at once)
@@ -54,7 +68,7 @@ export async function refreshAccessToken(realmOverride?: string): Promise<string
  * The low-level request wrapper returning a raw Response.
  */
 async function requestRaw(endpoint: string, config: RequestConfig = {}): Promise<Response> {
-  const token = useSessionStore.getState().accessToken
+  const token = getAccessToken()
   const headers = new Headers(config.headers)
 
   if (token) {
@@ -73,17 +87,17 @@ async function requestRaw(endpoint: string, config: RequestConfig = {}): Promise
 
   if (response.status === 401 && !config._isRetry) {
     if (endpoint.includes('/auth/refresh')) {
-      useSessionStore.getState().clearSession()
+      clearSession()
       throw new Error('Session expired')
     }
 
     try {
       const newToken = await refreshAccessToken()
-      useSessionStore.getState().setSession(newToken)
+      setAccessToken(newToken)
       return requestRaw(endpoint, { ...config, _isRetry: true })
     } catch {
       console.error('Refresh failed, forcing logout.')
-      useSessionStore.getState().clearSession()
+      clearSession()
       throw new Error('Session expired')
     }
   }

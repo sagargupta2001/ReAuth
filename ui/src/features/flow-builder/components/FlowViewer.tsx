@@ -2,7 +2,7 @@ import { ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import type { Edge, Node } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { useTheme } from '@/app/providers/ThemeContext'
+import { useTheme } from '@/shared/theme/ThemeContext'
 import { flowNodeTypes } from '@/entities/flow/config/nodeTypes.ts'
 
 interface FlowViewerProps {
