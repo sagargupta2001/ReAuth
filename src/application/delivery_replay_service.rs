@@ -2,13 +2,13 @@ use crate::application::telemetry_service::TelemetryService;
 use crate::application::webhook_service::WebhookService;
 use crate::domain::telemetry::DeliveryLog;
 use crate::error::{Error, Result};
+use crate::ports::http_client::{HttpDeliveryClient, HttpDeliveryRequest};
 use crate::ports::telemetry_repository::TelemetryRepository;
 use crate::ports::webhook_repository::WebhookRepository;
 use chrono::Utc;
 use serde::Serialize;
-use std::error::Error as StdError;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use uuid::Uuid;
 
 const MAX_CONSECUTIVE_FAILURES: i64 = 10;
@@ -28,7 +28,7 @@ pub struct DeliveryReplayService {
     webhook_service: Arc<WebhookService>,
     telemetry_repo: Arc<dyn TelemetryRepository>,
     webhook_repo: Arc<dyn WebhookRepository>,
-    http_client: reqwest::Client,
+    http_client: Arc<dyn HttpDeliveryClient>,
 }
 
 impl DeliveryReplayService {
@@ -37,11 +37,8 @@ impl DeliveryReplayService {
         webhook_service: Arc<WebhookService>,
         telemetry_repo: Arc<dyn TelemetryRepository>,
         webhook_repo: Arc<dyn WebhookRepository>,
+        http_client: Arc<dyn HttpDeliveryClient>,
     ) -> Self {
-        let http_client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .build()
-            .expect("Failed to build HTTP client");
         Self {
             telemetry_service,
             webhook_service,
@@ -84,27 +81,35 @@ impl DeliveryReplayService {
 
         let signature = sign_payload(&endpoint.signing_secret, &log.payload);
         let start = Instant::now();
-        let method = parse_http_method(&endpoint.http_method);
-        let mut request = self
-            .http_client
-            .request(method, &endpoint.url)
-            .header("Content-Type", "application/json")
-            .header("Reauth-Event-Id", &log.event_id)
-            .header("Reauth-Event-Type", &log.event_type)
-            .header("Reauth-Event-Version", &log.event_version)
-            .header("Reauth-Signature", signature);
+
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+        headers.insert("Reauth-Event-Id".to_string(), log.event_id.clone());
+        headers.insert("Reauth-Event-Type".to_string(), log.event_type.clone());
+        headers.insert(
+            "Reauth-Event-Version".to_string(),
+            log.event_version.clone(),
+        );
+        headers.insert("Reauth-Signature".to_string(), signature);
 
         for (key, value) in &endpoint.custom_headers {
-            request = request.header(key, value);
+            headers.insert(key.clone(), value.clone());
         }
 
-        let response = request.body(log.payload.clone()).send().await;
+        let request = HttpDeliveryRequest {
+            method: endpoint.http_method.clone(),
+            url: endpoint.url.clone(),
+            headers,
+            body: log.payload.clone(),
+        };
+
+        let response = self.http_client.send(request).await;
         let latency_ms = start.elapsed().as_millis() as i64;
 
         match response {
             Ok(resp) => {
-                let status_code = resp.status().as_u16() as i64;
-                let body = resp.text().await.unwrap_or_default();
+                let status_code = resp.status_code as i64;
+                let body = resp.body;
                 let is_success = (200..300).contains(&status_code);
                 let error = if is_success {
                     None
@@ -147,8 +152,8 @@ impl DeliveryReplayService {
                 })
             }
             Err(err) => {
-                let error = err.to_string();
-                let error_chain = collect_error_chain(&err);
+                let error = err.message.clone();
+                let error_chain = err.error_chain.clone();
                 let new_delivery_id = self
                     .insert_delivery_log(
                         &log,
@@ -214,25 +219,11 @@ impl DeliveryReplayService {
     }
 }
 
-fn collect_error_chain(error: &reqwest::Error) -> Vec<String> {
-    let mut chain = Vec::new();
-    let mut current: Option<&(dyn StdError + 'static)> = Some(error);
-    while let Some(err) = current {
-        chain.push(err.to_string());
-        current = err.source();
-    }
-    chain
-}
-
 fn serialize_error_chain(chain: &[String]) -> Option<String> {
     if chain.is_empty() {
         return None;
     }
     serde_json::to_string(chain).ok()
-}
-
-fn parse_http_method(method: &str) -> reqwest::Method {
-    reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST)
 }
 
 fn sign_payload(secret: &str, payload: &str) -> String {

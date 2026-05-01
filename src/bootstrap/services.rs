@@ -59,6 +59,8 @@ pub struct Services {
 
 use crate::ports::telemetry_repository::TelemetryRepository;
 
+use crate::ports::http_client::HttpDeliveryClient;
+
 pub struct ServiceInitContext<'a> {
     pub settings: &'a Settings,
     pub repos: &'a Repositories,
@@ -68,6 +70,7 @@ pub struct ServiceInitContext<'a> {
     pub token_service: &'a Arc<JwtService>,
     pub telemetry_repo: Arc<dyn TelemetryRepository>,
     pub tx_manager: &'a Arc<dyn TransactionManager>,
+    pub http_client: Arc<dyn HttpDeliveryClient>,
 }
 
 pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
@@ -80,6 +83,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         token_service,
         telemetry_repo,
         tx_manager,
+        http_client,
     } = ctx;
     // 1. Foundation Services
     let user_service = Arc::new(UserService::new(
@@ -93,6 +97,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.webhook_repo.clone(),
         tx_manager.clone(),
         telemetry_repo.clone(),
+        http_client.clone(),
     ));
     let theme_service = Arc::new(ThemeResolverService::new(
         repos.theme_repo.clone(),

@@ -2,6 +2,7 @@ use crate::domain::events::{EventEnvelope, EVENT_VERSION_V1};
 use crate::domain::telemetry::DeliveryLog;
 use crate::domain::webhook::{WebhookEndpoint, WebhookSubscription};
 use crate::error::{Error, Result};
+use crate::ports::http_client::{HttpDeliveryClient, HttpDeliveryRequest};
 use crate::ports::telemetry_repository::TelemetryRepository;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::ports::webhook_repository::WebhookRepository;
@@ -9,7 +10,6 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::error::Error as StdError;
 use std::sync::Arc;
 use std::time::Instant;
 use url::Url;
@@ -98,7 +98,7 @@ struct TestDeliveryLogEntry<'a> {
 pub struct WebhookService {
     repo: Arc<dyn WebhookRepository>,
     tx_manager: Arc<dyn TransactionManager>,
-    http_client: reqwest::Client,
+    http_client: Arc<dyn HttpDeliveryClient>,
     telemetry_repo: Arc<dyn TelemetryRepository>,
 }
 
@@ -107,11 +107,8 @@ impl WebhookService {
         repo: Arc<dyn WebhookRepository>,
         tx_manager: Arc<dyn TransactionManager>,
         telemetry_repo: Arc<dyn TelemetryRepository>,
+        http_client: Arc<dyn HttpDeliveryClient>,
     ) -> Self {
-        let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(5))
-            .build()
-            .expect("Failed to build HTTP client");
         Self {
             repo,
             tx_manager,
@@ -456,32 +453,40 @@ impl WebhookService {
 
         let signature = sign_payload(&endpoint.signing_secret, &payload_json);
         let start = Instant::now();
-        let method = parse_http_method(&endpoint.http_method);
-        let mut request = self
-            .http_client
-            .request(method, &endpoint.url)
-            .header("Content-Type", "application/json")
-            .header("Reauth-Event-Id", event_id.to_string())
-            .header("Reauth-Event-Type", event_type.clone())
-            .header("Reauth-Event-Version", EVENT_VERSION_V1)
-            .header("Reauth-Signature", signature);
+
+        let mut headers = std::collections::HashMap::new();
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+        headers.insert("Reauth-Event-Id".to_string(), event_id.to_string());
+        headers.insert("Reauth-Event-Type".to_string(), event_type.clone());
+        headers.insert(
+            "Reauth-Event-Version".to_string(),
+            EVENT_VERSION_V1.to_string(),
+        );
+        headers.insert("Reauth-Signature".to_string(), signature);
 
         for (key, value) in &endpoint.custom_headers {
-            request = request.header(key, value);
+            headers.insert(key.clone(), value.clone());
         }
 
-        let response = request.body(payload_json.clone()).send().await;
+        let request = HttpDeliveryRequest {
+            method: endpoint.http_method.clone(),
+            url: endpoint.url.clone(),
+            headers,
+            body: payload_json.clone(),
+        };
+
+        let response = self.http_client.send(request).await;
 
         let latency_ms = start.elapsed().as_millis() as i64;
         let (status_code, response_body, error, error_chain) = match response {
             Ok(resp) => {
-                let status = resp.status().as_u16() as i64;
-                let body = resp.text().await.unwrap_or_default();
+                let status = resp.status_code as i64;
+                let body = resp.body;
                 (Some(status), Some(body), None, None)
             }
             Err(err) => {
-                let error = err.to_string();
-                let error_chain = collect_error_chain(&err);
+                let error = err.message.clone();
+                let error_chain = err.error_chain.clone();
                 (None, None, Some(error), serialize_error_chain(&error_chain))
             }
         };
@@ -547,16 +552,6 @@ async fn log_test_delivery(entry: TestDeliveryLogEntry<'_>) -> anyhow::Result<()
     Ok(())
 }
 
-fn collect_error_chain(error: &reqwest::Error) -> Vec<String> {
-    let mut chain = Vec::new();
-    let mut current: Option<&(dyn StdError + 'static)> = Some(error);
-    while let Some(err) = current {
-        chain.push(err.to_string());
-        current = err.source();
-    }
-    chain
-}
-
 fn serialize_error_chain(chain: &[String]) -> Option<String> {
     if chain.is_empty() {
         return None;
@@ -572,10 +567,6 @@ fn normalize_http_method(method: Option<&str>) -> Result<String> {
             "Unsupported webhook HTTP method. Use POST or PUT.".to_string(),
         )),
     }
-}
-
-fn parse_http_method(method: &str) -> reqwest::Method {
-    reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST)
 }
 
 fn should_update_name_from_url(name: &str, url: &str) -> bool {

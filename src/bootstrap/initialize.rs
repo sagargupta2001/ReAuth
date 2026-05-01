@@ -5,6 +5,7 @@ use crate::adapters::observability::telemetry_store::init_telemetry_db;
 use crate::adapters::observability::telemetry_writer::TelemetryWriter;
 use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::transaction::SqliteTransactionManager;
+use crate::adapters::web::outbound_http_client::ReqwestDeliveryClient;
 use crate::application::delivery_replay_service::DeliveryReplayService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::telemetry_service::TelemetryService;
@@ -97,6 +98,9 @@ async fn initialize_with_settings(
 
     let tx_manager: Arc<dyn TransactionManager> =
         Arc::new(SqliteTransactionManager::new(db_pool.clone()));
+    let http_client = Arc::new(ReqwestDeliveryClient::new(std::time::Duration::from_secs(
+        5,
+    )));
 
     let services = initialize_services(crate::bootstrap::services::ServiceInitContext {
         settings: &settings,
@@ -107,6 +111,7 @@ async fn initialize_with_settings(
         token_service: &jwt_service,
         telemetry_repo: telemetry_repo.clone(),
         tx_manager: &tx_manager,
+        http_client: http_client.clone(),
     });
 
     let delivery_replay_service = Arc::new(DeliveryReplayService::new(
@@ -114,6 +119,7 @@ async fn initialize_with_settings(
         services.webhook_service.clone(),
         telemetry_repo.clone(),
         repos.webhook_repo.clone(),
+        http_client.clone(),
     ));
 
     subscribe_event_listeners(&event_bus, &cache_service, &repos.rbac_repo).await;

@@ -65,3 +65,10 @@ Usually:
 - ReAuth is SQLite-first and single-binary.
 - Prefer local storage, SQLite tables, and in-process scheduling/workers where needed.
 - Do not introduce new runtime infrastructure without a deliberate product decision.
+
+
+## SOLID and Dependency Inversion
+
+- Apply Dependency Inversion for all external integrations (e.g., HTTP clients, email providers).
+- Do not construct external clients (like `reqwest::Client`) directly inside application services.
+- Define explicit port traits (e.g., `HttpDeliveryClient`) in `src/ports/` and implement them in `src/adapters/`. This keeps application services pure, decoupled, and easily mockable for tests.
