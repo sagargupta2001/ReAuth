@@ -5,7 +5,11 @@ import { type Resolver, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
+import { useApplyRecommendedPasskeyFlow } from '@/features/realm/api/useApplyRecommendedPasskeyFlow'
+import { useApplyRecommendedPasskeyRegistrationFlow } from '@/features/realm/api/useApplyRecommendedPasskeyRegistrationFlow'
+import { useRealmPasskeySettings } from '@/features/realm/api/useRealmPasskeySettings'
 import { useUpdateRealm } from '@/features/realm/api/useUpdateRealm.ts'
+import { useUpdateRealmPasskeySettings } from '@/features/realm/api/useUpdateRealmPasskeySettings'
 import { useUpdateRealmOptimistic } from '@/features/realm/api/useUpdateRealmOptimistic'
 import {
   type GeneralSettingsSchema,
@@ -13,14 +17,21 @@ import {
 } from '@/features/realm/schema/setting.schema.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
+import { Button } from '@/shared/ui/button'
 import { FormInput } from '@/shared/ui/form-input.tsx'
 import { Form } from '@/shared/ui/form.tsx'
 import { Switch } from '@/shared/ui/switch'
 
 export function GeneralSettingsForm() {
   const { data: realm, isLoading } = useCurrentRealm()
+  const { data: passkeySettings, isLoading: isPasskeyLoading } = useRealmPasskeySettings()
   const updateMutation = useUpdateRealm(realm?.id || '')
   const toggleMutation = useUpdateRealmOptimistic(realm?.id || '', realm?.name || '')
+  const updatePasskeyMutation = useUpdateRealmPasskeySettings(realm?.id || '')
+  const recommendedFlowMutation = useApplyRecommendedPasskeyFlow(realm?.id || '')
+  const recommendedRegistrationFlowMutation = useApplyRecommendedPasskeyRegistrationFlow(
+    realm?.id || '',
+  )
 
   const form = useForm<GeneralSettingsSchema>({
     resolver: zodResolver(generalSettingsSchema) as Resolver<GeneralSettingsSchema>,
@@ -46,10 +57,11 @@ export function GeneralSettingsForm() {
       })
   }, [realm, form])
 
-  if (isLoading) return null
+  if (isLoading || isPasskeyLoading) return null
 
   const registrationEnabled = Boolean(realm?.registration_enabled)
   const registrationBlocked = Boolean(realm?.is_system)
+  const passkeysEnabled = Boolean(passkeySettings?.enabled)
   const handleRegistrationToggle = (enabled: boolean) => {
     if (!realm) return
 
@@ -66,6 +78,23 @@ export function GeneralSettingsForm() {
     toggleMutation.mutate({
       registration_enabled: enabled,
     })
+  }
+
+  const handlePasskeyToggle = (enabled: boolean) => {
+    if (!realm?.id) return
+    updatePasskeyMutation.mutate({
+      enabled,
+    })
+  }
+
+  const handleApplyRecommendedPasskeyFlow = () => {
+    if (!realm?.id) return
+    recommendedFlowMutation.mutate()
+  }
+
+  const handleApplyRecommendedRegistrationPasskeyFlow = () => {
+    if (!realm?.id) return
+    recommendedRegistrationFlowMutation.mutate()
   }
 
   return (
@@ -112,6 +141,65 @@ export function GeneralSettingsForm() {
                 aria-label="Enable user registration"
                 disabled={toggleMutation.isPending || registrationBlocked}
               />
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="realm-passkeys" className="scroll-mt-24 rounded-md -m-2 p-2">
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Passkeys</CardTitle>
+              <CardDescription>
+                Enable passkeys and optionally apply the recommended passkey-first browser flow.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Enable Passkeys</div>
+                  <div className="text-xs text-muted-foreground">
+                    Allows passkey assertion and enrollment nodes to run in this realm.
+                  </div>
+                </div>
+                <Switch
+                  checked={passkeysEnabled}
+                  onCheckedChange={handlePasskeyToggle}
+                  aria-label="Enable passkeys"
+                  disabled={updatePasskeyMutation.isPending}
+                />
+              </div>
+              <div className="flex items-center justify-between border-t pt-4">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Recommended Browser Flow</div>
+                  <div className="text-xs text-muted-foreground">
+                    Replaces the realm browser flow with a passkey-first template and keeps password fallback.
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleApplyRecommendedPasskeyFlow}
+                  disabled={recommendedFlowMutation.isPending}
+                >
+                  Apply Recommended Flow
+                </Button>
+              </div>
+              <div className="flex items-center justify-between border-t pt-4">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Recommended Registration Flow</div>
+                  <div className="text-xs text-muted-foreground">
+                    Inserts passkey enrollment after account creation in the registration flow.
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleApplyRecommendedRegistrationPasskeyFlow}
+                  disabled={recommendedRegistrationFlowMutation.isPending}
+                >
+                  Apply Registration Flow
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

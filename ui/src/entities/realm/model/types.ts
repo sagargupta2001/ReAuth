@@ -38,6 +38,41 @@ export interface RealmRecoverySettings {
   email_body?: string | null
 }
 
+export interface RealmPasskeySettings {
+  realm_id: string
+  enabled: boolean
+  allow_password_fallback: boolean
+  discoverable_preferred: boolean
+  challenge_ttl_secs: number
+  reauth_max_age_secs: number
+}
+
+export interface RealmPasskeyAnalytics {
+  realm_id: string
+  window_hours: number
+  credentials_total: number
+  credentials_created_last_7d: number
+  credentials_active_last_30d: number
+  challenges: {
+    pending_total: number
+    pending_expired: number
+  }
+  outcomes: {
+    assertion_success: number
+    assertion_invalid_signature: number
+    assertion_counter_regression: number
+    assertion_challenge_mismatch: number
+    enrollment_success: number
+    enrollment_challenge_mismatch: number
+  }
+  recent_failures: Array<{
+    action: string
+    created_at: string
+    actor_user_id?: string | null
+    target_id?: string | null
+  }>
+}
+
 export interface RealmSecurityHeaders {
   realm_id: string
   x_frame_options?: string | null

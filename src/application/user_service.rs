@@ -75,6 +75,8 @@ impl UserService {
             username: username.to_string(),
             email: normalized_email,
             hashed_password: hashed_password.as_str().to_string(),
+            force_password_reset: false,
+            password_login_disabled: false,
         };
 
         let mut tx = self.tx_manager.begin().await?;
@@ -222,7 +224,39 @@ impl UserService {
         let mut user = self.get_user_in_realm(realm_id, user_id).await?;
         let hashed_password = HashedPassword::new(new_password)?;
         user.hashed_password = hashed_password.as_str().to_string();
+        user.force_password_reset = false;
         self.user_repo.update(&user, None).await?;
+        Ok(user)
+    }
+
+    pub async fn update_credential_policy(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        force_password_reset: Option<bool>,
+        password_login_disabled: Option<bool>,
+    ) -> Result<User> {
+        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+        let mut changed = false;
+
+        if let Some(value) = force_password_reset {
+            if user.force_password_reset != value {
+                user.force_password_reset = value;
+                changed = true;
+            }
+        }
+
+        if let Some(value) = password_login_disabled {
+            if user.password_login_disabled != value {
+                user.password_login_disabled = value;
+                changed = true;
+            }
+        }
+
+        if changed {
+            self.user_repo.update(&user, None).await?;
+        }
+
         Ok(user)
     }
 }

@@ -15,12 +15,16 @@ use crate::application::harbor::theme_provider::ThemeHarborProvider;
 use crate::application::harbor::user_provider::UserHarborProvider;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::passkey_analytics_service::PasskeyAnalyticsService;
+use crate::application::passkey_assertion_service::PasskeyAssertionService;
 use crate::application::realm_email_settings_service::RealmEmailSettingsService;
+use crate::application::realm_passkey_settings_service::RealmPasskeySettingsService;
 use crate::application::realm_recovery_settings_service::RealmRecoverySettingsService;
 use crate::application::realm_security_headers_service::RealmSecurityHeadersService;
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::application::secret_service::SecretService;
 use crate::application::theme_service::ThemeResolverService;
+use crate::application::user_credentials_service::UserCredentialsService;
 use crate::application::webhook_service::WebhookService;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::{
@@ -39,11 +43,15 @@ use std::sync::Arc;
 /// A struct to hold all initialized application services.
 pub struct Services {
     pub user_service: Arc<UserService>,
+    pub user_credentials_service: Arc<UserCredentialsService>,
     pub rbac_service: Arc<RbacService>,
     pub realm_service: Arc<RealmService>,
     pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
+    pub realm_passkey_settings_service: Arc<RealmPasskeySettingsService>,
     pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
     pub realm_security_headers_service: Arc<RealmSecurityHeadersService>,
+    pub passkey_assertion_service: Arc<PasskeyAssertionService>,
+    pub passkey_analytics_service: Arc<PasskeyAnalyticsService>,
     pub email_delivery_service: Arc<EmailDeliveryService>,
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
@@ -92,6 +100,11 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         outbox_repo.clone(),
         tx_manager.clone(),
     ));
+    let user_credentials_service = Arc::new(UserCredentialsService::new(
+        user_service.clone(),
+        repos.passkey_credential_repo.clone(),
+        repos.realm_passkey_settings_repo.clone(),
+    ));
     let audit_service = Arc::new(AuditService::new(repos.audit_repo.clone()));
     let webhook_service = Arc::new(WebhookService::new(
         repos.webhook_repo.clone(),
@@ -124,6 +137,11 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.realm_email_settings_repo.clone(),
     ));
 
+    let realm_passkey_settings_service = Arc::new(RealmPasskeySettingsService::new(
+        repos.realm_repo.clone(),
+        repos.realm_passkey_settings_repo.clone(),
+    ));
+
     let realm_recovery_settings_service = Arc::new(RealmRecoverySettingsService::new(
         repos.realm_repo.clone(),
         repos.realm_recovery_settings_repo.clone(),
@@ -152,6 +170,24 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
 
     let secret_service = Arc::new(SecretService::from_settings(settings));
 
+    let passkey_assertion_service = Arc::new(PasskeyAssertionService::new(
+        repos.auth_session_repo.clone(),
+        repos.realm_repo.clone(),
+        repos.user_repo.clone(),
+        repos.passkey_challenge_repo.clone(),
+        repos.passkey_credential_repo.clone(),
+        repos.realm_passkey_settings_repo.clone(),
+        audit_service.clone(),
+        settings.clone(),
+    ));
+
+    let passkey_analytics_service = Arc::new(PasskeyAnalyticsService::new(
+        repos.realm_repo.clone(),
+        repos.audit_repo.clone(),
+        repos.passkey_credential_repo.clone(),
+        repos.passkey_challenge_repo.clone(),
+    ));
+
     // 2. Runtime Registry (The Brain)
     let mut registry_impl = RuntimeRegistry::new();
 
@@ -173,6 +209,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
             recovery_attempt_repo: repos.recovery_attempt_repo.clone(),
             audit_service: audit_service.clone(),
             recovery_settings_repo: repos.realm_recovery_settings_repo.clone(),
+            passkey_settings_repo: repos.realm_passkey_settings_repo.clone(),
         },
     );
 
@@ -196,6 +233,8 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         crate::application::flow_publish_validator::UiBindingPublishValidator::new(
             theme_service.clone(),
             node_registry.clone(),
+            repos.realm_passkey_settings_repo.clone(),
+            settings.clone(),
         ),
     );
 
@@ -254,11 +293,15 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
 
     Services {
         user_service,
+        user_credentials_service,
         rbac_service,
         realm_service,
         realm_email_settings_service,
+        realm_passkey_settings_service,
         realm_recovery_settings_service,
         realm_security_headers_service,
+        passkey_assertion_service,
+        passkey_analytics_service,
         email_delivery_service,
         auth_service,
         audit_service,

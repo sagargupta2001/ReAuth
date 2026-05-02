@@ -14,6 +14,7 @@ pub mod outbound_http_client;
 pub mod rbac_handler;
 pub mod realm_email_handler;
 mod realm_handler;
+pub mod realm_passkey_handler;
 pub mod realm_recovery_handler;
 pub mod realm_security_headers_handler;
 pub mod router;

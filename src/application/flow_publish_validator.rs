@@ -1,14 +1,18 @@
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::theme_service::ThemeResolverService;
+use crate::config::Settings;
 use crate::domain::flow::models::{FlowPublishIssue, FlowPublishValidation, NodeContract};
 use crate::domain::flow::signal::FlowSignal;
+use crate::domain::realm_passkey_settings::RealmPasskeySettings;
 use crate::domain::theme_pages::ThemePageTemplate;
 use crate::domain::ui::PageCategory;
 use crate::error::{Error, Result};
+use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
 use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use url::Url;
 use uuid::Uuid;
 
 #[async_trait]
@@ -19,17 +23,40 @@ pub trait FlowPublishValidator: Send + Sync {
 pub struct UiBindingPublishValidator {
     theme_service: Arc<ThemeResolverService>,
     node_registry: Arc<NodeRegistryService>,
+    realm_passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
+    settings: Settings,
 }
 
 impl UiBindingPublishValidator {
     pub fn new(
         theme_service: Arc<ThemeResolverService>,
         node_registry: Arc<NodeRegistryService>,
+        realm_passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
+        settings: Settings,
     ) -> Self {
         Self {
             theme_service,
             node_registry,
+            realm_passkey_settings_repo,
+            settings,
         }
+    }
+
+    fn passkey_system_prerequisites_met(&self) -> bool {
+        let public_url = self.settings.server.public_url.trim();
+        let parsed = match Url::parse(public_url) {
+            Ok(value) => value,
+            Err(_) => return false,
+        };
+        if parsed.scheme() == "https" {
+            return true;
+        }
+        if parsed.scheme() != "http" {
+            return false;
+        }
+        parsed
+            .host_str()
+            .is_some_and(|host| host == "localhost" || host == "127.0.0.1" || host == "::1")
     }
 }
 
@@ -40,6 +67,31 @@ impl FlowPublishValidator for UiBindingPublishValidator {
             .get("nodes")
             .and_then(|value| value.as_array())
             .ok_or_else(|| Error::Validation("Missing nodes".to_string()))?;
+
+        let passkey_node_ids: Vec<String> = nodes
+            .iter()
+            .filter_map(|node| {
+                let node_type = node.get("type").and_then(|value| value.as_str());
+                let auth_type = node
+                    .get("data")
+                    .and_then(|value| value.get("config"))
+                    .and_then(|value| value.get("auth_type"))
+                    .and_then(|value| value.as_str());
+                let is_passkey_type = matches!(
+                    node_type,
+                    Some("core.auth.passkey_assert" | "core.auth.passkey_enroll")
+                ) || matches!(
+                    auth_type,
+                    Some("core.auth.passkey_assert" | "core.auth.passkey_enroll")
+                );
+                if !is_passkey_type {
+                    return None;
+                }
+                node.get("id")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string())
+            })
+            .collect();
 
         let binding = self.theme_service.resolve_binding(realm_id, None).await?;
         let pages = if let Some(binding) = binding {
@@ -84,6 +136,26 @@ impl FlowPublishValidator for UiBindingPublishValidator {
         let mut signal_node_errors: Vec<(String, Vec<String>)> = Vec::new();
         let mut signal_parse_errors: Vec<(String, Vec<String>)> = Vec::new();
         let mut payload_map_errors: Vec<(String, Vec<String>)> = Vec::new();
+        let mut passkey_capability_errors: Vec<String> = Vec::new();
+
+        if !passkey_node_ids.is_empty() {
+            let passkey_settings = self
+                .realm_passkey_settings_repo
+                .find_by_realm_id(&realm_id)
+                .await?
+                .unwrap_or_else(|| RealmPasskeySettings::defaults(realm_id));
+            if !passkey_settings.enabled {
+                passkey_capability_errors.push(
+                    "Passkey nodes require realm passkeys to be enabled in passkey settings."
+                        .to_string(),
+                );
+            }
+            if !self.passkey_system_prerequisites_met() {
+                passkey_capability_errors.push(
+                    "Passkey nodes require a secure public URL (HTTPS, or HTTP only for localhost development).".to_string(),
+                );
+            }
+        }
 
         for node in nodes {
             let node_type = node
@@ -219,6 +291,7 @@ impl FlowPublishValidator for UiBindingPublishValidator {
             && signal_node_errors.is_empty()
             && signal_parse_errors.is_empty()
             && payload_map_errors.is_empty()
+            && passkey_capability_errors.is_empty()
         {
             return Ok(());
         }
@@ -347,6 +420,18 @@ impl FlowPublishValidator for UiBindingPublishValidator {
                     .map(|(message, _)| message.clone())
                     .collect::<Vec<String>>()
                     .join(" | ")
+            ));
+        }
+        if !passkey_capability_errors.is_empty() {
+            for message in &passkey_capability_errors {
+                issues.push(FlowPublishIssue {
+                    message: message.clone(),
+                    node_ids: passkey_node_ids.clone(),
+                });
+            }
+            parts.push(format!(
+                "Passkey capability unavailable: {}",
+                passkey_capability_errors.join(" | ")
             ));
         }
 
@@ -541,13 +626,16 @@ mod tests {
     use crate::application::theme_service::ThemeResolverService;
     use crate::domain::execution::StepType;
     use crate::domain::flow::nodes::oidc_consent_node::OidcConsentNodeProvider;
+    use crate::domain::flow::nodes::passkey_assert_node::PasskeyAssertNodeProvider;
     use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
     use crate::domain::flow::nodes::subflow_node::SubflowNodeProvider;
     use crate::domain::flow::provider::NodeProvider;
+    use crate::domain::realm_passkey_settings::RealmPasskeySettings;
     use crate::domain::theme::{
         Theme, ThemeAsset, ThemeAssetMeta, ThemeBinding, ThemeLayout, ThemeNode, ThemeTokens,
         ThemeVersion,
     };
+    use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
     use crate::ports::theme_repository::ThemeRepository;
     use crate::ports::transaction_manager::{Transaction, TransactionManager};
     use async_trait::async_trait;
@@ -813,6 +901,25 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
+    struct TestPasskeySettingsRepo {
+        settings: Option<RealmPasskeySettings>,
+    }
+
+    #[async_trait]
+    impl RealmPasskeySettingsRepository for TestPasskeySettingsRepo {
+        async fn find_by_realm_id(&self, realm_id: &Uuid) -> Result<Option<RealmPasskeySettings>> {
+            Ok(self
+                .settings
+                .clone()
+                .filter(|settings| &settings.realm_id == realm_id))
+        }
+
+        async fn upsert(&self, _settings: &RealmPasskeySettings) -> Result<()> {
+            Ok(())
+        }
+    }
+
     struct TestTx;
 
     impl Transaction for TestTx {
@@ -851,11 +958,20 @@ mod tests {
     }
 
     fn build_validator() -> (UiBindingPublishValidator, Uuid) {
-        build_validator_with_nodes(Vec::new())
+        build_validator_with_nodes_and_passkey_settings(Vec::new(), None, None, None)
     }
 
     fn build_validator_with_nodes(nodes: Vec<ThemeNode>) -> (UiBindingPublishValidator, Uuid) {
-        let realm_id = Uuid::new_v4();
+        build_validator_with_nodes_and_passkey_settings(nodes, None, None, None)
+    }
+
+    fn build_validator_with_nodes_and_passkey_settings(
+        nodes: Vec<ThemeNode>,
+        passkey_settings: Option<RealmPasskeySettings>,
+        settings_override: Option<crate::config::Settings>,
+        realm_id_override: Option<Uuid>,
+    ) -> (UiBindingPublishValidator, Uuid) {
+        let realm_id = realm_id_override.unwrap_or_else(Uuid::new_v4);
         let theme_id = nodes
             .first()
             .map(|node| node.theme_id)
@@ -886,6 +1002,7 @@ mod tests {
         let mut registry = RuntimeRegistry::new();
         registry.register_definition("core.auth.password", StepType::Authenticator);
         registry.register_definition("core.oidc.consent", StepType::Authenticator);
+        registry.register_definition("core.auth.passkey_assert", StepType::Authenticator);
         registry.register_definition("core.ui.no_default", StepType::Authenticator);
         registry.register_definition("core.logic.subflow", StepType::Logic);
         let runtime_registry = Arc::new(registry);
@@ -893,6 +1010,7 @@ mod tests {
         let providers: Vec<Box<dyn NodeProvider>> = vec![
             Box::new(PasswordNodeProvider),
             Box::new(OidcConsentNodeProvider),
+            Box::new(PasskeyAssertNodeProvider),
             Box::new(NoDefaultUiNodeProvider),
             Box::new(SubflowNodeProvider),
         ];
@@ -900,9 +1018,20 @@ mod tests {
             providers,
             runtime_registry,
         ));
+        let passkey_settings_repo = Arc::new(TestPasskeySettingsRepo {
+            settings: passkey_settings,
+        });
+        let settings = settings_override.unwrap_or_else(|| {
+            crate::config::Settings::new().expect("default settings should load")
+        });
 
         (
-            UiBindingPublishValidator::new(theme_service, node_registry),
+            UiBindingPublishValidator::new(
+                theme_service,
+                node_registry,
+                passkey_settings_repo,
+                settings,
+            ),
             realm_id,
         )
     }
@@ -1213,5 +1342,43 @@ mod tests {
         let err = validator.validate(realm_id, &graph).await.unwrap_err();
         let message = err.to_string();
         assert!(message.contains("Signal payload_map invalid"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_passkey_nodes_when_realm_policy_disabled() {
+        let (validator, realm_id) = build_validator();
+        let graph = graph_with_node("core.auth.passkey_assert", json!({}));
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("Passkey capability unavailable"));
+        assert!(message.contains("realm passkeys to be enabled"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_passkey_nodes_when_system_prereq_missing() {
+        let realm_id = Uuid::new_v4();
+        let mut settings = crate::config::Settings::new().expect("default settings");
+        settings.server.public_url = "http://example.com:3000".to_string();
+        let passkey_settings = RealmPasskeySettings {
+            realm_id,
+            enabled: true,
+            allow_password_fallback: true,
+            discoverable_preferred: true,
+            challenge_ttl_secs: 120,
+            reauth_max_age_secs: 300,
+        };
+        let (validator, _) = build_validator_with_nodes_and_passkey_settings(
+            Vec::new(),
+            Some(passkey_settings),
+            Some(settings),
+            Some(realm_id),
+        );
+        let graph = graph_with_node("core.auth.passkey_assert", json!({}));
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("Passkey capability unavailable"));
+        assert!(message.contains("secure public URL"));
     }
 }

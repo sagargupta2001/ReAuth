@@ -174,17 +174,39 @@ impl FlowExecutor {
 
                 match outcome {
                     NodeOutcome::Continue { output } => {
+                        let force_reset_next = if session.current_node_id == "auth-password"
+                            && output == "success"
+                            && session
+                                .context
+                                .get("force_password_reset")
+                                .and_then(|value| value.as_bool())
+                                .unwrap_or(false)
+                        {
+                            current_node_def.next.get("force_reset")
+                        } else {
+                            None
+                        };
+
                         // If DB is missing the link, we force it for the password node
-                        let forced_next =
-                            if session.current_node_id == "auth-password" && output == "success" {
-                                Some("success".to_string())
-                            } else {
-                                None
-                            };
+                        let forced_next = if session.current_node_id == "auth-password"
+                            && ((output == "success" && force_reset_next.is_none())
+                                || output == "force_reset")
+                        {
+                            Some("success".to_string())
+                        } else {
+                            None
+                        };
+
+                        let lookup_output: &str = if force_reset_next.is_some() {
+                            "force_reset"
+                        } else {
+                            output.as_str()
+                        };
 
                         let next_id = current_node_def
                             .next
-                            .get(&output)
+                            .get(lookup_output)
+                            .or(force_reset_next)
                             .or(forced_next.as_ref()) // <--- Use Patch if DB fails
                             .or_else(|| current_node_def.next.get("default"))
                             .ok_or_else(|| {
@@ -1142,6 +1164,8 @@ fn resolve_template_key(config: &Value) -> Option<String> {
     let auth_type = config.get("auth_type").and_then(|value| value.as_str());
     match auth_type {
         Some("core.auth.password") => Some("login".to_string()),
+        Some("core.auth.passkey_assert") => Some("passkey_assert".to_string()),
+        Some("core.auth.passkey_enroll") => Some("passkey_enroll".to_string()),
         Some("core.auth.register") => Some("register".to_string()),
         Some("core.auth.forgot_credentials") => Some("forgot_credentials".to_string()),
         Some("core.auth.reset_password") => Some("reset_password".to_string()),

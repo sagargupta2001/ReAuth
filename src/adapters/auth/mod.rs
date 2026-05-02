@@ -2,6 +2,8 @@ pub mod cookie_authenticator;
 pub mod email_otp_issue_node;
 pub mod forgot_credentials_authenticator;
 pub mod oidc_consent_authenticator;
+pub mod passkey_assert_authenticator;
+pub mod passkey_enroll_authenticator;
 pub mod password_authenticator;
 pub mod recovery_issue_node;
 pub mod registration_authenticator;
@@ -13,6 +15,8 @@ use crate::adapters::auth::cookie_authenticator::CookieAuthenticator;
 use crate::adapters::auth::email_otp_issue_node::EmailOtpIssueNode;
 use crate::adapters::auth::forgot_credentials_authenticator::ForgotCredentialsAuthenticator;
 use crate::adapters::auth::oidc_consent_authenticator::OidcConsentAuthenticator;
+use crate::adapters::auth::passkey_assert_authenticator::PasskeyAssertAuthenticator;
+use crate::adapters::auth::passkey_enroll_authenticator::PasskeyEnrollAuthenticator;
 use crate::adapters::auth::password_authenticator::PasswordAuthenticator;
 use crate::adapters::auth::recovery_issue_node::RecoveryIssueNode;
 use crate::adapters::auth::registration_authenticator::RegistrationAuthenticator;
@@ -27,6 +31,7 @@ use crate::domain::execution::StepType;
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::login_attempt_repository::LoginAttemptRepository;
+use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
 use crate::ports::realm_recovery_settings_repository::RealmRecoverySettingsRepository;
 use crate::ports::realm_repository::RealmRepository;
 use crate::ports::recovery_attempt_repository::RecoveryAttemptRepository;
@@ -48,6 +53,7 @@ pub struct BuiltinAuthContext {
     pub recovery_attempt_repo: Arc<dyn RecoveryAttemptRepository>,
     pub audit_service: Arc<AuditService>,
     pub recovery_settings_repo: Arc<dyn RealmRecoverySettingsRepository>,
+    pub passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
 }
 
 pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext) {
@@ -61,6 +67,25 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
         ctx.lockout_duration_secs,
     ));
     registry.register_node("core.auth.password", pw_node, StepType::Authenticator);
+
+    // 1.1 Passkey Assert Node
+    let passkey_assert_node = Arc::new(PasskeyAssertAuthenticator::new(
+        ctx.passkey_settings_repo.clone(),
+    ));
+    registry.register_node(
+        "core.auth.passkey_assert",
+        passkey_assert_node,
+        StepType::Authenticator,
+    );
+
+    let passkey_enroll_node = Arc::new(PasskeyEnrollAuthenticator::new(
+        ctx.passkey_settings_repo.clone(),
+    ));
+    registry.register_node(
+        "core.auth.passkey_enroll",
+        passkey_enroll_node,
+        StepType::Authenticator,
+    );
 
     // 2. Registration Node
     let registration_node = Arc::new(RegistrationAuthenticator::new(

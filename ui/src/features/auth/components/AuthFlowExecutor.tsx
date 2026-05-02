@@ -16,6 +16,26 @@ import { REDIRECT_STORAGE_KEY } from '@/shared/config/redirect'
 // Global Singleton to prevent double-fetch in Strict Mode
 let initializationPromise: Promise<AuthExecutionResponse> | null = null
 
+const isAuthExecutionResponse = (
+  payload: Record<string, unknown>,
+): payload is AuthExecutionResponse => {
+  const status = payload.status
+  if (status === 'redirect') {
+    return typeof payload.url === 'string'
+  }
+  if (status === 'failure') {
+    return typeof payload.message === 'string'
+  }
+  if (status === 'challenge' || status === 'awaiting_action') {
+    return (
+      typeof payload.challengeName === 'string' &&
+      typeof payload.context === 'object' &&
+      payload.context !== null
+    )
+  }
+  return false
+}
+
 export function AuthFlowExecutor() {
   return <BaseAuthFlowExecutor flowPath="login" />
 }
@@ -156,6 +176,10 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
     setGlobalError(null)
 
     try {
+      if (isAuthExecutionResponse(data)) {
+        setCurrentStep(data)
+        return
+      }
       // Pass realm here if your API needs it for the execution URL too
       // e.g. /api/realms/{realm}/auth/login/execute
       const res = await authApi.submitStep(realm, flowPath, data)

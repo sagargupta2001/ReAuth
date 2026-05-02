@@ -45,6 +45,8 @@ hex = "0.4"
 base64 = "0.22"
 aes-gcm = "0.10"
 rsa = { version = "0.10.0-rc.16", features = ["std", "sha2"] }
+p256 = { version = "0.13.2", features = ["ecdsa", "pkcs8"] }
+p384 = { version = "0.13.1", features = ["ecdsa", "pkcs8"] }
 rand = "0.10.0"
 
 anyhow = "1.0.82"

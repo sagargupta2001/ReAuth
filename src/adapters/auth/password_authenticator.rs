@@ -174,6 +174,16 @@ impl LifecycleNode for PasswordAuthenticator {
             }
         };
 
+        if user.password_login_disabled {
+            return self
+                .reject_auth(
+                    _session,
+                    username,
+                    "Password login is disabled for this account. Use a passkey.",
+                )
+                .await;
+        }
+
         // 3. Verify Password Hash
         let hashed = HashedPassword::from_hash(&user.hashed_password)?;
         if !hashed.verify(password)? {
@@ -219,7 +229,16 @@ impl LifecycleNode for PasswordAuthenticator {
             _session.context = json!({ "username": username });
         }
 
-        // C. Move to the "success" edge
+        // C. Move to the next edge
+        if user.force_password_reset {
+            if let Some(ctx) = _session.context.as_object_mut() {
+                ctx.insert("force_password_reset".to_string(), json!(true));
+            }
+            return Ok(NodeOutcome::Continue {
+                output: "force_reset".to_string(),
+            });
+        }
+
         Ok(NodeOutcome::Continue {
             output: "success".to_string(),
         })

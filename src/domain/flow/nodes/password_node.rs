@@ -27,9 +27,9 @@ impl NodeProvider for PasswordNodeProvider {
         "Authenticator"
     }
 
-    // Logic nodes define edges (Success/Failure)
+    // Password authentication can optionally branch into forced reset flows.
     fn outputs(&self) -> Vec<&'static str> {
-        vec!["success", "failure"]
+        vec!["success", "force_reset", "failure"]
     }
 
     // Configuration Schema for the UI Sidebar

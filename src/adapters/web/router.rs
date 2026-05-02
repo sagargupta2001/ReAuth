@@ -1,9 +1,9 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
     harbor_handler, log_stream_handler, observability_handler, oidc_handler, rbac_handler,
-    realm_email_handler, realm_handler, realm_recovery_handler, realm_security_headers_handler,
-    search_handler, server::ui_handler, session_handler, setup_handler, theme_handler,
-    user_handler, webhook_handler,
+    realm_email_handler, realm_handler, realm_passkey_handler, realm_recovery_handler,
+    realm_security_headers_handler, search_handler, server::ui_handler, session_handler,
+    setup_handler, theme_handler, user_handler, webhook_handler,
 };
 use crate::adapters::web::middleware::{
     cors_middleware, permission_guard, request_logging, security_headers,
@@ -117,6 +117,22 @@ fn auth_routes() -> Router<AppState> {
         )
         .route("/reset", get(auth_handler::start_reset_flow_handler))
         .route(
+            "/passkeys/authenticate/options",
+            post(auth_handler::passkey_authenticate_options_handler),
+        )
+        .route(
+            "/passkeys/authenticate/verify",
+            post(auth_handler::passkey_authenticate_verify_handler),
+        )
+        .route(
+            "/passkeys/enroll/options",
+            post(auth_handler::passkey_enroll_options_handler),
+        )
+        .route(
+            "/passkeys/enroll/verify",
+            post(auth_handler::passkey_enroll_verify_handler),
+        )
+        .route(
             "/login/execute",
             post(auth_handler::execute_login_step_handler),
         )
@@ -173,6 +189,26 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
         .route("/{id}", put(user_handler::update_user_handler))
         .route("/{id}", get(user_handler::get_user_handler))
         .route(
+            "/{id}/credentials",
+            get(user_handler::list_user_credentials_handler),
+        )
+        .route(
+            "/{id}/credentials/password",
+            put(user_handler::update_user_password_handler),
+        )
+        .route(
+            "/{id}/credentials/passkeys/{credential_id}",
+            delete(user_handler::revoke_user_passkey_handler),
+        )
+        .route(
+            "/{id}/credentials/passkeys/{credential_id}",
+            put(user_handler::update_user_passkey_metadata_handler),
+        )
+        .route(
+            "/{id}/credentials/password-policy",
+            put(user_handler::update_user_password_policy_handler),
+        )
+        .route(
             "/{id}/roles",
             get(rbac_handler::list_user_roles_handler).post(rbac_handler::assign_user_role_handler),
         )
@@ -208,6 +244,14 @@ fn realm_routes(state: AppState) -> Router<AppState> {
             get(realm_recovery_handler::get_realm_recovery_settings_handler),
         )
         .route(
+            "/{id}/passkey-settings",
+            get(realm_passkey_handler::get_realm_passkey_settings_handler),
+        )
+        .route(
+            "/{id}/passkey-settings/analytics",
+            get(realm_passkey_handler::get_realm_passkey_analytics_handler),
+        )
+        .route(
             "/{id}/security-headers",
             get(realm_security_headers_handler::get_realm_security_headers_handler),
         )
@@ -240,6 +284,18 @@ fn realm_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{id}/recovery-settings",
             put(realm_recovery_handler::update_realm_recovery_settings_handler),
+        )
+        .route(
+            "/{id}/passkey-settings",
+            put(realm_passkey_handler::update_realm_passkey_settings_handler),
+        )
+        .route(
+            "/{id}/passkey-settings/recommended-browser-flow",
+            post(realm_passkey_handler::apply_recommended_passkey_browser_flow_handler),
+        )
+        .route(
+            "/{id}/passkey-settings/recommended-registration-flow",
+            post(realm_passkey_handler::apply_recommended_passkey_registration_flow_handler),
         )
         .route(
             "/{id}/security-headers",

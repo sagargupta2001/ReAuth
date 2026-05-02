@@ -6,6 +6,8 @@ use crate::domain::flow::nodes::cookie_node::CookieNodeProvider;
 use crate::domain::flow::nodes::email_otp_issue_node::EmailOtpIssueNodeProvider;
 use crate::domain::flow::nodes::forgot_credentials_node::ForgotCredentialsNodeProvider;
 use crate::domain::flow::nodes::oidc_consent_node::OidcConsentNodeProvider;
+use crate::domain::flow::nodes::passkey_assert_node::PasskeyAssertNodeProvider;
+use crate::domain::flow::nodes::passkey_enroll_node::PasskeyEnrollNodeProvider;
 use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
 use crate::domain::flow::nodes::recovery_issue_node::RecoveryIssueNodeProvider;
 use crate::domain::flow::nodes::registration_node::RegistrationNodeProvider;
@@ -31,6 +33,8 @@ impl NodeRegistryService {
                 Box::new(RecoveryIssueNodeProvider),
                 Box::new(EmailOtpIssueNodeProvider),
                 Box::new(CookieNodeProvider),
+                Box::new(PasskeyAssertNodeProvider),
+                Box::new(PasskeyEnrollNodeProvider),
                 Box::new(PasswordNodeProvider),
                 Box::new(ForgotCredentialsNodeProvider),
                 Box::new(OidcConsentNodeProvider),

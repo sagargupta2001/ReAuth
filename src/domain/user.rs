@@ -11,6 +11,12 @@ pub struct User {
     pub email: Option<String>,
     #[serde(skip_serializing)] // Don't send hash to UI
     pub hashed_password: String,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub force_password_reset: bool,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub password_login_disabled: bool,
 }
 
 impl User {
@@ -21,6 +27,8 @@ impl User {
             username,
             email: None,
             hashed_password,
+            force_password_reset: false,
+            password_login_disabled: false,
         }
     }
 
@@ -51,13 +59,15 @@ mod tests {
         let realm_id = Uuid::new_v4();
 
         let user: User = sqlx::query_as(
-            "SELECT ? as id, ? as realm_id, ? as username, ? as email, ? as hashed_password",
+            "SELECT ? as id, ? as realm_id, ? as username, ? as email, ? as hashed_password, ? as force_password_reset, ? as password_login_disabled",
         )
         .bind(id.to_string())
         .bind(realm_id.to_string())
         .bind("alice")
         .bind(None::<String>)
         .bind("hash")
+        .bind(false)
+        .bind(false)
         .fetch_one(&pool)
         .await
         .expect("fetch user");
@@ -67,6 +77,8 @@ mod tests {
         assert_eq!(user.username, "alice");
         assert!(user.email.is_none());
         assert_eq!(user.hashed_password, "hash");
+        assert!(!user.force_password_reset);
+        assert!(!user.password_login_disabled);
     }
 
     #[test]
@@ -77,6 +89,8 @@ mod tests {
             username: "alice".to_string(),
             email: None,
             hashed_password: "hash".to_string(),
+            force_password_reset: false,
+            password_login_disabled: false,
         };
 
         let value = serde_json::to_value(&user).expect("serialize");
@@ -92,7 +106,9 @@ mod tests {
             "realm_id": realm_id,
             "username": "alice",
             "email": null,
-            "hashed_password": "hash"
+            "hashed_password": "hash",
+            "force_password_reset": true,
+            "password_login_disabled": true
         });
 
         let user: User = serde_json::from_value(value).expect("deserialize");
@@ -102,6 +118,8 @@ mod tests {
         assert_eq!(user.username, "alice");
         assert!(user.email.is_none());
         assert_eq!(user.hashed_password, "hash");
+        assert!(user.force_password_reset);
+        assert!(user.password_login_disabled);
     }
 
     #[test]
@@ -113,6 +131,8 @@ mod tests {
         assert_eq!(user.realm_id, realm_id);
         assert_eq!(user.username, "bob");
         assert!(user.email.is_none());
+        assert!(!user.force_password_reset);
+        assert!(!user.password_login_disabled);
     }
 
     #[test]

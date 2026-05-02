@@ -14,6 +14,8 @@ export const flowNodeTypes = {
   // --- AUTHENTICATORS (Workers) ---
   'core.auth.cookie': AuthenticatorNode,
   'core.auth.password': AuthenticatorNode,
+  'core.auth.passkey_assert': AuthenticatorNode,
+  'core.auth.passkey_enroll': AuthenticatorNode,
   'core.auth.register': AuthenticatorNode,
   'core.auth.forgot_credentials': AuthenticatorNode,
   'core.auth.reset_password': AuthenticatorNode,

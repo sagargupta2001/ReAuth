@@ -799,6 +799,8 @@ fn build_service(
         lockout_duration_secs: 900,
         refresh_token_cleanup_interval_secs: 3600,
         refresh_token_retention_secs: 0,
+        passkey_challenge_cleanup_interval_secs: 300,
+        passkey_challenge_cleanup_batch_size: 500,
     };
 
     AuthService::new(
@@ -839,6 +841,8 @@ async fn create_session_returns_tokens_and_refresh_token() {
         username: "user".to_string(),
         email: None,
         hashed_password: "hash".to_string(),
+        force_password_reset: false,
+        password_login_disabled: false,
     };
     user_repo.insert(user.clone());
 
@@ -884,6 +888,8 @@ async fn create_session_without_client_id_skips_id_token() {
         username: "user".to_string(),
         email: None,
         hashed_password: "hash".to_string(),
+        force_password_reset: false,
+        password_login_disabled: false,
     };
     user_repo.insert(user.clone());
 
@@ -915,6 +921,8 @@ async fn create_session_errors_when_realm_missing() {
         username: "user".to_string(),
         email: None,
         hashed_password: "hash".to_string(),
+        force_password_reset: false,
+        password_login_disabled: false,
     };
     user_repo.insert(user.clone());
 
@@ -969,6 +977,8 @@ async fn validate_token_and_get_user_returns_user() {
         username: "user".to_string(),
         email: None,
         hashed_password: "hash".to_string(),
+        force_password_reset: false,
+        password_login_disabled: false,
     };
     user_repo.insert(user.clone());
 
@@ -1068,6 +1078,8 @@ async fn refresh_session_errors_when_realm_missing() {
         username: "user".to_string(),
         email: None,
         hashed_password: "hash".to_string(),
+        force_password_reset: false,
+        password_login_disabled: false,
     };
     user_repo.insert(user.clone());
 
@@ -1111,6 +1123,8 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
         username: "user".to_string(),
         email: None,
         hashed_password: "hash".to_string(),
+        force_password_reset: false,
+        password_login_disabled: false,
     };
     user_repo.insert(user.clone());
 

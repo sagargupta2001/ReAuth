@@ -172,6 +172,48 @@ async fn ensure_password_browser_flow(ctx: &TestContext, realm: &Realm) {
         .expect("publish flow");
 }
 
+async fn ensure_password_force_reset_browser_flow(ctx: &TestContext, realm: &Realm) {
+    let flow_id = realm
+        .browser_flow_id
+        .as_ref()
+        .and_then(|id| Uuid::parse_str(id).ok())
+        .expect("browser flow id");
+
+    let graph = serde_json::json!({
+        "nodes": [
+            { "id": "start", "type": "core.start", "data": { "config": {} } },
+            { "id": "auth-password", "type": "core.auth.password", "data": { "config": { "auth_type": "core.auth.password" } } },
+            { "id": "auth-force-reset", "type": "core.auth.reset_password", "data": { "config": { "auth_type": "core.auth.reset_password" } } },
+            { "id": "allow", "type": "core.terminal.allow", "data": { "config": {} } }
+        ],
+        "edges": [
+            { "id": "e-start-password", "source": "start", "target": "auth-password", "sourceHandle": "next" },
+            { "id": "e-password-allow", "source": "auth-password", "target": "allow", "sourceHandle": "success" },
+            { "id": "e-password-force-reset", "source": "auth-password", "target": "auth-force-reset", "sourceHandle": "force_reset" },
+            { "id": "e-force-reset-allow", "source": "auth-force-reset", "target": "allow", "sourceHandle": "success" }
+        ]
+    });
+
+    ctx.app_state
+        .flow_manager
+        .update_draft(
+            flow_id,
+            UpdateDraftRequest {
+                name: None,
+                description: None,
+                graph_json: Some(graph),
+            },
+        )
+        .await
+        .expect("update draft");
+
+    ctx.app_state
+        .flow_manager
+        .publish_flow(realm.id, flow_id)
+        .await
+        .expect("publish flow");
+}
+
 async fn attach_login_action_binding(ctx: &TestContext, realm: &Realm) {
     let binding = ctx
         .app_state
@@ -786,6 +828,129 @@ async fn auth_login_flow_challenge_and_execute_success() {
         .expect("refresh token lookup")
         .expect("refresh token missing");
     assert_eq!(refresh_token.user_id, user.id);
+}
+
+#[tokio::test]
+#[serial(test_db)]
+async fn auth_login_flow_forces_password_reset_when_flagged() {
+    let ctx = TestContext::new().await;
+    let realm = setup_master_realm(&ctx).await;
+    ensure_password_force_reset_browser_flow(&ctx, &realm).await;
+
+    let user = ctx
+        .app_state
+        .user_service
+        .create_user(realm.id, "force-reset-user", "password-123", None)
+        .await
+        .expect("create user");
+    ctx.app_state
+        .user_service
+        .update_credential_policy(realm.id, user.id, Some(true), None)
+        .await
+        .expect("flag force reset");
+
+    let mut start_request = Request::builder()
+        .method("GET")
+        .uri(format!("/api/realms/{}/auth/login", DEFAULT_REALM_NAME))
+        .body(Body::empty())
+        .unwrap();
+    start_request
+        .extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+    let start_response = ctx.request(start_request).await;
+    assert_eq!(start_response.status(), StatusCode::OK);
+
+    let session_id = cookie_value(start_response.headers(), LOGIN_SESSION_COOKIE)
+        .and_then(|val| Uuid::parse_str(&val).ok())
+        .expect("login session cookie");
+
+    let password_payload = serde_json::json!({
+        "username": user.username,
+        "password": "password-123"
+    });
+    let mut password_exec_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/api/realms/{}/auth/login/execute",
+            DEFAULT_REALM_NAME
+        ))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(
+            header::COOKIE,
+            format!("{}={}", LOGIN_SESSION_COOKIE, session_id),
+        )
+        .body(Body::from(password_payload.to_string()))
+        .unwrap();
+    password_exec_request
+        .extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+    let password_exec_response = ctx.request(password_exec_request).await;
+    assert_eq!(password_exec_response.status(), StatusCode::OK);
+    let password_exec_body = password_exec_response
+        .into_body()
+        .collect()
+        .await
+        .expect("read body")
+        .to_bytes();
+    let password_exec_json: serde_json::Value =
+        serde_json::from_slice(&password_exec_body).expect("challenge json");
+    assert_eq!(
+        password_exec_json.get("status").and_then(|v| v.as_str()),
+        Some("challenge")
+    );
+    assert_eq!(
+        password_exec_json
+            .get("challengeName")
+            .and_then(|v| v.as_str()),
+        Some("core.auth.reset_password")
+    );
+
+    let reset_payload = serde_json::json!({
+        "password": "password-456",
+        "password_confirm": "password-456"
+    });
+    let mut reset_exec_request = Request::builder()
+        .method("POST")
+        .uri(format!(
+            "/api/realms/{}/auth/login/execute",
+            DEFAULT_REALM_NAME
+        ))
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(
+            header::COOKIE,
+            format!("{}={}", LOGIN_SESSION_COOKIE, session_id),
+        )
+        .body(Body::from(reset_payload.to_string()))
+        .unwrap();
+    reset_exec_request
+        .extensions_mut()
+        .insert(ConnectInfo(SocketAddr::from((Ipv4Addr::LOCALHOST, 3000))));
+
+    let reset_exec_response = ctx.request(reset_exec_request).await;
+    assert_eq!(reset_exec_response.status(), StatusCode::OK);
+    let reset_exec_json: serde_json::Value = serde_json::from_slice(
+        &reset_exec_response
+            .into_body()
+            .collect()
+            .await
+            .expect("read body")
+            .to_bytes(),
+    )
+    .expect("json");
+    assert_eq!(
+        reset_exec_json.get("status").and_then(|v| v.as_str()),
+        Some("redirect")
+    );
+
+    let updated_user = ctx
+        .app_state
+        .user_service
+        .get_user_in_realm(realm.id, user.id)
+        .await
+        .expect("updated user");
+    assert!(!updated_user.force_password_reset);
 }
 
 #[tokio::test]

@@ -57,6 +57,37 @@ Use concise kebab-case filenames:
 - Keep out-of-scope items concrete so they actually constrain implementation.
 - Add test scenarios that map directly to acceptance.
 
+## Auth Feature Completion Checklist
+
+For any new auth capability (node, protocol step, or journey), the spec and implementation must cover all items below before marking `Implemented`:
+
+1. Runtime + flow node
+- Node provider metadata (`id`, `outputs`, `config_schema`, `default_template_key`)
+- Runtime worker wiring and execution paths (`execute`, `handle_input`, fallback/error paths)
+
+2. Flow-builder UX
+- Node appears with normal authenticator styling in canvas (node type mapping)
+- Recommended flow presets include explicit edges between new node and existing password/terminal nodes
+- Publish-time validation covers capability/policy prerequisites
+
+3. Public/API surface
+- Required options/verify endpoints (or equivalent) documented and tested
+- Session continuity across multi-step endpoints (do not rely on fragile UI-only state)
+
+4. Theme/Fluid surface
+- Dedicated system page key(s) for the auth feature (no implicit reuse unless intentional and documented)
+- Default page blueprint(s) added so theme editor exposes those pages immediately
+- Template-key mapping updated across executor + theme handlers
+
+5. Operator experience
+- Realm settings/presets for enabling and applying recommended flows
+- Observability diagnostics for success/failure/replay/suspicious states
+
+6. Tests
+- Happy path and fallback path
+- Failure path(s), including signature/challenge mismatch where relevant
+- Integration test for admin preset endpoints and deployed graph assertions
+
 ## Modifying an existing feature vs creating a new one
 
 ### Modify an existing feature when

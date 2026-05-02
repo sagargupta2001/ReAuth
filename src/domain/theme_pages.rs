@@ -26,9 +26,21 @@ const SYSTEM_PAGES: &[ThemePageDefinition] = &[
         category: PageCategory::Auth,
     },
     ThemePageDefinition {
+        key: "passkey_assert",
+        label: "Passkey Sign In",
+        description: "Passkey-first sign-in prompt.",
+        category: PageCategory::Auth,
+    },
+    ThemePageDefinition {
         key: "register",
         label: "Register",
         description: "Account creation form.",
+        category: PageCategory::Auth,
+    },
+    ThemePageDefinition {
+        key: "passkey_enroll",
+        label: "Passkey Enroll",
+        description: "Passkey enrollment step for authenticated users.",
         category: PageCategory::Auth,
     },
     ThemePageDefinition {
@@ -138,7 +150,9 @@ fn custom_page_label(key: &str) -> String {
 pub fn default_page_blueprint(key: &str) -> Option<Value> {
     match key {
         "login" => Some(default_login_blueprint()),
+        "passkey_assert" => Some(default_passkey_assert_blueprint()),
         "register" => Some(default_register_blueprint()),
+        "passkey_enroll" => Some(default_passkey_enroll_blueprint()),
         "forgot_credentials" => Some(default_forgot_blueprint()),
         "reset_password" => Some(default_reset_password_blueprint()),
         "awaiting_action" => Some(default_awaiting_action_blueprint()),
@@ -190,6 +204,32 @@ fn default_register_blueprint() -> Value {
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email", "name": "email", "input_type": "email" } },
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Sign up", "variant": "primary" } }
+        ]
+    })
+}
+
+fn default_passkey_assert_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Sign in with a passkey" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Use your device passkey. If unavailable, continue with password fallback." } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username (optional)", "name": "username", "input_type": "text" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue with passkey", "variant": "primary" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Use password instead", "variant": "outline", "visible_if": "fallback_allowed" } }
+        ]
+    })
+}
+
+fn default_passkey_enroll_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Create a passkey" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Set up a passkey now for faster and phishing-resistant sign-in." } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Passkey label (optional)", "name": "passkey_friendly_name", "input_type": "text" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Create passkey", "variant": "primary" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Skip for now", "variant": "outline", "visible_if": "can_skip" } }
         ]
     })
 }

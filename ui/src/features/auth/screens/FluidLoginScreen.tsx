@@ -28,6 +28,99 @@ import {
 
 type LoginFormValues = Record<string, string>
 
+type PasskeyRequestOptionsJson = {
+  challenge: string
+  timeout?: number
+  rpId?: string
+  userVerification?: UserVerificationRequirement
+  allowCredentials?: Array<{
+    type: PublicKeyCredentialType
+    id: string
+    transports?: AuthenticatorTransport[]
+  }>
+}
+
+type PasskeyCreationOptionsJson = {
+  challenge: string
+  rp: {
+    id?: string
+    name: string
+  }
+  user: {
+    id: string
+    name: string
+    displayName: string
+  }
+  pubKeyCredParams: Array<{
+    type: PublicKeyCredentialType
+    alg: number
+  }>
+  timeout?: number
+  attestation?: AttestationConveyancePreference
+  authenticatorSelection?: AuthenticatorSelectionCriteria
+  excludeCredentials?: Array<{
+    type: PublicKeyCredentialType
+    id: string
+    transports?: AuthenticatorTransport[]
+  }>
+}
+
+const toBase64Url = (buffer: ArrayBuffer | null): string | null => {
+  if (!buffer) return null
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
+}
+
+const fromBase64Url = (value: string): Uint8Array => {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padLength = (4 - (normalized.length % 4)) % 4
+  const padded = normalized + '='.repeat(padLength)
+  const decoded = atob(padded)
+  const bytes = new Uint8Array(decoded.length)
+  for (let i = 0; i < decoded.length; i += 1) {
+    bytes[i] = decoded.charCodeAt(i)
+  }
+  return bytes
+}
+
+const toPublicKeyRequestOptions = (
+  options: PasskeyRequestOptionsJson,
+): PublicKeyCredentialRequestOptions => ({
+  challenge: fromBase64Url(options.challenge),
+  timeout: options.timeout,
+  rpId: options.rpId,
+  userVerification: options.userVerification,
+  allowCredentials: options.allowCredentials?.map((credential) => ({
+    type: credential.type,
+    id: fromBase64Url(credential.id),
+    transports: credential.transports,
+  })),
+})
+
+const toPublicKeyCreationOptions = (
+  options: PasskeyCreationOptionsJson,
+): PublicKeyCredentialCreationOptions => ({
+  challenge: fromBase64Url(options.challenge),
+  rp: options.rp,
+  user: {
+    ...options.user,
+    id: fromBase64Url(options.user.id),
+  },
+  pubKeyCredParams: options.pubKeyCredParams,
+  timeout: options.timeout,
+  attestation: options.attestation,
+  authenticatorSelection: options.authenticatorSelection,
+  excludeCredentials: options.excludeCredentials?.map((credential) => ({
+    type: credential.type,
+    id: fromBase64Url(credential.id),
+    transports: credential.transports,
+  })),
+})
+
 
 import {
   findActionInTree,
@@ -88,12 +181,29 @@ export function FluidLoginScreen({
     clientId,
   })
   const [localError, setLocalError] = useState<string | null>(null)
+  const [passkeyError, setPasskeyError] = useState<string | null>(null)
+  const [isPasskeyBusy, setIsPasskeyBusy] = useState(false)
+
+  const isPasskeyEnrollScreen = context?.passkey_enrollment === true
+  const isPasskeyAssertScreen =
+    context?.passkeys_enabled === true &&
+    typeof context?.fallback_allowed === 'boolean' &&
+    !isPasskeyEnrollScreen
+  const passkeyIntent =
+    context?.passkey_intent === 'reauth' || context?.passkey_intent === 'login'
+      ? (context.passkey_intent as 'login' | 'reauth')
+      : 'login'
+  const fallbackAllowed = context?.fallback_allowed === true
+  const canSkipEnrollment = context?.can_skip !== false
+  const authSessionId =
+    typeof context?.auth_session_id === 'string' ? (context.auth_session_id as string) : undefined
 
   const form = useForm<LoginFormValues>({
     defaultValues: {
       username: (context?.username as string) || '',
       password: '',
       otp: '',
+      passkey_friendly_name: '',
     },
   })
 
@@ -109,7 +219,12 @@ export function FluidLoginScreen({
     }
   }, [context?.email, form, templateKey])
 
-  const displayError = localError || error || (context?.error as string) || null
+  useEffect(() => {
+    setPasskeyError(null)
+    setIsPasskeyBusy(false)
+  }, [isPasskeyAssertScreen, isPasskeyEnrollScreen, templateKey])
+
+  const displayError = passkeyError || localError || error || (context?.error as string) || null
   const showPayloadMapWarning = import.meta.env.DEV && payloadMapWarnings.length > 0
   const payloadMapWarningText = payloadMapWarnings.join(', ')
   const payloadMapActionLabel = payloadMapActionMeta
@@ -529,6 +644,186 @@ export function FluidLoginScreen({
     }
   }, [templateKey, resumeToken, resumePath, activeRealm, autoStatus])
 
+  const handlePasskeyFallback = () => {
+    setPasskeyError(null)
+    void onSubmit({ action: 'fallback' })
+  }
+
+  const handlePasskeyAuthentication = async () => {
+    if (!isPasskeyAssertScreen) return
+
+    if (
+      typeof window === 'undefined' ||
+      !('PublicKeyCredential' in window) ||
+      !navigator.credentials?.get
+    ) {
+      setPasskeyError('Passkeys are not available in this browser.')
+      return
+    }
+
+    setPasskeyError(null)
+    setLocalError(null)
+    setIsPasskeyBusy(true)
+
+    try {
+      const identifier = form.getValues('username')?.trim() || undefined
+      const options = await authApi.passkeyAuthenticateOptions(activeRealm, {
+        auth_session_id: authSessionId,
+        identifier,
+        intent: passkeyIntent,
+      })
+      const optionAllowCredentials = Array.isArray(
+        (options.public_key as Record<string, unknown>)?.allowCredentials,
+      )
+        ? ((options.public_key as Record<string, unknown>).allowCredentials as unknown[])
+        : []
+      if (identifier && optionAllowCredentials.length === 0 && options.fallback_allowed) {
+        setPasskeyError('No passkey is enrolled for this account. Continue with password.')
+        void onSubmit({ action: 'fallback' })
+        return
+      }
+
+      const parser = (
+        window.PublicKeyCredential as unknown as {
+          parseRequestOptionsFromJSON?: (
+            json: PasskeyRequestOptionsJson,
+          ) => PublicKeyCredentialRequestOptions
+        }
+      ).parseRequestOptionsFromJSON
+      const publicKey =
+        typeof parser === 'function'
+          ? parser(options.public_key as PasskeyRequestOptionsJson)
+          : toPublicKeyRequestOptions(options.public_key as PasskeyRequestOptionsJson)
+
+      const credential = (await navigator.credentials.get({
+        publicKey,
+      })) as PublicKeyCredential | null
+
+      if (!credential) {
+        if (fallbackAllowed) {
+          setPasskeyError('No passkey selected. Continue with password.')
+        } else {
+          setPasskeyError('No passkey selected.')
+        }
+        return
+      }
+
+      const assertion = credential.response as AuthenticatorAssertionResponse
+      const verifyResponse = await authApi.passkeyAuthenticateVerify(activeRealm, {
+        challenge_id: options.challenge_id,
+        credential: {
+          id: credential.id,
+          rawId: toBase64Url(credential.rawId),
+          type: credential.type,
+          response: {
+            clientDataJSON: toBase64Url(assertion.clientDataJSON),
+            authenticatorData: toBase64Url(assertion.authenticatorData),
+            signature: toBase64Url(assertion.signature),
+            userHandle: toBase64Url(assertion.userHandle),
+          },
+        },
+      })
+
+      void onSubmit(verifyResponse as unknown as Record<string, unknown>)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        if (fallbackAllowed) {
+          setPasskeyError('Passkey request was cancelled. Use password fallback to continue.')
+        } else {
+          setPasskeyError('Passkey request was cancelled.')
+        }
+      } else {
+        const message = error instanceof Error ? error.message : 'Passkey authentication failed.'
+        setPasskeyError(message)
+      }
+    } finally {
+      setIsPasskeyBusy(false)
+    }
+  }
+
+  const handlePasskeyEnrollmentSkip = () => {
+    setPasskeyError(null)
+    void onSubmit({ action: 'skip' })
+  }
+
+  const handlePasskeyEnrollment = async () => {
+    if (!isPasskeyEnrollScreen) return
+    if (
+      typeof window === 'undefined' ||
+      !('PublicKeyCredential' in window) ||
+      !navigator.credentials?.create
+    ) {
+      setPasskeyError('Passkey enrollment is not available in this browser.')
+      return
+    }
+
+    setPasskeyError(null)
+    setLocalError(null)
+    setIsPasskeyBusy(true)
+
+    try {
+      const options = await authApi.passkeyEnrollOptions(activeRealm, {
+        auth_session_id: authSessionId,
+      })
+      const parser = (
+        window.PublicKeyCredential as unknown as {
+          parseCreationOptionsFromJSON?: (
+            json: PasskeyCreationOptionsJson,
+          ) => PublicKeyCredentialCreationOptions
+        }
+      ).parseCreationOptionsFromJSON
+      const publicKey =
+        typeof parser === 'function'
+          ? parser(options.public_key as PasskeyCreationOptionsJson)
+          : toPublicKeyCreationOptions(options.public_key as PasskeyCreationOptionsJson)
+
+      const credential = (await navigator.credentials.create({
+        publicKey,
+      })) as PublicKeyCredential | null
+
+      if (!credential) {
+        setPasskeyError('Passkey enrollment was cancelled.')
+        return
+      }
+
+      const attestation = credential.response as AuthenticatorAttestationResponse
+      const authenticatorData = attestation.getAuthenticatorData?.() ?? null
+      const publicKeyDer = attestation.getPublicKey?.() ?? null
+      const publicKeyAlgorithm = attestation.getPublicKeyAlgorithm?.()
+      const transports = attestation.getTransports?.() ?? []
+
+      const verifyResponse = await authApi.passkeyEnrollVerify(activeRealm, {
+        challenge_id: options.challenge_id,
+        credential: {
+          id: credential.id,
+          rawId: toBase64Url(credential.rawId),
+          type: credential.type,
+          response: {
+            clientDataJSON: toBase64Url(attestation.clientDataJSON),
+            attestationObject: toBase64Url(attestation.attestationObject),
+            authenticatorData: toBase64Url(authenticatorData),
+            publicKey: toBase64Url(publicKeyDer),
+            publicKeyAlgorithm:
+              typeof publicKeyAlgorithm === 'number' ? publicKeyAlgorithm : undefined,
+            transports,
+          },
+        },
+        friendly_name: form.getValues('passkey_friendly_name')?.trim() || undefined,
+      })
+
+      void onSubmit(verifyResponse as unknown as Record<string, unknown>)
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        setPasskeyError('Passkey enrollment was cancelled.')
+      } else {
+        const message = error instanceof Error ? error.message : 'Passkey enrollment failed.'
+        setPasskeyError(message)
+      }
+    } finally {
+      setIsPasskeyBusy(false)
+    }
+  }
+
   const renderNode = (
     node: ThemeNode,
     index: number,
@@ -860,6 +1155,136 @@ export function FluidLoginScreen({
     return (
       <div className="flex justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    )
+  }
+
+  if (isPasskeyEnrollScreen) {
+    return (
+      <div className={cn('min-h-svh w-full', themeClass)} style={{ backgroundColor: background, color: text }}>
+        <div className="flex min-h-svh w-full items-center justify-center p-8">
+          <div
+            className="w-full max-w-md border p-8 shadow-lg"
+            style={{
+              borderRadius: `${radiusBase}px`,
+              backgroundColor: surface,
+              color: text,
+            }}
+          >
+            <Form {...form}>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void handlePasskeyEnrollment()
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-1">
+                  <h1 className="text-xl font-semibold">Create a passkey</h1>
+                  <p className="text-muted-foreground text-sm">
+                    Secure your account with a device passkey for faster future sign-ins.
+                  </p>
+                </div>
+                {displayError ? (
+                  <div className="text-destructive rounded-md bg-red-50 p-3 text-sm font-medium">
+                    {String(displayError)}
+                  </div>
+                ) : null}
+                <FormField
+                  control={form.control}
+                  name="passkey_friendly_name"
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      placeholder="Passkey label (optional)"
+                      disabled={isLoading || isPasskeyBusy}
+                    />
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isLoading || isPasskeyBusy}>
+                  {isPasskeyBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Create passkey
+                </Button>
+                {canSkipEnrollment ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={isLoading || isPasskeyBusy}
+                    onClick={handlePasskeyEnrollmentSkip}
+                  >
+                    Skip for now
+                  </Button>
+                ) : null}
+              </form>
+            </Form>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (isPasskeyAssertScreen) {
+    return (
+      <div className={cn('min-h-svh w-full', themeClass)} style={{ backgroundColor: background, color: text }}>
+        <div className="flex min-h-svh w-full items-center justify-center p-8">
+          <div
+            className="w-full max-w-md border p-8 shadow-lg"
+            style={{
+              borderRadius: `${radiusBase}px`,
+              backgroundColor: surface,
+              color: text,
+            }}
+          >
+            <Form {...form}>
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void handlePasskeyAuthentication()
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-1">
+                  <h1 className="text-xl font-semibold">Sign in with a passkey</h1>
+                  <p className="text-muted-foreground text-sm">
+                    Use your device passkey first. If unavailable, continue with password fallback.
+                  </p>
+                </div>
+                {displayError ? (
+                  <div className="text-destructive rounded-md bg-red-50 p-3 text-sm font-medium">
+                    {String(displayError)}
+                  </div>
+                ) : null}
+                <FormField
+                  control={form.control}
+                  name="username"
+                  render={({ field }) => (
+                    <Input
+                      {...field}
+                      placeholder="Email or username (optional)"
+                      disabled={isLoading || isPasskeyBusy}
+                    />
+                  )}
+                />
+                <Button type="submit" className="w-full" disabled={isLoading || isPasskeyBusy}>
+                  {isPasskeyBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Continue with passkey
+                </Button>
+                {fallbackAllowed ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={isLoading || isPasskeyBusy}
+                    onClick={handlePasskeyFallback}
+                  >
+                    Use password instead
+                  </Button>
+                ) : null}
+              </form>
+            </Form>
+          </div>
+        </div>
       </div>
     )
   }
