@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import { type ComponentType, type ReactNode } from 'react'
 
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { type Table } from '@tanstack/react-table'
@@ -6,7 +6,6 @@ import { type Table } from '@tanstack/react-table'
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
 import { DataTableFacetedFilter } from '@/shared/ui/data-table/faceted-filter.tsx'
-import { DataTableViewOptions } from '@/shared/ui/data-table/view-options.tsx'
 
 type DataTableToolbarProps<TData> = {
   table: Table<TData>
@@ -14,6 +13,7 @@ type DataTableToolbarProps<TData> = {
   searchKey?: string
   searchValue?: string
   onSearch?: (value: string) => void
+  customToolbarButtons?: ReactNode
   filters?: {
     columnId: string
     title: string
@@ -32,6 +32,7 @@ export function DataTableToolbar<TData>({
   filters = [],
   searchValue,
   onSearch,
+  customToolbarButtons,
 }: DataTableToolbarProps<TData>) {
   const isFiltered =
     table.getState().columnFilters.length > 0 ||
@@ -87,7 +88,7 @@ export function DataTableToolbar<TData>({
             onClick={() => {
               table.resetColumnFilters()
               table.setGlobalFilter('')
-              if (onSearch) onSearch('') // Clear server search too
+              if (onSearch) onSearch('')
             }}
             className="h-8 px-2 lg:px-3"
           >
@@ -96,7 +97,7 @@ export function DataTableToolbar<TData>({
           </Button>
         )}
       </div>
-      <DataTableViewOptions table={table} />
+      {customToolbarButtons}
     </div>
   )
 }

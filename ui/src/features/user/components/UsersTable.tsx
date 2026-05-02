@@ -8,6 +8,7 @@ import { useUsers } from '@/features/user/api/useUsers.ts'
 import { userColumns } from '@/features/user/components/UserColumns.tsx'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
 import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
+import { UsersPrimaryButtons } from '@/features/user/components/UsersPrimaryButtons.tsx'
 
 export function UsersTable() {
   const navigate = useRealmNavigate()
@@ -73,39 +74,34 @@ export function UsersTable() {
       params.set('q', value)
       params.set('page', '1') // Reset page on search
       setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-    } else {
-      params.delete('q')
-    }
+    } else params.delete('q')
+
     setSearchParams(params)
   }
 
-  if (isLoading) {
+  if (isLoading)
     return (
       <div className="h-[calc(100vh-240px)]">
         <DataTableSkeleton columnCount={5} rowCount={10} />
       </div>
     )
-  }
+
 
   return (
     <DataTable
       columns={userColumns}
       data={data?.data || []}
       pageCount={data?.meta.total_pages || 0}
-      // State Passing
       pagination={pagination}
       onPaginationChange={handlePaginationChange}
       sorting={sorting}
       onSortingChange={handleSortingChange}
-      // Search
       searchKey="username"
       searchPlaceholder="Filter users..."
       searchValue={searchTerm}
       onSearch={handleSearch}
-      // Row Click -> Edit Page
       onRowClick={(user) => navigate(`/users/${user.id}`)}
-      // Layout
-      className="h-[calc(100vh-328px)]"
+      customToolbarButtons={<UsersPrimaryButtons />}
     />
   )
 }

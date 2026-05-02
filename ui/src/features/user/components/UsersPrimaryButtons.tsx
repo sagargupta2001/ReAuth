@@ -7,8 +7,9 @@ export function UsersPrimaryButtons() {
   const navigate = useRealmNavigate()
   return (
     <div className="flex gap-2">
-      <Button className="space-x-1" onClick={() => navigate('/users/new')}>
-        <span>Create</span> <Plus size={18} />
+      <Button size="sm" onClick={() => navigate('/users/new')} className="flex items-center gap-2">
+        <Plus size={18} />
+        <span>Create User</span>
       </Button>
     </div>
   )
