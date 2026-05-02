@@ -94,13 +94,17 @@ impl UserRepository for SqliteUserRepository {
     )]
     async fn save(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
-            "INSERT INTO users (id, realm_id, username, email, hashed_password) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO users (
+                id, realm_id, username, email, hashed_password, force_password_reset, password_login_disabled
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(user.realm_id.to_string())
         .bind(&user.username)
         .bind(&user.email)
-        .bind(&user.hashed_password);
+        .bind(&user.hashed_password)
+        .bind(user.force_password_reset)
+        .bind(user.password_login_disabled);
 
         match tx {
             Some(tx) => {
@@ -126,11 +130,15 @@ impl UserRepository for SqliteUserRepository {
     )]
     async fn update(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
-            "UPDATE users SET username = ?, email = ?, hashed_password = ? WHERE id = ?",
+            "UPDATE users
+             SET username = ?, email = ?, hashed_password = ?, force_password_reset = ?, password_login_disabled = ?
+             WHERE id = ?",
         )
         .bind(&user.username)
         .bind(&user.email)
         .bind(&user.hashed_password)
+        .bind(user.force_password_reset)
+        .bind(user.password_login_disabled)
         .bind(user.id.to_string());
 
         match tx {

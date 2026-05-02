@@ -3,6 +3,8 @@ use super::cookie_node::CookieNodeProvider;
 use super::email_otp_issue_node::EmailOtpIssueNodeProvider;
 use super::forgot_credentials_node::ForgotCredentialsNodeProvider;
 use super::oidc_consent_node::OidcConsentNodeProvider;
+use super::passkey_assert_node::PasskeyAssertNodeProvider;
+use super::passkey_enroll_node::PasskeyEnrollNodeProvider;
 use super::password_node::PasswordNodeProvider;
 use super::recovery_issue_node::RecoveryIssueNodeProvider;
 use super::registration_node::RegistrationNodeProvider;
@@ -57,8 +59,36 @@ fn password_node_metadata_is_consistent() {
     assert!(node.description().contains("Standard login form"));
     assert_eq!(node.icon(), "Lock");
     assert_eq!(node.category(), "Authenticator");
-    assert_eq!(node.outputs(), vec!["success", "failure"]);
+    assert_eq!(node.outputs(), vec!["success", "force_reset", "failure"]);
     assert!(node.config_schema().get("properties").is_some());
+}
+
+#[test]
+fn passkey_assert_node_metadata_is_consistent() {
+    let node = PasskeyAssertNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.passkey_assert");
+    assert_eq!(node.display_name(), "Passkey Assert");
+    assert!(node.description().contains("WebAuthn passkey"));
+    assert_eq!(node.icon(), "Fingerprint");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["success", "fallback", "failure"]);
+    assert_eq!(node.default_template_key(), Some("passkey_assert"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn passkey_enroll_node_metadata_is_consistent() {
+    let node = PasskeyEnrollNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.passkey_enroll");
+    assert_eq!(node.display_name(), "Passkey Enroll");
+    assert!(node.description().contains("WebAuthn passkey"));
+    assert_eq!(node.icon(), "KeyRound");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["success", "skip", "failure"]);
+    assert_eq!(node.default_template_key(), Some("passkey_enroll"));
+    assert!(node.supports_ui());
 }
 
 #[test]

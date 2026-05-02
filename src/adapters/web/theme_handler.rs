@@ -922,6 +922,8 @@ fn extract_template_keys(graph: &Value) -> HashSet<String> {
 fn default_template_key(node_type: &str) -> Option<&'static str> {
     match node_type {
         "core.auth.password" => Some("login"),
+        "core.auth.passkey_assert" => Some("passkey_assert"),
+        "core.auth.passkey_enroll" => Some("passkey_enroll"),
         "core.auth.register" => Some("register"),
         "core.auth.forgot_credentials" => Some("forgot_credentials"),
         "core.auth.reset_password" => Some("reset_password"),

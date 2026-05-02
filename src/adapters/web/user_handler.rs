@@ -1,5 +1,6 @@
 use crate::adapters::web::auth_middleware::AuthUser;
 use crate::adapters::web::validation::ValidatedJson;
+use crate::application::user_credentials_service::UserCredentialsSummary;
 use crate::domain::pagination::PageRequest;
 use crate::error::{Error, Result};
 use crate::AppState;
@@ -148,4 +149,136 @@ pub async fn update_user_handler(
         .await?;
 
     Ok((StatusCode::OK, Json(user)))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateUserPasswordRequest {
+    pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct UpdatePasskeyMetadataRequest {
+    pub friendly_name: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct UpdatePasswordPolicyRequest {
+    pub force_reset_on_next_login: Option<bool>,
+    pub password_login_disabled: Option<bool>,
+}
+
+pub async fn list_user_credentials_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let credentials: UserCredentialsSummary = state
+        .user_credentials_service
+        .list_credentials(realm.id, id)
+        .await?;
+    Ok((StatusCode::OK, Json(credentials)))
+}
+
+pub async fn update_user_password_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+    Json(payload): Json<UpdateUserPasswordRequest>,
+) -> Result<impl IntoResponse> {
+    if payload.password.len() < 8 || payload.password.len() > 100 {
+        return Err(Error::Validation(
+            "Password must be between 8 and 100 characters".to_string(),
+        ));
+    }
+
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .user_credentials_service
+        .update_password(realm.id, id, &payload.password)
+        .await?;
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "updated" })),
+    ))
+}
+
+pub async fn revoke_user_passkey_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id, credential_id)): Path<(String, Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .user_credentials_service
+        .revoke_passkey(realm.id, id, credential_id)
+        .await?;
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "revoked" })),
+    ))
+}
+
+pub async fn update_user_passkey_metadata_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id, credential_id)): Path<(String, Uuid, Uuid)>,
+    Json(payload): Json<UpdatePasskeyMetadataRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let friendly_name = payload
+        .friendly_name
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    state
+        .user_credentials_service
+        .rename_passkey(realm.id, id, credential_id, friendly_name)
+        .await?;
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "updated" })),
+    ))
+}
+
+pub async fn update_user_password_policy_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+    Json(payload): Json<UpdatePasswordPolicyRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .user_credentials_service
+        .update_password_policy(
+            realm.id,
+            id,
+            payload.force_reset_on_next_login,
+            payload.password_login_disabled,
+        )
+        .await?;
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "updated" })),
+    ))
 }

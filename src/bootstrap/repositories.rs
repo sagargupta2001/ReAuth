@@ -8,7 +8,10 @@ use crate::adapters::persistence::sqlite_harbor_job_repository::SqliteHarborJobR
 use crate::adapters::persistence::sqlite_login_attempt_repository::SqliteLoginAttemptRepository;
 use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
 use crate::adapters::persistence::sqlite_outbox_repository::SqliteOutboxRepository;
+use crate::adapters::persistence::sqlite_passkey_challenge_repository::SqlitePasskeyChallengeRepository;
+use crate::adapters::persistence::sqlite_passkey_credential_repository::SqlitePasskeyCredentialRepository;
 use crate::adapters::persistence::sqlite_realm_email_settings_repository::SqliteRealmEmailSettingsRepository;
+use crate::adapters::persistence::sqlite_realm_passkey_settings_repository::SqliteRealmPasskeySettingsRepository;
 use crate::adapters::persistence::sqlite_realm_recovery_settings_repository::SqliteRealmRecoverySettingsRepository;
 use crate::adapters::persistence::sqlite_realm_security_headers_repository::SqliteRealmSecurityHeadersRepository;
 use crate::adapters::persistence::sqlite_recovery_attempt_repository::SqliteRecoveryAttemptRepository;
@@ -22,7 +25,10 @@ use crate::ports::harbor_job_conflict_repository::HarborJobConflictRepository;
 use crate::ports::harbor_job_repository::HarborJobRepository;
 use crate::ports::oidc_repository::OidcRepository;
 use crate::ports::outbox_repository::OutboxRepository;
+use crate::ports::passkey_challenge_repository::PasskeyChallengeRepository;
+use crate::ports::passkey_credential_repository::PasskeyCredentialRepository;
 use crate::ports::realm_email_settings_repository::RealmEmailSettingsRepository;
+use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
 use crate::ports::realm_recovery_settings_repository::RealmRecoverySettingsRepository;
 use crate::ports::realm_security_headers_repository::RealmSecurityHeadersRepository;
 use crate::ports::recovery_attempt_repository::RecoveryAttemptRepository;
@@ -53,8 +59,11 @@ pub struct Repositories {
     pub rbac_repo: Arc<dyn RbacRepository>,
     pub realm_repo: Arc<dyn RealmRepository>,
     pub realm_email_settings_repo: Arc<dyn RealmEmailSettingsRepository>,
+    pub realm_passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
     pub realm_recovery_settings_repo: Arc<dyn RealmRecoverySettingsRepository>,
     pub realm_security_headers_repo: Arc<dyn RealmSecurityHeadersRepository>,
+    pub passkey_credential_repo: Arc<dyn PasskeyCredentialRepository>,
+    pub passkey_challenge_repo: Arc<dyn PasskeyChallengeRepository>,
     pub recovery_attempt_repo: Arc<dyn RecoveryAttemptRepository>,
     pub login_attempt_repo: Arc<dyn LoginAttemptRepository>,
     pub session_repo: Arc<dyn SessionRepository>,
@@ -79,10 +88,14 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let realm_repo = Arc::new(SqliteRealmRepository::new(db_pool.clone()));
     let realm_email_settings_repo =
         Arc::new(SqliteRealmEmailSettingsRepository::new(db_pool.clone()));
+    let realm_passkey_settings_repo =
+        Arc::new(SqliteRealmPasskeySettingsRepository::new(db_pool.clone()));
     let realm_recovery_settings_repo =
         Arc::new(SqliteRealmRecoverySettingsRepository::new(db_pool.clone()));
     let realm_security_headers_repo =
         Arc::new(SqliteRealmSecurityHeadersRepository::new(db_pool.clone()));
+    let passkey_credential_repo = Arc::new(SqlitePasskeyCredentialRepository::new(db_pool.clone()));
+    let passkey_challenge_repo = Arc::new(SqlitePasskeyChallengeRepository::new(db_pool.clone()));
     let recovery_attempt_repo = Arc::new(SqliteRecoveryAttemptRepository::new(db_pool.clone()));
     let login_attempt_repo = Arc::new(SqliteLoginAttemptRepository::new(db_pool.clone()));
     let session_repo = Arc::new(SqliteSessionRepository::new(db_pool.clone()));
@@ -105,8 +118,11 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         rbac_repo,
         realm_repo,
         realm_email_settings_repo,
+        realm_passkey_settings_repo,
         realm_recovery_settings_repo,
         realm_security_headers_repo,
+        passkey_credential_repo,
+        passkey_challenge_repo,
         recovery_attempt_repo,
         login_attempt_repo,
         session_repo,

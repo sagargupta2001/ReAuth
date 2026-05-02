@@ -94,6 +94,10 @@ pub struct AuthConfig {
     pub refresh_token_cleanup_interval_secs: u64,
     #[serde(default = "default_refresh_token_retention_secs")]
     pub refresh_token_retention_secs: i64,
+    #[serde(default = "default_passkey_challenge_cleanup_interval_secs")]
+    pub passkey_challenge_cleanup_interval_secs: u64,
+    #[serde(default = "default_passkey_challenge_cleanup_batch_size")]
+    pub passkey_challenge_cleanup_batch_size: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -288,6 +292,10 @@ impl Settings {
             self.auth.refresh_token_cleanup_interval_secs,
             self.auth.refresh_token_retention_secs,
         )?;
+        validate_passkey_challenge_cleanup_settings(
+            self.auth.passkey_challenge_cleanup_interval_secs,
+            self.auth.passkey_challenge_cleanup_batch_size,
+        )?;
 
         Ok(())
     }
@@ -401,6 +409,14 @@ fn default_refresh_token_cleanup_interval_secs() -> u64 {
 
 fn default_refresh_token_retention_secs() -> i64 {
     0
+}
+
+fn default_passkey_challenge_cleanup_interval_secs() -> u64 {
+    300
+}
+
+fn default_passkey_challenge_cleanup_batch_size() -> i64 {
+    500
 }
 
 fn default_data_dir() -> String {
@@ -530,6 +546,28 @@ fn validate_refresh_cleanup_settings(
     if retention_secs > 31_536_000 {
         return Err(config::ConfigError::Message(
             "auth.refresh_token_retention_secs must be <= 31536000".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_passkey_challenge_cleanup_settings(
+    cleanup_interval_secs: u64,
+    batch_size: i64,
+) -> Result<(), config::ConfigError> {
+    if cleanup_interval_secs > 86_400 {
+        return Err(config::ConfigError::Message(
+            "auth.passkey_challenge_cleanup_interval_secs must be <= 86400".to_string(),
+        ));
+    }
+    if batch_size < 1 {
+        return Err(config::ConfigError::Message(
+            "auth.passkey_challenge_cleanup_batch_size must be >= 1".to_string(),
+        ));
+    }
+    if batch_size > 10_000 {
+        return Err(config::ConfigError::Message(
+            "auth.passkey_challenge_cleanup_batch_size must be <= 10000".to_string(),
         ));
     }
     Ok(())

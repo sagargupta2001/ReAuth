@@ -9,14 +9,18 @@ use crate::application::harbor::HarborService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
+use crate::application::passkey_analytics_service::PasskeyAnalyticsService;
+use crate::application::passkey_assertion_service::PasskeyAssertionService;
 use crate::application::realm_email_settings_service::RealmEmailSettingsService;
+use crate::application::realm_passkey_settings_service::RealmPasskeySettingsService;
 use crate::application::realm_recovery_settings_service::RealmRecoverySettingsService;
 use crate::application::realm_security_headers_service::RealmSecurityHeadersService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::webhook_service::WebhookService;
 use crate::application::{
     audit_service::AuditService, auth_service::AuthService, rbac_service::RbacService,
-    realm_service::RealmService, telemetry_service::TelemetryService, user_service::UserService,
+    realm_service::RealmService, telemetry_service::TelemetryService,
+    user_credentials_service::UserCredentialsService, user_service::UserService,
 };
 use crate::config::Settings;
 use crate::domain::log::LogSubscriber;
@@ -55,6 +59,7 @@ pub struct AppState {
 
     // Services
     pub user_service: Arc<UserService>,
+    pub user_credentials_service: Arc<UserCredentialsService>,
     pub rbac_service: Arc<RbacService>,
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
@@ -63,8 +68,11 @@ pub struct AppState {
     pub metrics_service: Arc<MetricsService>,
     pub realm_service: Arc<RealmService>,
     pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
+    pub realm_passkey_settings_service: Arc<RealmPasskeySettingsService>,
     pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
     pub realm_security_headers_service: Arc<RealmSecurityHeadersService>,
+    pub passkey_assertion_service: Arc<PasskeyAssertionService>,
+    pub passkey_analytics_service: Arc<PasskeyAnalyticsService>,
     pub email_delivery_service: Arc<EmailDeliveryService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,

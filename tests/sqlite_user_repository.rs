@@ -31,6 +31,8 @@ fn user(id: Uuid, realm_id: Uuid, username: &str, hashed_password: &str) -> User
         username: username.to_string(),
         email: None,
         hashed_password: hashed_password.to_string(),
+        force_password_reset: false,
+        password_login_disabled: false,
     }
 }
 

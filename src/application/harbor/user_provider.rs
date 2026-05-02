@@ -494,6 +494,8 @@ async fn import_new_user(
         username: payload.username.clone(),
         email: None,
         hashed_password,
+        force_password_reset: false,
+        password_login_disabled: false,
     };
 
     if let Some(tx) = tx {

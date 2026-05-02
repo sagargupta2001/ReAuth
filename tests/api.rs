@@ -14,3 +14,9 @@ mod request_id;
 
 #[path = "api/observability.rs"]
 mod observability;
+
+#[path = "api/passkey_http.rs"]
+mod passkey_http;
+
+#[path = "api/user_credentials_http.rs"]
+mod user_credentials_http;

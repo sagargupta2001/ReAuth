@@ -1,6 +1,7 @@
 export const queryKeys = {
   setupStatus: () => ['setup-status'] as const,
   user: (userId: string) => ['user', userId] as const,
+  userCredentials: (userId: string) => ['user-credentials', userId] as const,
   users: (realm?: string, params?: unknown) =>
     realm ? (['users', realm, params] as const) : (['users'] as const),
   client: (realm: string, clientId: string) => ['client', realm, clientId] as const,
@@ -99,6 +100,14 @@ export const queryKeys = {
     realmId
       ? (['realm-recovery-settings', realmId] as const)
       : (['realm-recovery-settings'] as const),
+  realmPasskeySettings: (realmId?: string) =>
+    realmId
+      ? (['realm-passkey-settings', realmId] as const)
+      : (['realm-passkey-settings'] as const),
+  realmPasskeyAnalytics: (realmId?: string, windowHours = 24) =>
+    realmId
+      ? (['realm-passkey-analytics', realmId, windowHours] as const)
+      : (['realm-passkey-analytics'] as const),
   realmSecurityHeaders: (realmId?: string) =>
     realmId
       ? (['realm-security-headers', realmId] as const)

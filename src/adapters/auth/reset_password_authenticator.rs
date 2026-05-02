@@ -202,13 +202,28 @@ impl LifecycleNode for ResetPasswordAuthenticator {
             }
         }
 
-        let Some(payload) = self.resolve_action_payload(session).await? else {
-            return self
-                .reject_request(session, "Invalid or expired reset token")
-                .await;
-        };
+        let mut user_id: Option<Uuid> = None;
+        if let Some(payload) = self.resolve_action_payload(session).await? {
+            user_id = self.resolve_user_id(session, &payload).await?;
+            if user_id.is_none() {
+                return self
+                    .reject_request(session, "Invalid or expired reset token")
+                    .await;
+            }
+        }
 
-        let Some(user_id) = self.resolve_user_id(session, &payload).await? else {
+        if user_id.is_none() {
+            let force_reset_flow = session
+                .context
+                .get("force_password_reset")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false);
+            if force_reset_flow {
+                user_id = session.user_id;
+            }
+        }
+
+        let Some(user_id) = user_id else {
             return self
                 .reject_request(session, "Invalid or expired reset token")
                 .await;
@@ -270,6 +285,7 @@ impl LifecycleNode for ResetPasswordAuthenticator {
             ctx.remove("password_confirmation");
             ctx.remove("error");
             ctx.remove("action_payload");
+            ctx.remove("force_password_reset");
         }
         Ok(())
     }

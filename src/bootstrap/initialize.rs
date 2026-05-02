@@ -18,6 +18,7 @@ use crate::bootstrap::repositories::initialize_repositories;
 use crate::bootstrap::services::initialize_services;
 use crate::config::Settings;
 use crate::constants::DEFAULT_REALM_NAME;
+use crate::ports::passkey_challenge_repository::PasskeyChallengeRepository;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::AppState;
 use chrono::{Duration, Utc};
@@ -37,6 +38,7 @@ struct InitializeOptions {
     enable_outbox_worker: bool,
     enable_refresh_cleanup: bool,
     enable_harbor_cleanup: bool,
+    enable_passkey_challenge_cleanup: bool,
 }
 
 pub async fn initialize() -> anyhow::Result<AppState> {
@@ -51,6 +53,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
             enable_outbox_worker: true,
             enable_refresh_cleanup: true,
             enable_harbor_cleanup: true,
+            enable_passkey_challenge_cleanup: true,
         },
     )
     .await
@@ -68,6 +71,7 @@ pub async fn initialize_for_tests() -> anyhow::Result<AppState> {
             enable_outbox_worker: false,
             enable_refresh_cleanup: false,
             enable_harbor_cleanup: false,
+            enable_passkey_challenge_cleanup: false,
         },
     )
     .await
@@ -159,10 +163,17 @@ async fn initialize_with_settings(
     if options.enable_harbor_cleanup {
         spawn_harbor_cleanup(settings_shared.clone(), db_pool.clone());
     }
+    if options.enable_passkey_challenge_cleanup {
+        spawn_passkey_challenge_cleanup(
+            settings_shared.clone(),
+            repos.passkey_challenge_repo.clone(),
+        );
+    }
 
     Ok(AppState {
         settings: settings_shared,
         user_service: services.user_service,
+        user_credentials_service: services.user_credentials_service,
         rbac_service: services.rbac_service,
         auth_service: services.auth_service,
         audit_service: services.audit_service,
@@ -171,8 +182,11 @@ async fn initialize_with_settings(
         metrics_service,
         realm_service: services.realm_service,
         realm_email_settings_service: services.realm_email_settings_service,
+        realm_passkey_settings_service: services.realm_passkey_settings_service,
         realm_recovery_settings_service: services.realm_recovery_settings_service,
         realm_security_headers_service: services.realm_security_headers_service,
+        passkey_assertion_service: services.passkey_assertion_service,
+        passkey_analytics_service: services.passkey_analytics_service,
         email_delivery_service: services.email_delivery_service,
         webhook_service: services.webhook_service,
         theme_service: services.theme_service,
@@ -452,6 +466,66 @@ fn spawn_harbor_cleanup(settings: Arc<RwLock<Settings>>, db_pool: Database) {
                 Err(err) => {
                     warn!("Failed to cleanup Harbor artifacts: {}", err);
                 }
+            }
+        }
+    });
+}
+
+fn spawn_passkey_challenge_cleanup(
+    settings: Arc<RwLock<Settings>>,
+    passkey_challenge_repo: Arc<dyn PasskeyChallengeRepository>,
+) {
+    tokio::spawn(async move {
+        loop {
+            let interval_secs = {
+                settings
+                    .read()
+                    .await
+                    .auth
+                    .passkey_challenge_cleanup_interval_secs
+            };
+            if interval_secs == 0 {
+                info!(
+                    "Passkey challenge cleanup disabled (passkey_challenge_cleanup_interval_secs=0)."
+                );
+                return;
+            }
+
+            tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
+
+            let batch_size = {
+                settings
+                    .read()
+                    .await
+                    .auth
+                    .passkey_challenge_cleanup_batch_size
+            };
+            let cutoff = Utc::now();
+            let mut total_removed = 0u64;
+
+            loop {
+                match passkey_challenge_repo
+                    .delete_expired_before(cutoff, batch_size)
+                    .await
+                {
+                    Ok(removed) => {
+                        total_removed += removed;
+                        if removed < batch_size.max(1) as u64 {
+                            break;
+                        }
+                    }
+                    Err(err) => {
+                        warn!("Failed to cleanup passkey challenges: {}", err);
+                        break;
+                    }
+                }
+            }
+
+            if total_removed > 0 {
+                info!(
+                    "Passkey challenge cleanup removed {} rows (cutoff {}).",
+                    total_removed, cutoff
+                );
             }
         }
     });

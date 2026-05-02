@@ -20,6 +20,8 @@ import { Input } from '@/components/input'
 import { Switch } from '@/components/switch'
 import { useTelemetryClearLogs, useTelemetryClearTraces } from '@/features/observability/api/useTelemetryCleanup'
 import { useIncludeSpansPreference } from '@/features/observability/lib/observabilityPreferences'
+import { useRealmPasskeyAnalytics } from '@/features/realm/api/useRealmPasskeyAnalytics'
+import { useCurrentRealm } from '@/features/realm/api/useRealm'
 import { useHashScrollHighlight } from '@/shared/hooks/useHashScrollHighlight'
 import { toast } from 'sonner'
 
@@ -30,6 +32,8 @@ export function ObservabilitySettingsPage() {
   const clearLogs = useTelemetryClearLogs()
   const clearTraces = useTelemetryClearTraces()
   const { includeSpans, setIncludeSpans } = useIncludeSpansPreference()
+  const { data: realm } = useCurrentRealm()
+  const { data: passkeyAnalytics } = useRealmPasskeyAnalytics(realm?.id, 24)
 
   const [logsOpen, setLogsOpen] = useState(false)
   const [logsInput, setLogsInput] = useState('')
@@ -205,6 +209,86 @@ export function ObservabilitySettingsPage() {
             <p className="mt-2 text-xs text-muted-foreground">
               {t('TRACES_CLEANUP.CONFIRM_HELPER')}
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card id="passkey-observability">
+        <CardHeader>
+          <CardTitle className="text-base">Passkeys</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Inspect passkey enrollment and assertion diagnostics from the last 24 hours.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-border/40 bg-background/60 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Credentials</div>
+              <div className="text-xl font-semibold">
+                {passkeyAnalytics?.credentials_total ?? 0}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                +{passkeyAnalytics?.credentials_created_last_7d ?? 0} new in 7d
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/40 bg-background/60 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Assertions Succeeded</div>
+              <div className="text-xl font-semibold">
+                {passkeyAnalytics?.outcomes.assertion_success ?? 0}
+              </div>
+              <div className="text-xs text-muted-foreground">last 24h</div>
+            </div>
+            <div className="rounded-lg border border-border/40 bg-background/60 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Pending Challenges</div>
+              <div className="text-xl font-semibold">
+                {passkeyAnalytics?.challenges.pending_total ?? 0}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                expired: {passkeyAnalytics?.challenges.pending_expired ?? 0}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/40 bg-background/60 px-4 py-3">
+            <div className="text-sm font-medium">Failure Signals</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Invalid signatures, challenge mismatches, and counter regressions in last 24h.
+            </p>
+            <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+              <div>
+                Assertion invalid signature: {passkeyAnalytics?.outcomes.assertion_invalid_signature ?? 0}
+              </div>
+              <div>
+                Assertion challenge mismatch: {passkeyAnalytics?.outcomes.assertion_challenge_mismatch ?? 0}
+              </div>
+              <div>
+                Assertion counter regression: {passkeyAnalytics?.outcomes.assertion_counter_regression ?? 0}
+              </div>
+              <div>
+                Enrollment challenge mismatch: {passkeyAnalytics?.outcomes.enrollment_challenge_mismatch ?? 0}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border/40 bg-background/60 px-4 py-3">
+            <div className="text-sm font-medium">Recent Passkey Failures</div>
+            <div className="mt-2 space-y-2">
+              {(passkeyAnalytics?.recent_failures ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground">No recent passkey failures.</p>
+              ) : (
+                (passkeyAnalytics?.recent_failures ?? []).map((event) => (
+                  <div
+                    key={`${event.action}-${event.created_at}-${event.target_id ?? 'none'}`}
+                    className="rounded border border-border/40 px-3 py-2 text-xs"
+                  >
+                    <div className="font-medium">{event.action}</div>
+                    <div className="text-muted-foreground">
+                      {new Date(event.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { ArrowLeft, Settings, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, KeyRound, Settings, ShieldCheck } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { buttonVariants } from '@/components/button'
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { RealmLink } from '@/entities/realm/lib/navigation'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { UserRolesTab } from '@/features/user/components/UserRolesTab'
+import { UserCredentialsTab } from '@/features/user/components/UserCredentialsTab'
 import { EditUserForm } from '@/features/user/forms/EditUserForm.tsx'
 import { cn } from '@/lib/utils'
 
@@ -15,7 +16,7 @@ export function EditUserPage() {
   const { userId, tab } = useParams<{ userId: string; tab?: string }>()
   const navigate = useRealmNavigate()
 
-  const validTabs = ['settings', 'roles']
+  const validTabs = ['settings', 'roles', 'credentials']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
 
   useEffect(() => {
@@ -55,6 +56,9 @@ export function EditUserPage() {
             <TabsTrigger value="roles" className="tab-trigger-styles">
               <ShieldCheck className="mr-2 h-4 w-4" /> Roles
             </TabsTrigger>
+            <TabsTrigger value="credentials" className="tab-trigger-styles">
+              <KeyRound className="mr-2 h-4 w-4" /> Credentials
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -64,6 +68,9 @@ export function EditUserPage() {
           </TabsContent>
           <TabsContent value="roles" className="mt-0 h-full w-full p-6">
             <UserRolesTab userId={userId} />
+          </TabsContent>
+          <TabsContent value="credentials" className="mt-0 h-full w-full p-6">
+            <UserCredentialsTab userId={userId} />
           </TabsContent>
         </div>
       </Tabs>

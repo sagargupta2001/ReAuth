@@ -23,3 +23,9 @@ pub struct NewAuditEvent {
     pub target_id: Option<String>,
     pub metadata: Value,
 }
+
+#[derive(Debug, Serialize, Clone)]
+pub struct AuditActionCount {
+    pub action: String,
+    pub count: u64,
+}

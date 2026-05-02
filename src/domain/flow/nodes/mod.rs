@@ -3,6 +3,8 @@ pub mod cookie_node;
 pub mod email_otp_issue_node;
 pub mod forgot_credentials_node;
 pub mod oidc_consent_node;
+pub mod passkey_assert_node;
+pub mod passkey_enroll_node;
 pub mod password_node;
 pub mod recovery_issue_node;
 pub mod registration_node;

@@ -68,4 +68,59 @@ export const authApi = {
       `/api/realms/${realm}/auth/action-status?${query.toString()}`,
     )
   },
+
+  passkeyAuthenticateOptions: async (
+    realm: string,
+    payload: {
+      auth_session_id?: string
+      identifier?: string
+      intent?: 'login' | 'reauth'
+    },
+  ) => {
+    return apiClient.post<{
+      challenge_id: string
+      public_key: Record<string, unknown>
+      fallback_allowed: boolean
+    }>(`/api/realms/${realm}/auth/passkeys/authenticate/options`, payload)
+  },
+
+  passkeyAuthenticateVerify: async (
+    realm: string,
+    payload: {
+      challenge_id: string
+      credential: Record<string, unknown>
+    },
+  ) => {
+    return apiClient.post<AuthExecutionResponse>(
+      `/api/realms/${realm}/auth/passkeys/authenticate/verify`,
+      payload,
+    )
+  },
+
+  passkeyEnrollOptions: async (
+    realm: string,
+    payload: {
+      auth_session_id?: string
+    },
+  ) => {
+    return apiClient.post<{
+      challenge_id: string
+      public_key: Record<string, unknown>
+      user_id: string
+    }>(`/api/realms/${realm}/auth/passkeys/enroll/options`, payload)
+  },
+
+  passkeyEnrollVerify: async (
+    realm: string,
+    payload: {
+      challenge_id: string
+      credential: Record<string, unknown>
+      friendly_name?: string
+    },
+  ) => {
+    return apiClient.post<AuthExecutionResponse>(
+      `/api/realms/${realm}/auth/passkeys/enroll/verify`,
+      payload,
+    )
+  },
 }

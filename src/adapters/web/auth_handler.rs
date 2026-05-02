@@ -1,3 +1,6 @@
+use crate::application::passkey_assertion_service::{
+    BeginAssertionRequest, BeginEnrollmentRequest, VerifyAssertionRequest, VerifyEnrollmentRequest,
+};
 use crate::application::realm_policy::RealmCapabilities;
 use crate::domain::oidc::OidcContext;
 use crate::{
@@ -674,6 +677,284 @@ fn attach_capabilities(
             "value": context
         }),
     }
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyAuthenticateOptionsRequest {
+    pub auth_session_id: Option<Uuid>,
+    pub identifier: Option<String>,
+    pub intent: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct PasskeyAuthenticateOptionsResponse {
+    pub challenge_id: String,
+    pub public_key: serde_json::Value,
+    pub fallback_allowed: bool,
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyAuthenticateVerifyRequest {
+    pub challenge_id: Uuid,
+    pub credential: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyEnrollOptionsRequest {
+    pub auth_session_id: Option<Uuid>,
+}
+
+#[derive(Serialize)]
+pub struct PasskeyEnrollOptionsResponse {
+    pub challenge_id: String,
+    pub public_key: serde_json::Value,
+    pub user_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct PasskeyEnrollVerifyRequest {
+    pub challenge_id: Uuid,
+    pub credential: serde_json::Value,
+    pub friendly_name: Option<String>,
+}
+
+#[instrument(skip_all)]
+pub async fn passkey_authenticate_options_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    jar: CookieJar,
+    Json(payload): Json<PasskeyAuthenticateOptionsRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+
+    let session_id =
+        resolve_target_session_id(&state, &jar, realm.id, payload.auth_session_id).await?;
+
+    let result = state
+        .passkey_assertion_service
+        .begin_authentication(BeginAssertionRequest {
+            realm_id: realm.id,
+            auth_session_id: session_id,
+            identifier: payload.identifier,
+            intent: payload.intent,
+        })
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(PasskeyAuthenticateOptionsResponse {
+            challenge_id: result.challenge_id.to_string(),
+            public_key: result.public_key,
+            fallback_allowed: result.fallback_allowed,
+        }),
+    ))
+}
+
+#[instrument(skip_all)]
+pub async fn passkey_authenticate_verify_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    jar: CookieJar,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(payload): Json<PasskeyAuthenticateVerifyRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+    let capabilities = RealmCapabilities::from_realm(&realm);
+
+    let verified = state
+        .passkey_assertion_service
+        .verify_authentication(VerifyAssertionRequest {
+            realm_id: realm.id,
+            challenge_id: payload.challenge_id,
+            credential: payload.credential,
+        })
+        .await?;
+
+    let ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or(addr.ip().to_string().as_str())
+        .to_string();
+
+    let mut response_headers = HeaderMap::new();
+    // Keep the flow session fresh across passkey endpoint hops.
+    if jar.get(LOGIN_SESSION_COOKIE).is_none() {
+        let login_cookie = create_login_cookie(verified.auth_session_id);
+        response_headers.append(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&login_cookie.to_string())?,
+        );
+    }
+
+    let execution = state
+        .flow_executor
+        .execute(
+            verified.auth_session_id,
+            Some(serde_json::json!({
+                "passkey_user_id": verified.user_id.to_string(),
+                "passkey_credential_id": verified.credential_id_b64url
+            })),
+        )
+        .await?;
+
+    match execution {
+        ExecutionResult::Success { redirect_url } => {
+            handle_flow_success(
+                &state,
+                verified.auth_session_id,
+                redirect_url,
+                response_headers,
+                ip,
+            )
+            .await
+        }
+        other => map_execution_result(other, response_headers, Some(&capabilities)),
+    }
+}
+
+#[instrument(skip_all)]
+pub async fn passkey_enroll_options_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    jar: CookieJar,
+    Json(payload): Json<PasskeyEnrollOptionsRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+    let session_id =
+        resolve_target_session_id(&state, &jar, realm.id, payload.auth_session_id).await?;
+
+    let result = state
+        .passkey_assertion_service
+        .begin_enrollment(BeginEnrollmentRequest {
+            realm_id: realm.id,
+            auth_session_id: session_id,
+        })
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(PasskeyEnrollOptionsResponse {
+            challenge_id: result.challenge_id.to_string(),
+            public_key: result.public_key,
+            user_id: result.user_id.to_string(),
+        }),
+    ))
+}
+
+#[instrument(skip_all)]
+pub async fn passkey_enroll_verify_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+    jar: CookieJar,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(payload): Json<PasskeyEnrollVerifyRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or_else(|| Error::RealmNotFound(realm_name.clone()))?;
+    let capabilities = RealmCapabilities::from_realm(&realm);
+
+    let verified = state
+        .passkey_assertion_service
+        .verify_enrollment(VerifyEnrollmentRequest {
+            realm_id: realm.id,
+            challenge_id: payload.challenge_id,
+            credential: payload.credential,
+            friendly_name: payload.friendly_name,
+        })
+        .await?;
+
+    let ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or(addr.ip().to_string().as_str())
+        .to_string();
+
+    let mut response_headers = HeaderMap::new();
+    if jar.get(LOGIN_SESSION_COOKIE).is_none() {
+        let login_cookie = create_login_cookie(verified.auth_session_id);
+        response_headers.append(
+            header::SET_COOKIE,
+            HeaderValue::from_str(&login_cookie.to_string())?,
+        );
+    }
+
+    let execution = state
+        .flow_executor
+        .execute(
+            verified.auth_session_id,
+            Some(serde_json::json!({
+                "passkey_credential_id": verified.credential_id_b64url,
+                "passkey_user_id": verified.user_id.to_string(),
+                "passkey_enrolled": true
+            })),
+        )
+        .await?;
+
+    match execution {
+        ExecutionResult::Success { redirect_url } => {
+            handle_flow_success(
+                &state,
+                verified.auth_session_id,
+                redirect_url,
+                response_headers,
+                ip,
+            )
+            .await
+        }
+        other => map_execution_result(other, response_headers, Some(&capabilities)),
+    }
+}
+
+async fn resolve_target_session_id(
+    state: &AppState,
+    jar: &CookieJar,
+    realm_id: Uuid,
+    explicit_session_id: Option<Uuid>,
+) -> Result<Uuid> {
+    if let Some(session_id) = explicit_session_id {
+        let session = state
+            .auth_session_repo
+            .find_by_id(&session_id)
+            .await?
+            .ok_or(Error::InvalidLoginSession)?;
+        if session.realm_id != realm_id || session.status != SessionStatus::Active {
+            return Err(Error::InvalidLoginSession);
+        }
+        return Ok(session_id);
+    }
+
+    let cookies: Vec<_> = jar
+        .iter()
+        .filter(|cookie| cookie.name() == LOGIN_SESSION_COOKIE)
+        .collect();
+    for cookie in cookies {
+        if let Ok(parse_id) = Uuid::parse_str(cookie.value()) {
+            if let Ok(Some(session)) = state.auth_session_repo.find_by_id(&parse_id).await {
+                if session.realm_id == realm_id && session.status == SessionStatus::Active {
+                    return Ok(parse_id);
+                }
+            }
+        }
+    }
+
+    Err(Error::InvalidLoginSession)
 }
 
 #[derive(Deserialize)]

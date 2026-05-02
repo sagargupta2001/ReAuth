@@ -2988,6 +2988,8 @@ dependencies = [
  "moka",
  "notify",
  "once_cell",
+ "p256",
+ "p384",
  "password-hash",
  "proptest",
  "rand 0.10.0",

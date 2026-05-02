@@ -1055,6 +1055,8 @@ fn build_auth_service(
         lockout_duration_secs: 900,
         refresh_token_cleanup_interval_secs: 3600,
         refresh_token_retention_secs: 0,
+        passkey_challenge_cleanup_interval_secs: 300,
+        passkey_challenge_cleanup_batch_size: 500,
     };
 
     Arc::new(AuthService::new(
@@ -1719,6 +1721,8 @@ async fn exchange_code_for_token_returns_tokens_and_deletes_code() {
         username: "user".to_string(),
         email: None,
         hashed_password: "hash".to_string(),
+        force_password_reset: false,
+        password_login_disabled: false,
     });
 
     let realm_repo = Arc::new(TestRealmRepo::default());
