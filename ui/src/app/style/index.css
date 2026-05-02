@@ -1,14 +1,20 @@
+@import '@fontsource/geist-sans/400.css';
+@import '@fontsource/geist-sans/500.css';
+@import '@fontsource/geist-sans/600.css';
+@import '@fontsource/geist-sans/700.css';
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';
+
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import './theme.css';
-
-@custom-variant dark (&:is(.dark *));
 
 @layer base {
     * {
         @apply border-border outline-ring/50;
         scrollbar-width: thin;
         scrollbar-color: var(--border) transparent;
+        font-feature-settings: "liga" 1;
     }
 
     html {
@@ -17,6 +23,8 @@
 
     body {
         @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar h-full min-h-0 w-full overflow-hidden;
+        font-family: var(--font-sans);
+        letter-spacing: normal;
     }
 
     #root {
