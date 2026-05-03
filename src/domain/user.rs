@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -17,6 +18,7 @@ pub struct User {
     #[serde(default)]
     #[sqlx(default)]
     pub password_login_disabled: bool,
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 impl User {
@@ -29,6 +31,7 @@ impl User {
             hashed_password,
             force_password_reset: false,
             password_login_disabled: false,
+            created_at: Some(Utc::now()),
         }
     }
 
@@ -59,7 +62,7 @@ mod tests {
         let realm_id = Uuid::new_v4();
 
         let user: User = sqlx::query_as(
-            "SELECT ? as id, ? as realm_id, ? as username, ? as email, ? as hashed_password, ? as force_password_reset, ? as password_login_disabled",
+            "SELECT ? as id, ? as realm_id, ? as username, ? as email, ? as hashed_password, ? as force_password_reset, ? as password_login_disabled, ? as created_at",
         )
         .bind(id.to_string())
         .bind(realm_id.to_string())
@@ -68,6 +71,7 @@ mod tests {
         .bind("hash")
         .bind(false)
         .bind(false)
+        .bind(None::<DateTime<Utc>>)
         .fetch_one(&pool)
         .await
         .expect("fetch user");
@@ -79,6 +83,7 @@ mod tests {
         assert_eq!(user.hashed_password, "hash");
         assert!(!user.force_password_reset);
         assert!(!user.password_login_disabled);
+        assert!(user.created_at.is_none());
     }
 
     #[test]
@@ -91,6 +96,7 @@ mod tests {
             hashed_password: "hash".to_string(),
             force_password_reset: false,
             password_login_disabled: false,
+            created_at: None,
         };
 
         let value = serde_json::to_value(&user).expect("serialize");
@@ -108,7 +114,8 @@ mod tests {
             "email": null,
             "hashed_password": "hash",
             "force_password_reset": true,
-            "password_login_disabled": true
+            "password_login_disabled": true,
+            "created_at": null
         });
 
         let user: User = serde_json::from_value(value).expect("deserialize");

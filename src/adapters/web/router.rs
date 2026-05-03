@@ -186,6 +186,7 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
 
     // 3. Write Permission
     let write_routes = Router::new()
+        .route("/", delete(user_handler::delete_users_handler))
         .route("/{id}", put(user_handler::update_user_handler))
         .route("/{id}", get(user_handler::get_user_handler))
         .route(

@@ -496,6 +496,7 @@ async fn import_new_user(
         hashed_password,
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(chrono::Utc::now()),
     };
 
     if let Some(tx) = tx {

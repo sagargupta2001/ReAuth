@@ -1,32 +1,9 @@
 import { type ColumnDef } from '@tanstack/react-table';
-
-
+import { format } from 'date-fns';
 
 import type { User } from '@/entities/user/model/types.ts';
 import { Checkbox } from '@/shared/ui/checkbox.tsx';
 import { DataTableColumnHeader } from '@/shared/ui/data-table';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 export const userColumns: ColumnDef<User>[] = [
   {
@@ -67,32 +44,38 @@ export const userColumns: ColumnDef<User>[] = [
     size: 20,
   },
   {
+    id: 'user',
     accessorKey: 'username',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Username" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="User" />,
     cell: ({ row }) => {
+      const username = row.getValue('user') as string
+      const email = row.original.email
       return (
-        <span className="text-muted-foreground font-mono text-xs">{row.getValue('username')}</span>
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground">{username}</span>
+          {email && <span className="text-xs text-muted-foreground">{email}</span>}
+        </div>
       )
     },
     enableSorting: true,
-    meta: {
-      align: 'center',
-    },
   },
   {
-    accessorKey: 'id',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="User ID" />,
-    cell: ({ row }) => (
-      <div className="text-muted-foreground font-mono text-xs">{row.getValue('id')}</div>
-    ),
-    enableSorting: false,
-  },
-  {
-    accessorKey: 'email',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
+    accessorKey: 'created_at',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Joined" />,
     cell: ({ row }) => {
-      const value = row.getValue('email') as string | null | undefined
-      return <div className="text-muted-foreground text-sm">{value || '—'}</div>
+      const value = row.getValue('created_at') as string | undefined
+      if (!value) return <span className="text-muted-foreground text-sm">—</span>
+      return <span className="text-muted-foreground text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>
+    },
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'last_sign_in_at',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Last signed in" />,
+    cell: ({ row }) => {
+      const value = row.getValue('last_sign_in_at') as string | undefined
+      if (!value) return <span className="text-muted-foreground text-sm">Never</span>
+      return <span className="text-muted-foreground text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>
     },
     enableSorting: true,
   },

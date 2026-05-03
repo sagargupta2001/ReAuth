@@ -77,6 +77,7 @@ impl UserService {
             hashed_password: hashed_password.as_str().to_string(),
             force_password_reset: false,
             password_login_disabled: false,
+            created_at: Some(Utc::now()),
         };
 
         let mut tx = self.tx_manager.begin().await?;
@@ -258,6 +259,22 @@ impl UserService {
         }
 
         Ok(user)
+    }
+    pub async fn delete_users(&self, realm_id: &Uuid, user_ids: &[Uuid]) -> Result<u64> {
+        if user_ids.is_empty() {
+            return Ok(0);
+        }
+
+        // Ideally we should verify all users belong to the realm first,
+        // but the repository method `delete_users` already scopes the deletion
+        // with `WHERE realm_id = ?`. If a user ID doesn't belong to the realm,
+        // it simply won't be deleted.
+        
+        let count = self.user_repo.delete_users(realm_id, user_ids).await?;
+        
+        // TODO: Emit UserDeleted events for outbox/audit log if needed
+        
+        Ok(count)
     }
 }
 

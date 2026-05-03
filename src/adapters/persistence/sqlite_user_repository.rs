@@ -218,4 +218,29 @@ impl UserRepository for SqliteUserRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(count)
     }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "delete")
+    )]
+    async fn delete_users(&self, realm_id: &Uuid, user_ids: &[Uuid]) -> Result<u64> {
+        if user_ids.is_empty() {
+            return Ok(0);
+        }
+        
+        let placeholders = user_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!("DELETE FROM users WHERE realm_id = ? AND id IN ({})", placeholders);
+        
+        let mut query = sqlx::query(&sql).bind(realm_id.to_string());
+        for id in user_ids {
+            query = query.bind(id.to_string());
+        }
+        
+        let result = query
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+            
+        Ok(result.rows_affected())
+    }
 }

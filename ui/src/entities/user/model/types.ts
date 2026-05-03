@@ -2,5 +2,6 @@ export interface User {
   id: string
   username: string
   email?: string | null
-  // Add created_at etc later if needed
+  created_at?: string
+  last_sign_in_at?: string | null
 }

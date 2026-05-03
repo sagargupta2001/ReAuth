@@ -113,6 +113,40 @@ pub async fn get_user_handler(
 }
 
 #[derive(Deserialize, Validate)]
+pub struct DeleteUsersRequest {
+    pub user_ids: Vec<Uuid>,
+}
+
+pub async fn delete_users_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(current_user)): Extension<AuthUser>,
+    Path(realm_name): Path<String>,
+    Json(payload): Json<DeleteUsersRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    if payload.user_ids.contains(&current_user.id) {
+        return Err(Error::Validation(
+            "You cannot delete your own account.".to_string(),
+        ));
+    }
+
+    let count = state
+        .user_service
+        .delete_users(&realm.id, &payload.user_ids)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "deleted", "count": count })),
+    ))
+}
+
+#[derive(Deserialize, Validate)]
 pub struct UpdateUserRequest {
     #[validate(length(min = 3, message = "Username must be at least 3 characters long"))]
     pub username: Option<String>,
