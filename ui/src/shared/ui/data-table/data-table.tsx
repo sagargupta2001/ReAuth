@@ -110,9 +110,9 @@ export function DataTable<TData, TValue>({
           customToolbarButtons={customToolbarButtons}
         />
       ) : null}
-      <div className={cn('relative overflow-auto rounded-xl border', className)}>
-        <Table className="w-full table-fixed" noWrapper>
-          <TableHeader className="bg-background sticky top-0 z-10 shadow-sm">
+      <div className={cn('relative overflow-auto rounded-2xl p-2 bg-[#171717]', className)}>
+        <Table className="w-full table-fixed " noWrapper>
+          <TableHeader className="sticky top-0 z-10  bg-[#171717]">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -131,7 +131,7 @@ export function DataTable<TData, TValue>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody>
+          <TableBody >
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => {
                 const expanded = isRowExpanded?.(row.original) ?? false
@@ -142,7 +142,7 @@ export function DataTable<TData, TValue>({
                       data-state={row.getIsSelected() && 'selected'}
                       onClick={() => onRowClick?.(row.original)}
                       className={cn(
-                        onRowClick && 'bg-[#171717] hover:cursor-pointer',
+                        onRowClick && 'bg-[#000000] hover:cursor-pointer',
                         rowClassName,
                       )}
                     >
@@ -154,7 +154,7 @@ export function DataTable<TData, TValue>({
                     </TableRow>
                     {expanded && renderSubRow ? (
                       <TableRow>
-                        <TableCell colSpan={table.getVisibleLeafColumns().length} className="p-0">
+                        <TableCell colSpan={table.getVisibleLeafColumns().length}>
                           {renderSubRow(row.original)}
                         </TableCell>
                       </TableRow>
