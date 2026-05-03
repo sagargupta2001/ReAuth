@@ -8,7 +8,6 @@ import { Button } from '@/components/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -18,12 +17,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { Form } from '@/shared/ui/form'
 import { FormInput } from '@/shared/ui/form-input'
 import { Checkbox } from '@/shared/ui/checkbox'
+import { Separator } from '@/shared/ui/separator'
 import { useCreateUser } from '@/features/user/api/useCreateUser'
 
 const emailSchema = z
   .string()
   .trim()
-  .email('Enter a valid email')
+  .email()
   .or(z.literal(''))
   .optional()
 
@@ -35,7 +35,7 @@ const createFormSchema = z.object({
 })
 
 const inviteFormSchema = z.object({
-  email: z.string().email('Enter a valid email'),
+  email: z.string().email(),
   expiry_days: z.number().min(1),
 })
 
@@ -91,16 +91,15 @@ export function CreateUserDialog() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add User</DialogTitle>
-          <DialogDescription>
-            Create a new user manually or send them an email invitation.
-          </DialogDescription>
+          <DialogTitle>{activeTab === 'create' ? 'Create new user' : 'Invite new user'}</DialogTitle>
         </DialogHeader>
+        
+        <Separator className="my-1" />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="create">Create user</TabsTrigger>
-            <TabsTrigger value="invite">Invite User</TabsTrigger>
+          <TabsList variant="line" className="mb-4">
+            <TabsTrigger variant="line" value="create">Create user</TabsTrigger>
+            <TabsTrigger variant="line" value="invite">Invite User</TabsTrigger>
           </TabsList>
           
           <TabsContent value="create">
