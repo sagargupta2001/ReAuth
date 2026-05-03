@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -18,6 +18,7 @@ import { Form } from '@/shared/ui/form'
 import { FormInput } from '@/shared/ui/form-input'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Separator } from '@/shared/ui/separator'
+import { ButtonGroup } from '@/shared/ui/button-group'
 import { ApiError } from '@/shared/api/client'
 import { useCreateUser } from '@/features/user/api/useCreateUser'
 
@@ -181,16 +182,27 @@ export function CreateUserDialog() {
             <Form {...inviteForm}>
               <div className="grid gap-4 py-4">
                 <FormInput control={inviteForm.control} name="email" label="Email address" type="email" />
-                <FormInput 
-                  control={inviteForm.control} 
-                  name="expiry_days" 
-                  label="Set invitation expiry (days)" 
+                
+                <FormInput
+                  control={inviteForm.control}
+                  name="expiry_days"
+                  label="Set invitation expiry"
+                  description="Invite links will expire after the specified number of days."
                   type="number"
-                  min={1} 
+                  min={1}
+                  className="w-24 no-number-arrows"
+                  onChange={(e) => inviteForm.setValue('expiry_days', parseInt(e.target.value) || 0)}
+                  render={(input: React.ReactNode) => (
+                    <ButtonGroup>
+                      {input}
+                      <Button variant="outline" className="pointer-events-none bg-muted px-4">
+                        Days
+                      </Button>
+                    </ButtonGroup>
+                  )}
                 />
-                <p className="text-[13px] text-muted-foreground -mt-2">
-                  Invite links will expire after the specified number of days.
-                </p>
+
+
               </div>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>

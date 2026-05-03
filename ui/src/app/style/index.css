@@ -111,6 +111,15 @@
     opacity: 0.9;
 }
 
+@utility no-number-arrows {
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    -moz-appearance: textfield;
+}
+
 @layer utilities {
     .animate-target-highlight {
         position: relative;
