@@ -13,6 +13,7 @@ use crate::application::harbor::runner::TokioHarborJobRunner;
 use crate::application::harbor::service::HarborService;
 use crate::application::harbor::theme_provider::ThemeHarborProvider;
 use crate::application::harbor::user_provider::UserHarborProvider;
+use crate::application::invitation_service::InvitationService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
 use crate::application::passkey_analytics_service::PasskeyAnalyticsService;
@@ -53,6 +54,7 @@ pub struct Services {
     pub passkey_assertion_service: Arc<PasskeyAssertionService>,
     pub passkey_analytics_service: Arc<PasskeyAnalyticsService>,
     pub email_delivery_service: Arc<EmailDeliveryService>,
+    pub invitation_service: Arc<InvitationService>,
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
     pub webhook_service: Arc<WebhookService>,
@@ -187,7 +189,6 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.passkey_credential_repo.clone(),
         repos.passkey_challenge_repo.clone(),
     ));
-
     // 2. Runtime Registry (The Brain)
     let mut registry_impl = RuntimeRegistry::new();
 
@@ -247,6 +248,15 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         node_registry.clone(),
     ));
 
+    let invitation_service = Arc::new(InvitationService::new(
+        repos.invitation_repo.clone(),
+        repos.realm_repo.clone(),
+        repos.auth_session_repo.clone(),
+        repos.flow_store.clone(),
+        flow_executor.clone(),
+        user_service.clone(),
+    ));
+
     // 5. OIDC & API Services
     let oidc_service = Arc::new(OidcService::new(
         repos.oidc_repo.clone(),
@@ -303,6 +313,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         passkey_assertion_service,
         passkey_analytics_service,
         email_delivery_service,
+        invitation_service,
         auth_service,
         audit_service,
         webhook_service,

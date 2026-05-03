@@ -6,6 +6,7 @@ import DashboardPage from '@/pages/DashboardPage'
 import { LoginPage } from '@/pages/LoginPage.tsx'
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage.tsx'
 import { RegisterPage } from '@/pages/RegisterPage.tsx'
+import { InvitationAcceptPage } from '@/pages/InvitationAcceptPage.tsx'
 import { SetupPage } from '@/pages/SetupPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -266,6 +267,12 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/register',
     element: RegisterPage,
+    layout: LoginLayout,
+    isProtected: false,
+  },
+  {
+    path: '/invite/accept',
+    element: InvitationAcceptPage,
     layout: LoginLayout,
     isProtected: false,
   },

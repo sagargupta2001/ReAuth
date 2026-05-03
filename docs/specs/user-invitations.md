@@ -490,3 +490,32 @@ PUT /api/realms/{id}
   - Invitation acceptance redirects to login (no auto-login session).
   - Invitation resend limit is configurable per realm in General -> Registration.
   - Invitation acceptance is flow-backed via realm-configurable `invitation_flow_id`.
+
+---
+
+## Next Slice: Fully Flow-Driven Invitation Lifecycle
+
+This slice is **committed** for immediate implementation after this spec update.
+
+### Goal
+
+Align invitations with the same async flow pattern used by recovery:
+- issue token + send email through flow execution
+- resume through invite link token
+- continue onboarding in flow
+- end with redirect to login
+
+### Required Behavior
+
+1. Invitation creation must execute a dedicated invitation flow path that issues an async action token and sends invite email via flow executor email dispatch (not direct ad-hoc send from service layer).
+2. Invite links must resume the suspended flow using one-time token semantics, then continue to registration/account-creation nodes.
+3. Default invitation flow must visibly include invitation-specific lifecycle steps (token issue/resume/validation), not just a plain `register -> allow` chain.
+4. Flow success for invitation onboarding must return redirect to `/#/login?realm={realm}&invited=1` (no auto-login session).
+5. Resend must re-trigger invite delivery using the same flow-driven action mechanism, while preserving invitation status/expiry/resend-limit rules.
+
+### Implementation Notes
+
+- Add invitation-specific runtime node(s) comparable to recovery token issue behavior.
+- Reuse existing async action infrastructure (`SuspendForAsync`, action repository, resume token hash validation, email delivery dispatch path).
+- Keep invitation table as lifecycle source of truth; flow actions must update invitation metadata consistently (`last_sent_at`, `resend_count`, status transitions).
+- Preserve admin-facing APIs and UI ergonomics where possible, but route orchestration through flow engine internally.

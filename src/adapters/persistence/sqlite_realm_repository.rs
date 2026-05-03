@@ -33,10 +33,12 @@ struct RealmRecord {
     is_system: bool,
     registration_enabled: bool,
     default_registration_role_ids: String,
+    invitation_resend_limit: i64,
     browser_flow_id: Option<String>,
     registration_flow_id: Option<String>,
     direct_grant_flow_id: Option<String>,
     reset_credentials_flow_id: Option<String>,
+    invitation_flow_id: Option<String>,
 }
 
 impl RealmRecord {
@@ -55,10 +57,12 @@ impl RealmRecord {
             is_system: self.is_system,
             registration_enabled: self.registration_enabled,
             default_registration_role_ids: role_ids,
+            invitation_resend_limit: self.invitation_resend_limit,
             browser_flow_id: self.browser_flow_id,
             registration_flow_id: self.registration_flow_id,
             direct_grant_flow_id: self.direct_grant_flow_id,
             reset_credentials_flow_id: self.reset_credentials_flow_id,
+            invitation_flow_id: self.invitation_flow_id,
         })
     }
 }
@@ -103,9 +107,9 @@ impl RealmRepository for SqliteRealmRepository {
             "INSERT INTO realms (
                 id, name, access_token_ttl_secs, refresh_token_ttl_secs,
                 pkce_required_public_clients, lockout_threshold, lockout_duration_secs,
-                is_system, registration_enabled, default_registration_role_ids,
-                browser_flow_id, registration_flow_id, direct_grant_flow_id, reset_credentials_flow_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                is_system, registration_enabled, default_registration_role_ids, invitation_resend_limit,
+                browser_flow_id, registration_flow_id, direct_grant_flow_id, reset_credentials_flow_id, invitation_flow_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
             .bind(realm.id.to_string())
             .bind(&realm.name)
@@ -117,10 +121,12 @@ impl RealmRepository for SqliteRealmRepository {
             .bind(realm.is_system)
             .bind(realm.registration_enabled)
             .bind(serialize_role_ids(&realm.default_registration_role_ids)?)
+            .bind(realm.invitation_resend_limit)
             .bind(&realm.browser_flow_id)
             .bind(&realm.registration_flow_id)
             .bind(&realm.direct_grant_flow_id)
-            .bind(&realm.reset_credentials_flow_id);
+            .bind(&realm.reset_credentials_flow_id)
+            .bind(&realm.invitation_flow_id);
 
         // Choose the executor and run it
         if let Some(t) = tx {
@@ -190,10 +196,12 @@ impl RealmRepository for SqliteRealmRepository {
                 is_system = ?,
                 registration_enabled = ?,
                 default_registration_role_ids = ?,
+                invitation_resend_limit = ?,
                 browser_flow_id = ?,
                 registration_flow_id = ?,
                 direct_grant_flow_id = ?,
-                reset_credentials_flow_id = ?
+                reset_credentials_flow_id = ?,
+                invitation_flow_id = ?
              WHERE id = ?",
         )
         .bind(&realm.name)
@@ -205,10 +213,12 @@ impl RealmRepository for SqliteRealmRepository {
         .bind(realm.is_system)
         .bind(realm.registration_enabled)
         .bind(serialize_role_ids(&realm.default_registration_role_ids)?)
+        .bind(realm.invitation_resend_limit)
         .bind(&realm.browser_flow_id)
         .bind(&realm.registration_flow_id)
         .bind(&realm.direct_grant_flow_id)
         .bind(&realm.reset_credentials_flow_id)
+        .bind(&realm.invitation_flow_id)
         .bind(realm.id.to_string());
 
         // Execute on correct target
@@ -255,6 +265,7 @@ impl RealmRepository for SqliteRealmRepository {
             "reset_credentials_flow_id",
             "client_authentication_flow_id",
             "docker_authentication_flow_id",
+            "invitation_flow_id",
         ];
 
         if !valid_slots.contains(&slot) {

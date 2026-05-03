@@ -13,12 +13,14 @@ pub struct Realm {
     pub is_system: bool,
     pub registration_enabled: bool,
     pub default_registration_role_ids: Vec<Uuid>,
+    pub invitation_resend_limit: i64,
 
     // This matches the SQLite TEXT column perfectly.
     pub browser_flow_id: Option<String>,
     pub registration_flow_id: Option<String>,
     pub direct_grant_flow_id: Option<String>,
     pub reset_credentials_flow_id: Option<String>,
+    pub invitation_flow_id: Option<String>,
     // --------------------------------------------------
 }
 
@@ -51,10 +53,12 @@ mod tests {
             is_system: false,
             registration_enabled: true,
             default_registration_role_ids: Vec::new(),
+            invitation_resend_limit: 3,
             browser_flow_id: Some(flow_id.to_string()),
             registration_flow_id: None,
             direct_grant_flow_id: Some(Uuid::new_v4().to_string()),
             reset_credentials_flow_id: None,
+            invitation_flow_id: None,
         };
 
         assert_eq!(realm.browser_flow_uuid(), Some(flow_id));
@@ -88,10 +92,12 @@ mod tests {
             is_system: false,
             registration_enabled: true,
             default_registration_role_ids: Vec::new(),
+            invitation_resend_limit: 3,
             browser_flow_id: Some("not-a-uuid".to_string()),
             registration_flow_id: None,
             direct_grant_flow_id: None,
             reset_credentials_flow_id: None,
+            invitation_flow_id: None,
         };
 
         assert!(realm.browser_flow_uuid().is_none());

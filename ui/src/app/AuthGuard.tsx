@@ -36,6 +36,7 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     if (
       window.location.pathname === '/login' ||
       window.location.pathname === '/register' ||
+      window.location.pathname === '/invite/accept' ||
       window.location.pathname === '/setup'
     ) {
       const search = window.location.search
@@ -198,7 +199,8 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     if (
       location.pathname.includes('/login') ||
       location.pathname.includes('/register') ||
-      location.pathname.includes('/forgot-password')
+      location.pathname.includes('/forgot-password') ||
+      location.pathname.includes('/invite/accept')
     ) {
       const storedRedirect = sessionStorage.getItem(REDIRECT_STORAGE_KEY)
       return <Navigate to={storedRedirect || '/'} replace />
@@ -216,6 +218,8 @@ export const AuthGuard = ({ children }: { children: ReactNode }) => {
     location.pathname === '/forgot-password/' ||
     location.pathname === '/register' ||
     location.pathname === '/register/' ||
+    location.pathname === '/invite/accept' ||
+    location.pathname === '/invite/accept/' ||
     location.pathname === '/setup' ||
     location.pathname === '/setup/'
 

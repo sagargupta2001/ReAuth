@@ -1,4 +1,4 @@
-export type FlowType = 'browser' | 'registration' | 'direct' | 'reset'
+export type FlowType = 'browser' | 'registration' | 'direct' | 'reset' | 'invitation'
 
 export interface FlowDraft {
   id: string

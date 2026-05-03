@@ -136,7 +136,7 @@ async fn setup_default_flows_creates_all_defaults() {
         .unwrap();
 
     let calls = repo.create_calls();
-    assert_eq!(calls.len(), 4);
+    assert_eq!(calls.len(), 5);
 
     let mut by_name: HashMap<String, AuthFlow> = HashMap::new();
     for flow in calls {
@@ -160,10 +160,15 @@ async fn setup_default_flows_creates_all_defaults() {
     assert_eq!(reset.alias, "Reset Credentials".to_string());
     assert_eq!(reset.r#type, "reset");
 
+    let invitation = by_name.get("invitation").unwrap();
+    assert_eq!(invitation.alias, "Invitation".to_string());
+    assert_eq!(invitation.r#type, "invitation");
+
     assert_eq!(defaults.browser_flow_id, browser.id);
     assert_eq!(defaults.direct_grant_flow_id, direct.id);
     assert_eq!(defaults.registration_flow_id, registration.id);
     assert_eq!(defaults.reset_credentials_flow_id, reset.id);
+    assert_eq!(defaults.invitation_flow_id, invitation.id);
 }
 
 #[tokio::test]
@@ -184,7 +189,7 @@ async fn setup_default_flows_reuses_existing_flows() {
     assert_eq!(defaults.browser_flow_id, existing_id);
 
     let calls = repo.create_calls();
-    assert_eq!(calls.len(), 3);
+    assert_eq!(calls.len(), 4);
     assert!(!calls.iter().any(|flow| flow.name == "browser-login"));
 }
 
@@ -201,7 +206,7 @@ async fn setup_default_flows_passes_transaction_to_repo() {
         .await
         .unwrap();
 
-    assert_eq!(repo.create_tx_calls(), 4);
+    assert_eq!(repo.create_tx_calls(), 5);
 }
 
 #[tokio::test]

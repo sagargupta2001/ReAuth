@@ -11,6 +11,7 @@ pub struct DefaultFlows {
     pub registration_flow_id: Uuid,
     pub direct_grant_flow_id: Uuid,
     pub reset_credentials_flow_id: Uuid,
+    pub invitation_flow_id: Uuid,
 }
 
 pub struct FlowService {
@@ -73,12 +74,22 @@ impl FlowService {
                 tx.as_deref_mut(),
             )
             .await?;
+        let invitation_flow_id = self
+            .create_builtin_flow(
+                realm_id,
+                "invitation",
+                "Invitation",
+                "invitation",
+                tx.as_deref_mut(),
+            )
+            .await?;
 
         Ok(DefaultFlows {
             browser_flow_id,
             direct_grant_flow_id,
             registration_flow_id,
             reset_credentials_flow_id,
+            invitation_flow_id,
         })
     }
 

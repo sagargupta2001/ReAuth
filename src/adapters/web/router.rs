@@ -1,9 +1,9 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
-    harbor_handler, log_stream_handler, observability_handler, oidc_handler, rbac_handler,
-    realm_email_handler, realm_handler, realm_passkey_handler, realm_recovery_handler,
-    realm_security_headers_handler, search_handler, server::ui_handler, session_handler,
-    setup_handler, theme_handler, user_handler, webhook_handler,
+    harbor_handler, invitation_handler, log_stream_handler, observability_handler, oidc_handler,
+    rbac_handler, realm_email_handler, realm_handler, realm_passkey_handler,
+    realm_recovery_handler, realm_security_headers_handler, search_handler, server::ui_handler,
+    session_handler, setup_handler, theme_handler, user_handler, webhook_handler,
 };
 use crate::adapters::web::middleware::{
     cors_middleware, permission_guard, request_logging, security_headers,
@@ -27,6 +27,7 @@ pub fn create_router(app_state: AppState) -> Router {
         .nest("/realms/{realm}/auth", auth_routes())
         .nest("/realms/{realm}/oidc", oidc_routes())
         .nest("/realms/{realm}/theme", theme_routes())
+        .nest("/realms/{realm}/invitations", public_invitation_routes())
         .nest("/realms/{realm}/users", public_user_routes());
 
     // 2. Protected Routes (Require Login)
@@ -37,6 +38,10 @@ pub fn create_router(app_state: AppState) -> Router {
         .nest("/realms/{realm}/clients", client_routes(app_state.clone()))
         .nest("/realms/{realm}/rbac", rbac_routes(app_state.clone()))
         .nest("/realms/{realm}/audits", audit_routes(app_state.clone()))
+        .nest(
+            "/realms/{realm}/invitations",
+            protected_invitation_routes(app_state.clone()),
+        )
         .nest(
             "/realms/{realm}/users",
             protected_user_routes(app_state.clone()),
@@ -169,6 +174,13 @@ fn public_user_routes() -> Router<AppState> {
     Router::new().route("/", post(user_handler::create_user_handler))
 }
 
+fn public_invitation_routes() -> Router<AppState> {
+    Router::new().route(
+        "/accept",
+        post(invitation_handler::accept_invitation_handler),
+    )
+}
+
 // [FIXED] Split routes by permission requirement
 fn protected_user_routes(state: AppState) -> Router<AppState> {
     // 1. No Special Permission (Just Auth)
@@ -230,6 +242,36 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
 
     // Merge them all
     base_routes.merge(read_routes).merge(write_routes)
+}
+
+fn protected_invitation_routes(state: AppState) -> Router<AppState> {
+    let read_routes = Router::new()
+        .route("/", get(invitation_handler::list_invitations_handler))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::USER_READ)
+            },
+        ));
+
+    let write_routes = Router::new()
+        .route("/", post(invitation_handler::create_invitation_handler))
+        .route(
+            "/{id}/resend",
+            post(invitation_handler::resend_invitation_handler),
+        )
+        .route(
+            "/{id}/revoke",
+            post(invitation_handler::revoke_invitation_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::USER_WRITE)
+            },
+        ));
+
+    read_routes.merge(write_routes)
 }
 
 // Split Realm Routes

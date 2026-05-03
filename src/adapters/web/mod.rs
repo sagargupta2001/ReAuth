@@ -6,6 +6,7 @@ pub mod error;
 pub mod execution_handler;
 pub mod flow_handler;
 pub mod harbor_handler;
+pub mod invitation_handler;
 pub mod log_stream_handler;
 pub mod middleware;
 pub mod observability_handler;

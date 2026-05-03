@@ -9,10 +9,12 @@ export interface Realm {
   is_system: boolean
   registration_enabled: boolean
   default_registration_role_ids: string[]
+  invitation_resend_limit: number
   browser_flow_id?: string | null
   registration_flow_id?: string | null
   direct_grant_flow_id?: string | null
   reset_credentials_flow_id?: string | null
+  invitation_flow_id?: string | null
 }
 
 export interface RealmEmailSettings {

@@ -1,6 +1,8 @@
 pub mod cookie_authenticator;
 pub mod email_otp_issue_node;
 pub mod forgot_credentials_authenticator;
+pub mod invitation_issue_node;
+pub mod invitation_token_node;
 pub mod oidc_consent_authenticator;
 pub mod passkey_assert_authenticator;
 pub mod passkey_enroll_authenticator;
@@ -14,6 +16,8 @@ pub mod verify_email_otp_authenticator;
 use crate::adapters::auth::cookie_authenticator::CookieAuthenticator;
 use crate::adapters::auth::email_otp_issue_node::EmailOtpIssueNode;
 use crate::adapters::auth::forgot_credentials_authenticator::ForgotCredentialsAuthenticator;
+use crate::adapters::auth::invitation_issue_node::InvitationIssueNode;
+use crate::adapters::auth::invitation_token_node::InvitationTokenNode;
 use crate::adapters::auth::oidc_consent_authenticator::OidcConsentAuthenticator;
 use crate::adapters::auth::passkey_assert_authenticator::PasskeyAssertAuthenticator;
 use crate::adapters::auth::passkey_enroll_authenticator::PasskeyEnrollAuthenticator;
@@ -164,6 +168,21 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
     registry.register_node("core.logic.subflow", subflow_node, StepType::Logic);
 
     // 11. Terminal Nodes (Definitions only)
+    // These nodes use the "Generic Handler" in the Executor loop above.
+    let invitation_token_node = Arc::new(InvitationTokenNode);
+    registry.register_node(
+        "core.logic.invitation_token",
+        invitation_token_node,
+        StepType::Logic,
+    );
+    let invitation_issue_node = Arc::new(InvitationIssueNode);
+    registry.register_node(
+        "core.logic.issue_invitation",
+        invitation_issue_node,
+        StepType::Logic,
+    );
+
+    // 12. Terminal Nodes (Definitions only)
     // These nodes use the "Generic Handler" in the Executor loop above.
     registry.register_definition("core.terminal.allow", StepType::Terminal);
     registry.register_definition("core.terminal.deny", StepType::Terminal);

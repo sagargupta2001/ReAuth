@@ -1114,10 +1114,12 @@ fn base_realm() -> crate::domain::realm::Realm {
         is_system: false,
         registration_enabled: true,
         default_registration_role_ids: Vec::new(),
+        invitation_resend_limit: 3,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
         reset_credentials_flow_id: None,
+        invitation_flow_id: None,
     }
 }
 

@@ -48,6 +48,8 @@ pub async fn ensure_default_flows(
         tx,
     )
     .await?;
+    let invitation_flow_id =
+        ensure_flow(ctx, &realm.id, "invitation", "Invitation", "invitation", tx).await?;
 
     let mut needs_update = false;
     let mut update_payload = UpdateRealmPayload {
@@ -59,10 +61,12 @@ pub async fn ensure_default_flows(
         lockout_duration_secs: None,
         registration_enabled: None,
         default_registration_role_ids: None,
+        invitation_resend_limit: None,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
         reset_credentials_flow_id: None,
+        invitation_flow_id: None,
     };
 
     if realm.browser_flow_id.is_none() {
@@ -79,6 +83,10 @@ pub async fn ensure_default_flows(
     }
     if realm.reset_credentials_flow_id.is_none() {
         update_payload.reset_credentials_flow_id = Some(Some(reset_flow_id));
+        needs_update = true;
+    }
+    if realm.invitation_flow_id.is_none() {
+        update_payload.invitation_flow_id = Some(Some(invitation_flow_id));
         needs_update = true;
     }
 
@@ -134,6 +142,11 @@ async fn ensure_flow(
     let draft_missing_recovery_issue = existing_draft.as_ref().is_some_and(|draft| {
         !graph_contains_node_type(&draft.graph_json, "core.logic.recovery_issue")
     });
+    let default_has_invitation_issue =
+        graph_contains_node_type(&graph_json, "core.logic.issue_invitation");
+    let draft_missing_invitation_issue = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_contains_node_type(&draft.graph_json, "core.logic.issue_invitation")
+    });
     let draft_obj = FlowDraft {
         id: flow_id,
         realm_id: *realm_id,
@@ -153,6 +166,7 @@ async fn ensure_flow(
             .await?;
     } else if (default_has_start && draft_missing_start)
         || (default_has_recovery_issue && draft_missing_recovery_issue)
+        || (default_has_invitation_issue && draft_missing_invitation_issue)
     {
         let tx_ref = tx.as_deref_mut();
         ctx.flow_store

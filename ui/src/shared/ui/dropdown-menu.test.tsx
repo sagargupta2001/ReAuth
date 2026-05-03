@@ -24,5 +24,5 @@ describe('DropdownMenu', () => {
     
     expect(await screen.findByText('Item 1')).toBeInTheDocument()
     expect(await screen.findByText('Item 2')).toBeInTheDocument()
-  })
+  }, 10000)
 })

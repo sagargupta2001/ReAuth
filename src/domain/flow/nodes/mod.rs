@@ -2,6 +2,8 @@ pub mod condition_node;
 pub mod cookie_node;
 pub mod email_otp_issue_node;
 pub mod forgot_credentials_node;
+pub mod invitation_issue_node;
+pub mod invitation_token_node;
 pub mod oidc_consent_node;
 pub mod passkey_assert_node;
 pub mod passkey_enroll_node;

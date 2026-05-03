@@ -6,6 +6,7 @@ import {
   CheckCircle,
   Loader2,
   Lock,
+  Mail,
   Play,
   ShieldAlert,
   Split,
@@ -27,6 +28,7 @@ const IconMap: Record<string, ElementType> = {
   XCircle: XCircle,
   Play: Play, // Added Play icon mapping
   UserPlus: UserPlus,
+  Mail: Mail,
   Box: Box,
   Zap: Zap,
 }

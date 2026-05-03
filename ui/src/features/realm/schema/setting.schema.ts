@@ -26,6 +26,11 @@ export const generalSettingsSchema = z.object({
     .regex(/^[a-z0-9-]+$/, {
       message: 'Only lowercase letters, numbers, and hyphens allowed.',
     }),
+  invitation_resend_limit: z.coerce
+    .number()
+    .int('Must be a whole number')
+    .min(0, 'Must be greater than or equal to 0')
+    .max(100, 'Must be less than or equal to 100'),
 })
 
 export type GeneralSettingsSchema = z.infer<typeof generalSettingsSchema>

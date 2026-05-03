@@ -21,6 +21,7 @@ import { Separator } from '@/shared/ui/separator'
 import { ButtonGroup } from '@/shared/ui/button-group'
 import { ApiError } from '@/shared/api/client'
 import { useCreateUser } from '@/features/user/api/useCreateUser'
+import { useCreateInvitation } from '@/features/invitation/api/useInvitations'
 
 const emailSchema = z
   .string()
@@ -49,14 +50,7 @@ const createFormSchema = z
   })
 
 const inviteFormSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .optional()
-    .refine(
-      (val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
-      { message: 'Invalid email address' }
-    ),
+  email: z.string().trim().min(1, { message: 'Email is required' }).email({ message: 'Invalid email address' }),
   expiry_days: z.number().min(1),
 })
 
@@ -68,6 +62,7 @@ export function CreateUserDialog() {
   const [activeTab, setActiveTab] = useState('create')
   
   const mutation = useCreateUser()
+  const inviteMutation = useCreateInvitation()
   
   const createForm = useForm<CreateFormValues>({
     resolver: zodResolver(createFormSchema),
@@ -115,9 +110,23 @@ export function CreateUserDialog() {
   }
 
   const onInviteSubmit = (values: InviteFormValues) => {
-    // TODO: Implement actual invite endpoint here
-    console.log('Sending invite...', values)
-    handleOpenChange(false)
+    inviteMutation.mutate(
+      {
+        email: values.email.trim(),
+        expiry_days: values.expiry_days,
+      },
+      {
+        onSuccess: () => handleOpenChange(false),
+        onError: (error) => {
+          if (error instanceof ApiError) {
+            inviteForm.setError('email', {
+              type: 'server',
+              message: error.message,
+            })
+          }
+        },
+      },
+    )
   }
 
   return (
@@ -208,8 +217,8 @@ export function CreateUserDialog() {
                 <Button variant="outline" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button size='sm' onClick={inviteForm.handleSubmit(onInviteSubmit)}>
-                  Send Invite
+                <Button size='sm' onClick={inviteForm.handleSubmit(onInviteSubmit)} disabled={inviteMutation.isPending}>
+                  {inviteMutation.isPending ? 'Sending...' : 'Send Invite'}
                 </Button>
               </DialogFooter>
             </Form>

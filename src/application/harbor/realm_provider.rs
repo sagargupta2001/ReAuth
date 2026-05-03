@@ -29,6 +29,7 @@ struct HarborRealmFlowBindings {
     pub registration_flow_id: Option<String>,
     pub direct_grant_flow_id: Option<String>,
     pub reset_credentials_flow_id: Option<String>,
+    pub invitation_flow_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,6 +39,8 @@ struct HarborRealmPayload {
     pub pkce_required_public_clients: bool,
     pub lockout_threshold: i64,
     pub lockout_duration_secs: i64,
+    #[serde(default)]
+    pub invitation_resend_limit: Option<i64>,
     #[serde(default)]
     pub registration_enabled: Option<bool>,
     #[serde(default)]
@@ -81,6 +84,7 @@ impl HarborProvider for RealmHarborProvider {
             payload.flow_bindings.registration_flow_id.as_deref(),
             payload.flow_bindings.direct_grant_flow_id.as_deref(),
             payload.flow_bindings.reset_credentials_flow_id.as_deref(),
+            payload.flow_bindings.invitation_flow_id.as_deref(),
         ]
         .into_iter()
         .flatten()
@@ -119,6 +123,7 @@ impl HarborProvider for RealmHarborProvider {
             pkce_required_public_clients: realm.pkce_required_public_clients,
             lockout_threshold: realm.lockout_threshold,
             lockout_duration_secs: realm.lockout_duration_secs,
+            invitation_resend_limit: Some(realm.invitation_resend_limit),
             registration_enabled: Some(realm.registration_enabled),
             default_registration_role_ids: Some(
                 realm
@@ -132,6 +137,7 @@ impl HarborProvider for RealmHarborProvider {
                 registration_flow_id: realm.registration_flow_id,
                 direct_grant_flow_id: realm.direct_grant_flow_id,
                 reset_credentials_flow_id: realm.reset_credentials_flow_id,
+                invitation_flow_id: realm.invitation_flow_id,
             },
         };
 
@@ -180,6 +186,7 @@ impl HarborProvider for RealmHarborProvider {
             pkce_required_public_clients,
             lockout_threshold,
             lockout_duration_secs,
+            invitation_resend_limit,
             registration_enabled,
             default_registration_role_ids,
             flow_bindings,
@@ -192,6 +199,7 @@ impl HarborProvider for RealmHarborProvider {
             pkce_required_public_clients: Some(pkce_required_public_clients),
             lockout_threshold: Some(lockout_threshold),
             lockout_duration_secs: Some(lockout_duration_secs),
+            invitation_resend_limit,
             registration_enabled,
             default_registration_role_ids: match default_registration_role_ids {
                 Some(role_ids) => Some(parse_role_ids(&role_ids)?),
@@ -206,6 +214,9 @@ impl HarborProvider for RealmHarborProvider {
             )?),
             reset_credentials_flow_id: Some(parse_optional_uuid(
                 flow_bindings.reset_credentials_flow_id.clone(),
+            )?),
+            invitation_flow_id: Some(parse_optional_uuid(
+                flow_bindings.invitation_flow_id.clone(),
             )?),
         };
 
@@ -235,6 +246,13 @@ impl HarborProvider for RealmHarborProvider {
                 &self.flow_manager,
                 realm_id,
                 flow_bindings.reset_credentials_flow_id.as_deref(),
+                Some(&mut *tx),
+            )
+            .await?;
+            publish_bound_flow(
+                &self.flow_manager,
+                realm_id,
+                flow_bindings.invitation_flow_id.as_deref(),
                 Some(&mut *tx),
             )
             .await?;
@@ -268,6 +286,13 @@ impl HarborProvider for RealmHarborProvider {
                 &self.flow_manager,
                 realm_id,
                 flow_bindings.reset_credentials_flow_id.as_deref(),
+                None,
+            )
+            .await?;
+            publish_bound_flow(
+                &self.flow_manager,
+                realm_id,
+                flow_bindings.invitation_flow_id.as_deref(),
                 None,
             )
             .await?;

@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::application::audit_service::AuditService;
 use crate::application::email_delivery_service::{
-    EmailDeliveryService, RecoveryEmail, VerificationEmail,
+    EmailDeliveryService, InvitationEmail, RecoveryEmail, VerificationEmail,
 };
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::audit::NewAuditEvent;
@@ -1271,7 +1271,10 @@ impl FlowExecutor {
         let mut ui_context = request.context.clone();
 
         let mut email_sent = false;
-        if matches!(action_type.as_str(), "reset_credentials" | "email_verify") {
+        if matches!(
+            action_type.as_str(),
+            "reset_credentials" | "email_verify" | "invitation_accept"
+        ) {
             match self
                 .send_action_email(
                     &action_type,
@@ -1290,6 +1293,8 @@ impl FlowExecutor {
                     if let Some(ctx) = ui_context.as_object_mut() {
                         let message = if action_type == "reset_credentials" {
                             "If an account exists, a recovery email has been sent."
+                        } else if action_type == "invitation_accept" {
+                            "Invitation email has been sent."
                         } else {
                             "If an account exists, a verification email has been sent."
                         };
@@ -1388,6 +1393,8 @@ impl FlowExecutor {
             .unwrap_or_else(|| {
                 if action_type == "reset_credentials" {
                     "/forgot-password"
+                } else if action_type == "invitation_accept" {
+                    "/invite/accept"
                 } else {
                     "/register"
                 }
@@ -1426,6 +1433,19 @@ impl FlowExecutor {
                             resume_path: resume_path.to_string(),
                             subject,
                             body,
+                        },
+                    )
+                    .await
+            }
+            "invitation_accept" => {
+                service
+                    .send_invitation_email(
+                        &realm_id,
+                        InvitationEmail {
+                            email: identifier.to_string(),
+                            token: token.to_string(),
+                            expires_at,
+                            resume_path: resume_path.to_string(),
                         },
                     )
                     .await

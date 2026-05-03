@@ -820,6 +820,8 @@ async fn harbor_bootstrap_import_restores_realm_settings_and_flow_bindings() {
                 registration_flow_id: Some(None),
                 direct_grant_flow_id: Some(None),
                 reset_credentials_flow_id: Some(None),
+                invitation_resend_limit: None,
+                invitation_flow_id: None,
             },
         )
         .await

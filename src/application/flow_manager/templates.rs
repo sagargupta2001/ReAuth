@@ -583,4 +583,69 @@ impl FlowTemplates {
             ]
         })
     }
+
+    pub fn invitation_flow() -> Value {
+        json!({
+            "nodes": [
+                {
+                    "id": "start",
+                    "type": "core.start",
+                    "position": { "x": 250, "y": 0 },
+                    "data": { "label": "Start" },
+                    "next": { "default": "invitation-validate" }
+                },
+                {
+                    "id": "invitation-validate",
+                    "type": "core.logic.invitation_token",
+                    "position": { "x": 250, "y": 120 },
+                    "data": {
+                        "label": "Validate Invitation",
+                        "config": {},
+                        "outputs": ["valid"]
+                    },
+                    "next": { "valid": "invitation-issue" }
+                },
+                {
+                    "id": "invitation-issue",
+                    "type": "core.logic.issue_invitation",
+                    "position": { "x": 250, "y": 260 },
+                    "data": {
+                        "label": "Issue Invitation Token",
+                        "config": {
+                            "resume_path": "/invite/accept",
+                            "resend_path": "/invite/accept",
+                            "resume_node_id": "auth-register"
+                        },
+                        "outputs": ["issued"]
+                    },
+                    "next": { "issued": "auth-register" }
+                },
+                {
+                    "id": "auth-register",
+                    "type": "core.auth.register",
+                    "position": { "x": 250, "y": 430 },
+                    "data": {
+                        "label": "Register Account",
+                        "config": {
+                            "auth_type": "core.auth.register",
+                            "template_key": "register"
+                        },
+                        "outputs": ["success", "failure"]
+                    }
+                },
+                {
+                    "id": "allow",
+                    "type": "core.terminal.allow",
+                    "position": { "x": 250, "y": 580 },
+                    "data": { "label": "Allow Access" }
+                }
+            ],
+            "edges": [
+                { "id": "e0", "source": "start", "target": "invitation-validate" },
+                { "id": "e1", "source": "invitation-validate", "sourceHandle": "valid", "target": "invitation-issue" },
+                { "id": "e2", "source": "invitation-issue", "sourceHandle": "issued", "target": "auth-register" },
+                { "id": "e3", "source": "auth-register", "sourceHandle": "success", "target": "allow" }
+            ]
+        })
+    }
 }
