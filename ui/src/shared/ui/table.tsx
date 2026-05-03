@@ -1,6 +1,16 @@
-import * as React from 'react'
+import * as React from 'react';
 
-import { cn } from '@/lib/utils'
+
+
+import { cn } from '@/lib/utils';
+
+
+
+
+
+
+
+
 
 const Table = React.forwardRef<
   HTMLTableElement,
@@ -54,7 +64,8 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        'data-[state=selected]:bg-muted border-b transition-colors hover:bg-(--bg-hover)',
+        'data-[state=selected]:bg-muted border-b transition-colors',
+        'in-[tbody]:hover:bg-(--bg-hover)',
         className,
       )}
       {...props}
