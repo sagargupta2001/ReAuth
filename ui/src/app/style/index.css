@@ -105,6 +105,12 @@
     animation: slideUp 300ms ease-out;
 }
 
+@utility dot-grid {
+    background-image: radial-gradient(circle, currentColor 1px, transparent 1px);
+    background-size: 24px 24px;
+    opacity: 0.9;
+}
+
 @layer utilities {
     .animate-target-highlight {
         position: relative;
