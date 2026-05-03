@@ -1,102 +1,23 @@
-import { Fragment, type ReactNode, useState } from 'react';
-
-
-
-import { type ColumnDef, type ColumnFiltersState, type OnChangeFn, type PaginationState, type SortingState, type Table as Tb, type VisibilityState, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
-
-
-
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table';
-import { cn } from '@/lib/utils';
-import { DataTableBulkActions } from '@/shared/ui/data-table/bulk-actions.tsx';
-import { DataTablePagination } from '@/shared/ui/data-table/pagination.tsx';
-import { DataTableToolbar } from '@/shared/ui/data-table/toolbar.tsx';
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+import { Fragment, type ReactNode, useState } from 'react'
+
+import {
+  type ColumnDef,
+  type ColumnFiltersState,
+  type OnChangeFn,
+  type PaginationState,
+  type SortingState,
+  type Table as Tb,
+  type VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+} from '@tanstack/react-table'
+
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
+import { cn } from '@/lib/utils'
+import { DataTableBulkActions } from '@/shared/ui/data-table/bulk-actions.tsx'
+import { DataTablePagination } from '@/shared/ui/data-table/pagination.tsx'
+import { DataTableToolbar } from '@/shared/ui/data-table/toolbar.tsx'
 
 interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
