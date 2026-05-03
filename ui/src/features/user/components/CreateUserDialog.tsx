@@ -129,21 +129,21 @@ export function CreateUserDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
+        <DialogHeader className='pl-6 pt-6'>
           <DialogTitle>{activeTab === 'create' ? 'Create new user' : 'Invite new user'}</DialogTitle>
         </DialogHeader>
         
         <Separator className="my-1" />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2">
-          <TabsList variant="line" className="mb-4">
+          <TabsList variant="line" className="mb-4 px-6">
             <TabsTrigger variant="line" value="create">Create user</TabsTrigger>
             <TabsTrigger variant="line" value="invite">Invite User</TabsTrigger>
           </TabsList>
           
           <TabsContent value="create">
             <Form {...createForm}>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 px-6 pb-6">
                 <FormInput control={createForm.control} name="username" label="Username" />
                 <FormInput control={createForm.control} name="email" label="Email (Optional)" type="email" />
                 <FormInput control={createForm.control} name="password" label="Password" type="password" />
@@ -167,11 +167,11 @@ export function CreateUserDialog() {
                   </div>
                 </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className='py-3 pr-3 gap-1'>
                 <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button onClick={createForm.handleSubmit(onCreateSubmit)} disabled={mutation.isPending}>
+                <Button size='sm' onClick={createForm.handleSubmit(onCreateSubmit)} disabled={mutation.isPending}>
                   {mutation.isPending ? 'Creating...' : 'Create User'}
                 </Button>
               </DialogFooter>
@@ -180,7 +180,7 @@ export function CreateUserDialog() {
 
           <TabsContent value="invite">
             <Form {...inviteForm}>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 px-6 pb-6">
                 <FormInput control={inviteForm.control} name="email" label="Email address" type="email" />
                 
                 <FormInput
@@ -204,11 +204,11 @@ export function CreateUserDialog() {
 
 
               </div>
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
+              <DialogFooter className='py-3 pr-3 gap-1'>
+                <Button variant="outline" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button onClick={inviteForm.handleSubmit(onInviteSubmit)}>
+                <Button size='sm' onClick={inviteForm.handleSubmit(onInviteSubmit)}>
                   Send Invite
                 </Button>
               </DialogFooter>
