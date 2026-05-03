@@ -75,7 +75,7 @@ export const userColumns: ColumnDef<User>[] = [
     cell: ({ row }) => {
       const value = row.getValue('last_sign_in_at') as string | undefined
       if (!value) return <span className="text-muted-foreground text-sm">Never</span>
-      return <span className="text-muted-foreground text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>
+      return <span className="text-muted-foreground text-sm">{format(new Date(value), 'MMM d, yyyy, h:mm a')}</span>
     },
     enableSorting: true,
   },

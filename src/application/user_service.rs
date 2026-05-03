@@ -78,6 +78,7 @@ impl UserService {
             force_password_reset: false,
             password_login_disabled: false,
             created_at: Some(Utc::now()),
+            last_sign_in_at: None,
         };
 
         let mut tx = self.tx_manager.begin().await?;
@@ -129,6 +130,13 @@ impl UserService {
             return Ok(Some(user));
         }
         self.user_repo.find_by_email(realm_id, identifier).await
+    }
+
+    pub async fn update_last_sign_in(&self, realm_id: Uuid, user_id: Uuid) -> Result<()> {
+        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+        user.last_sign_in_at = Some(Utc::now());
+        self.user_repo.update(&user, None).await?;
+        Ok(())
     }
 
     pub async fn count_users_in_realm(&self, realm_id: Uuid) -> Result<i64> {

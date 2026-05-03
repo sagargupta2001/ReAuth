@@ -19,6 +19,7 @@ pub struct User {
     #[sqlx(default)]
     pub password_login_disabled: bool,
     pub created_at: Option<DateTime<Utc>>,
+    pub last_sign_in_at: Option<DateTime<Utc>>,
 }
 
 impl User {
@@ -32,6 +33,7 @@ impl User {
             force_password_reset: false,
             password_login_disabled: false,
             created_at: Some(Utc::now()),
+            last_sign_in_at: None,
         }
     }
 
@@ -62,7 +64,7 @@ mod tests {
         let realm_id = Uuid::new_v4();
 
         let user: User = sqlx::query_as(
-            "SELECT ? as id, ? as realm_id, ? as username, ? as email, ? as hashed_password, ? as force_password_reset, ? as password_login_disabled, ? as created_at",
+            "SELECT ? as id, ? as realm_id, ? as username, ? as email, ? as hashed_password, ? as force_password_reset, ? as password_login_disabled, ? as created_at, ? as last_sign_in_at",
         )
         .bind(id.to_string())
         .bind(realm_id.to_string())
@@ -71,6 +73,7 @@ mod tests {
         .bind("hash")
         .bind(false)
         .bind(false)
+        .bind(None::<DateTime<Utc>>)
         .bind(None::<DateTime<Utc>>)
         .fetch_one(&pool)
         .await
@@ -84,6 +87,7 @@ mod tests {
         assert!(!user.force_password_reset);
         assert!(!user.password_login_disabled);
         assert!(user.created_at.is_none());
+        assert!(user.last_sign_in_at.is_none());
     }
 
     #[test]
@@ -97,6 +101,7 @@ mod tests {
             force_password_reset: false,
             password_login_disabled: false,
             created_at: None,
+            last_sign_in_at: None,
         };
 
         let value = serde_json::to_value(&user).expect("serialize");
@@ -115,7 +120,8 @@ mod tests {
             "hashed_password": "hash",
             "force_password_reset": true,
             "password_login_disabled": true,
-            "created_at": null
+            "created_at": null,
+            "last_sign_in_at": null
         });
 
         let user: User = serde_json::from_value(value).expect("deserialize");
