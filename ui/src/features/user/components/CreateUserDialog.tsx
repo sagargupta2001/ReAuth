@@ -23,9 +23,11 @@ import { useCreateUser } from '@/features/user/api/useCreateUser'
 const emailSchema = z
   .string()
   .trim()
-  .email()
-  .or(z.literal(''))
   .optional()
+  .refine(
+    (val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+    { message: 'Invalid email address' }
+  )
 
 const createFormSchema = z.object({
   username: z.string().min(3),
@@ -35,7 +37,14 @@ const createFormSchema = z.object({
 })
 
 const inviteFormSchema = z.object({
-  email: z.string().email(),
+  email: z
+    .string()
+    .trim()
+    .optional()
+    .refine(
+      (val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+      { message: 'Invalid email address' }
+    ),
   expiry_days: z.number().min(1),
 })
 
