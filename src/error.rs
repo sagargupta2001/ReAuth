@@ -84,6 +84,12 @@ pub enum Error {
     #[error("Validation failed: {0}")]
     Validation(String),
 
+    #[error("Validation failed")]
+    FieldsValidation {
+        message: String,
+        fields: std::collections::HashMap<String, String>,
+    },
+
     #[error("Validation failed: {0}")]
     FlowPublishValidation(FlowPublishValidation),
 

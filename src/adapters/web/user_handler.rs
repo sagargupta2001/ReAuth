@@ -18,7 +18,6 @@ pub struct CreateUserPayload {
     #[validate(email(message = "Email address is invalid"))]
     email: Option<String>,
     #[validate(length(
-        min = 8,
         max = 100,
         message = "Password must be between 8 and 100 characters"
     ))]
@@ -35,6 +34,19 @@ pub async fn create_user_handler(
         return Err(Error::SecurityViolation(
             "Initial setup is required before creating users.".to_string(),
         ));
+    }
+
+    let ignore_policies = payload.ignore_password_policies.unwrap_or(false);
+    if !ignore_policies && payload.password.len() < 8 {
+        let mut fields = std::collections::HashMap::new();
+        fields.insert(
+            "password".to_string(),
+            "Password must be between 8 and 100 characters".to_string(),
+        );
+        return Err(Error::FieldsValidation {
+            message: "Validation failed".to_string(),
+            fields,
+        });
     }
 
     let realm = state

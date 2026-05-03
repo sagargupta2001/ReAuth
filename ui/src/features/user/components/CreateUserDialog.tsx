@@ -18,6 +18,7 @@ import { Form } from '@/shared/ui/form'
 import { FormInput } from '@/shared/ui/form-input'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Separator } from '@/shared/ui/separator'
+import { ApiError } from '@/shared/api/client'
 import { useCreateUser } from '@/features/user/api/useCreateUser'
 
 const emailSchema = z
@@ -29,12 +30,22 @@ const emailSchema = z
     { message: 'Invalid email address' }
   )
 
-const createFormSchema = z.object({
-  username: z.string().min(3),
-  email: emailSchema,
-  password: z.string().min(8),
-  ignore_password_policies: z.boolean(),
-})
+const createFormSchema = z
+  .object({
+    username: z.string().min(3),
+    email: emailSchema,
+    password: z.string(),
+    ignore_password_policies: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.ignore_password_policies && data.password.length < 8) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Password must be at least 8 characters',
+        path: ['password'],
+      })
+    }
+  })
 
 const inviteFormSchema = z.object({
   email: z
@@ -80,7 +91,19 @@ export function CreateUserDialog() {
     const email = values.email?.trim() || undefined
     mutation.mutate(
       { ...values, email },
-      { onSuccess: () => handleOpenChange(false) }
+      { 
+        onSuccess: () => handleOpenChange(false),
+        onError: (error) => {
+          if (error instanceof ApiError && error.body?.fields) {
+            Object.entries(error.body.fields).forEach(([field, message]) => {
+              createForm.setError(field as any, {
+                type: 'server',
+                message: message as string,
+              })
+            })
+          }
+        },
+      }
     )
   }
 
