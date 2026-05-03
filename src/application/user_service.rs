@@ -44,6 +44,7 @@ impl UserService {
         username: &str,
         password: &str,
         email: Option<&str>,
+        ignore_password_policies: bool,
     ) -> Result<User> {
         // Check uniqueness WITHIN the realm
         if self
@@ -75,7 +76,7 @@ impl UserService {
             username: username.to_string(),
             email: normalized_email,
             hashed_password: hashed_password.as_str().to_string(),
-            force_password_reset: false,
+            force_password_reset: !ignore_password_policies,
             password_login_disabled: false,
             created_at: Some(Utc::now()),
             last_sign_in_at: None,

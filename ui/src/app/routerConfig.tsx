@@ -35,7 +35,6 @@ import { GroupsPage } from '@/pages/groups/listing/GroupsPage.tsx'
 import EventsDashboard from '@/pages/events/EventsDashboard.tsx'
 import TargetDetailsPage from '@/pages/events/TargetDetailsPage.tsx'
 import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx'
-import { CreateUserPage } from '@/pages/user/create/CreateUserPage.tsx'
 import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
 import { UsersPage } from '@/pages/user/listing/UsersPage.tsx'
 import HarborDashboardPage from '@/pages/harbor/HarborDashboardPage.tsx'
@@ -162,12 +161,6 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   { path: '/:realm/users', element: UsersPage, layout: AuthenticatedLayout, isProtected: true },
-  {
-    path: '/:realm/users/new',
-    element: CreateUserPage,
-    layout: AuthenticatedLayout,
-    isProtected: true,
-  },
   {
     path: '/:realm/users/:userId/:tab?',
     element: EditUserPage,

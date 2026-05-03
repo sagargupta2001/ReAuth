@@ -23,6 +23,7 @@ pub struct CreateUserPayload {
         message = "Password must be between 8 and 100 characters"
     ))]
     password: String,
+    ignore_password_policies: Option<bool>,
 }
 
 pub async fn create_user_handler(
@@ -48,6 +49,9 @@ pub async fn create_user_handler(
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+        
+    let ignore_policies = payload.ignore_password_policies.unwrap_or(false);
+
     let user = state
         .user_service
         .create_user(
@@ -55,6 +59,7 @@ pub async fn create_user_handler(
             &payload.username,
             &payload.password,
             email.as_deref(),
+            ignore_policies,
         )
         .await?;
 

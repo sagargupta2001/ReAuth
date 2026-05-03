@@ -80,7 +80,7 @@ pub async fn setup_handler(
 
     let user = state
         .user_service
-        .create_user(realm.id, &payload.username, &payload.password, None)
+        .create_user(realm.id, &payload.username, &payload.password, None, true)
         .await?;
 
     let role_name = "super_admin";
