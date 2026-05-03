@@ -66,9 +66,9 @@ export async function refreshAccessToken(realmOverride?: string): Promise<string
 
 export class ApiError extends Error {
   status: number
-  body: any
+  body: unknown
 
-  constructor(message: string, status: number, body: any) {
+  constructor(message: string, status: number, body: unknown) {
     super(message)
     this.name = 'ApiError'
     this.status = status
@@ -117,10 +117,12 @@ async function requestRaw(endpoint: string, config: RequestConfig = {}): Promise
   if (!response.ok) {
     const errorBody = await response.text()
     let errorMessage = `API Error: ${response.statusText}`
-    let json: any = null
+    let json: unknown = null
     try {
       json = JSON.parse(errorBody)
-      errorMessage = json.error || errorMessage
+      if (json && typeof json === 'object' && 'error' in json && typeof json.error === 'string') {
+        errorMessage = json.error
+      }
     } catch {
       /* ignore json parse error */
     }

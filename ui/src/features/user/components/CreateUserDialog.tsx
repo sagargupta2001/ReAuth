@@ -94,11 +94,17 @@ export function CreateUserDialog() {
       { 
         onSuccess: () => handleOpenChange(false),
         onError: (error) => {
-          if (error instanceof ApiError && error.body?.fields) {
-            Object.entries(error.body.fields).forEach(([field, message]) => {
-              createForm.setError(field as any, {
+          if (error instanceof ApiError && 
+              error.body && 
+              typeof error.body === 'object' && 
+              'fields' in error.body && 
+              error.body.fields && 
+              typeof error.body.fields === 'object') {
+            const fields = error.body.fields as Record<string, string>
+            Object.entries(fields).forEach(([field, message]) => {
+              createForm.setError(field as keyof CreateFormValues, {
                 type: 'server',
-                message: message as string,
+                message,
               })
             })
           }
