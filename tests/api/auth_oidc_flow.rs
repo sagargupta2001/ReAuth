@@ -590,7 +590,7 @@ async fn oidc_token_exchange_returns_tokens_and_refresh_cookie() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "alice", "password-123", None)
+        .create_user(realm.id, "alice", "password-123", None, false)
         .await
         .expect("create user");
 
@@ -684,7 +684,7 @@ async fn auth_refresh_rotates_refresh_token() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "bob", "password-123", None)
+        .create_user(realm.id, "bob", "password-123", None, false)
         .await
         .expect("create user");
 
@@ -741,7 +741,7 @@ async fn auth_login_flow_challenge_and_execute_success() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "charlie", "password-123", None)
+        .create_user(realm.id, "charlie", "password-123", None, false)
         .await
         .expect("create user");
 
@@ -840,7 +840,7 @@ async fn auth_login_flow_forces_password_reset_when_flagged() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "force-reset-user", "password-123", None)
+        .create_user(realm.id, "force-reset-user", "password-123", None, false)
         .await
         .expect("create user");
     ctx.app_state
@@ -964,7 +964,7 @@ async fn auth_login_flow_executes_signal_envelope() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "signal-user", "password-123", None)
+        .create_user(realm.id, "signal-user", "password-123", None, false)
         .await
         .expect("create user");
 
@@ -1218,7 +1218,7 @@ async fn oidc_token_exchange_rejects_invalid_pkce_verifier() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "dana", "password-123", None)
+        .create_user(realm.id, "dana", "password-123", None, false)
         .await
         .expect("create user");
 
@@ -1295,7 +1295,7 @@ async fn auth_login_execute_rejects_invalid_password_with_challenge() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "erin", "password-123", None)
+        .create_user(realm.id, "erin", "password-123", None, false)
         .await
         .expect("create user");
 
@@ -1720,7 +1720,7 @@ async fn oidc_token_rejects_invalid_redirect_uri() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "gina", "password-123", None)
+        .create_user(realm.id, "gina", "password-123", None, false)
         .await
         .expect("create user");
 
@@ -1773,7 +1773,7 @@ async fn auth_logout_clears_cookies_and_revokes_refresh_token() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "frank", "password-123", None)
+        .create_user(realm.id, "frank", "password-123", None, false)
         .await
         .expect("create user");
 

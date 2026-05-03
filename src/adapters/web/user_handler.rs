@@ -17,12 +17,9 @@ pub struct CreateUserPayload {
     username: String,
     #[validate(email(message = "Email address is invalid"))]
     email: Option<String>,
-    #[validate(length(
-        min = 8,
-        max = 100,
-        message = "Password must be between 8 and 100 characters"
-    ))]
+    #[validate(length(max = 100, message = "Password must be between 8 and 100 characters"))]
     password: String,
+    ignore_password_policies: Option<bool>,
 }
 
 pub async fn create_user_handler(
@@ -34,6 +31,19 @@ pub async fn create_user_handler(
         return Err(Error::SecurityViolation(
             "Initial setup is required before creating users.".to_string(),
         ));
+    }
+
+    let ignore_policies = payload.ignore_password_policies.unwrap_or(false);
+    if !ignore_policies && payload.password.len() < 8 {
+        let mut fields = std::collections::HashMap::new();
+        fields.insert(
+            "password".to_string(),
+            "Password must be between 8 and 100 characters".to_string(),
+        );
+        return Err(Error::FieldsValidation {
+            message: "Validation failed".to_string(),
+            fields,
+        });
     }
 
     let realm = state
@@ -48,15 +58,46 @@ pub async fn create_user_handler(
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    let user = state
+
+    let ignore_policies = payload.ignore_password_policies.unwrap_or(false);
+
+    let user_result = state
         .user_service
         .create_user(
             realm.id,
             &payload.username,
             &payload.password,
             email.as_deref(),
+            ignore_policies,
         )
-        .await?;
+        .await;
+
+    let user = match user_result {
+        Ok(user) => user,
+        Err(Error::UsernameAlreadyExists) => {
+            let mut fields = std::collections::HashMap::new();
+            fields.insert(
+                "username".to_string(),
+                "Username is already taken".to_string(),
+            );
+            return Err(Error::FieldsValidation {
+                message: "Validation failed".to_string(),
+                fields,
+            });
+        }
+        Err(Error::EmailAlreadyExists) => {
+            let mut fields = std::collections::HashMap::new();
+            fields.insert(
+                "email".to_string(),
+                "Email address is already in use".to_string(),
+            );
+            return Err(Error::FieldsValidation {
+                message: "Validation failed".to_string(),
+                fields,
+            });
+        }
+        Err(err) => return Err(err),
+    };
 
     for role_id in capabilities.default_registration_role_ids {
         if let Err(err) = state
@@ -110,6 +151,40 @@ pub async fn get_user_handler(
     let user = state.user_service.get_user_in_realm(realm.id, id).await?;
 
     Ok((StatusCode::OK, Json(user)))
+}
+
+#[derive(Deserialize, Validate)]
+pub struct DeleteUsersRequest {
+    pub user_ids: Vec<Uuid>,
+}
+
+pub async fn delete_users_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(current_user)): Extension<AuthUser>,
+    Path(realm_name): Path<String>,
+    Json(payload): Json<DeleteUsersRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    if payload.user_ids.contains(&current_user.id) {
+        return Err(Error::Validation(
+            "You cannot delete your own account.".to_string(),
+        ));
+    }
+
+    let count = state
+        .user_service
+        .delete_users(&realm.id, &payload.user_ids)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "deleted", "count": count })),
+    ))
 }
 
 #[derive(Deserialize, Validate)]
@@ -190,9 +265,15 @@ pub async fn update_user_password_handler(
     Json(payload): Json<UpdateUserPasswordRequest>,
 ) -> Result<impl IntoResponse> {
     if payload.password.len() < 8 || payload.password.len() > 100 {
-        return Err(Error::Validation(
+        let mut fields = std::collections::HashMap::new();
+        fields.insert(
+            "password".to_string(),
             "Password must be between 8 and 100 characters".to_string(),
-        ));
+        );
+        return Err(Error::FieldsValidation {
+            message: "Validation failed".to_string(),
+            fields,
+        });
     }
 
     let realm = state

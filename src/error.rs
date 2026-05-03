@@ -18,6 +18,12 @@ pub enum Error {
     #[error("A user with this username already exists.")]
     UserAlreadyExists,
 
+    #[error("This username is already taken.")]
+    UsernameAlreadyExists,
+
+    #[error("This email address is already in use.")]
+    EmailAlreadyExists,
+
     #[error("User not found.")]
     UserNotFound,
 
@@ -83,6 +89,12 @@ pub enum Error {
 
     #[error("Validation failed: {0}")]
     Validation(String),
+
+    #[error("Validation failed")]
+    FieldsValidation {
+        message: String,
+        fields: std::collections::HashMap<String, String>,
+    },
 
     #[error("Validation failed: {0}")]
     FlowPublishValidation(FlowPublishValidation),

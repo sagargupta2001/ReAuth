@@ -16,7 +16,6 @@ import { queryClient } from '@/app/queryClient.tsx';
 import '@/app/style/index.css';
 import { SearchProvider } from '@/features/Search/model/searchContext.tsx';
 import '@/shared/config/i18n';
-import { DEFAULT_THEME } from '@/shared/config/theme.ts';
 
 import { injectAuthInterceptor } from '@/shared/api/client';
 import { useSessionStore } from '@/entities/session/model/sessionStore';
@@ -32,7 +31,7 @@ const root = ReactDOMClient.createRoot(document.getElementById('root')!)
 
 root.render(
   <StrictMode>
-    <ThemeProvider defaultTheme={DEFAULT_THEME}>
+    <ThemeProvider>
       <AppLoaderBoundary>
         <QueryClientProvider client={queryClient}>
           <Router>

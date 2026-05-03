@@ -64,6 +64,18 @@ export async function refreshAccessToken(realmOverride?: string): Promise<string
   return refreshPromise
 }
 
+export class ApiError extends Error {
+  status: number
+  body: unknown
+
+  constructor(message: string, status: number, body: unknown) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
+}
+
 /**
  * The low-level request wrapper returning a raw Response.
  */
@@ -105,13 +117,16 @@ async function requestRaw(endpoint: string, config: RequestConfig = {}): Promise
   if (!response.ok) {
     const errorBody = await response.text()
     let errorMessage = `API Error: ${response.statusText}`
+    let json: unknown = null
     try {
-      const json = JSON.parse(errorBody)
-      errorMessage = json.error || errorMessage
+      json = JSON.parse(errorBody)
+      if (json && typeof json === 'object' && 'error' in json && typeof json.error === 'string') {
+        errorMessage = json.error
+      }
     } catch {
       /* ignore json parse error */
     }
-    throw new Error(errorMessage)
+    throw new ApiError(errorMessage, response.status, json)
   }
 
   return response

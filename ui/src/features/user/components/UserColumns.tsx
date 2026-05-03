@@ -1,25 +1,19 @@
-import { type ColumnDef } from '@tanstack/react-table'
-import { Copy, MoreHorizontal, UserCog } from 'lucide-react'
-import { toast } from 'sonner'
+import { type ColumnDef } from '@tanstack/react-table';
+import { format } from 'date-fns';
 
-import { Button } from '@/shared/ui/button.tsx'
-import { Checkbox } from '@/shared/ui/checkbox.tsx'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/shared/ui/dropdown-menu.tsx'
-import type { User } from '@/entities/user/model/types.ts'
-import { DataTableColumnHeader } from '@/shared/ui/data-table'
+import type { User } from '@/entities/user/model/types.ts';
+import { Checkbox } from '@/shared/ui/checkbox.tsx';
+import { DataTableColumnHeader } from '@/shared/ui/data-table';
 
 export const userColumns: ColumnDef<User>[] = [
   {
     id: 'select',
     header: ({ table }) => (
-      <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="p-2"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <Checkbox
           checked={
             table.getIsAllPageRowsSelected() ||
@@ -27,88 +21,62 @@ export const userColumns: ColumnDef<User>[] = [
           }
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
-          className="translate-y-[2px]"
+          className="translate-y-0.5"
         />
       </div>
     ),
     cell: ({ row }) => (
-      <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="p-2"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <Checkbox
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="translate-y-[2px]"
+          className="translate-y-0.5"
         />
       </div>
     ),
     enableSorting: false,
     enableHiding: false,
-    size: 40,
+    size: 20,
   },
   {
+    id: 'user',
     accessorKey: 'username',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Username" />,
+    header: ({ column }) => <DataTableColumnHeader column={column} title="User" />,
     cell: ({ row }) => {
+      const username = row.getValue('user') as string
+      const email = row.original.email
       return (
-        <div className="flex items-center gap-2">
-          <div className="bg-muted flex size-8 items-center justify-center rounded-full">
-            <UserCog className="text-muted-foreground size-4" />
-          </div>
-          <span className="font-medium">{row.getValue('username')}</span>
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground">{username}</span>
+          {email && <span className="text-xs text-muted-foreground">{email}</span>}
         </div>
       )
     },
-    enableSorting: true, // Server-side sorting enabled
+    enableSorting: true,
   },
   {
-    accessorKey: 'id',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="User ID" />,
-    cell: ({ row }) => (
-      <div className="text-muted-foreground font-mono text-xs">{row.getValue('id')}</div>
-    ),
-    enableSorting: false,
-  },
-  {
-    accessorKey: 'email',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
+    accessorKey: 'created_at',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Joined" />,
     cell: ({ row }) => {
-      const value = row.getValue('email') as string | null | undefined
-      return <div className="text-muted-foreground text-sm">{value || '—'}</div>
+      const value = row.getValue('created_at') as string | undefined
+      if (!value) return <span className="text-muted-foreground text-sm">—</span>
+      return <span className="text-muted-foreground text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>
     },
-    enableSorting: false,
+    enableSorting: true,
   },
   {
-    id: 'actions',
+    accessorKey: 'last_sign_in_at',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Last signed in" />,
     cell: ({ row }) => {
-      const user = row.original
-
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <span className="sr-only">Open menu</span>
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={(e) => {
-                e.stopPropagation() // Prevent row click
-                navigator.clipboard.writeText(user.id)
-                toast.success('User ID copied')
-              }}
-            >
-              <Copy className="mr-2 h-4 w-4" />
-              Copy User ID
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>Reset Password</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">Delete User</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
+      const value = row.getValue('last_sign_in_at') as string | undefined
+      if (!value) return <span className="text-muted-foreground text-sm">Never</span>
+      return <span className="text-muted-foreground text-sm">{format(new Date(value), 'MMM d, yyyy, h:mm a')}</span>
     },
-    size: 40,
+    enableSorting: true,
   },
 ]

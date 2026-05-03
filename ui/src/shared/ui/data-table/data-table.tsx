@@ -21,35 +21,27 @@ import { DataTableToolbar } from '@/shared/ui/data-table/toolbar.tsx'
 
 interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
-
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
-
-  // --- NEW PROPS FOR SERVER-SIDE CONTROL ---
   pageCount: number
   pagination?: PaginationState
   onPaginationChange?: OnChangeFn<PaginationState>
   sorting?: SortingState
   onSortingChange?: OnChangeFn<SortingState>
-  // ---------------------------------------
-
   searchKey?: string
   searchPlaceholder?: string
-
   searchValue?: string
   onSearch?: (value: string) => void
-
   bulkEntityName?: string
   renderBulkActions?: (table: Tb<TData>) => ReactNode
-
   showToolbar?: boolean
   rootClassName?: string
   className?: string
   pageSizeOptions?: number[]
-
   getRowClassName?: (row: TData) => string
   isRowExpanded?: (row: TData) => boolean
   renderSubRow?: (row: TData) => ReactNode
+  customToolbarButtons?: ReactNode
 }
 
 export function DataTable<TData, TValue>({
@@ -74,8 +66,8 @@ export function DataTable<TData, TValue>({
   getRowClassName,
   isRowExpanded,
   renderSubRow,
+  customToolbarButtons,
 }: DataTableProps<TData, TValue>) {
-  // These remain client-side as they don't usually affect the API fetch
   const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -83,9 +75,8 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
-    pageCount, // Pass the total page count from server
+    pageCount,
     state: {
-      // If controlled props are passed, use them. Otherwise fallback (though we expect them).
       pagination: pagination ?? { pageIndex: 0, pageSize: 10 },
       sorting: sorting ?? [],
       columnVisibility,
@@ -93,23 +84,16 @@ export function DataTable<TData, TValue>({
       columnFilters,
     },
 
-    // --- SERVER-SIDE FLAGS ---
     manualPagination: true,
     manualSorting: true,
-    manualFiltering: true, // If you handle search on server
-
+    manualFiltering: true,
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnFiltersChange: setColumnFilters,
-
-    // Pass the parent's handlers
     onPaginationChange,
     onSortingChange,
-
     getCoreRowModel: getCoreRowModel(),
-    // We remove getPaginationRowModel and getSortedRowModel
-    // because the server returns already sorted/paginated data.
   })
 
   const bulkActions = renderBulkActions?.(table)
@@ -123,16 +107,21 @@ export function DataTable<TData, TValue>({
           searchPlaceholder={searchPlaceholder}
           searchValue={searchValue}
           onSearch={onSearch}
+          customToolbarButtons={customToolbarButtons}
         />
       ) : null}
-      <div className={cn('relative overflow-auto rounded-md border', className)}>
+      <div className={cn('relative overflow-auto rounded-xl border', className)}>
         <Table className="w-full table-fixed" noWrapper>
           <TableHeader className="bg-background sticky top-0 z-10 shadow-sm">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
                   return (
-                    <TableHead key={header.id} colSpan={header.colSpan}>
+                    <TableHead
+                      key={header.id}
+                      colSpan={header.colSpan}
+                      style={{ width: header.getSize() }}
+                    >
                       {header.isPlaceholder
                         ? null
                         : flexRender(header.column.columnDef.header, header.getContext())}
@@ -152,7 +141,10 @@ export function DataTable<TData, TValue>({
                     <TableRow
                       data-state={row.getIsSelected() && 'selected'}
                       onClick={() => onRowClick?.(row.original)}
-                      className={cn(onRowClick && 'hover:cursor-pointer', rowClassName)}
+                      className={cn(
+                        onRowClick && 'bg-[#171717] hover:cursor-pointer',
+                        rowClassName,
+                      )}
                     >
                       {row.getVisibleCells().map((cell) => (
                         <TableCell key={cell.id}>
@@ -162,10 +154,7 @@ export function DataTable<TData, TValue>({
                     </TableRow>
                     {expanded && renderSubRow ? (
                       <TableRow>
-                        <TableCell
-                          colSpan={table.getVisibleLeafColumns().length}
-                          className="p-0"
-                        >
+                        <TableCell colSpan={table.getVisibleLeafColumns().length} className="p-0">
                           {renderSubRow(row.original)}
                         </TableCell>
                       </TableRow>

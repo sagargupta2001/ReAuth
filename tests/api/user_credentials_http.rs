@@ -40,6 +40,7 @@ async fn setup_user_writer_token(ctx: &TestContext, realm_id: Uuid) -> String {
             "user-writer",
             "password",
             Some("writer@example.com"),
+            false,
         )
         .await
         .expect("create writer");
@@ -95,6 +96,7 @@ async fn user_credentials_list_and_password_update_work() {
             "target-user",
             "old-password-123",
             Some("target@example.com"),
+            false,
         )
         .await
         .expect("create target user");
@@ -166,6 +168,7 @@ async fn user_credentials_password_policy_controls_work() {
             "target-user-2",
             "old-password-123",
             Some("target-2@example.com"),
+            false,
         )
         .await
         .expect("create target user");
@@ -255,6 +258,7 @@ async fn user_credentials_passkey_metadata_returns_not_found_for_unknown_credent
             "target-user-3",
             "old-password-123",
             Some("target-3@example.com"),
+            false,
         )
         .await
         .expect("create target user");

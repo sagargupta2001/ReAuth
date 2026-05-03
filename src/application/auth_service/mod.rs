@@ -71,6 +71,17 @@ impl AuthService {
             .await?
             .ok_or_else(|| Error::RealmNotFound(user.realm_id.to_string()))?;
 
+        // 1.5 Update last sign in
+        let mut updated_user = user.clone();
+        updated_user.last_sign_in_at = Some(Utc::now());
+        if let Err(e) = self.user_repo.update(&updated_user, None).await {
+            tracing::error!(
+                "Failed to update last_sign_in_at for user {}: {}",
+                user.id,
+                e
+            );
+        }
+
         // 2. Create the Stateful Refresh Token
         let expires_at = Utc::now() + Duration::seconds(self.settings.refresh_token_ttl_secs);
         let now = Utc::now();

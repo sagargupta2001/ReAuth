@@ -14,7 +14,6 @@ import {
 } from '@/components/command'
 import { Dialog, DialogOverlay, DialogPortal } from '@/components/dialog'
 import { ScrollArea } from '@/components/scroll-area'
-import { useTheme } from '@/shared/theme/ThemeContext'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useCurrentRealm } from '@/features/realm/api/useRealm'
 import { useUpdateRealmOptimistic } from '@/features/realm/api/useUpdateRealmOptimistic'
@@ -105,7 +104,6 @@ function groupByGroup(items: StaticEntry[]) {
 
 export function OmniCommandPalette() {
   const { open, setOpen } = useSearch()
-  const { setTheme } = useTheme()
   const navigate = useNavigate()
   const realm = useActiveRealm()
   const { data: realmData } = useCurrentRealm()
@@ -203,9 +201,6 @@ export function OmniCommandPalette() {
   const executeAction = React.useCallback(
     async (actionId?: string) => {
       if (!actionId) return
-      if (actionId === 'theme.light') setTheme('light')
-      if (actionId === 'theme.dark') setTheme('dark')
-      if (actionId === 'theme.system') setTheme('system')
       if (actionId.startsWith('theme.activate:')) {
         const themeId = actionId.replace('theme.activate:', '')
         if (!realm || !themeId) return
@@ -227,7 +222,7 @@ export function OmniCommandPalette() {
         cacheFlush.mutate(undefined)
       }
     },
-    [activateThemeLatest, cacheFlush, clearLogs, clearTraces, realm, setTheme],
+    [activateThemeLatest, cacheFlush, clearLogs, clearTraces, realm],
   )
 
   const handlePkceToggle = React.useCallback(

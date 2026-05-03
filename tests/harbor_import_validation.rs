@@ -909,7 +909,7 @@ async fn harbor_full_realm_bootstrap_imports_users_with_credentials_and_roles() 
     let user = ctx
         .app_state
         .user_service
-        .create_user(source.id, "alice", "password-123", None)
+        .create_user(source.id, "alice", "password-123", None, false)
         .await
         .expect("create user");
 
@@ -974,7 +974,7 @@ async fn harbor_bootstrap_rejects_new_user_creation_when_credentials_are_redacte
 
     ctx.app_state
         .user_service
-        .create_user(source.id, "alice", "password-123", None)
+        .create_user(source.id, "alice", "password-123", None, false)
         .await
         .expect("create user");
 

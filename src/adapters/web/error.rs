@@ -23,6 +23,8 @@ impl IntoResponse for Error {
 
             // 409 Conflict
             Error::UserAlreadyExists
+            | Error::UsernameAlreadyExists
+            | Error::EmailAlreadyExists
             | Error::RoleAlreadyExists
             | Error::GroupAlreadyExists
             | Error::RealmAlreadyExists => (StatusCode::CONFLICT, self.to_string(), None),
@@ -42,10 +44,19 @@ impl IntoResponse for Error {
             // 422 Unprocessable Entity
             Error::Validation(_) => (StatusCode::BAD_REQUEST, self.to_string(), None),
 
+            Error::FieldsValidation {
+                ref message,
+                ref fields,
+            } => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                message.clone(),
+                Some(json!({ "fields": fields })),
+            ),
+
             Error::FlowPublishValidation(ref details) => (
                 StatusCode::BAD_REQUEST,
                 details.message.clone(),
-                Some(details.clone()),
+                Some(serde_json::to_value(details).unwrap_or_default()),
             ),
 
             // 500 Internal Server Error (for things the user can't fix)
@@ -77,11 +88,18 @@ impl IntoResponse for Error {
         };
 
         let code = error_code(&self);
-        let body = if let Some(details) = details {
-            json!({ "error": message, "code": code, "details": details })
-        } else {
-            json!({ "error": message, "code": code })
-        };
+        let mut body = json!({ "error": message, "code": code });
+
+        if let Some(details) = details {
+            if let Some(details_obj) = details.as_object() {
+                for (k, v) in details_obj {
+                    body[k] = v.clone();
+                }
+            } else {
+                body["details"] = details;
+            }
+        }
+
         (status, Json(body)).into_response()
     }
 }
@@ -95,6 +113,8 @@ fn error_code(error: &Error) -> &'static str {
         Error::OidcInvalidCode => "oidc.invalid_code",
         Error::SecurityViolation(_) => "security.violation",
         Error::UserAlreadyExists => "user.already_exists",
+        Error::UsernameAlreadyExists => "user.username_already_exists",
+        Error::EmailAlreadyExists => "user.email_already_exists",
         Error::RoleAlreadyExists => "rbac.role.already_exists",
         Error::GroupAlreadyExists => "rbac.group.already_exists",
         Error::RealmAlreadyExists => "realm.already_exists",
@@ -105,6 +125,7 @@ fn error_code(error: &Error) -> &'static str {
         Error::InvalidLoginStep => "auth.invalid_login_step",
         Error::InvalidLoginSession => "auth.invalid_login_session",
         Error::Validation(_) => "validation.failed",
+        Error::FieldsValidation { .. } => "validation.failed",
         Error::FlowPublishValidation(_) => "validation.failed",
         Error::NotFound(_) => "resource.not_found",
         Error::OidcClientNotFound(_) => "oidc.client_not_found",

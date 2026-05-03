@@ -23,3 +23,5 @@ plugins/hello-world/frontend/node_modules
 data
 .tmp_stats
 .tmp/
+
+.idea

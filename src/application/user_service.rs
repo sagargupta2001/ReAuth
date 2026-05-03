@@ -44,6 +44,7 @@ impl UserService {
         username: &str,
         password: &str,
         email: Option<&str>,
+        _ignore_password_policies: bool,
     ) -> Result<User> {
         // Check uniqueness WITHIN the realm
         if self
@@ -52,7 +53,7 @@ impl UserService {
             .await?
             .is_some()
         {
-            return Err(Error::UserAlreadyExists);
+            return Err(Error::UsernameAlreadyExists);
         }
 
         let normalized_email = normalize_optional_email(email);
@@ -63,7 +64,7 @@ impl UserService {
                 .await?
                 .is_some()
             {
-                return Err(Error::UserAlreadyExists);
+                return Err(Error::EmailAlreadyExists);
             }
         }
 
@@ -77,6 +78,8 @@ impl UserService {
             hashed_password: hashed_password.as_str().to_string(),
             force_password_reset: false,
             password_login_disabled: false,
+            created_at: Some(Utc::now()),
+            last_sign_in_at: None,
         };
 
         let mut tx = self.tx_manager.begin().await?;
@@ -128,6 +131,13 @@ impl UserService {
             return Ok(Some(user));
         }
         self.user_repo.find_by_email(realm_id, identifier).await
+    }
+
+    pub async fn update_last_sign_in(&self, realm_id: Uuid, user_id: Uuid) -> Result<()> {
+        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+        user.last_sign_in_at = Some(Utc::now());
+        self.user_repo.update(&user, None).await?;
+        Ok(())
     }
 
     pub async fn count_users_in_realm(&self, realm_id: Uuid) -> Result<i64> {
@@ -258,6 +268,22 @@ impl UserService {
         }
 
         Ok(user)
+    }
+    pub async fn delete_users(&self, realm_id: &Uuid, user_ids: &[Uuid]) -> Result<u64> {
+        if user_ids.is_empty() {
+            return Ok(0);
+        }
+
+        // Ideally we should verify all users belong to the realm first,
+        // but the repository method `delete_users` already scopes the deletion
+        // with `WHERE realm_id = ?`. If a user ID doesn't belong to the realm,
+        // it simply won't be deleted.
+
+        let count = self.user_repo.delete_users(realm_id, user_ids).await?;
+
+        // TODO: Emit UserDeleted events for outbox/audit log if needed
+
+        Ok(count)
     }
 }
 

@@ -18,4 +18,5 @@ pub trait UserRepository: Send + Sync {
     async fn update(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()>;
     async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<User>>;
     async fn count_in_realm(&self, realm_id: &Uuid) -> Result<i64>;
+    async fn delete_users(&self, realm_id: &Uuid, user_ids: &[Uuid]) -> Result<u64>;
 }
