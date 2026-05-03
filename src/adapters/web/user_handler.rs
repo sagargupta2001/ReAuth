@@ -17,10 +17,7 @@ pub struct CreateUserPayload {
     username: String,
     #[validate(email(message = "Email address is invalid"))]
     email: Option<String>,
-    #[validate(length(
-        max = 100,
-        message = "Password must be between 8 and 100 characters"
-    ))]
+    #[validate(length(max = 100, message = "Password must be between 8 and 100 characters"))]
     password: String,
     ignore_password_policies: Option<bool>,
 }
@@ -61,7 +58,7 @@ pub async fn create_user_handler(
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-        
+
     let ignore_policies = payload.ignore_password_policies.unwrap_or(false);
 
     let user_result = state
@@ -79,7 +76,10 @@ pub async fn create_user_handler(
         Ok(user) => user,
         Err(Error::UsernameAlreadyExists) => {
             let mut fields = std::collections::HashMap::new();
-            fields.insert("username".to_string(), "Username is already taken".to_string());
+            fields.insert(
+                "username".to_string(),
+                "Username is already taken".to_string(),
+            );
             return Err(Error::FieldsValidation {
                 message: "Validation failed".to_string(),
                 fields,
@@ -87,7 +87,10 @@ pub async fn create_user_handler(
         }
         Err(Error::EmailAlreadyExists) => {
             let mut fields = std::collections::HashMap::new();
-            fields.insert("email".to_string(), "Email address is already in use".to_string());
+            fields.insert(
+                "email".to_string(),
+                "Email address is already in use".to_string(),
+            );
             return Err(Error::FieldsValidation {
                 message: "Validation failed".to_string(),
                 fields,

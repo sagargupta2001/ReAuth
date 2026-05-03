@@ -539,6 +539,10 @@ impl UserRepository for TestUserRepo {
             .count();
         Ok(count as i64)
     }
+
+    async fn delete_users(&self, _realm_id: &Uuid, _user_ids: &[Uuid]) -> Result<u64> {
+        Ok(0)
+    }
 }
 
 #[derive(Default)]
@@ -843,6 +847,8 @@ async fn create_session_returns_tokens_and_refresh_token() {
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(Utc::now()),
+        last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -890,6 +896,8 @@ async fn create_session_without_client_id_skips_id_token() {
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(Utc::now()),
+        last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -923,6 +931,8 @@ async fn create_session_errors_when_realm_missing() {
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(Utc::now()),
+        last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -979,6 +989,8 @@ async fn validate_token_and_get_user_returns_user() {
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(Utc::now()),
+        last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -1080,6 +1092,8 @@ async fn refresh_session_errors_when_realm_missing() {
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(Utc::now()),
+        last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -1125,6 +1139,8 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(Utc::now()),
+        last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
 

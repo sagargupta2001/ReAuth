@@ -89,7 +89,7 @@ impl IntoResponse for Error {
 
         let code = error_code(&self);
         let mut body = json!({ "error": message, "code": code });
-        
+
         if let Some(details) = details {
             if let Some(details_obj) = details.as_object() {
                 for (k, v) in details_obj {
@@ -99,7 +99,7 @@ impl IntoResponse for Error {
                 body["details"] = details;
             }
         }
-        
+
         (status, Json(body)).into_response()
     }
 }

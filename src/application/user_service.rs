@@ -44,7 +44,7 @@ impl UserService {
         username: &str,
         password: &str,
         email: Option<&str>,
-        ignore_password_policies: bool,
+        _ignore_password_policies: bool,
     ) -> Result<User> {
         // Check uniqueness WITHIN the realm
         if self
@@ -76,7 +76,7 @@ impl UserService {
             username: username.to_string(),
             email: normalized_email,
             hashed_password: hashed_password.as_str().to_string(),
-            force_password_reset: !ignore_password_policies,
+            force_password_reset: false,
             password_login_disabled: false,
             created_at: Some(Utc::now()),
             last_sign_in_at: None,
@@ -278,11 +278,11 @@ impl UserService {
         // but the repository method `delete_users` already scopes the deletion
         // with `WHERE realm_id = ?`. If a user ID doesn't belong to the realm,
         // it simply won't be deleted.
-        
+
         let count = self.user_repo.delete_users(realm_id, user_ids).await?;
-        
+
         // TODO: Emit UserDeleted events for outbox/audit log if needed
-        
+
         Ok(count)
     }
 }

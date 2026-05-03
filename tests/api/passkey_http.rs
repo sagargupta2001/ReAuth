@@ -69,6 +69,7 @@ async fn setup_realm_writer_token(ctx: &TestContext, realm_id: Uuid) -> String {
             "realm-writer",
             "password",
             Some("writer@example.com"),
+            false,
         )
         .await
         .expect("create writer user");
@@ -275,6 +276,7 @@ async fn passkey_enroll_options_and_verify_handler_work() {
             "passkey-user",
             "password",
             Some("passkey@example.com"),
+            false,
         )
         .await
         .expect("create user");
@@ -389,7 +391,13 @@ async fn passkey_authenticate_verify_rejects_invalid_signature() {
     let user = ctx
         .app_state
         .user_service
-        .create_user(realm.id, "sig-user", "password", Some("sig@example.com"))
+        .create_user(
+            realm.id,
+            "sig-user",
+            "password",
+            Some("sig@example.com"),
+            false,
+        )
         .await
         .expect("create user");
 
@@ -710,6 +718,7 @@ async fn get_passkey_analytics_reports_counts_and_failures() {
             "analytics-user",
             "password",
             Some("analytics@example.com"),
+            false,
         )
         .await
         .expect("create user");

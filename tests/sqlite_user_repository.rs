@@ -1,6 +1,7 @@
 mod support;
 
 use anyhow::Result;
+use chrono::Utc;
 use reauth::adapters::persistence::connection::Database;
 use reauth::adapters::persistence::sqlite_user_repository::SqliteUserRepository;
 use reauth::domain::pagination::{PageRequest, SortDirection};
@@ -33,6 +34,8 @@ fn user(id: Uuid, realm_id: Uuid, username: &str, hashed_password: &str) -> User
         hashed_password: hashed_password.to_string(),
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(Utc::now()),
+        last_sign_in_at: None,
     }
 }
 

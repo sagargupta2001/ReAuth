@@ -438,6 +438,10 @@ impl UserRepository for TestUserRepo {
             .count();
         Ok(count as i64)
     }
+
+    async fn delete_users(&self, _realm_id: &Uuid, _user_ids: &[Uuid]) -> Result<u64> {
+        Ok(0)
+    }
 }
 
 #[derive(Default)]
@@ -1723,6 +1727,8 @@ async fn exchange_code_for_token_returns_tokens_and_deletes_code() {
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
+        created_at: Some(Utc::now()),
+        last_sign_in_at: None,
     });
 
     let realm_repo = Arc::new(TestRealmRepo::default());

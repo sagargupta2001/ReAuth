@@ -116,7 +116,13 @@ impl LifecycleNode for RegistrationAuthenticator {
 
         match self
             .user_service
-            .create_user(session.realm_id, username, password, email_value.as_deref(), false)
+            .create_user(
+                session.realm_id,
+                username,
+                password,
+                email_value.as_deref(),
+                false,
+            )
             .await
         {
             Ok(user) => {

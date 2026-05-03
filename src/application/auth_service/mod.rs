@@ -75,7 +75,11 @@ impl AuthService {
         let mut updated_user = user.clone();
         updated_user.last_sign_in_at = Some(Utc::now());
         if let Err(e) = self.user_repo.update(&updated_user, None).await {
-            tracing::error!("Failed to update last_sign_in_at for user {}: {}", user.id, e);
+            tracing::error!(
+                "Failed to update last_sign_in_at for user {}: {}",
+                user.id,
+                e
+            );
         }
 
         // 2. Create the Stateful Refresh Token
