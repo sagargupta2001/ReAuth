@@ -53,7 +53,7 @@ impl UserService {
             .await?
             .is_some()
         {
-            return Err(Error::UserAlreadyExists);
+            return Err(Error::UsernameAlreadyExists);
         }
 
         let normalized_email = normalize_optional_email(email);
@@ -64,7 +64,7 @@ impl UserService {
                 .await?
                 .is_some()
             {
-                return Err(Error::UserAlreadyExists);
+                return Err(Error::EmailAlreadyExists);
             }
         }
 

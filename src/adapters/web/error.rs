@@ -23,6 +23,8 @@ impl IntoResponse for Error {
 
             // 409 Conflict
             Error::UserAlreadyExists
+            | Error::UsernameAlreadyExists
+            | Error::EmailAlreadyExists
             | Error::RoleAlreadyExists
             | Error::GroupAlreadyExists
             | Error::RealmAlreadyExists => (StatusCode::CONFLICT, self.to_string(), None),
@@ -111,6 +113,8 @@ fn error_code(error: &Error) -> &'static str {
         Error::OidcInvalidCode => "oidc.invalid_code",
         Error::SecurityViolation(_) => "security.violation",
         Error::UserAlreadyExists => "user.already_exists",
+        Error::UsernameAlreadyExists => "user.username_already_exists",
+        Error::EmailAlreadyExists => "user.email_already_exists",
         Error::RoleAlreadyExists => "rbac.role.already_exists",
         Error::GroupAlreadyExists => "rbac.group.already_exists",
         Error::RealmAlreadyExists => "realm.already_exists",
