@@ -56,7 +56,7 @@ export function DataTable<TData, TValue>({
   searchValue,
   onSearch,
   searchKey = 'name',
-  searchPlaceholder = 'Filter...',
+  searchPlaceholder = 'Search...',
   bulkEntityName,
   renderBulkActions,
   showToolbar = true,

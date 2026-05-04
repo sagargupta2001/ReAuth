@@ -2,6 +2,7 @@ import { type ComponentType, type ReactNode } from 'react'
 
 import { Cross2Icon } from '@radix-ui/react-icons'
 import { type Table } from '@tanstack/react-table'
+import { SearchIcon } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
@@ -27,7 +28,7 @@ type DataTableToolbarProps<TData> = {
 
 export function DataTableToolbar<TData>({
   table,
-  searchPlaceholder = 'Filter...',
+  searchPlaceholder = 'Search...',
   searchKey,
   filters = [],
   searchValue,
@@ -44,28 +45,50 @@ export function DataTableToolbar<TData>({
       <div className="flex flex-1 flex-col-reverse items-start gap-y-2 sm:flex-row sm:items-center sm:space-x-2">
         {onSearch ? (
           // Case A: Server-Side Search (Controlled via Prop)
-          <Input
-            placeholder={searchPlaceholder}
-            value={searchValue ?? ''}
-            onChange={(event) => onSearch(event.target.value)}
-            className="h-8 w-[150px] lg:w-[250px]"
-          />
+          <div className="relative">
+            <SearchIcon
+              aria-hidden="true"
+              className="absolute top-1/2 left-2 -translate-y-1/2 text-gray-500"
+              size={16}
+            />
+            <Input
+              placeholder={searchPlaceholder}
+              value={searchValue ?? ''}
+              onChange={(event) => onSearch(event.target.value)}
+              className="h-8 w-[150px] lg:w-[250px] pl-9"
+            />
+          </div>
         ) : searchKey ? (
           // Case B: Client-Side Column Filter
-          <Input
-            placeholder={searchPlaceholder}
-            value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}
-            onChange={(event) => table.getColumn(searchKey)?.setFilterValue(event.target.value)}
-            className="h-8 w-[150px] lg:w-[250px]"
-          />
+          <div className="relative">
+            <SearchIcon
+              aria-hidden="true"
+              className="absolute top-1/2 left-2 -translate-y-1/2 text-gray-500"
+              size={16}
+            />
+            <Input
+              placeholder={searchPlaceholder}
+              value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ''}
+              onChange={(event) => table.getColumn(searchKey)?.setFilterValue(event.target.value)}
+              className="h-8 w-[150px] lg:w-[250px] pl-9"
+            />
+          </div>
         ) : (
           // Case C: Client-Side Global Filter
-          <Input
-            placeholder={searchPlaceholder}
-            value={table.getState().globalFilter ?? ''}
-            onChange={(event) => table.setGlobalFilter(event.target.value)}
-            className="h-8 w-[150px] lg:w-[250px]"
-          />
+          <div className="relative">
+            <SearchIcon
+              aria-hidden="true"
+              className="absolute top-1/2 left-2 -translate-y-1/2 text-gray-500"
+              size={16}
+            />
+
+            <Input
+              placeholder={searchPlaceholder}
+              value={table.getState().globalFilter ?? ''}
+              onChange={(event) => table.setGlobalFilter(event.target.value)}
+              className="h-8 w-[150px] lg:w-[250px] pl-9"
+            />
+          </div>
         )}
 
         <div className="flex gap-x-2">

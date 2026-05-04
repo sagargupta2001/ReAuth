@@ -2,34 +2,18 @@ import { useState } from 'react'
 
 import { type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router-dom'
-import { Trash2 } from 'lucide-react'
 
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useUsers } from '@/features/user/api/useUsers.ts'
-import { useDeleteUsers } from '@/features/user/api/useDeleteUsers.ts'
 import { userColumns } from '@/features/user/components/UserColumns.tsx'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
 import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
 import { UsersPrimaryButtons } from '@/features/user/components/UsersPrimaryButtons.tsx'
-import { Button } from '@/components/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/alert-dialog'
+import { UserBulkActions } from '@/features/user/components/UserBulkActions.tsx'
 
 export function UsersTable() {
   const navigate = useRealmNavigate()
-  const realm = useActiveRealm()
   const [searchParams, setSearchParams] = useSearchParams()
-  const deleteUsers = useDeleteUsers(realm)
 
   // Initialize State from URL
   const page = Number(searchParams.get('page')) || 1
@@ -114,49 +98,12 @@ export function UsersTable() {
       sorting={sorting}
       onSortingChange={handleSortingChange}
       searchKey="username"
-      searchPlaceholder="Filter users..."
       searchValue={searchTerm}
       onSearch={handleSearch}
       onRowClick={(user) => navigate(`/users/${user.id}`)}
       customToolbarButtons={<UsersPrimaryButtons />}
       bulkEntityName="user"
-      renderBulkActions={(table) => {
-        const selectedUsers = table.getFilteredSelectedRowModel().rows.map((row) => row.original)
-        const deleteIds = selectedUsers.map((user) => user.id)
-
-        if (deleteIds.length === 0) return null
-
-        return (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" size="sm" className="h-8">
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete {deleteIds.length} User{deleteIds.length !== 1 ? 's' : ''}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Users</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to permanently delete {deleteIds.length} user{deleteIds.length === 1 ? '' : 's'}? This action cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  onClick={async () => {
-                    await deleteUsers.mutateAsync(deleteIds)
-                    table.toggleAllRowsSelected(false)
-                  }}
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )
-      }}
+      renderBulkActions={(table) => <UserBulkActions table={table} />}
     />
   )
 }
