@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { DataTableBulkActions } from '@/shared/ui/data-table/bulk-actions.tsx'
 import { DataTablePagination } from '@/shared/ui/data-table/pagination.tsx'
 import { DataTableToolbar } from '@/shared/ui/data-table/toolbar.tsx'
+import { type DataTableFilterField, type DataTableFilterValue } from './types'
 
 interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
@@ -42,6 +43,9 @@ interface DataTableProps<TData, TValue> {
   isRowExpanded?: (row: TData) => boolean
   renderSubRow?: (row: TData) => ReactNode
   customToolbarButtons?: ReactNode
+  filters?: DataTableFilterField[]
+  activeFilters?: DataTableFilterValue[]
+  onFilterChange?: (filters: DataTableFilterValue[]) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -67,6 +71,9 @@ export function DataTable<TData, TValue>({
   isRowExpanded,
   renderSubRow,
   customToolbarButtons,
+  filters,
+  activeFilters,
+  onFilterChange,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
@@ -108,6 +115,9 @@ export function DataTable<TData, TValue>({
           searchValue={searchValue}
           onSearch={onSearch}
           customToolbarButtons={customToolbarButtons}
+          filters={filters}
+          activeFilters={activeFilters}
+          onFilterChange={onFilterChange}
         />
       ) : null}
       <div className={cn('relative overflow-auto rounded-2xl p-2 bg-[#171717]', className)}>

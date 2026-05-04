@@ -61,6 +61,7 @@
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.542.0",
     "react": "^19.1.1",
+    "react-day-picker": "^9.14.0",
     "react-dom": "^19.1.1",
     "react-error-boundary": "^6.0.0",
     "react-hook-form": "^7.66.1",
