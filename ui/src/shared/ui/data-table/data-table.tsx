@@ -43,6 +43,9 @@ interface DataTableProps<TData, TValue> {
   isRowExpanded?: (row: TData) => boolean
   renderSubRow?: (row: TData) => ReactNode
   customToolbarButtons?: ReactNode
+  toolbarFilters?: (table: Tb<TData>) => ReactNode
+  columnFilters?: ColumnFiltersState
+  onColumnFiltersChange?: OnChangeFn<ColumnFiltersState>
   filters?: DataTableFilterField[]
   activeFilters?: DataTableFilterValue[]
   onFilterChange?: (filters: DataTableFilterValue[]) => void
@@ -71,13 +74,17 @@ export function DataTable<TData, TValue>({
   isRowExpanded,
   renderSubRow,
   customToolbarButtons,
+  toolbarFilters,
+  columnFilters: controlledColumnFilters,
+  onColumnFiltersChange,
   filters,
   activeFilters,
   onFilterChange,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [internalColumnFilters, setInternalColumnFilters] = useState<ColumnFiltersState>([])
+  const columnFilters = controlledColumnFilters ?? internalColumnFilters
 
   const table = useReactTable({
     data,
@@ -97,7 +104,7 @@ export function DataTable<TData, TValue>({
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: onColumnFiltersChange ?? setInternalColumnFilters,
     onPaginationChange,
     onSortingChange,
     getCoreRowModel: getCoreRowModel(),
@@ -115,6 +122,7 @@ export function DataTable<TData, TValue>({
           searchValue={searchValue}
           onSearch={onSearch}
           customToolbarButtons={customToolbarButtons}
+          toolbarFilters={toolbarFilters?.(table)}
           filters={filters}
           activeFilters={activeFilters}
           onFilterChange={onFilterChange}

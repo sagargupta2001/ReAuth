@@ -8,6 +8,8 @@ import { queryKeys } from '@/shared/lib/queryKeys'
 
 import { serializeFilterValue, type DataTableFilterValue } from '@/shared/ui/data-table/types'
 
+const supportedUserFilterKeys = new Set(['email', 'created_at', 'last_sign_in_at'])
+
 export interface UserSearchParams {
   page?: number
   per_page?: number
@@ -22,9 +24,7 @@ function hasMeaningfulFilterValue(value: unknown): boolean {
   if (typeof value === 'string') return value.trim().length > 0
   if (typeof value === 'object' && value !== null) {
     const rangeValue = value as { from?: unknown; to?: unknown }
-    if ('from' in rangeValue || 'to' in rangeValue) {
-      return rangeValue.from != null || rangeValue.to != null
-    }
+    return rangeValue.from != null || rangeValue.to != null
   }
   return true
 }
@@ -41,8 +41,9 @@ export function useUsers(params: UserSearchParams) {
       if (params.q) query.set('q', params.q)
       if (params.sort_by) query.set('sort_by', params.sort_by)
       if (params.sort_dir) query.set('sort_dir', params.sort_dir)
-      
+
       params.filters?.forEach((f) => {
+        if (!supportedUserFilterKeys.has(f.key)) return
         if (!hasMeaningfulFilterValue(f.value)) return
         const value = serializeFilterValue(f.value)
         if (!value) return

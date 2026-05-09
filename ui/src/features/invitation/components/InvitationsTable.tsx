@@ -1,13 +1,49 @@
 import { useMemo, useState } from 'react'
 
-import { type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table'
+import {
+  type ColumnFiltersState,
+  type OnChangeFn,
+  type PaginationState,
+  type SortingState,
+} from '@tanstack/react-table'
 import { useSearchParams } from 'react-router-dom'
 
-import { useInvitations, useResendInvitation, useRevokeInvitation } from '@/features/invitation/api/useInvitations'
+import { invitationStatuses, type InvitationStatus } from '@/entities/invitation/model/types'
+import {
+  useInvitations,
+  useResendInvitation,
+  useRevokeInvitation,
+} from '@/features/invitation/api/useInvitations'
 import { getInvitationColumns } from '@/features/invitation/components/InvitationColumns'
 import { UsersPrimaryButtons } from '@/features/user/components/UsersPrimaryButtons'
+import { DataTableFacetedFilter } from '@/shared/ui/data-table'
 import { DataTable } from '@/shared/ui/data-table/data-table'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
+
+const invitationStatusFilterOptions = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'revoked', label: 'Revoked' },
+] satisfies Array<{ value: InvitationStatus; label: string }>
+
+function parseStatusParam(value: string | null): InvitationStatus[] {
+  if (!value) return []
+  const allowed = new Set<string>(invitationStatuses)
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item): item is InvitationStatus => allowed.has(item))
+}
+
+function getStatusFilterValue(columnFilters: ColumnFiltersState): InvitationStatus[] {
+  const value = columnFilters.find((filter) => filter.id === 'status')?.value
+  if (!Array.isArray(value)) return []
+  const allowed = new Set<string>(invitationStatuses)
+  return value.filter(
+    (item): item is InvitationStatus => typeof item === 'string' && allowed.has(item),
+  )
+}
 
 export function InvitationsTable() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -17,6 +53,7 @@ export function InvitationsTable() {
   const sortBy = searchParams.get('inv_sort_by') || 'created_at'
   const sortDir = (searchParams.get('inv_sort_dir') as 'asc' | 'desc') || 'desc'
   const queryFromUrl = searchParams.get('inv_q') || ''
+  const statusFromUrl = parseStatusParam(searchParams.get('inv_status'))
 
   const [searchTerm, setSearchTerm] = useState(queryFromUrl)
   const [pagination, setPagination] = useState<PaginationState>({
@@ -24,6 +61,11 @@ export function InvitationsTable() {
     pageSize: perPage,
   })
   const [sorting, setSorting] = useState<SortingState>([{ id: sortBy, desc: sortDir === 'desc' }])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
+    statusFromUrl.length ? [{ id: 'status', value: statusFromUrl }] : [],
+  )
+
+  const statusFilter = getStatusFilterValue(columnFilters)
 
   const { data, isLoading } = useInvitations({
     page: pagination.pageIndex + 1,
@@ -31,6 +73,7 @@ export function InvitationsTable() {
     sort_by: sorting[0]?.id,
     sort_dir: sorting[0]?.desc ? 'desc' : 'asc',
     q: searchTerm || undefined,
+    status: statusFilter,
   })
 
   const resendMutation = useResendInvitation()
@@ -84,6 +127,22 @@ export function InvitationsTable() {
     setSearchParams(params)
   }
 
+  const handleColumnFiltersChange: OnChangeFn<ColumnFiltersState> = (updater) => {
+    const next = typeof updater === 'function' ? updater(columnFilters) : updater
+    setColumnFilters(next)
+
+    const statuses = getStatusFilterValue(next)
+    const params = new URLSearchParams(searchParams)
+    if (statuses.length) {
+      params.set('inv_status', statuses.join(','))
+    } else {
+      params.delete('inv_status')
+    }
+    params.set('inv_page', '1')
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+    setSearchParams(params)
+  }
+
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-240px)]">
@@ -101,10 +160,19 @@ export function InvitationsTable() {
       onPaginationChange={handlePaginationChange}
       sorting={sorting}
       onSortingChange={handleSortingChange}
+      columnFilters={columnFilters}
+      onColumnFiltersChange={handleColumnFiltersChange}
       searchKey="email"
       searchPlaceholder="Filter invitations..."
       searchValue={searchTerm}
       onSearch={handleSearch}
+      toolbarFilters={(table) => (
+        <DataTableFacetedFilter
+          column={table.getColumn('status')}
+          title="Status"
+          options={invitationStatusFilterOptions}
+        />
+      )}
       customToolbarButtons={<UsersPrimaryButtons />}
     />
   )

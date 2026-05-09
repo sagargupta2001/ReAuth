@@ -24,7 +24,28 @@ pub struct CreateInvitationPayload {
 pub struct ListInvitationsQuery {
     #[serde(flatten)]
     pub page: PageRequest,
-    pub status: Option<InvitationStatus>,
+    pub status: Option<String>,
+}
+
+impl ListInvitationsQuery {
+    fn statuses(&self) -> Vec<InvitationStatus> {
+        self.status
+            .as_deref()
+            .into_iter()
+            .flat_map(|value| value.split(','))
+            .filter_map(parse_invitation_status)
+            .collect()
+    }
+}
+
+fn parse_invitation_status(value: &str) -> Option<InvitationStatus> {
+    match value.trim().to_lowercase().as_str() {
+        "pending" => Some(InvitationStatus::Pending),
+        "accepted" => Some(InvitationStatus::Accepted),
+        "expired" => Some(InvitationStatus::Expired),
+        "revoked" => Some(InvitationStatus::Revoked),
+        _ => None,
+    }
 }
 
 #[derive(Deserialize, Validate)]
@@ -119,9 +140,10 @@ pub async fn list_invitations_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
+    let statuses = query.statuses();
     let response = state
         .invitation_service
-        .list_invitations(realm.id, query.page, query.status)
+        .list_invitations(realm.id, query.page, statuses)
         .await?;
 
     let data = response

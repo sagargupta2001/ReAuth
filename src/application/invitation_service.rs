@@ -108,10 +108,10 @@ impl InvitationService {
         &self,
         realm_id: Uuid,
         req: PageRequest,
-        status: Option<InvitationStatus>,
+        statuses: Vec<InvitationStatus>,
     ) -> Result<PageResponse<Invitation>> {
         self.expire_pending(realm_id).await?;
-        self.invitation_repo.list(&realm_id, &req, status).await
+        self.invitation_repo.list(&realm_id, &req, &statuses).await
     }
 
     pub async fn resend_invitation(

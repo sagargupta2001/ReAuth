@@ -3,7 +3,7 @@ use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::ports::transaction_manager::Transaction;
 use crate::{
-    domain::user::User,
+    domain::user::{User, UserDateTimeRangeFilter, UserListFilters},
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
@@ -29,6 +29,7 @@ impl SqliteUserRepository {
         builder: &mut QueryBuilder<'a, Sqlite>,
         realm_id: &Uuid,
         q: &Option<String>,
+        filters: &UserListFilters,
     ) {
         builder.push(" WHERE realm_id = ");
         builder.push_bind(realm_id.to_string());
@@ -41,6 +42,37 @@ impl SqliteUserRepository {
                 builder.push_bind(format!("%{}%", query_text));
                 builder.push(")");
             }
+        }
+
+        if let Some(email) = filters
+            .email
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+        {
+            builder.push(" AND lower(email) LIKE ");
+            builder.push_bind(format!("%{}%", email.to_lowercase()));
+        }
+
+        Self::apply_datetime_range_filter(builder, "created_at", &filters.created_at);
+        Self::apply_datetime_range_filter(builder, "last_sign_in_at", &filters.last_sign_in_at);
+    }
+
+    fn apply_datetime_range_filter<'a>(
+        builder: &mut QueryBuilder<'a, Sqlite>,
+        column: &'static str,
+        filter: &UserDateTimeRangeFilter,
+    ) {
+        if let Some(from) = filter.from.as_ref() {
+            builder.push(format!(" AND datetime({column}) >= datetime("));
+            builder.push_bind(from.to_rfc3339());
+            builder.push(")");
+        }
+
+        if let Some(to_exclusive) = filter.to_exclusive.as_ref() {
+            builder.push(format!(" AND datetime({column}) < datetime("));
+            builder.push_bind(to_exclusive.to_rfc3339());
+            builder.push(")");
         }
     }
 }
@@ -167,13 +199,18 @@ impl UserRepository for SqliteUserRepository {
         skip_all,
         fields(telemetry = "span", db_table = "users", db_op = "select")
     )]
-    async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<User>> {
+    async fn list(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+        filters: &UserListFilters,
+    ) -> Result<PageResponse<User>> {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;
 
         // 1. Count
         let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM users");
-        Self::apply_filters(&mut count_builder, realm_id, &req.q);
+        Self::apply_filters(&mut count_builder, realm_id, &req.q, filters);
         let total: i64 = count_builder
             .build_query_scalar()
             .fetch_one(&*self.pool)
@@ -182,11 +219,14 @@ impl UserRepository for SqliteUserRepository {
 
         // 2. Select
         let mut query_builder = QueryBuilder::new("SELECT * FROM users");
-        Self::apply_filters(&mut query_builder, realm_id, &req.q);
+        Self::apply_filters(&mut query_builder, realm_id, &req.q, filters);
 
         // Sorting
         let sort_col = match req.sort_by.as_deref() {
             Some("username") => "username",
+            Some("email") => "email",
+            Some("created_at") => "created_at",
+            Some("last_sign_in_at") => "last_sign_in_at",
             _ => "username",
         };
         let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {

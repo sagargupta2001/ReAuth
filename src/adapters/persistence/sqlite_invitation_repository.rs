@@ -24,14 +24,18 @@ impl SqliteInvitationRepository {
         builder: &mut QueryBuilder<'a, Sqlite>,
         realm_id: &Uuid,
         q: &Option<String>,
-        status: Option<InvitationStatus>,
+        statuses: &[InvitationStatus],
     ) {
         builder.push(" WHERE realm_id = ");
         builder.push_bind(realm_id.to_string());
 
-        if let Some(status) = status {
-            builder.push(" AND status = ");
-            builder.push_bind(status.to_string());
+        if !statuses.is_empty() {
+            builder.push(" AND status IN (");
+            let mut separated = builder.separated(", ");
+            for status in statuses {
+                separated.push_bind(status.to_string());
+            }
+            separated.push_unseparated(")");
         }
 
         if let Some(query_text) = q {
@@ -208,13 +212,13 @@ impl InvitationRepository for SqliteInvitationRepository {
         &self,
         realm_id: &Uuid,
         req: &PageRequest,
-        status: Option<InvitationStatus>,
+        statuses: &[InvitationStatus],
     ) -> Result<PageResponse<Invitation>> {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;
 
         let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM invitations");
-        Self::apply_filters(&mut count_builder, realm_id, &req.q, status);
+        Self::apply_filters(&mut count_builder, realm_id, &req.q, statuses);
         let total: i64 = count_builder
             .build_query_scalar()
             .fetch_one(&*self.pool)
@@ -222,7 +226,7 @@ impl InvitationRepository for SqliteInvitationRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         let mut query_builder = QueryBuilder::new("SELECT * FROM invitations");
-        Self::apply_filters(&mut query_builder, realm_id, &req.q, status);
+        Self::apply_filters(&mut query_builder, realm_id, &req.q, statuses);
 
         let sort_col = match req.sort_by.as_deref() {
             Some("email") => "email",

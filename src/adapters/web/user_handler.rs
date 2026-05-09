@@ -2,11 +2,13 @@ use crate::adapters::web::auth_middleware::AuthUser;
 use crate::adapters::web::validation::ValidatedJson;
 use crate::application::user_credentials_service::UserCredentialsSummary;
 use crate::domain::pagination::PageRequest;
+use crate::domain::user::{UserDateTimeRangeFilter, UserListFilters};
 use crate::error::{Error, Result};
 use crate::AppState;
 use axum::extract::{Path, Query};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
-use serde::Deserialize;
+use chrono::{DateTime, Days, NaiveDate, TimeZone, Utc};
+use serde::{Deserialize, Deserializer};
 use tracing::warn;
 use uuid::Uuid;
 use validator::Validate;
@@ -126,7 +128,7 @@ pub async fn get_me_handler(
 pub async fn list_users_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
-    Query(req): Query<PageRequest>,
+    Query(query): Query<ListUsersQuery>,
 ) -> Result<impl IntoResponse> {
     let realm = state
         .realm_service
@@ -134,8 +136,103 @@ pub async fn list_users_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    let response = state.user_service.list_users(realm.id, req).await?;
+    let filters = query.filters();
+    let response = state
+        .user_service
+        .list_users(realm.id, query.page, filters)
+        .await?;
     Ok((StatusCode::OK, Json(response)))
+}
+
+#[derive(Deserialize)]
+pub struct ListUsersQuery {
+    #[serde(flatten)]
+    pub page: PageRequest,
+    #[serde(default, deserialize_with = "deserialize_optional_text_filter")]
+    pub filter_email: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_optional_date_range_filter")]
+    pub filter_created_at: Option<UserDateTimeRangeFilter>,
+    #[serde(default, deserialize_with = "deserialize_optional_date_range_filter")]
+    pub filter_last_sign_in_at: Option<UserDateTimeRangeFilter>,
+}
+
+impl ListUsersQuery {
+    fn filters(&self) -> UserListFilters {
+        UserListFilters {
+            email: self.filter_email.clone(),
+            created_at: self.filter_created_at.clone().unwrap_or_default(),
+            last_sign_in_at: self.filter_last_sign_in_at.clone().unwrap_or_default(),
+        }
+    }
+}
+
+fn deserialize_optional_text_filter<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    Ok(value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty()))
+}
+
+#[derive(Deserialize)]
+struct DateRangeQueryParam {
+    from: Option<String>,
+    to: Option<String>,
+}
+
+fn deserialize_optional_date_range_filter<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<UserDateTimeRangeFilter>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    let Some(value) = value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+
+    let Ok(range) = serde_json::from_str::<DateRangeQueryParam>(&value) else {
+        return Ok(None);
+    };
+
+    let filter = UserDateTimeRangeFilter {
+        from: range.from.as_deref().and_then(parse_filter_start),
+        to_exclusive: range.to.as_deref().and_then(parse_filter_end_exclusive),
+    };
+
+    Ok((!filter.is_empty()).then_some(filter))
+}
+
+fn parse_filter_start(value: &str) -> Option<DateTime<Utc>> {
+    parse_date_only(value)
+        .and_then(|date| date.and_hms_opt(0, 0, 0))
+        .map(|datetime| Utc.from_utc_datetime(&datetime))
+        .or_else(|| parse_rfc3339(value))
+}
+
+fn parse_filter_end_exclusive(value: &str) -> Option<DateTime<Utc>> {
+    parse_date_only(value)
+        .and_then(|date| date.checked_add_days(Days::new(1)))
+        .and_then(|date| date.and_hms_opt(0, 0, 0))
+        .map(|datetime| Utc.from_utc_datetime(&datetime))
+        .or_else(|| parse_rfc3339(value))
+}
+
+fn parse_date_only(value: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d").ok()
+}
+
+fn parse_rfc3339(value: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value.trim())
+        .ok()
+        .map(|datetime| datetime.with_timezone(&Utc))
 }
 
 pub async fn get_user_handler(

@@ -62,6 +62,7 @@ export interface DataTableToolbarProps<TData> {
   searchValue?: string
   onSearch?: (value: string) => void
   customToolbarButtons?: React.ReactNode
+  toolbarFilters?: React.ReactNode
   filters?: DataTableFilterField[]
   activeFilters?: DataTableFilterValue[]
   onFilterChange?: (filters: DataTableFilterValue[]) => void

@@ -24,6 +24,6 @@ pub trait InvitationRepository: Send + Sync {
         &self,
         realm_id: &Uuid,
         req: &PageRequest,
-        status: Option<InvitationStatus>,
+        statuses: &[InvitationStatus],
     ) -> Result<PageResponse<Invitation>>;
 }

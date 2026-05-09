@@ -424,7 +424,12 @@ impl UserRepository for TestUserRepo {
         Ok(())
     }
 
-    async fn list(&self, _realm_id: &Uuid, _req: &PageRequest) -> Result<PageResponse<User>> {
+    async fn list(
+        &self,
+        _realm_id: &Uuid,
+        _req: &PageRequest,
+        _filters: &crate::domain::user::UserListFilters,
+    ) -> Result<PageResponse<User>> {
         Ok(empty_page())
     }
 

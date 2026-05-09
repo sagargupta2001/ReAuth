@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FC, type JSX } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FC, type JSX } from 'react'
 
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from '@radix-ui/react-icons'
 
@@ -80,7 +80,7 @@ const PRESETS: Preset[] = [
 
 /** The DateRangePicker component allows a user to select a range of dates */
 export const DateRangePicker: FC<DateRangePickerProps> = ({
-  initialDateFrom = new Date(new Date().setHours(0, 0, 0, 0)),
+  initialDateFrom,
   initialDateTo,
   initialCompareFrom,
   initialCompareTo,
@@ -92,11 +92,14 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 }): JSX.Element => {
   const [isOpen, setIsOpen] = useState(false)
 
+  const defaultFrom = useMemo(() => new Date(new Date().setHours(0, 0, 0, 0)), [])
+  const effectiveInitialDateFrom = initialDateFrom ?? defaultFrom
+
   const [range, setRange] = useState<DateRange>({
-    from: getDateAdjustedForTimezone(initialDateFrom),
+    from: getDateAdjustedForTimezone(effectiveInitialDateFrom),
     to: initialDateTo
       ? getDateAdjustedForTimezone(initialDateTo)
-      : getDateAdjustedForTimezone(initialDateFrom),
+      : getDateAdjustedForTimezone(effectiveInitialDateFrom),
   })
   const [rangeCompare, setRangeCompare] = useState<DateRange | undefined>(
     initialCompareFrom
@@ -233,36 +236,22 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 
   const resetValues = useCallback((): void => {
     setRange({
-      from:
-        typeof initialDateFrom === 'string'
-          ? getDateAdjustedForTimezone(initialDateFrom)
-          : initialDateFrom,
+      from: getDateAdjustedForTimezone(effectiveInitialDateFrom),
       to: initialDateTo
-        ? typeof initialDateTo === 'string'
-          ? getDateAdjustedForTimezone(initialDateTo)
-          : initialDateTo
-        : typeof initialDateFrom === 'string'
-          ? getDateAdjustedForTimezone(initialDateFrom)
-          : initialDateFrom,
+        ? getDateAdjustedForTimezone(initialDateTo)
+        : getDateAdjustedForTimezone(effectiveInitialDateFrom),
     })
     setRangeCompare(
       initialCompareFrom
         ? {
-            from:
-              typeof initialCompareFrom === 'string'
-                ? getDateAdjustedForTimezone(initialCompareFrom)
-                : initialCompareFrom,
+            from: getDateAdjustedForTimezone(initialCompareFrom),
             to: initialCompareTo
-              ? typeof initialCompareTo === 'string'
-                ? getDateAdjustedForTimezone(initialCompareTo)
-                : initialCompareTo
-              : typeof initialCompareFrom === 'string'
-                ? getDateAdjustedForTimezone(initialCompareFrom)
-                : initialCompareFrom,
+              ? getDateAdjustedForTimezone(initialCompareTo)
+              : getDateAdjustedForTimezone(initialCompareFrom),
           }
         : undefined,
     )
-  }, [initialCompareFrom, initialCompareTo, initialDateFrom, initialDateTo])
+  }, [effectiveInitialDateFrom, initialDateTo, initialCompareFrom, initialCompareTo])
 
   useEffect(() => {
     checkPreset()
@@ -306,7 +295,18 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
       openedRangeRef.current = range
       openedRangeCompareRef.current = rangeCompare
     }
-  }, [isOpen, range, rangeCompare])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
+
+  const isFirstRender = useRef(true)
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    resetValues()
+  }, [effectiveInitialDateFrom, initialDateTo, initialCompareFrom, initialCompareTo, resetValues])
 
   return (
     <Popover

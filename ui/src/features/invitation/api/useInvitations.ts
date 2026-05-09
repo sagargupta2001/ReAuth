@@ -13,7 +13,7 @@ export interface InvitationSearchParams {
   q?: string
   sort_by?: string
   sort_dir?: 'asc' | 'desc'
-  status?: InvitationStatus
+  status?: InvitationStatus[]
 }
 
 export interface AcceptInvitationRequest {
@@ -39,7 +39,7 @@ export function useInvitations(params: InvitationSearchParams) {
       if (params.q) query.set('q', params.q)
       if (params.sort_by) query.set('sort_by', params.sort_by)
       if (params.sort_dir) query.set('sort_dir', params.sort_dir)
-      if (params.status) query.set('status', params.status)
+      if (params.status?.length) query.set('status', params.status.join(','))
 
       return apiClient.get<PaginatedResponse<Invitation>>(
         `/api/realms/${realm}/invitations?${query.toString()}`,

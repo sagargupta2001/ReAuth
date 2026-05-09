@@ -48,6 +48,35 @@ impl User {
     }
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct UserListFilters {
+    pub email: Option<String>,
+    pub created_at: UserDateTimeRangeFilter,
+    pub last_sign_in_at: UserDateTimeRangeFilter,
+}
+
+impl UserListFilters {
+    pub fn is_empty(&self) -> bool {
+        self.email
+            .as_ref()
+            .is_none_or(|value| value.trim().is_empty())
+            && self.created_at.is_empty()
+            && self.last_sign_in_at.is_empty()
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct UserDateTimeRangeFilter {
+    pub from: Option<DateTime<Utc>>,
+    pub to_exclusive: Option<DateTime<Utc>>,
+}
+
+impl UserDateTimeRangeFilter {
+    pub fn is_empty(&self) -> bool {
+        self.from.is_none() && self.to_exclusive.is_none()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

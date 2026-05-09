@@ -18,6 +18,7 @@ export function DataTableToolbar<TData>({
   searchValue,
   onSearch,
   customToolbarButtons,
+  toolbarFilters,
   filters = [],
   activeFilters = [],
   onFilterChange,
@@ -72,6 +73,8 @@ export function DataTableToolbar<TData>({
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+
+            {toolbarFilters}
           </div>
         </div>
         {customToolbarButtons}

@@ -223,6 +223,7 @@ GET /api/realms/{realm}/invitations?page=1&per_page=10&q=email&status=pending&so
   Notes:
     - Supports same pagination/query conventions as users table
     - Status filter values: pending|accepted|expired|revoked
+    - Multiple statuses may be supplied as a comma-separated value, for example `status=pending,expired`
 ```
 
 ```text
@@ -319,6 +320,7 @@ PUT /api/realms/{id}
 - Reuse shared `DataTable` and `DataTableSkeleton`.
 - Invitations table follows existing table patterns:
   - URL-synced page/per_page/sort/q
+  - URL-synced status filter using the shared `DataTableFacetedFilter`
   - React Query + `keepPreviousData`
   - same toolbar slots and action patterns
 
@@ -463,7 +465,12 @@ PUT /api/realms/{id}
    - When: user switches tabs
    - Then: `All` shows only real users, `Invitations` shows only invites with matching table UX
 
-8. **Resend limit enforcement**
+8. **Invitation status filter**
+   - Given: invitations across pending, accepted, expired, and revoked statuses
+   - When: admin filters the Invitations tab by one or more statuses
+   - Then: the route query, API request, and table rows all reflect only the selected statuses
+
+9. **Resend limit enforcement**
    - Given: invitation with `resend_count == invitation_resend_limit`
    - When: admin clicks resend
    - Then: API rejects resend and UI shows a clear limit-reached message
