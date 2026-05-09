@@ -22,13 +22,10 @@ export function DataTableFilterPills({
 }: DataTableFilterPillsProps) {
   if (activeFilters.length === 0) return null
 
-  const removeFilter = (key: string) => {
-    onFilterChange(activeFilters.filter((f) => f.key !== key))
-  }
+  const removeFilter = (key: string) => onFilterChange(activeFilters.filter((f) => f.key !== key))
 
-  const updateFilterValue = (key: string, value: unknown) => {
+  const updateFilterValue = (key: string, value: unknown) =>
     onFilterChange(activeFilters.map((f) => (f.key === key ? { ...f, value } : f)))
-  }
 
   return (
     <div className="flex flex-wrap items-center gap-2 pb-2">
@@ -81,16 +78,15 @@ function FilterValueControl({
   value: unknown
   onChange: (value: unknown) => void
 }) {
-  if (field.type === 'text') {
+  if (field.type === 'text')
     return (
       <Input
-        className="h-7 w-full border-0 bg-transparent p-0 px-1 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+        className="h-7 w-full border-0 shadow-none bg-transparent p-0 px-1 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
         placeholder={field.placeholder || 'Enter value...'}
         value={(value as string) || ''}
         onChange={(e) => onChange(e.target.value)}
       />
     )
-  }
 
   if (field.type === 'date-range') {
     const dateValue = value as DateRange | undefined
