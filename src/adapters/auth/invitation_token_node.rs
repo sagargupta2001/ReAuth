@@ -13,6 +13,31 @@ impl LifecycleNode for InvitationTokenNode {
         fields(telemetry = "span", node = "invitation_token", phase = "execute")
     )]
     async fn execute(&self, session: &mut AuthenticationSession) -> Result<NodeOutcome> {
+        let token_status = session
+            .context
+            .get("invitation_token_status")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_lowercase())
+            .unwrap_or_else(|| "pending".to_string());
+
+        if token_status == "expired" {
+            return Ok(NodeOutcome::Continue {
+                output: "expired".to_string(),
+            });
+        }
+
+        if token_status == "consumed" {
+            return Ok(NodeOutcome::Continue {
+                output: "consumed".to_string(),
+            });
+        }
+
+        if token_status == "invalid" {
+            return Ok(NodeOutcome::Continue {
+                output: "invalid".to_string(),
+            });
+        }
+
         let invitation_id = session
             .context
             .get("invitation_id")
@@ -33,8 +58,8 @@ impl LifecycleNode for InvitationTokenNode {
             .filter(|value| !value.is_empty());
 
         if invitation_id.is_none() || invitation_email.is_none() {
-            return Ok(NodeOutcome::FlowFailure {
-                reason: "Invitation context missing".to_string(),
+            return Ok(NodeOutcome::Continue {
+                output: "invalid".to_string(),
             });
         }
 

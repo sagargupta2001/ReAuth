@@ -138,6 +138,10 @@ impl UserService {
         self.user_repo.find_by_email(realm_id, identifier).await
     }
 
+    pub async fn find_by_email(&self, realm_id: &Uuid, email: &str) -> Result<Option<User>> {
+        self.user_repo.find_by_email(realm_id, email).await
+    }
+
     pub async fn update_last_sign_in(&self, realm_id: Uuid, user_id: Uuid) -> Result<()> {
         let mut user = self.get_user_in_realm(realm_id, user_id).await?;
         user.last_sign_in_at = Some(Utc::now());

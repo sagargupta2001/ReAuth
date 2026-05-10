@@ -22,6 +22,7 @@ export const flowNodeTypes = {
   'core.auth.forgot_credentials': AuthenticatorNode,
   'core.auth.reset_password': AuthenticatorNode,
   'core.auth.verify_email_otp': AuthenticatorNode,
+  'core.auth.invitation_unavailable': AuthenticatorNode,
   'core.oidc.consent': AuthenticatorNode,
 
   // --- TERMINALS ---

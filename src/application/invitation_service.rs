@@ -64,6 +64,18 @@ impl InvitationService {
         self.expire_pending(realm_id).await?;
 
         let normalized_email = normalize_email(email)?;
+
+        if self
+            .user_service
+            .find_by_email(&realm_id, &normalized_email)
+            .await?
+            .is_some()
+        {
+            return Err(Error::Validation(
+                "A user with this email already exists in this realm".to_string(),
+            ));
+        }
+
         if self
             .invitation_repo
             .find_pending_by_email(&realm_id, &normalized_email)

@@ -3,6 +3,7 @@ pub mod email_otp_issue_node;
 pub mod forgot_credentials_authenticator;
 pub mod invitation_issue_node;
 pub mod invitation_token_node;
+pub mod invitation_unavailable_authenticator;
 pub mod oidc_consent_authenticator;
 pub mod passkey_assert_authenticator;
 pub mod passkey_enroll_authenticator;
@@ -18,6 +19,7 @@ use crate::adapters::auth::email_otp_issue_node::EmailOtpIssueNode;
 use crate::adapters::auth::forgot_credentials_authenticator::ForgotCredentialsAuthenticator;
 use crate::adapters::auth::invitation_issue_node::InvitationIssueNode;
 use crate::adapters::auth::invitation_token_node::InvitationTokenNode;
+use crate::adapters::auth::invitation_unavailable_authenticator::InvitationUnavailableAuthenticator;
 use crate::adapters::auth::oidc_consent_authenticator::OidcConsentAuthenticator;
 use crate::adapters::auth::passkey_assert_authenticator::PasskeyAssertAuthenticator;
 use crate::adapters::auth::passkey_enroll_authenticator::PasskeyEnrollAuthenticator;
@@ -180,6 +182,12 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
         "core.logic.issue_invitation",
         invitation_issue_node,
         StepType::Logic,
+    );
+    let invitation_unavailable_node = Arc::new(InvitationUnavailableAuthenticator);
+    registry.register_node(
+        "core.auth.invitation_unavailable",
+        invitation_unavailable_node,
+        StepType::Authenticator,
     );
 
     // 12. Terminal Nodes (Definitions only)

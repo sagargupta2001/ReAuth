@@ -7,6 +7,7 @@ use crate::domain::flow::nodes::email_otp_issue_node::EmailOtpIssueNodeProvider;
 use crate::domain::flow::nodes::forgot_credentials_node::ForgotCredentialsNodeProvider;
 use crate::domain::flow::nodes::invitation_issue_node::InvitationIssueNodeProvider;
 use crate::domain::flow::nodes::invitation_token_node::InvitationTokenNodeProvider;
+use crate::domain::flow::nodes::invitation_unavailable_node::InvitationUnavailableNodeProvider;
 use crate::domain::flow::nodes::oidc_consent_node::OidcConsentNodeProvider;
 use crate::domain::flow::nodes::passkey_assert_node::PasskeyAssertNodeProvider;
 use crate::domain::flow::nodes::passkey_enroll_node::PasskeyEnrollNodeProvider;
@@ -41,6 +42,7 @@ impl NodeRegistryService {
                 Box::new(ForgotCredentialsNodeProvider),
                 Box::new(InvitationTokenNodeProvider),
                 Box::new(InvitationIssueNodeProvider),
+                Box::new(InvitationUnavailableNodeProvider),
                 Box::new(OidcConsentNodeProvider),
                 Box::new(RegistrationNodeProvider),
                 Box::new(ResetPasswordNodeProvider),

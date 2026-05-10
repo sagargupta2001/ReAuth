@@ -62,6 +62,12 @@ const SYSTEM_PAGES: &[ThemePageDefinition] = &[
         category: PageCategory::AwaitingAction,
     },
     ThemePageDefinition {
+        key: "invitation_unavailable",
+        label: "Invitation Unavailable",
+        description: "Shown when an invitation link is expired, consumed, or invalid.",
+        category: PageCategory::Error,
+    },
+    ThemePageDefinition {
         key: "verify_email",
         label: "Verify Email",
         description: "Email verification notice.",
@@ -156,6 +162,7 @@ pub fn default_page_blueprint(key: &str) -> Option<Value> {
         "forgot_credentials" => Some(default_forgot_blueprint()),
         "reset_password" => Some(default_reset_password_blueprint()),
         "awaiting_action" => Some(default_awaiting_action_blueprint()),
+        "invitation_unavailable" => Some(default_invitation_unavailable_blueprint()),
         "verify_email" => Some(default_verify_blueprint()),
         "mfa" => Some(default_mfa_blueprint()),
         "consent" => Some(default_consent_blueprint()),
@@ -266,6 +273,17 @@ fn default_awaiting_action_blueprint() -> Value {
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Resend email", "variant": "secondary", "intent": "resend", "visible_if": "can_resend" } },
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "resend_message", "visible_if": "resend_message" } },
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "awaiting_status_message", "visible_if": "awaiting_status_message" } }
+        ]
+    })
+}
+
+fn default_invitation_unavailable_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "title", "visible_if": "title" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "message", "visible_if": "message" } },
+            { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Go to login", "href": "/login", "target": "_self", "align": "left" } }
         ]
     })
 }

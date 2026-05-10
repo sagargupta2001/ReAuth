@@ -13,7 +13,7 @@ impl NodeProvider for InvitationTokenNodeProvider {
     }
 
     fn description(&self) -> &'static str {
-        "Ensures the invitation context is present before account creation."
+        "Validates invitation token state and routes by status before account creation."
     }
 
     fn icon(&self) -> &'static str {
@@ -29,7 +29,7 @@ impl NodeProvider for InvitationTokenNodeProvider {
     }
 
     fn outputs(&self) -> Vec<&'static str> {
-        vec!["valid"]
+        vec!["valid", "expired", "consumed", "invalid"]
     }
 
     fn config_schema(&self) -> Value {

@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
 import { authApi } from '@/features/auth/api/authApi'
+import { getScreenComponent } from '@/features/auth/components/ScreenRegistry'
 import { useAcceptInvitation } from '@/features/invitation/api/useInvitations'
 import { Input } from '@/components/input'
 
@@ -18,6 +19,10 @@ export function InvitationAcceptPage() {
   const [tokenStatus, setTokenStatus] = useState<'checking' | 'pending' | 'consumed' | 'expired'>(
     'checking',
   )
+  const [unavailableContext, setUnavailableContext] = useState<{
+    challengeName: string
+    context: Record<string, unknown>
+  } | null>(null)
 
   const realm = useMemo(() => searchParams.get('realm')?.trim() ?? '', [searchParams])
   const token = useMemo(
@@ -39,11 +44,30 @@ export function InvitationAcceptPage() {
     }
 
     setTokenStatus('checking')
+    setUnavailableContext(null)
     void authApi
       .actionStatus(realm, token)
-      .then((result) => {
+      .then(async (result) => {
         if (cancelled) return
         setTokenStatus(result.status)
+        if (result.status === 'pending') {
+          return
+        }
+        try {
+          const resumed = await authApi.resumeFlow(realm, token)
+          if (cancelled) return
+          if (
+            (resumed.status === 'challenge' || resumed.status === 'awaiting_action') &&
+            resumed.challengeName === 'core.auth.invitation_unavailable'
+          ) {
+            setUnavailableContext({
+              challengeName: resumed.challengeName,
+              context: resumed.context,
+            })
+          }
+        } catch {
+          // Fall back to static unavailable messaging if resume cannot be rendered.
+        }
       })
       .catch(() => {
         if (cancelled) return
@@ -117,6 +141,21 @@ export function InvitationAcceptPage() {
   }
 
   if (tokenStatus === 'expired' || tokenStatus === 'consumed') {
+    if (unavailableContext) {
+      const ScreenComponent = getScreenComponent(unavailableContext.challengeName)
+      if (ScreenComponent) {
+        return (
+          <ScreenComponent
+            onSubmit={async () => {}}
+            isLoading={false}
+            error={null}
+            context={unavailableContext.context}
+            realm={realm}
+          />
+        )
+      }
+    }
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/30 px-6 py-10">
         <Card className="w-full max-w-lg">

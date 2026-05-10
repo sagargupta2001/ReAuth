@@ -604,9 +604,14 @@ impl FlowTemplates {
                         "config": {
                             "logic_type": "core.logic.invitation_token"
                         },
-                        "outputs": ["valid"]
+                        "outputs": ["valid", "expired", "consumed", "invalid"]
                     },
-                    "next": { "valid": "invitation-issue" }
+                    "next": {
+                        "valid": "invitation-issue",
+                        "expired": "invitation-unavailable",
+                        "consumed": "invitation-unavailable",
+                        "invalid": "invitation-unavailable"
+                    }
                 },
                 {
                     "id": "invitation-issue",
@@ -639,17 +644,48 @@ impl FlowTemplates {
                     }
                 },
                 {
+                    "id": "invitation-unavailable",
+                    "type": "core.auth.invitation_unavailable",
+                    "position": { "x": 560, "y": 280 },
+                    "data": {
+                        "label": "Invitation Unavailable",
+                        "config": {
+                            "auth_type": "core.auth.invitation_unavailable",
+                            "template_key": "invitation_unavailable",
+                            "title": "Invitation Link Unavailable"
+                        },
+                        "outputs": ["failure"]
+                    },
+                    "next": { "failure": "deny" }
+                },
+                {
                     "id": "allow",
                     "type": "core.terminal.allow",
                     "position": { "x": 250, "y": 580 },
                     "data": { "label": "Allow Access" }
+                },
+                {
+                    "id": "deny",
+                    "type": "core.terminal.deny",
+                    "position": { "x": 560, "y": 430 },
+                    "data": {
+                        "label": "Deny Access",
+                        "config": {
+                            "error_message": "Invitation unavailable",
+                            "error_code": "invitation_unavailable"
+                        }
+                    }
                 }
             ],
             "edges": [
                 { "id": "e0", "source": "start", "target": "invitation-validate" },
                 { "id": "e1", "source": "invitation-validate", "sourceHandle": "valid", "target": "invitation-issue" },
                 { "id": "e2", "source": "invitation-issue", "sourceHandle": "issued", "target": "auth-register" },
-                { "id": "e3", "source": "auth-register", "sourceHandle": "success", "target": "allow" }
+                { "id": "e3", "source": "auth-register", "sourceHandle": "success", "target": "allow" },
+                { "id": "e4", "source": "invitation-validate", "sourceHandle": "expired", "target": "invitation-unavailable" },
+                { "id": "e5", "source": "invitation-validate", "sourceHandle": "consumed", "target": "invitation-unavailable" },
+                { "id": "e6", "source": "invitation-validate", "sourceHandle": "invalid", "target": "invitation-unavailable" },
+                { "id": "e7", "source": "invitation-unavailable", "sourceHandle": "failure", "target": "deny" }
             ]
         })
     }

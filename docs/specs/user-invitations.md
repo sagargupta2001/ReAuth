@@ -519,10 +519,14 @@ Align invitations with the same async flow pattern used by recovery:
 3. Default invitation flow must visibly include invitation-specific lifecycle steps (token issue/resume/validation), not just a plain `register -> allow` chain.
 4. Flow success for invitation onboarding must return redirect to `/#/login?realm={realm}&invited=1` (no auto-login session).
 5. Resend must re-trigger invite delivery using the same flow-driven action mechanism, while preserving invitation status/expiry/resend-limit rules.
+6. Invitation token validation must expose branchable outcomes in the flow graph (`valid`, `expired`, `consumed`, `invalid`) so admins can customize behavior per outcome.
+7. Default invitation flow must include an explicit `Invitation Unavailable` UI node wired from non-valid token outcomes, rather than hardcoded page logic.
+8. Invitations must be rejected at create time when the email already belongs to an existing user in the same realm (prevent duplicate onboarding noise and late `email already taken` failures).
 
 ### Implementation Notes
 
 - Add invitation-specific runtime node(s) comparable to recovery token issue behavior.
+- Add an invitation-unavailable authenticator node that renders a theme-driven page (`template_key` configurable), allowing admin customization in flow editor.
 - Reuse existing async action infrastructure (`SuspendForAsync`, action repository, resume token hash validation, email delivery dispatch path).
 - Keep invitation table as lifecycle source of truth; flow actions must update invitation metadata consistently (`last_sent_at`, `resend_count`, status transitions).
 - Preserve admin-facing APIs and UI ergonomics where possible, but route orchestration through flow engine internally.

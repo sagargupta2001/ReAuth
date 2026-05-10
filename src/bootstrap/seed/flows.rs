@@ -175,6 +175,68 @@ async fn ensure_flow(
             "core.logic.issue_invitation",
         )
     });
+    let default_has_invitation_unavailable =
+        graph_contains_node_type(&graph_json, "core.auth.invitation_unavailable");
+    let draft_missing_invitation_unavailable = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_contains_node_type(&draft.graph_json, "core.auth.invitation_unavailable")
+    });
+    let default_has_invitation_expired_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.logic.invitation_token",
+        Some("expired"),
+        "core.auth.invitation_unavailable",
+    );
+    let draft_missing_invitation_expired_edge = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_has_edge_between_types(
+            &draft.graph_json,
+            "core.logic.invitation_token",
+            Some("expired"),
+            "core.auth.invitation_unavailable",
+        )
+    });
+    let default_has_invitation_consumed_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.logic.invitation_token",
+        Some("consumed"),
+        "core.auth.invitation_unavailable",
+    );
+    let draft_missing_invitation_consumed_edge = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_has_edge_between_types(
+            &draft.graph_json,
+            "core.logic.invitation_token",
+            Some("consumed"),
+            "core.auth.invitation_unavailable",
+        )
+    });
+    let default_has_invitation_invalid_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.logic.invitation_token",
+        Some("invalid"),
+        "core.auth.invitation_unavailable",
+    );
+    let draft_missing_invitation_invalid_edge = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_has_edge_between_types(
+            &draft.graph_json,
+            "core.logic.invitation_token",
+            Some("invalid"),
+            "core.auth.invitation_unavailable",
+        )
+    });
+    let default_has_invitation_unavailable_failure_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.auth.invitation_unavailable",
+        Some("failure"),
+        "core.terminal.deny",
+    );
+    let draft_missing_invitation_unavailable_failure_edge =
+        existing_draft.as_ref().is_some_and(|draft| {
+            !graph_has_edge_between_types(
+                &draft.graph_json,
+                "core.auth.invitation_unavailable",
+                Some("failure"),
+                "core.terminal.deny",
+            )
+        });
     let default_has_invitation_validate_logic_type = graph_node_has_config_value(
         &graph_json,
         "core.logic.invitation_token",
@@ -239,8 +301,14 @@ async fn ensure_flow(
     } else if (default_has_start && draft_missing_start)
         || (default_has_recovery_issue && draft_missing_recovery_issue)
         || (default_has_invitation_issue && draft_missing_invitation_issue)
+        || (default_has_invitation_unavailable && draft_missing_invitation_unavailable)
         || (default_has_invitation_start_edge && draft_missing_invitation_start_edge)
         || (default_has_invitation_issue_edge && draft_missing_invitation_issue_edge)
+        || (default_has_invitation_expired_edge && draft_missing_invitation_expired_edge)
+        || (default_has_invitation_consumed_edge && draft_missing_invitation_consumed_edge)
+        || (default_has_invitation_invalid_edge && draft_missing_invitation_invalid_edge)
+        || (default_has_invitation_unavailable_failure_edge
+            && draft_missing_invitation_unavailable_failure_edge)
         || (default_has_invitation_validate_logic_type
             && draft_missing_invitation_validate_logic_type)
         || (default_has_invitation_issue_logic_type && draft_missing_invitation_issue_logic_type)
@@ -418,6 +486,10 @@ mod tests {
             &graph,
             "core.logic.issue_invitation"
         ));
+        assert!(graph_contains_node_type(
+            &graph,
+            "core.auth.invitation_unavailable"
+        ));
         assert!(graph_has_edge_between_types(
             &graph,
             "core.start",
@@ -429,6 +501,30 @@ mod tests {
             "core.logic.invitation_token",
             Some("valid"),
             "core.logic.issue_invitation"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.logic.invitation_token",
+            Some("expired"),
+            "core.auth.invitation_unavailable"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.logic.invitation_token",
+            Some("consumed"),
+            "core.auth.invitation_unavailable"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.logic.invitation_token",
+            Some("invalid"),
+            "core.auth.invitation_unavailable"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.auth.invitation_unavailable",
+            Some("failure"),
+            "core.terminal.deny"
         ));
         assert!(graph_node_has_config_value(
             &graph,
