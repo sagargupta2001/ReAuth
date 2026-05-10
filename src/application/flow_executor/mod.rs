@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::application::audit_service::AuditService;
 use crate::application::email_delivery_service::{
-    EmailDeliveryService, RecoveryEmail, VerificationEmail,
+    EmailDeliveryService, InvitationEmail, RecoveryEmail, VerificationEmail,
 };
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::audit::NewAuditEvent;
@@ -531,29 +531,62 @@ impl FlowExecutor {
             ));
         }
 
-        if action.is_expired() || action.is_consumed() {
-            return Err(Error::InvalidActionToken);
-        }
-
-        self.action_repo.mark_consumed(&action.id).await?;
-
         let mut session = self
             .session_repo
             .find_by_id(&action.session_id)
             .await?
             .ok_or(Error::NotFound("Session not found".into()))?;
 
-        if let Some(resume_node_id) = action.resume_node_id.clone() {
+        let invitation_resume_status = invitation_token_resume_state(&action);
+        if invitation_resume_status.is_none() && (action.is_expired() || action.is_consumed()) {
+            return Err(Error::InvalidActionToken);
+        }
+
+        if should_consume_on_resume(&action.action_type) {
+            self.action_repo.mark_consumed(&action.id).await?;
+        }
+
+        if let Some(status) = invitation_resume_status {
+            if !status.is_pending() {
+                let plan = self.load_execution_plan(session.flow_version_id).await?;
+                session.current_node_id = plan.start_node_id;
+            } else if let Some(resume_node_id) = action.resume_node_id.clone() {
+                session.current_node_id = resume_node_id;
+            }
+            session.update_context(
+                "invitation_token_status",
+                serde_json::json!(status.as_str()),
+            );
+            session.update_context("invitation_token_hash", serde_json::json!(token_hash));
+            if let Some(invitation_id) = action
+                .payload
+                .get("invitation_id")
+                .and_then(|value| value.as_str())
+            {
+                session.update_context("invitation_id", serde_json::json!(invitation_id));
+            }
+            if let Some(email) = action
+                .payload
+                .get("identifier")
+                .and_then(|value| value.as_str())
+            {
+                session.update_context("invitation_email", serde_json::json!(email));
+            }
+        } else if let Some(resume_node_id) = action.resume_node_id.clone() {
             session.current_node_id = resume_node_id;
         }
 
         session.status = SessionStatus::Active;
+        session.user_id = None;
         clear_pending_action(&mut session);
         session.update_context(
             "action_result",
             serde_json::json!({
                 "action_id": action.id.to_string(),
                 "action_type": action.action_type,
+                "status": invitation_resume_status
+                    .map(|value| value.as_str().to_string())
+                    .unwrap_or_else(|| "pending".to_string()),
             }),
         );
         session.update_context("action_payload", action.payload.clone());
@@ -589,6 +622,28 @@ impl FlowExecutor {
         self.session_repo.update(&session).await?;
         let result = self.execute(session_id, None).await?;
         Ok((result, session_id))
+    }
+
+    pub async fn consume_action_token(&self, realm_id: Uuid, token: &str) -> Result<()> {
+        let token_hash = hash_token(token);
+        let action = self
+            .action_repo
+            .find_by_token_hash(&token_hash)
+            .await?
+            .ok_or(Error::InvalidActionToken)?;
+
+        if action.realm_id != realm_id {
+            return Err(Error::SecurityViolation(
+                "Action token does not belong to this realm".to_string(),
+            ));
+        }
+
+        if action.is_consumed() {
+            return Ok(());
+        }
+
+        self.action_repo.mark_consumed(&action.id).await?;
+        Ok(())
     }
 
     pub async fn action_status(&self, realm_id: Uuid, token: &str) -> Result<ActionStatus> {
@@ -973,6 +1028,45 @@ fn restore_node_config(session: &mut AuthenticationSession, previous: Option<Val
     }
 }
 
+fn should_consume_on_resume(action_type: &str) -> bool {
+    !matches!(action_type, "invitation_accept")
+}
+
+#[derive(Clone, Copy)]
+enum InvitationResumeState {
+    Pending,
+    Expired,
+    Consumed,
+}
+
+impl InvitationResumeState {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Expired => "expired",
+            Self::Consumed => "consumed",
+        }
+    }
+
+    fn is_pending(self) -> bool {
+        matches!(self, Self::Pending)
+    }
+}
+
+fn invitation_token_resume_state(action: &AuthSessionAction) -> Option<InvitationResumeState> {
+    if action.action_type != "invitation_accept" {
+        return None;
+    }
+
+    if action.is_consumed() {
+        return Some(InvitationResumeState::Consumed);
+    }
+    if action.is_expired() {
+        return Some(InvitationResumeState::Expired);
+    }
+    Some(InvitationResumeState::Pending)
+}
+
 fn inject_signal_context(
     session: &mut AuthenticationSession,
     signal: &FlowSignal,
@@ -1271,7 +1365,10 @@ impl FlowExecutor {
         let mut ui_context = request.context.clone();
 
         let mut email_sent = false;
-        if matches!(action_type.as_str(), "reset_credentials" | "email_verify") {
+        if matches!(
+            action_type.as_str(),
+            "reset_credentials" | "email_verify" | "invitation_accept"
+        ) {
             match self
                 .send_action_email(
                     &action_type,
@@ -1290,6 +1387,8 @@ impl FlowExecutor {
                     if let Some(ctx) = ui_context.as_object_mut() {
                         let message = if action_type == "reset_credentials" {
                             "If an account exists, a recovery email has been sent."
+                        } else if action_type == "invitation_accept" {
+                            "Invitation email has been sent."
                         } else {
                             "If an account exists, a verification email has been sent."
                         };
@@ -1388,6 +1487,8 @@ impl FlowExecutor {
             .unwrap_or_else(|| {
                 if action_type == "reset_credentials" {
                     "/forgot-password"
+                } else if action_type == "invitation_accept" {
+                    "/invite/accept"
                 } else {
                     "/register"
                 }
@@ -1426,6 +1527,19 @@ impl FlowExecutor {
                             resume_path: resume_path.to_string(),
                             subject,
                             body,
+                        },
+                    )
+                    .await
+            }
+            "invitation_accept" => {
+                service
+                    .send_invitation_email(
+                        &realm_id,
+                        InvitationEmail {
+                            email: identifier.to_string(),
+                            token: token.to_string(),
+                            expires_at,
+                            resume_path: resume_path.to_string(),
                         },
                     )
                     .await

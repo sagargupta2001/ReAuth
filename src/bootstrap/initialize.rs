@@ -188,6 +188,7 @@ async fn initialize_with_settings(
         passkey_assertion_service: services.passkey_assertion_service,
         passkey_analytics_service: services.passkey_analytics_service,
         email_delivery_service: services.email_delivery_service,
+        invitation_service: services.invitation_service,
         webhook_service: services.webhook_service,
         theme_service: services.theme_service,
         harbor_service: services.harbor_service,

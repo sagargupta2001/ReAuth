@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-const HASH_ROUTES = new Set(['/login', '/register', '/forgot-password', '/setup'])
+const HASH_ROUTES = new Set(['/login', '/register', '/forgot-password', '/invite/accept', '/setup'])
 
 export function HashRouteNormalizer() {
   useEffect(() => {

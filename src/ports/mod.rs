@@ -8,6 +8,7 @@ pub mod flow_store;
 pub mod harbor_job_conflict_repository;
 pub mod harbor_job_repository;
 pub mod http_client;
+pub mod invitation_repository;
 pub mod login_attempt_repository;
 pub mod oidc_repository;
 pub mod outbox_repository;

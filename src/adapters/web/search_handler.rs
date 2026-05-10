@@ -136,7 +136,11 @@ pub async fn omni_search_handler(
     let users = if can_read_users {
         let response = state
             .user_service
-            .list_users(realm.id, page_req.clone())
+            .list_users(
+                realm.id,
+                page_req.clone(),
+                crate::domain::user::UserListFilters::default(),
+            )
             .await?;
         response
             .data

@@ -30,10 +30,12 @@ pub struct UpdateRealmPayload {
     pub lockout_duration_secs: Option<i64>,
     pub registration_enabled: Option<bool>,
     pub default_registration_role_ids: Option<Vec<Uuid>>,
+    pub invitation_resend_limit: Option<i64>,
     pub browser_flow_id: Option<Option<Uuid>>,
     pub registration_flow_id: Option<Option<Uuid>>,
     pub direct_grant_flow_id: Option<Option<Uuid>>,
     pub reset_credentials_flow_id: Option<Option<Uuid>>,
+    pub invitation_flow_id: Option<Option<Uuid>>,
 }
 
 pub struct RealmService {
@@ -85,10 +87,12 @@ impl RealmService {
                 is_system,
                 registration_enabled: !is_system,
                 default_registration_role_ids: Vec::new(),
+                invitation_resend_limit: 3,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
                 reset_credentials_flow_id: None,
+                invitation_flow_id: None,
             };
 
             // A. Create Realm (Pass TX)
@@ -106,6 +110,7 @@ impl RealmService {
             realm.direct_grant_flow_id = Some(default_flows.direct_grant_flow_id.to_string());
             realm.reset_credentials_flow_id =
                 Some(default_flows.reset_credentials_flow_id.to_string());
+            realm.invitation_flow_id = Some(default_flows.invitation_flow_id.to_string());
 
             // D. Update Realm (Pass TX)
             self.realm_repo.update(&realm, Some(&mut *tx)).await?;
@@ -202,6 +207,14 @@ impl RealmService {
             role_ids.dedup();
             realm.default_registration_role_ids = role_ids;
         }
+        if let Some(value) = payload.invitation_resend_limit {
+            if value < 0 {
+                return Err(Error::Validation(
+                    "invitation_resend_limit must be greater than or equal to 0".to_string(),
+                ));
+            }
+            realm.invitation_resend_limit = value;
+        }
 
         if let Some(val) = payload.browser_flow_id {
             realm.browser_flow_id = val.map(|id| id.to_string());
@@ -214,6 +227,9 @@ impl RealmService {
         }
         if let Some(val) = payload.reset_credentials_flow_id {
             realm.reset_credentials_flow_id = val.map(|id| id.to_string());
+        }
+        if let Some(val) = payload.invitation_flow_id {
+            realm.invitation_flow_id = val.map(|id| id.to_string());
         }
 
         self.realm_repo.update(&realm, tx).await?;

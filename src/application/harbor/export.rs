@@ -430,6 +430,7 @@ impl HarborService {
                         per_page: 200,
                         ..PageRequest::default()
                     },
+                    crate::domain::user::UserListFilters::default(),
                 )
                 .await?;
             users.extend(response.data);

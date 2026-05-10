@@ -437,9 +437,11 @@ fn build_realm_flow_payload(flow_ids: &HashMap<String, Uuid>) -> UpdateRealmPayl
         lockout_duration_secs: None,
         registration_enabled: None,
         default_registration_role_ids: None,
+        invitation_resend_limit: None,
         browser_flow_id: browser.map(Some),
         registration_flow_id: registration.map(Some),
         direct_grant_flow_id: direct.map(Some),
         reset_credentials_flow_id: reset.map(Some),
+        invitation_flow_id: None,
     }
 }

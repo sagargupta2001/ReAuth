@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -18,8 +18,10 @@ import { Form } from '@/shared/ui/form'
 import { FormInput } from '@/shared/ui/form-input'
 import { Checkbox } from '@/shared/ui/checkbox'
 import { Separator } from '@/shared/ui/separator'
+import { ButtonGroup } from '@/shared/ui/button-group'
 import { ApiError } from '@/shared/api/client'
 import { useCreateUser } from '@/features/user/api/useCreateUser'
+import { useCreateInvitation } from '@/features/invitation/api/useInvitations'
 
 const emailSchema = z
   .string()
@@ -48,14 +50,7 @@ const createFormSchema = z
   })
 
 const inviteFormSchema = z.object({
-  email: z
-    .string()
-    .trim()
-    .optional()
-    .refine(
-      (val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
-      { message: 'Invalid email address' }
-    ),
+  email: z.string().trim().min(1, { message: 'Email is required' }).email({ message: 'Invalid email address' }),
   expiry_days: z.number().min(1),
 })
 
@@ -67,6 +62,7 @@ export function CreateUserDialog() {
   const [activeTab, setActiveTab] = useState('create')
   
   const mutation = useCreateUser()
+  const inviteMutation = useCreateInvitation()
   
   const createForm = useForm<CreateFormValues>({
     resolver: zodResolver(createFormSchema),
@@ -114,9 +110,23 @@ export function CreateUserDialog() {
   }
 
   const onInviteSubmit = (values: InviteFormValues) => {
-    // TODO: Implement actual invite endpoint here
-    console.log('Sending invite...', values)
-    handleOpenChange(false)
+    inviteMutation.mutate(
+      {
+        email: values.email.trim(),
+        expiry_days: values.expiry_days,
+      },
+      {
+        onSuccess: () => handleOpenChange(false),
+        onError: (error) => {
+          if (error instanceof ApiError) {
+            inviteForm.setError('email', {
+              type: 'server',
+              message: error.message,
+            })
+          }
+        },
+      },
+    )
   }
 
   return (
@@ -128,21 +138,21 @@ export function CreateUserDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
+        <DialogHeader className='pl-6 pt-6'>
           <DialogTitle>{activeTab === 'create' ? 'Create new user' : 'Invite new user'}</DialogTitle>
         </DialogHeader>
         
         <Separator className="my-1" />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2">
-          <TabsList variant="line" className="mb-4">
+          <TabsList variant="line" className="mb-4 px-6">
             <TabsTrigger variant="line" value="create">Create user</TabsTrigger>
             <TabsTrigger variant="line" value="invite">Invite User</TabsTrigger>
           </TabsList>
           
           <TabsContent value="create">
             <Form {...createForm}>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 px-6 pb-6">
                 <FormInput control={createForm.control} name="username" label="Username" />
                 <FormInput control={createForm.control} name="email" label="Email (Optional)" type="email" />
                 <FormInput control={createForm.control} name="password" label="Password" type="password" />
@@ -166,11 +176,11 @@ export function CreateUserDialog() {
                   </div>
                 </div>
               </div>
-              <DialogFooter>
+              <DialogFooter className='py-3 pr-3 gap-1'>
                 <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button onClick={createForm.handleSubmit(onCreateSubmit)} disabled={mutation.isPending}>
+                <Button size='sm' onClick={createForm.handleSubmit(onCreateSubmit)} disabled={mutation.isPending}>
                   {mutation.isPending ? 'Creating...' : 'Create User'}
                 </Button>
               </DialogFooter>
@@ -179,25 +189,36 @@ export function CreateUserDialog() {
 
           <TabsContent value="invite">
             <Form {...inviteForm}>
-              <div className="grid gap-4 py-4">
+              <div className="grid gap-4 px-6 pb-6">
                 <FormInput control={inviteForm.control} name="email" label="Email address" type="email" />
-                <FormInput 
-                  control={inviteForm.control} 
-                  name="expiry_days" 
-                  label="Set invitation expiry (days)" 
+                
+                <FormInput
+                  control={inviteForm.control}
+                  name="expiry_days"
+                  label="Set invitation expiry"
+                  description="Invite links will expire after the specified number of days."
                   type="number"
-                  min={1} 
+                  min={1}
+                  className="w-24 no-number-arrows"
+                  onChange={(e) => inviteForm.setValue('expiry_days', parseInt(e.target.value) || 0)}
+                  render={(input: React.ReactNode) => (
+                    <ButtonGroup>
+                      {input}
+                      <Button variant="outline" className="pointer-events-none bg-muted px-4">
+                        Days
+                      </Button>
+                    </ButtonGroup>
+                  )}
                 />
-                <p className="text-[13px] text-muted-foreground -mt-2">
-                  Invite links will expire after the specified number of days.
-                </p>
+
+
               </div>
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
+              <DialogFooter className='py-3 pr-3 gap-1'>
+                <Button variant="outline" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button onClick={inviteForm.handleSubmit(onInviteSubmit)}>
-                  Send Invite
+                <Button size='sm' onClick={inviteForm.handleSubmit(onInviteSubmit)} disabled={inviteMutation.isPending}>
+                  {inviteMutation.isPending ? 'Sending...' : 'Send Invite'}
                 </Button>
               </DialogFooter>
             </Form>

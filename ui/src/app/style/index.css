@@ -105,6 +105,21 @@
     animation: slideUp 300ms ease-out;
 }
 
+@utility dot-grid {
+    background-image: radial-gradient(circle, currentColor 1px, transparent 1px);
+    background-size: 24px 24px;
+    opacity: 0.9;
+}
+
+@utility no-number-arrows {
+    &::-webkit-inner-spin-button,
+    &::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    -moz-appearance: textfield;
+}
+
 @layer utilities {
     .animate-target-highlight {
         position: relative;

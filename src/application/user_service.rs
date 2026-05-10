@@ -8,7 +8,7 @@ use crate::ports::event_bus::EventPublisher;
 use crate::ports::outbox_repository::OutboxRepository;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::{
-    domain::user::User,
+    domain::user::{User, UserListFilters},
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
@@ -110,8 +110,13 @@ impl UserService {
         Ok(user)
     }
 
-    pub async fn list_users(&self, realm_id: Uuid, req: PageRequest) -> Result<PageResponse<User>> {
-        self.user_repo.list(&realm_id, &req).await
+    pub async fn list_users(
+        &self,
+        realm_id: Uuid,
+        req: PageRequest,
+        filters: UserListFilters,
+    ) -> Result<PageResponse<User>> {
+        self.user_repo.list(&realm_id, &req, &filters).await
     }
 
     pub async fn find_by_username(&self, realm_id: &Uuid, username: &str) -> Result<Option<User>> {
@@ -131,6 +136,10 @@ impl UserService {
             return Ok(Some(user));
         }
         self.user_repo.find_by_email(realm_id, identifier).await
+    }
+
+    pub async fn find_by_email(&self, realm_id: &Uuid, email: &str) -> Result<Option<User>> {
+        self.user_repo.find_by_email(realm_id, email).await
     }
 
     pub async fn update_last_sign_in(&self, realm_id: Uuid, user_id: Uuid) -> Result<()> {

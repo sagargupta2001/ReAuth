@@ -26,7 +26,8 @@
             "browser_flow_id": { "type": ["string", "null"] },
             "registration_flow_id": { "type": ["string", "null"] },
             "direct_grant_flow_id": { "type": ["string", "null"] },
-            "reset_credentials_flow_id": { "type": ["string", "null"] }
+            "reset_credentials_flow_id": { "type": ["string", "null"] },
+            "invitation_flow_id": { "type": ["string", "null"] }
           },
           "additionalProperties": false
         }

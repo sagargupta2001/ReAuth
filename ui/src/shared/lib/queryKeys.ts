@@ -4,6 +4,8 @@ export const queryKeys = {
   userCredentials: (userId: string) => ['user-credentials', userId] as const,
   users: (realm?: string, params?: unknown) =>
     realm ? (['users', realm, params] as const) : (['users'] as const),
+  invitations: (realm?: string, params?: unknown) =>
+    realm ? (['invitations', realm, params] as const) : (['invitations'] as const),
   client: (realm: string, clientId: string) => ['client', realm, clientId] as const,
   clients: (realm?: string, params?: unknown) =>
     realm ? (['clients', realm, params] as const) : (['clients'] as const),

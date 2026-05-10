@@ -509,7 +509,8 @@ impl FlowTemplates {
                         "label": "Register Account",
                         "config": {
                             "auth_type": "core.auth.register",
-                            "template_key": "register"
+                            "template_key": "register",
+                            "allow_when_invited": true
                         },
                         "outputs": ["success", "failure"]
                     }
@@ -580,6 +581,111 @@ impl FlowTemplates {
                 { "id": "e2", "source": "passkey-enroll", "sourceHandle": "success", "target": "allow" },
                 { "id": "e3", "source": "passkey-enroll", "sourceHandle": "skip", "target": "allow" },
                 { "id": "e4", "source": "passkey-enroll", "sourceHandle": "failure", "target": "allow" }
+            ]
+        })
+    }
+
+    pub fn invitation_flow() -> Value {
+        json!({
+            "nodes": [
+                {
+                    "id": "start",
+                    "type": "core.start",
+                    "position": { "x": 250, "y": 0 },
+                    "data": { "label": "Start" },
+                    "next": { "default": "invitation-validate" }
+                },
+                {
+                    "id": "invitation-validate",
+                    "type": "core.logic.invitation_token",
+                    "position": { "x": 250, "y": 120 },
+                    "data": {
+                        "label": "Validate Invitation",
+                        "config": {
+                            "logic_type": "core.logic.invitation_token"
+                        },
+                        "outputs": ["valid", "expired", "consumed", "invalid"]
+                    },
+                    "next": {
+                        "valid": "invitation-issue",
+                        "expired": "invitation-unavailable",
+                        "consumed": "invitation-unavailable",
+                        "invalid": "invitation-unavailable"
+                    }
+                },
+                {
+                    "id": "invitation-issue",
+                    "type": "core.logic.issue_invitation",
+                    "position": { "x": 250, "y": 260 },
+                    "data": {
+                        "label": "Issue Invitation Token",
+                        "config": {
+                            "logic_type": "core.logic.issue_invitation",
+                            "resume_path": "/invite/accept",
+                            "resend_path": "/invite/accept",
+                            "resume_node_id": "auth-register"
+                        },
+                        "outputs": ["issued"]
+                    },
+                    "next": { "issued": "auth-register" }
+                },
+                {
+                    "id": "auth-register",
+                    "type": "core.auth.register",
+                    "position": { "x": 250, "y": 430 },
+                    "data": {
+                        "label": "Register Account",
+                        "config": {
+                            "auth_type": "core.auth.register",
+                            "template_key": "register",
+                            "allow_when_invited": true
+                        },
+                        "outputs": ["success", "failure"]
+                    }
+                },
+                {
+                    "id": "invitation-unavailable",
+                    "type": "core.auth.invitation_unavailable",
+                    "position": { "x": 560, "y": 280 },
+                    "data": {
+                        "label": "Invitation Unavailable",
+                        "config": {
+                            "auth_type": "core.auth.invitation_unavailable",
+                            "template_key": "invitation_unavailable",
+                            "title": "Invitation Link Unavailable"
+                        },
+                        "outputs": ["failure"]
+                    },
+                    "next": { "failure": "deny" }
+                },
+                {
+                    "id": "allow",
+                    "type": "core.terminal.allow",
+                    "position": { "x": 250, "y": 580 },
+                    "data": { "label": "Allow Access" }
+                },
+                {
+                    "id": "deny",
+                    "type": "core.terminal.deny",
+                    "position": { "x": 560, "y": 430 },
+                    "data": {
+                        "label": "Deny Access",
+                        "config": {
+                            "error_message": "Invitation unavailable",
+                            "error_code": "invitation_unavailable"
+                        }
+                    }
+                }
+            ],
+            "edges": [
+                { "id": "e0", "source": "start", "target": "invitation-validate" },
+                { "id": "e1", "source": "invitation-validate", "sourceHandle": "valid", "target": "invitation-issue" },
+                { "id": "e2", "source": "invitation-issue", "sourceHandle": "issued", "target": "auth-register" },
+                { "id": "e3", "source": "auth-register", "sourceHandle": "success", "target": "allow" },
+                { "id": "e4", "source": "invitation-validate", "sourceHandle": "expired", "target": "invitation-unavailable" },
+                { "id": "e5", "source": "invitation-validate", "sourceHandle": "consumed", "target": "invitation-unavailable" },
+                { "id": "e6", "source": "invitation-validate", "sourceHandle": "invalid", "target": "invitation-unavailable" },
+                { "id": "e7", "source": "invitation-unavailable", "sourceHandle": "failure", "target": "deny" }
             ]
         })
     }

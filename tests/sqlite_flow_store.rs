@@ -29,6 +29,8 @@ fn realm(id: Uuid, name: &str) -> Realm {
         registration_flow_id: None,
         direct_grant_flow_id: None,
         reset_credentials_flow_id: None,
+        invitation_resend_limit: 3,
+        invitation_flow_id: None,
     }
 }
 

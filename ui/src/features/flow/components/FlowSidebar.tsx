@@ -5,6 +5,7 @@ import {
   Globe,
   LayoutTemplate,
   ListFilter,
+  Mail,
   type LucideIcon,
   Plus,
   Search,
@@ -35,6 +36,8 @@ const getFlowIcon = (type: string) => {
       return Zap
     case 'reset':
       return ShieldCheck
+    case 'invitation':
+      return Mail
     default:
       return LayoutTemplate
   }
@@ -46,6 +49,7 @@ const flowTypeOptions: { value: FlowType | 'all'; label: string; icon?: LucideIc
   { value: 'registration', label: 'Registration', icon: User },
   { value: 'direct', label: 'Direct Grant', icon: Zap },
   { value: 'reset', label: 'Reset Creds', icon: ShieldCheck },
+  { value: 'invitation', label: 'Invitation', icon: Mail },
 ]
 
 export function FlowsSidebar() {

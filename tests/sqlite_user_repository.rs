@@ -1,11 +1,11 @@
 mod support;
 
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use reauth::adapters::persistence::connection::Database;
 use reauth::adapters::persistence::sqlite_user_repository::SqliteUserRepository;
 use reauth::domain::pagination::{PageRequest, SortDirection};
-use reauth::domain::user::User;
+use reauth::domain::user::{User, UserDateTimeRangeFilter, UserListFilters};
 use reauth::ports::user_repository::UserRepository;
 use support::TestDb;
 use uuid::Uuid;
@@ -126,6 +126,7 @@ async fn list_users_with_filters_sorting_and_pagination() -> Result<()> {
         .list(
             &realm_id,
             &page_request(1, 2, Some(SortDirection::Asc), None),
+            &UserListFilters::default(),
         )
         .await?;
     assert_eq!(page1.meta.total, 3);
@@ -137,6 +138,7 @@ async fn list_users_with_filters_sorting_and_pagination() -> Result<()> {
         .list(
             &realm_id,
             &page_request(2, 2, Some(SortDirection::Asc), None),
+            &UserListFilters::default(),
         )
         .await?;
     assert_eq!(page2.meta.total, 3);
@@ -147,6 +149,7 @@ async fn list_users_with_filters_sorting_and_pagination() -> Result<()> {
         .list(
             &realm_id,
             &page_request(1, 3, Some(SortDirection::Desc), None),
+            &UserListFilters::default(),
         )
         .await?;
     assert_eq!(desc_page.data[0].username, "carol");
@@ -156,6 +159,7 @@ async fn list_users_with_filters_sorting_and_pagination() -> Result<()> {
         .list(
             &realm_id,
             &page_request(1, 10, Some(SortDirection::Asc), Some("bo")),
+            &UserListFilters::default(),
         )
         .await?;
     assert_eq!(filtered.meta.total, 1);
@@ -165,8 +169,85 @@ async fn list_users_with_filters_sorting_and_pagination() -> Result<()> {
         .list(
             &realm_id,
             &page_request(1, 10, Some(SortDirection::Asc), Some("")),
+            &UserListFilters::default(),
         )
         .await?;
     assert_eq!(empty_query.meta.total, 3);
+    Ok(())
+}
+
+#[tokio::test]
+async fn list_users_applies_email_and_date_filters() -> Result<()> {
+    let db = TestDb::new().await;
+    let repo = SqliteUserRepository::new(db.pool.clone());
+    let realm_id = Uuid::new_v4();
+
+    insert_realm(&db.pool, realm_id, "realm-filtered-list").await?;
+
+    let mut alice = user(Uuid::new_v4(), realm_id, "alice", "hash");
+    alice.email = Some("alice@example.com".to_string());
+    alice.created_at = Some(Utc.with_ymd_and_hms(2026, 5, 1, 8, 0, 0).unwrap());
+    alice.last_sign_in_at = Some(Utc.with_ymd_and_hms(2026, 5, 7, 12, 0, 0).unwrap());
+
+    let mut bob = user(Uuid::new_v4(), realm_id, "bob", "hash");
+    bob.email = Some("bob@sample.test".to_string());
+    bob.created_at = Some(Utc.with_ymd_and_hms(2026, 5, 3, 8, 0, 0).unwrap());
+    bob.last_sign_in_at = Some(Utc.with_ymd_and_hms(2026, 5, 9, 12, 0, 0).unwrap());
+
+    let mut carol = user(Uuid::new_v4(), realm_id, "carol", "hash");
+    carol.email = Some("carol@example.com".to_string());
+    carol.created_at = Some(Utc.with_ymd_and_hms(2026, 5, 10, 8, 0, 0).unwrap());
+    carol.last_sign_in_at = None;
+
+    for u in [&alice, &bob, &carol] {
+        repo.save(u, None).await?;
+    }
+
+    let email_filtered = repo
+        .list(
+            &realm_id,
+            &page_request(1, 10, Some(SortDirection::Asc), None),
+            &UserListFilters {
+                email: Some("EXAMPLE.com".to_string()),
+                ..UserListFilters::default()
+            },
+        )
+        .await?;
+    assert_eq!(email_filtered.meta.total, 2);
+    assert_eq!(email_filtered.data[0].username, "alice");
+    assert_eq!(email_filtered.data[1].username, "carol");
+
+    let created_filtered = repo
+        .list(
+            &realm_id,
+            &page_request(1, 10, Some(SortDirection::Asc), None),
+            &UserListFilters {
+                created_at: UserDateTimeRangeFilter {
+                    from: Some(Utc.with_ymd_and_hms(2026, 5, 2, 0, 0, 0).unwrap()),
+                    to_exclusive: Some(Utc.with_ymd_and_hms(2026, 5, 10, 0, 0, 0).unwrap()),
+                },
+                ..UserListFilters::default()
+            },
+        )
+        .await?;
+    assert_eq!(created_filtered.meta.total, 1);
+    assert_eq!(created_filtered.data[0].username, "bob");
+
+    let sign_in_filtered = repo
+        .list(
+            &realm_id,
+            &page_request(1, 10, Some(SortDirection::Asc), Some("a")),
+            &UserListFilters {
+                last_sign_in_at: UserDateTimeRangeFilter {
+                    from: Some(Utc.with_ymd_and_hms(2026, 5, 7, 0, 0, 0).unwrap()),
+                    to_exclusive: Some(Utc.with_ymd_and_hms(2026, 5, 8, 0, 0, 0).unwrap()),
+                },
+                ..UserListFilters::default()
+            },
+        )
+        .await?;
+    assert_eq!(sign_in_filtered.meta.total, 1);
+    assert_eq!(sign_in_filtered.data[0].username, "alice");
+
     Ok(())
 }

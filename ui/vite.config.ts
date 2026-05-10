@@ -33,6 +33,8 @@ export default defineConfig(({ mode }) => {
         include: ['src/**/*'],
         exclude: [
           'node_modules/',
+          '**/*.swp',
+          '**/*.swo',
           'src/shared/lib/test/**',
           'src/**/*.test.{ts,tsx}',
           'src/**/*.d.ts',

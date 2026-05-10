@@ -8,6 +8,7 @@ pub mod flow_manager;
 pub mod flow_publish_validator;
 pub mod flow_service;
 pub mod harbor;
+pub mod invitation_service;
 pub mod metrics_service;
 pub mod node_registry;
 pub mod oidc_service;

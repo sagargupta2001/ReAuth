@@ -7,6 +7,7 @@ pub mod sqlite_flow_repository;
 pub mod sqlite_flow_store;
 pub mod sqlite_harbor_job_conflict_repository;
 pub mod sqlite_harbor_job_repository;
+pub mod sqlite_invitation_repository;
 pub mod sqlite_login_attempt_repository;
 pub mod sqlite_oidc_repository;
 pub mod sqlite_outbox_repository;

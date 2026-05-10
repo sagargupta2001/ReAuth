@@ -357,10 +357,12 @@ fn base_realm() -> Realm {
         is_system: false,
         registration_enabled: true,
         default_registration_role_ids: Vec::new(),
+        invitation_resend_limit: 3,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
         reset_credentials_flow_id: None,
+        invitation_flow_id: None,
     }
 }
 
@@ -381,10 +383,12 @@ async fn update_realm_errors_when_missing() {
                 lockout_duration_secs: None,
                 registration_enabled: None,
                 default_registration_role_ids: None,
+                invitation_resend_limit: None,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
                 reset_credentials_flow_id: None,
+                invitation_flow_id: None,
             },
         )
         .await
@@ -417,10 +421,12 @@ async fn update_realm_updates_selected_fields() {
                 lockout_duration_secs: Some(1200),
                 registration_enabled: None,
                 default_registration_role_ids: None,
+                invitation_resend_limit: None,
                 browser_flow_id: Some(Some(new_browser)),
                 registration_flow_id: Some(None),
                 direct_grant_flow_id: None,
                 reset_credentials_flow_id: None,
+                invitation_flow_id: None,
             },
         )
         .await
@@ -460,10 +466,12 @@ async fn update_realm_rejects_invalid_lockout_values() {
                 lockout_duration_secs: None,
                 registration_enabled: None,
                 default_registration_role_ids: None,
+                invitation_resend_limit: None,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
                 reset_credentials_flow_id: None,
+                invitation_flow_id: None,
             },
         )
         .await
@@ -486,10 +494,12 @@ async fn update_realm_rejects_invalid_lockout_values() {
                 lockout_duration_secs: Some(86_401),
                 registration_enabled: None,
                 default_registration_role_ids: None,
+                invitation_resend_limit: None,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
                 reset_credentials_flow_id: None,
+                invitation_flow_id: None,
             },
         )
         .await
@@ -523,10 +533,12 @@ async fn update_realm_with_tx_forwards_transaction() {
                 lockout_duration_secs: None,
                 registration_enabled: None,
                 default_registration_role_ids: None,
+                invitation_resend_limit: None,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
                 reset_credentials_flow_id: None,
+                invitation_flow_id: None,
             },
             Some(&mut tx),
         )

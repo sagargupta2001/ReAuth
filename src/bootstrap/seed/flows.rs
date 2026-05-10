@@ -48,6 +48,8 @@ pub async fn ensure_default_flows(
         tx,
     )
     .await?;
+    let invitation_flow_id =
+        ensure_flow(ctx, &realm.id, "invitation", "Invitation", "invitation", tx).await?;
 
     let mut needs_update = false;
     let mut update_payload = UpdateRealmPayload {
@@ -59,10 +61,12 @@ pub async fn ensure_default_flows(
         lockout_duration_secs: None,
         registration_enabled: None,
         default_registration_role_ids: None,
+        invitation_resend_limit: None,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
         reset_credentials_flow_id: None,
+        invitation_flow_id: None,
     };
 
     if realm.browser_flow_id.is_none() {
@@ -79,6 +83,10 @@ pub async fn ensure_default_flows(
     }
     if realm.reset_credentials_flow_id.is_none() {
         update_payload.reset_credentials_flow_id = Some(Some(reset_flow_id));
+        needs_update = true;
+    }
+    if realm.invitation_flow_id.is_none() {
+        update_payload.invitation_flow_id = Some(Some(invitation_flow_id));
         needs_update = true;
     }
 
@@ -134,6 +142,145 @@ async fn ensure_flow(
     let draft_missing_recovery_issue = existing_draft.as_ref().is_some_and(|draft| {
         !graph_contains_node_type(&draft.graph_json, "core.logic.recovery_issue")
     });
+    let default_has_invitation_issue =
+        graph_contains_node_type(&graph_json, "core.logic.issue_invitation");
+    let draft_missing_invitation_issue = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_contains_node_type(&draft.graph_json, "core.logic.issue_invitation")
+    });
+    let default_has_invitation_start_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.start",
+        None,
+        "core.logic.invitation_token",
+    );
+    let draft_missing_invitation_start_edge = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_has_edge_between_types(
+            &draft.graph_json,
+            "core.start",
+            None,
+            "core.logic.invitation_token",
+        )
+    });
+    let default_has_invitation_issue_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.logic.invitation_token",
+        Some("valid"),
+        "core.logic.issue_invitation",
+    );
+    let draft_missing_invitation_issue_edge = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_has_edge_between_types(
+            &draft.graph_json,
+            "core.logic.invitation_token",
+            Some("valid"),
+            "core.logic.issue_invitation",
+        )
+    });
+    let default_has_invitation_unavailable =
+        graph_contains_node_type(&graph_json, "core.auth.invitation_unavailable");
+    let draft_missing_invitation_unavailable = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_contains_node_type(&draft.graph_json, "core.auth.invitation_unavailable")
+    });
+    let default_has_invitation_expired_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.logic.invitation_token",
+        Some("expired"),
+        "core.auth.invitation_unavailable",
+    );
+    let draft_missing_invitation_expired_edge = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_has_edge_between_types(
+            &draft.graph_json,
+            "core.logic.invitation_token",
+            Some("expired"),
+            "core.auth.invitation_unavailable",
+        )
+    });
+    let default_has_invitation_consumed_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.logic.invitation_token",
+        Some("consumed"),
+        "core.auth.invitation_unavailable",
+    );
+    let draft_missing_invitation_consumed_edge = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_has_edge_between_types(
+            &draft.graph_json,
+            "core.logic.invitation_token",
+            Some("consumed"),
+            "core.auth.invitation_unavailable",
+        )
+    });
+    let default_has_invitation_invalid_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.logic.invitation_token",
+        Some("invalid"),
+        "core.auth.invitation_unavailable",
+    );
+    let draft_missing_invitation_invalid_edge = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_has_edge_between_types(
+            &draft.graph_json,
+            "core.logic.invitation_token",
+            Some("invalid"),
+            "core.auth.invitation_unavailable",
+        )
+    });
+    let default_has_invitation_unavailable_failure_edge = graph_has_edge_between_types(
+        &graph_json,
+        "core.auth.invitation_unavailable",
+        Some("failure"),
+        "core.terminal.deny",
+    );
+    let draft_missing_invitation_unavailable_failure_edge =
+        existing_draft.as_ref().is_some_and(|draft| {
+            !graph_has_edge_between_types(
+                &draft.graph_json,
+                "core.auth.invitation_unavailable",
+                Some("failure"),
+                "core.terminal.deny",
+            )
+        });
+    let default_has_invitation_validate_logic_type = graph_node_has_config_value(
+        &graph_json,
+        "core.logic.invitation_token",
+        "logic_type",
+        "core.logic.invitation_token",
+    );
+    let draft_missing_invitation_validate_logic_type =
+        existing_draft.as_ref().is_some_and(|draft| {
+            !graph_node_has_config_value(
+                &draft.graph_json,
+                "core.logic.invitation_token",
+                "logic_type",
+                "core.logic.invitation_token",
+            )
+        });
+    let default_has_invitation_issue_logic_type = graph_node_has_config_value(
+        &graph_json,
+        "core.logic.issue_invitation",
+        "logic_type",
+        "core.logic.issue_invitation",
+    );
+    let draft_missing_invitation_issue_logic_type = existing_draft.as_ref().is_some_and(|draft| {
+        !graph_node_has_config_value(
+            &draft.graph_json,
+            "core.logic.issue_invitation",
+            "logic_type",
+            "core.logic.issue_invitation",
+        )
+    });
+    let default_has_invited_registration_override = graph_node_has_config_bool(
+        &graph_json,
+        "core.auth.register",
+        "allow_when_invited",
+        true,
+    );
+    let draft_missing_invited_registration_override =
+        existing_draft.as_ref().is_some_and(|draft| {
+            !graph_node_has_config_bool(
+                &draft.graph_json,
+                "core.auth.register",
+                "allow_when_invited",
+                true,
+            )
+        });
     let draft_obj = FlowDraft {
         id: flow_id,
         realm_id: *realm_id,
@@ -153,6 +300,20 @@ async fn ensure_flow(
             .await?;
     } else if (default_has_start && draft_missing_start)
         || (default_has_recovery_issue && draft_missing_recovery_issue)
+        || (default_has_invitation_issue && draft_missing_invitation_issue)
+        || (default_has_invitation_unavailable && draft_missing_invitation_unavailable)
+        || (default_has_invitation_start_edge && draft_missing_invitation_start_edge)
+        || (default_has_invitation_issue_edge && draft_missing_invitation_issue_edge)
+        || (default_has_invitation_expired_edge && draft_missing_invitation_expired_edge)
+        || (default_has_invitation_consumed_edge && draft_missing_invitation_consumed_edge)
+        || (default_has_invitation_invalid_edge && draft_missing_invitation_invalid_edge)
+        || (default_has_invitation_unavailable_failure_edge
+            && draft_missing_invitation_unavailable_failure_edge)
+        || (default_has_invitation_validate_logic_type
+            && draft_missing_invitation_validate_logic_type)
+        || (default_has_invitation_issue_logic_type && draft_missing_invitation_issue_logic_type)
+        || (default_has_invited_registration_override
+            && draft_missing_invited_registration_override)
     {
         let tx_ref = tx.as_deref_mut();
         ctx.flow_store
@@ -201,4 +362,187 @@ fn graph_contains_node_type(graph_json: &str, node_type: &str) -> bool {
             })
         })
         .unwrap_or(false)
+}
+
+fn graph_node_has_config_value(
+    graph_json: &str,
+    node_type: &str,
+    key: &str,
+    expected: &str,
+) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(graph_json) else {
+        return false;
+    };
+    value
+        .get("nodes")
+        .and_then(|nodes| nodes.as_array())
+        .map(|nodes| {
+            nodes.iter().any(|node| {
+                node.get("type")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == node_type)
+                    && node
+                        .get("data")
+                        .and_then(|value| value.get("config"))
+                        .and_then(|value| value.get(key))
+                        .and_then(|value| value.as_str())
+                        .is_some_and(|value| value == expected)
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn graph_node_has_config_bool(
+    graph_json: &str,
+    node_type: &str,
+    key: &str,
+    expected: bool,
+) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(graph_json) else {
+        return false;
+    };
+    value
+        .get("nodes")
+        .and_then(|nodes| nodes.as_array())
+        .map(|nodes| {
+            nodes.iter().any(|node| {
+                node.get("type")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|value| value == node_type)
+                    && node
+                        .get("data")
+                        .and_then(|value| value.get("config"))
+                        .and_then(|value| value.get(key))
+                        .and_then(|value| value.as_bool())
+                        .is_some_and(|value| value == expected)
+            })
+        })
+        .unwrap_or(false)
+}
+
+fn graph_has_edge_between_types(
+    graph_json: &str,
+    source_type: &str,
+    source_handle: Option<&str>,
+    target_type: &str,
+) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(graph_json) else {
+        return false;
+    };
+    let Some(nodes) = value.get("nodes").and_then(|nodes| nodes.as_array()) else {
+        return false;
+    };
+    let Some(edges) = value.get("edges").and_then(|edges| edges.as_array()) else {
+        return false;
+    };
+
+    let type_by_id = nodes
+        .iter()
+        .filter_map(|node| {
+            let id = node.get("id").and_then(|value| value.as_str())?;
+            let type_ = node.get("type").and_then(|value| value.as_str())?;
+            Some((id.to_string(), type_.to_string()))
+        })
+        .collect::<std::collections::HashMap<_, _>>();
+
+    edges.iter().any(|edge| {
+        let Some(source_id) = edge.get("source").and_then(|value| value.as_str()) else {
+            return false;
+        };
+        let Some(target_id) = edge.get("target").and_then(|value| value.as_str()) else {
+            return false;
+        };
+        let source_matches = type_by_id
+            .get(source_id)
+            .is_some_and(|type_| type_ == source_type);
+        let target_matches = type_by_id
+            .get(target_id)
+            .is_some_and(|type_| type_ == target_type);
+        if !source_matches || !target_matches {
+            return false;
+        }
+
+        match source_handle {
+            Some(expected_handle) => edge
+                .get("sourceHandle")
+                .and_then(|value| value.as_str())
+                .is_some_and(|handle| handle == expected_handle),
+            None => true,
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        graph_contains_node_type, graph_has_edge_between_types, graph_node_has_config_bool,
+        graph_node_has_config_value, FlowManager,
+    };
+
+    #[test]
+    fn invitation_default_graph_contains_issue_node_and_edges() {
+        let graph = FlowManager::generate_default_graph("invitation");
+        assert!(graph_contains_node_type(
+            &graph,
+            "core.logic.issue_invitation"
+        ));
+        assert!(graph_contains_node_type(
+            &graph,
+            "core.auth.invitation_unavailable"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.start",
+            None,
+            "core.logic.invitation_token"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.logic.invitation_token",
+            Some("valid"),
+            "core.logic.issue_invitation"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.logic.invitation_token",
+            Some("expired"),
+            "core.auth.invitation_unavailable"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.logic.invitation_token",
+            Some("consumed"),
+            "core.auth.invitation_unavailable"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.logic.invitation_token",
+            Some("invalid"),
+            "core.auth.invitation_unavailable"
+        ));
+        assert!(graph_has_edge_between_types(
+            &graph,
+            "core.auth.invitation_unavailable",
+            Some("failure"),
+            "core.terminal.deny"
+        ));
+        assert!(graph_node_has_config_value(
+            &graph,
+            "core.logic.invitation_token",
+            "logic_type",
+            "core.logic.invitation_token"
+        ));
+        assert!(graph_node_has_config_value(
+            &graph,
+            "core.logic.issue_invitation",
+            "logic_type",
+            "core.logic.issue_invitation"
+        ));
+        assert!(graph_node_has_config_bool(
+            &graph,
+            "core.auth.register",
+            "allow_when_invited",
+            true
+        ));
+    }
 }

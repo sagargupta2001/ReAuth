@@ -15,12 +15,15 @@ const BINDING_KEYS = [
   'direct_grant_flow',
   'resetCredentialsFlow',
   'reset_credentials_flow',
+  'invitationFlow',
+  'invitation_flow',
 
   // YOUR API Specific Keys (Suffix _id)
   'browser_flow_id',
   'registration_flow_id',
   'direct_grant_flow_id',
   'reset_credentials_flow_id',
+  'invitation_flow_id',
   'client_authentication_flow_id',
   'docker_authentication_flow_id',
 ] as const

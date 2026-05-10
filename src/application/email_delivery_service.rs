@@ -37,6 +37,13 @@ pub struct VerificationEmail {
     pub body: Option<String>,
 }
 
+pub struct InvitationEmail {
+    pub email: String,
+    pub token: String,
+    pub expires_at: DateTime<Utc>,
+    pub resume_path: String,
+}
+
 impl EmailDeliveryService {
     pub fn new(
         realm_repo: Arc<dyn RealmRepository>,
@@ -318,6 +325,102 @@ If you received this message, SMTP delivery is configured correctly.",
             .map_err(|err| Error::Validation(format!("SMTP send failed: {}", err)))?;
 
         Ok(())
+    }
+
+    pub async fn send_invitation_email(
+        &self,
+        realm_id: &Uuid,
+        request: InvitationEmail,
+    ) -> Result<bool> {
+        let Some(realm) = self.realm_repo.find_by_id(realm_id).await? else {
+            return Ok(false);
+        };
+
+        let settings = self
+            .email_repo
+            .find_by_realm_id(realm_id)
+            .await?
+            .unwrap_or_else(|| RealmEmailSettings::disabled(*realm_id));
+
+        if !settings.enabled {
+            return Ok(false);
+        }
+
+        if !looks_like_email(&request.email) {
+            return Ok(false);
+        }
+
+        let Some(from_address) = settings.from_address.clone() else {
+            warn!("Email delivery skipped: from_address is missing.");
+            return Ok(false);
+        };
+
+        let Some(host) = settings.smtp_host.clone() else {
+            warn!("Email delivery skipped: smtp_host is missing.");
+            return Ok(false);
+        };
+
+        let from_addr = from_address
+            .parse()
+            .map_err(|err| Error::Validation(format!("Invalid from_address: {}", err)))?;
+        let to_addr = request
+            .email
+            .parse()
+            .map_err(|err| Error::Validation(format!("Invalid recipient address: {}", err)))?;
+        let from = Mailbox::new(settings.from_name.clone(), from_addr);
+        let to = Mailbox::new(None, to_addr);
+
+        let invite_url = build_resume_url(
+            &self.settings,
+            &realm.name,
+            &request.resume_path,
+            &request.token,
+        );
+
+        let subject_template = "You're invited to join {realm}".to_string();
+        let body_template = "You were invited to join realm {realm}.\n\n\
+Use this link to accept your invitation:\n{resume_url}\n\n\
+Invitation token: {token}\n\
+Expires at: {expires_at}\n\n\
+If you were not expecting this invitation, you can ignore this email."
+            .to_string();
+
+        let subject = apply_template(
+            &subject_template,
+            &realm.name,
+            &request.email,
+            &request.token,
+            &invite_url,
+            &request.expires_at.to_rfc3339(),
+        );
+        let body = apply_template(
+            &body_template,
+            &realm.name,
+            &request.email,
+            &request.token,
+            &invite_url,
+            &request.expires_at.to_rfc3339(),
+        );
+
+        let mut message = Message::builder().from(from).to(to).subject(subject);
+
+        if let Some(reply_to) = settings.reply_to_address.clone() {
+            if let Ok(mailbox) = reply_to.parse::<Mailbox>() {
+                message = message.reply_to(mailbox);
+            }
+        }
+
+        let message = message
+            .body(body)
+            .map_err(|err| Error::Unexpected(err.into()))?;
+
+        let mailer = build_mailer(&settings, &host)?;
+        mailer
+            .send(message)
+            .await
+            .map_err(|err| Error::Unexpected(err.into()))?;
+
+        Ok(true)
     }
 }
 

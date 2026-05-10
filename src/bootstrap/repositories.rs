@@ -5,6 +5,7 @@ use crate::adapters::persistence::sqlite_auth_session_repository::SqliteAuthSess
 use crate::adapters::persistence::sqlite_flow_store::SqliteFlowStore;
 use crate::adapters::persistence::sqlite_harbor_job_conflict_repository::SqliteHarborJobConflictRepository;
 use crate::adapters::persistence::sqlite_harbor_job_repository::SqliteHarborJobRepository;
+use crate::adapters::persistence::sqlite_invitation_repository::SqliteInvitationRepository;
 use crate::adapters::persistence::sqlite_login_attempt_repository::SqliteLoginAttemptRepository;
 use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
 use crate::adapters::persistence::sqlite_outbox_repository::SqliteOutboxRepository;
@@ -23,6 +24,7 @@ use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::harbor_job_conflict_repository::HarborJobConflictRepository;
 use crate::ports::harbor_job_repository::HarborJobRepository;
+use crate::ports::invitation_repository::InvitationRepository;
 use crate::ports::oidc_repository::OidcRepository;
 use crate::ports::outbox_repository::OutboxRepository;
 use crate::ports::passkey_challenge_repository::PasskeyChallengeRepository;
@@ -72,6 +74,7 @@ pub struct Repositories {
     pub flow_store: Arc<dyn FlowStore>,
     pub harbor_job_repo: Arc<dyn HarborJobRepository>,
     pub harbor_job_conflict_repo: Arc<dyn HarborJobConflictRepository>,
+    pub invitation_repo: Arc<dyn InvitationRepository>,
     pub auth_session_repo: Arc<dyn AuthSessionRepository>,
     pub auth_session_action_repo: Arc<dyn AuthSessionActionRepository>,
     pub audit_repo: Arc<dyn AuditRepository>,
@@ -105,6 +108,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let harbor_job_repo = Arc::new(SqliteHarborJobRepository::new(db_pool.clone()));
     let harbor_job_conflict_repo =
         Arc::new(SqliteHarborJobConflictRepository::new(db_pool.clone()));
+    let invitation_repo = Arc::new(SqliteInvitationRepository::new(db_pool.clone()));
     let auth_session_repo = Arc::new(SqliteAuthSessionRepository::new(db_pool.clone()));
     let auth_session_action_repo =
         Arc::new(SqliteAuthSessionActionRepository::new(db_pool.clone()));
@@ -131,6 +135,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         flow_store,
         harbor_job_repo,
         harbor_job_conflict_repo,
+        invitation_repo,
         auth_session_repo,
         auth_session_action_repo,
         audit_repo,

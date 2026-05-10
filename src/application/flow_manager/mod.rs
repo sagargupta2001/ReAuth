@@ -315,6 +315,7 @@ impl FlowManager {
             "registration" => Some("registration_flow_id"),
             "direct" => Some("direct_grant_flow_id"),
             "reset" => Some("reset_credentials_flow_id"),
+            "invitation" => Some("invitation_flow_id"),
             "client" => Some("client_authentication_flow_id"),
             "docker" => Some("docker_authentication_flow_id"),
             _ => None, // Unknown or sub-flow types are not auto-bound
@@ -399,6 +400,7 @@ impl FlowManager {
             "direct" => FlowTemplates::direct_grant_flow(),
             "registration" => FlowTemplates::registration_flow(),
             "reset" => FlowTemplates::reset_credentials_flow(),
+            "invitation" => FlowTemplates::invitation_flow(),
             // Fallback to a minimal graph
             _ => serde_json::json!({
                 "nodes": [],

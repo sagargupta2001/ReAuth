@@ -43,11 +43,13 @@ impl LifecycleNode for RegistrationAuthenticator {
     async fn execute(&self, session: &mut AuthenticationSession) -> Result<NodeOutcome> {
         let previous_error = session.context.get("error").cloned();
         let username_prefill = session.context.get("username").cloned();
+        let invitation_email = session.context.get("invitation_email").cloned();
 
         Ok(NodeOutcome::SuspendForUI {
             screen: "core.auth.register".to_string(),
             context: json!({
                 "username": username_prefill,
+                "email": invitation_email,
                 "error": previous_error,
             }),
         })
@@ -72,7 +74,7 @@ impl LifecycleNode for RegistrationAuthenticator {
             .await?
             .ok_or_else(|| Error::RealmNotFound(session.realm_id.to_string()))?;
         let capabilities = RealmCapabilities::from_realm(&realm);
-        if !capabilities.registration_enabled {
+        if !capabilities.registration_enabled && !allow_invitation_registration(session) {
             return self
                 .reject_registration(session, "", "Registration is disabled")
                 .await;
@@ -106,13 +108,34 @@ impl LifecycleNode for RegistrationAuthenticator {
             .and_then(|value| value.as_str())
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
-        let email_value = email_input.or_else(|| {
+        let mut email_value = email_input.or_else(|| {
             if username.contains('@') && username.contains('.') {
                 Some(username.to_string())
             } else {
                 None
             }
         });
+
+        if let Some(invited_email) = session
+            .context
+            .get("invitation_email")
+            .and_then(|value| value.as_str())
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            if let Some(candidate) = email_value.as_deref() {
+                if !email_equals(candidate, invited_email) {
+                    return self
+                        .reject_registration(
+                            session,
+                            username,
+                            "Email must match the invited address",
+                        )
+                        .await;
+                }
+            }
+            email_value = Some(invited_email.to_string());
+        }
 
         match self
             .user_service
@@ -183,6 +206,39 @@ impl LifecycleNode for RegistrationAuthenticator {
         }
         Ok(())
     }
+}
+
+fn email_equals(left: &str, right: &str) -> bool {
+    left.trim().eq_ignore_ascii_case(right.trim())
+}
+
+fn allow_invitation_registration(session: &AuthenticationSession) -> bool {
+    let node_allows_override = session
+        .context
+        .get("node_config")
+        .and_then(|value| value.get("allow_when_invited"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+
+    if !node_allows_override {
+        return false;
+    }
+
+    let has_invitation_id = session
+        .context
+        .get("invitation_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty());
+
+    let has_invitation_email = session
+        .context
+        .get("invitation_email")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty());
+
+    has_invitation_id && has_invitation_email
 }
 
 impl RegistrationAuthenticator {

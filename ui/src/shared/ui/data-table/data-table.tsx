@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import { DataTableBulkActions } from '@/shared/ui/data-table/bulk-actions.tsx'
 import { DataTablePagination } from '@/shared/ui/data-table/pagination.tsx'
 import { DataTableToolbar } from '@/shared/ui/data-table/toolbar.tsx'
+import { type DataTableFilterField, type DataTableFilterValue } from './types'
 
 interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void
@@ -42,6 +43,12 @@ interface DataTableProps<TData, TValue> {
   isRowExpanded?: (row: TData) => boolean
   renderSubRow?: (row: TData) => ReactNode
   customToolbarButtons?: ReactNode
+  toolbarFilters?: (table: Tb<TData>) => ReactNode
+  columnFilters?: ColumnFiltersState
+  onColumnFiltersChange?: OnChangeFn<ColumnFiltersState>
+  filters?: DataTableFilterField[]
+  activeFilters?: DataTableFilterValue[]
+  onFilterChange?: (filters: DataTableFilterValue[]) => void
 }
 
 export function DataTable<TData, TValue>({
@@ -56,7 +63,7 @@ export function DataTable<TData, TValue>({
   searchValue,
   onSearch,
   searchKey = 'name',
-  searchPlaceholder = 'Filter...',
+  searchPlaceholder = 'Search...',
   bulkEntityName,
   renderBulkActions,
   showToolbar = true,
@@ -67,10 +74,17 @@ export function DataTable<TData, TValue>({
   isRowExpanded,
   renderSubRow,
   customToolbarButtons,
+  toolbarFilters,
+  columnFilters: controlledColumnFilters,
+  onColumnFiltersChange,
+  filters,
+  activeFilters,
+  onFilterChange,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = useState({})
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [internalColumnFilters, setInternalColumnFilters] = useState<ColumnFiltersState>([])
+  const columnFilters = controlledColumnFilters ?? internalColumnFilters
 
   const table = useReactTable({
     data,
@@ -90,7 +104,7 @@ export function DataTable<TData, TValue>({
     enableRowSelection: true,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: setColumnVisibility,
-    onColumnFiltersChange: setColumnFilters,
+    onColumnFiltersChange: onColumnFiltersChange ?? setInternalColumnFilters,
     onPaginationChange,
     onSortingChange,
     getCoreRowModel: getCoreRowModel(),
@@ -108,11 +122,15 @@ export function DataTable<TData, TValue>({
           searchValue={searchValue}
           onSearch={onSearch}
           customToolbarButtons={customToolbarButtons}
+          toolbarFilters={toolbarFilters?.(table)}
+          filters={filters}
+          activeFilters={activeFilters}
+          onFilterChange={onFilterChange}
         />
       ) : null}
-      <div className={cn('relative overflow-auto rounded-xl border', className)}>
-        <Table className="w-full table-fixed" noWrapper>
-          <TableHeader className="bg-background sticky top-0 z-10 shadow-sm">
+      <div className={cn('relative overflow-auto rounded-2xl p-2 bg-[#171717]', className)}>
+        <Table className="w-full table-fixed " noWrapper>
+          <TableHeader className="sticky top-0 z-10  bg-[#171717]">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -131,7 +149,7 @@ export function DataTable<TData, TValue>({
               </TableRow>
             ))}
           </TableHeader>
-          <TableBody>
+          <TableBody >
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => {
                 const expanded = isRowExpanded?.(row.original) ?? false
@@ -142,7 +160,7 @@ export function DataTable<TData, TValue>({
                       data-state={row.getIsSelected() && 'selected'}
                       onClick={() => onRowClick?.(row.original)}
                       className={cn(
-                        onRowClick && 'bg-[#171717] hover:cursor-pointer',
+                        onRowClick && 'bg-[#000000] hover:cursor-pointer',
                         rowClassName,
                       )}
                     >
@@ -154,7 +172,7 @@ export function DataTable<TData, TValue>({
                     </TableRow>
                     {expanded && renderSubRow ? (
                       <TableRow>
-                        <TableCell colSpan={table.getVisibleLeafColumns().length} className="p-0">
+                        <TableCell colSpan={table.getVisibleLeafColumns().length}>
                           {renderSubRow(row.original)}
                         </TableCell>
                       </TableRow>

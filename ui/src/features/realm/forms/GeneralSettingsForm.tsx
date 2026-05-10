@@ -37,6 +37,7 @@ export function GeneralSettingsForm() {
     resolver: zodResolver(generalSettingsSchema) as Resolver<GeneralSettingsSchema>,
     defaultValues: {
       name: '',
+      invitation_resend_limit: 3,
     },
   })
 
@@ -54,6 +55,7 @@ export function GeneralSettingsForm() {
     if (realm)
       form.reset({
         name: realm.name,
+        invitation_resend_limit: realm.invitation_resend_limit ?? 3,
       })
   }, [realm, form])
 
@@ -126,21 +128,34 @@ export function GeneralSettingsForm() {
               <CardTitle>Registration</CardTitle>
               <CardDescription>Control whether self-service user registration is active.</CardDescription>
             </CardHeader>
-            <CardContent className="flex items-center justify-between">
-              <div className="space-y-1">
-                <div className="text-sm font-medium">Enable User Registration</div>
-                <div className="text-xs text-muted-foreground">
-                  {registrationBlocked
-                    ? 'Master realm registration is always disabled.'
-                    : 'Turn off to disable the registration flow for this realm.'}
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">Enable User Registration</div>
+                  <div className="text-xs text-muted-foreground">
+                    {registrationBlocked
+                      ? 'Master realm registration is always disabled.'
+                      : 'Turn off to disable the registration flow for this realm.'}
+                  </div>
                 </div>
+                <Switch
+                  checked={registrationEnabled}
+                  onCheckedChange={handleRegistrationToggle}
+                  aria-label="Enable user registration"
+                  disabled={toggleMutation.isPending || registrationBlocked}
+                />
               </div>
-              <Switch
-                checked={registrationEnabled}
-                onCheckedChange={handleRegistrationToggle}
-                aria-label="Enable user registration"
-                disabled={toggleMutation.isPending || registrationBlocked}
-              />
+
+              <div className="max-w-sm">
+                <FormInput
+                  control={form.control}
+                  name="invitation_resend_limit"
+                  label="Invitation Resend Limit"
+                  type="number"
+                  min={0}
+                  description="Maximum number of resends allowed per invitation in this realm."
+                />
+              </div>
             </CardContent>
           </Card>
         </div>

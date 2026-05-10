@@ -6,6 +6,7 @@ use crate::application::flow_executor::FlowExecutor;
 use crate::application::flow_manager::FlowManager;
 use crate::application::flow_service::FlowService;
 use crate::application::harbor::HarborService;
+use crate::application::invitation_service::InvitationService;
 use crate::application::metrics_service::MetricsService;
 use crate::application::node_registry::NodeRegistryService;
 use crate::application::oidc_service::OidcService;
@@ -74,6 +75,7 @@ pub struct AppState {
     pub passkey_assertion_service: Arc<PasskeyAssertionService>,
     pub passkey_analytics_service: Arc<PasskeyAnalyticsService>,
     pub email_delivery_service: Arc<EmailDeliveryService>,
+    pub invitation_service: Arc<InvitationService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,
     pub harbor_service: Arc<HarborService>,

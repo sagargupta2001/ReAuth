@@ -35,6 +35,7 @@ const FLOW_TYPES = [
   { value: 'registration', label: 'Registration' },
   { value: 'direct', label: 'Direct Grant' },
   { value: 'reset', label: 'Reset Credentials' },
+  { value: 'invitation', label: 'Invitation' },
 ]
 
 const createFlowSchema = z.object({

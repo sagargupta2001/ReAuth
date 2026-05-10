@@ -2,6 +2,9 @@ use super::condition_node::ConditionNodeProvider;
 use super::cookie_node::CookieNodeProvider;
 use super::email_otp_issue_node::EmailOtpIssueNodeProvider;
 use super::forgot_credentials_node::ForgotCredentialsNodeProvider;
+use super::invitation_issue_node::InvitationIssueNodeProvider;
+use super::invitation_token_node::InvitationTokenNodeProvider;
+use super::invitation_unavailable_node::InvitationUnavailableNodeProvider;
 use super::oidc_consent_node::OidcConsentNodeProvider;
 use super::passkey_assert_node::PasskeyAssertNodeProvider;
 use super::passkey_enroll_node::PasskeyEnrollNodeProvider;
@@ -130,6 +133,57 @@ fn reset_password_node_metadata_is_consistent() {
     assert_eq!(node.category(), "Authenticator");
     assert_eq!(node.outputs(), vec!["success", "failure"]);
     assert_eq!(node.default_template_key(), Some("reset_password"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn invitation_token_node_metadata_is_consistent() {
+    let node = InvitationTokenNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.invitation_token");
+    assert_eq!(node.display_name(), "Validate Invitation");
+    assert!(node.description().contains("token state"));
+    assert_eq!(node.icon(), "Mail");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(
+        node.outputs(),
+        vec!["valid", "expired", "consumed", "invalid"]
+    );
+    assert_eq!(
+        node.config_schema()
+            .get("additionalProperties")
+            .and_then(|value| value.as_bool()),
+        Some(false)
+    );
+}
+
+#[test]
+fn invitation_issue_node_metadata_is_consistent() {
+    let node = InvitationIssueNodeProvider;
+
+    assert_eq!(node.id(), "core.logic.issue_invitation");
+    assert_eq!(node.display_name(), "Issue Invitation Token");
+    assert!(node.description().contains("suspend the flow"));
+    assert_eq!(node.icon(), "Mail");
+    assert_eq!(node.category(), "Logic");
+    assert_eq!(node.inputs(), vec!["default"]);
+    assert_eq!(node.outputs(), vec!["issued"]);
+    assert_eq!(node.default_template_key(), Some("awaiting_action"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn invitation_unavailable_node_metadata_is_consistent() {
+    let node = InvitationUnavailableNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.invitation_unavailable");
+    assert_eq!(node.display_name(), "Invitation Unavailable");
+    assert!(node.description().contains("expired"));
+    assert_eq!(node.icon(), "AlertTriangle");
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["failure"]);
+    assert_eq!(node.default_template_key(), Some("invitation_unavailable"));
     assert!(node.supports_ui());
 }
 

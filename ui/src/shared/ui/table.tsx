@@ -34,16 +34,31 @@ Table.displayName = 'Table'
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn('[&_tr]:border-b', className)} {...props} />
-))
+>(({ className, ...props }, ref) => <thead ref={ref} className={cn(className)} {...props} />)
 TableHeader.displayName = 'TableHeader'
 
 const TableBody = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <tbody ref={ref} className={cn('[&_tr:last-child]:border-0', className)} {...props} />
+  <tbody
+    ref={ref}
+    className={cn(
+      // remove border on last row
+      '[&_tr:last-child]:border-0',
+
+      // 🔻 bottom corners
+      '[&_tr:last-child_td:first-child]:rounded-bl-2xl',
+      '[&_tr:last-child_td:last-child]:rounded-br-2xl',
+
+      // 🔺 top corners
+      '[&_tr:first-child_td:first-child]:rounded-tl-2xl',
+      '[&_tr:first-child_td:last-child]:rounded-tr-2xl',
+
+      className,
+    )}
+    {...props}
+  />
 ))
 TableBody.displayName = 'TableBody'
 
@@ -64,7 +79,8 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        'data-[state=selected]:bg-muted border-b transition-colors',
+        'data-[state=selected]:bg-muted transition-colors',
+        'in-[tbody]:border-b',
         'in-[tbody]:hover:bg-(--bg-hover)',
         className,
       )}

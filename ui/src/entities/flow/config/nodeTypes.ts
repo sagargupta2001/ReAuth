@@ -9,6 +9,8 @@ export const flowNodeTypes = {
   'core.logic.condition': LogicNode,
   'core.logic.recovery_issue': LogicNode,
   'core.logic.issue_email_otp': LogicNode,
+  'core.logic.invitation_token': LogicNode,
+  'core.logic.issue_invitation': LogicNode,
   'core.logic.subflow': LogicNode,
 
   // --- AUTHENTICATORS (Workers) ---
@@ -20,6 +22,7 @@ export const flowNodeTypes = {
   'core.auth.forgot_credentials': AuthenticatorNode,
   'core.auth.reset_password': AuthenticatorNode,
   'core.auth.verify_email_otp': AuthenticatorNode,
+  'core.auth.invitation_unavailable': AuthenticatorNode,
   'core.oidc.consent': AuthenticatorNode,
 
   // --- TERMINALS ---
