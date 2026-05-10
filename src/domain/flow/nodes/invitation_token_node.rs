@@ -35,7 +35,13 @@ impl NodeProvider for InvitationTokenNodeProvider {
     fn config_schema(&self) -> Value {
         json!({
             "type": "object",
-            "properties": {},
+            "properties": {
+                "logic_type": {
+                    "type": "string",
+                    "const": "core.logic.invitation_token",
+                    "default": "core.logic.invitation_token"
+                }
+            },
             "additionalProperties": false
         })
     }

@@ -74,7 +74,7 @@ impl LifecycleNode for RegistrationAuthenticator {
             .await?
             .ok_or_else(|| Error::RealmNotFound(session.realm_id.to_string()))?;
         let capabilities = RealmCapabilities::from_realm(&realm);
-        if !capabilities.registration_enabled {
+        if !capabilities.registration_enabled && !allow_invitation_registration(session) {
             return self
                 .reject_registration(session, "", "Registration is disabled")
                 .await;
@@ -210,6 +210,35 @@ impl LifecycleNode for RegistrationAuthenticator {
 
 fn email_equals(left: &str, right: &str) -> bool {
     left.trim().eq_ignore_ascii_case(right.trim())
+}
+
+fn allow_invitation_registration(session: &AuthenticationSession) -> bool {
+    let node_allows_override = session
+        .context
+        .get("node_config")
+        .and_then(|value| value.get("allow_when_invited"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+
+    if !node_allows_override {
+        return false;
+    }
+
+    let has_invitation_id = session
+        .context
+        .get("invitation_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty());
+
+    let has_invitation_email = session
+        .context
+        .get("invitation_email")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty());
+
+    has_invitation_id && has_invitation_email
 }
 
 impl RegistrationAuthenticator {

@@ -10,7 +10,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/shared/ui/dropdown-menu'
 
@@ -43,6 +42,7 @@ export function getInvitationColumns(options: InvitationColumnsOptions): ColumnD
       header: ({ column }) => <DataTableColumnHeader column={column} title="Email" />,
       cell: ({ row }) => <span className="font-medium">{row.getValue('email')}</span>,
       enableSorting: true,
+      size: 250
     },
     {
       accessorKey: 'status',
@@ -101,7 +101,6 @@ export function getInvitationColumns(options: InvitationColumnsOptions): ColumnD
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem disabled={!canAct} onClick={() => onResend(invitation.id)}>
                 Resend invite
               </DropdownMenuItem>

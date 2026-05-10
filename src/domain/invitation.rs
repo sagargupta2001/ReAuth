@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::fmt;
 use uuid::Uuid;
 
@@ -57,11 +58,9 @@ impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for InvitationStatus {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Invitation {
-    #[sqlx(try_from = "String")]
     pub id: Uuid,
-    #[sqlx(try_from = "String")]
     pub realm_id: Uuid,
     pub email: String,
     pub email_normalized: String,
@@ -82,5 +81,49 @@ pub struct Invitation {
 impl Invitation {
     pub fn is_expired(&self) -> bool {
         self.expires_at <= Utc::now()
+    }
+}
+
+impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for Invitation {
+    fn from_row(row: &'r sqlx::sqlite::SqliteRow) -> Result<Self, sqlx::Error> {
+        let parse_uuid = |val: String, col_name: &str| -> Result<Uuid, sqlx::Error> {
+            Uuid::parse_str(&val).map_err(|e| sqlx::Error::ColumnDecode {
+                index: col_name.into(),
+                source: Box::new(e),
+            })
+        };
+
+        let id_str: String = row.try_get("id")?;
+        let realm_id_str: String = row.try_get("realm_id")?;
+        let invited_by_user_id_str: Option<String> = row.try_get("invited_by_user_id")?;
+        let accepted_user_id_str: Option<String> = row.try_get("accepted_user_id")?;
+
+        let invited_by_user_id = match invited_by_user_id_str {
+            Some(value) => Some(parse_uuid(value, "invited_by_user_id")?),
+            None => None,
+        };
+        let accepted_user_id = match accepted_user_id_str {
+            Some(value) => Some(parse_uuid(value, "accepted_user_id")?),
+            None => None,
+        };
+
+        Ok(Self {
+            id: parse_uuid(id_str, "id")?,
+            realm_id: parse_uuid(realm_id_str, "realm_id")?,
+            email: row.try_get("email")?,
+            email_normalized: row.try_get("email_normalized")?,
+            status: row.try_get("status")?,
+            token_hash: row.try_get("token_hash")?,
+            expiry_days: row.try_get("expiry_days")?,
+            expires_at: row.try_get("expires_at")?,
+            invited_by_user_id,
+            accepted_user_id,
+            accepted_at: row.try_get("accepted_at")?,
+            revoked_at: row.try_get("revoked_at")?,
+            resend_count: row.try_get("resend_count")?,
+            last_sent_at: row.try_get("last_sent_at")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
     }
 }

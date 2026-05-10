@@ -38,6 +38,12 @@ impl NodeProvider for RegistrationNodeProvider {
                     "title": "Min Password Length",
                     "default": 8,
                     "minimum": 8
+                },
+                "allow_when_invited": {
+                    "type": "boolean",
+                    "title": "Allow When Invited",
+                    "default": false,
+                    "description": "Allow registration even when realm self-registration is disabled, but only when invitation context is present."
                 }
             }
         })

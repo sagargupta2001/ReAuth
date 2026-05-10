@@ -37,6 +37,11 @@ impl NodeProvider for InvitationIssueNodeProvider {
         json!({
             "type": "object",
             "properties": {
+                "logic_type": {
+                    "type": "string",
+                    "const": "core.logic.issue_invitation",
+                    "default": "core.logic.issue_invitation"
+                },
                 "resume_path": {
                     "type": "string",
                     "title": "Resume Path",

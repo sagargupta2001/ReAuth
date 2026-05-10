@@ -509,7 +509,8 @@ impl FlowTemplates {
                         "label": "Register Account",
                         "config": {
                             "auth_type": "core.auth.register",
-                            "template_key": "register"
+                            "template_key": "register",
+                            "allow_when_invited": true
                         },
                         "outputs": ["success", "failure"]
                     }
@@ -600,7 +601,9 @@ impl FlowTemplates {
                     "position": { "x": 250, "y": 120 },
                     "data": {
                         "label": "Validate Invitation",
-                        "config": {},
+                        "config": {
+                            "logic_type": "core.logic.invitation_token"
+                        },
                         "outputs": ["valid"]
                     },
                     "next": { "valid": "invitation-issue" }
@@ -612,6 +615,7 @@ impl FlowTemplates {
                     "data": {
                         "label": "Issue Invitation Token",
                         "config": {
+                            "logic_type": "core.logic.issue_invitation",
                             "resume_path": "/invite/accept",
                             "resend_path": "/invite/accept",
                             "resume_node_id": "auth-register"
@@ -628,7 +632,8 @@ impl FlowTemplates {
                         "label": "Register Account",
                         "config": {
                             "auth_type": "core.auth.register",
-                            "template_key": "register"
+                            "template_key": "register",
+                            "allow_when_invited": true
                         },
                         "outputs": ["success", "failure"]
                     }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 
 import { useSearchParams } from 'react-router-dom'
@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Alert, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
+import { authApi } from '@/features/auth/api/authApi'
 import { useAcceptInvitation } from '@/features/invitation/api/useInvitations'
 import { Input } from '@/components/input'
 
@@ -14,6 +15,9 @@ export function InvitationAcceptPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [tokenStatus, setTokenStatus] = useState<'checking' | 'pending' | 'consumed' | 'expired'>(
+    'checking',
+  )
 
   const realm = useMemo(() => searchParams.get('realm')?.trim() ?? '', [searchParams])
   const token = useMemo(
@@ -24,9 +28,37 @@ export function InvitationAcceptPage() {
 
   const acceptMutation = useAcceptInvitation(realm)
 
+  useEffect(() => {
+    let cancelled = false
+
+    if (!realm || !token) {
+      setTokenStatus('expired')
+      return () => {
+        cancelled = true
+      }
+    }
+
+    setTokenStatus('checking')
+    void authApi
+      .actionStatus(realm, token)
+      .then((result) => {
+        if (cancelled) return
+        setTokenStatus(result.status)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setTokenStatus('expired')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [realm, token])
+
   const canSubmit =
     realm.length > 0 &&
     token.length > 0 &&
+    tokenStatus === 'pending' &&
     username.trim().length >= 3 &&
     password.length >= 8 &&
     !acceptMutation.isPending
@@ -64,6 +96,36 @@ export function InvitationAcceptPage() {
             <CardTitle>Invalid Invitation Link</CardTitle>
             <CardDescription>
               This invite link is missing required information. Please request a new invite.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  if (tokenStatus === 'checking') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-6 py-10">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle>Checking Invitation</CardTitle>
+            <CardDescription>Validating your invitation link...</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
+
+  if (tokenStatus === 'expired' || tokenStatus === 'consumed') {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30 px-6 py-10">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle>Invitation Link Unavailable</CardTitle>
+            <CardDescription>
+              {tokenStatus === 'expired'
+                ? 'This invitation link has expired. Ask your administrator to resend it.'
+                : 'This invitation link has already been used. Ask your administrator to resend it if needed.'}
             </CardDescription>
           </CardHeader>
         </Card>

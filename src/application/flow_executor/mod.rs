@@ -535,7 +535,9 @@ impl FlowExecutor {
             return Err(Error::InvalidActionToken);
         }
 
-        self.action_repo.mark_consumed(&action.id).await?;
+        if should_consume_on_resume(&action.action_type) {
+            self.action_repo.mark_consumed(&action.id).await?;
+        }
 
         let mut session = self
             .session_repo
@@ -589,6 +591,28 @@ impl FlowExecutor {
         self.session_repo.update(&session).await?;
         let result = self.execute(session_id, None).await?;
         Ok((result, session_id))
+    }
+
+    pub async fn consume_action_token(&self, realm_id: Uuid, token: &str) -> Result<()> {
+        let token_hash = hash_token(token);
+        let action = self
+            .action_repo
+            .find_by_token_hash(&token_hash)
+            .await?
+            .ok_or(Error::InvalidActionToken)?;
+
+        if action.realm_id != realm_id {
+            return Err(Error::SecurityViolation(
+                "Action token does not belong to this realm".to_string(),
+            ));
+        }
+
+        if action.is_consumed() {
+            return Ok(());
+        }
+
+        self.action_repo.mark_consumed(&action.id).await?;
+        Ok(())
     }
 
     pub async fn action_status(&self, realm_id: Uuid, token: &str) -> Result<ActionStatus> {
@@ -971,6 +995,10 @@ fn restore_node_config(session: &mut AuthenticationSession, previous: Option<Val
             map.remove("node_config");
         }
     }
+}
+
+fn should_consume_on_resume(action_type: &str) -> bool {
+    !matches!(action_type, "invitation_accept")
 }
 
 fn inject_signal_context(

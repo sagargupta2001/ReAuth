@@ -18,6 +18,7 @@ use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::invitation_repository::InvitationRepository;
 use crate::ports::realm_repository::RealmRepository;
+use tracing::warn;
 
 pub struct InvitationService {
     invitation_repo: Arc<dyn InvitationRepository>,
@@ -265,6 +266,17 @@ impl InvitationService {
         invitation.updated_at = Utc::now();
         self.invitation_repo.update(&invitation, None).await?;
 
+        if let Err(err) = self
+            .flow_executor
+            .consume_action_token(realm_id, token)
+            .await
+        {
+            warn!(
+                "Failed to mark invitation action token consumed for invitation {}: {}",
+                invitation.id, err
+            );
+        }
+
         Ok(())
     }
 
@@ -293,10 +305,25 @@ impl InvitationService {
         self.auth_session_repo.create(&session).await?;
 
         let result = self.flow_executor.execute(session.id, None).await?;
-        let ExecutionResult::AwaitingAction { context, .. } = result else {
-            return Err(Error::System(
-                "Invitation flow did not suspend for async delivery".to_string(),
-            ));
+        let context = match result {
+            ExecutionResult::AwaitingAction { context, .. } => context,
+            ExecutionResult::Failure { reason } => {
+                return Err(Error::Validation(format!(
+                    "Invitation flow failed before issuing invitation email: {}",
+                    reason
+                )));
+            }
+            ExecutionResult::Challenge { screen_id, .. } => {
+                return Err(Error::Validation(format!(
+                    "Invitation flow reached interactive step '{}' before issuing invitation email. Publish an invitation flow with 'Issue Invitation Token' before interactive steps.",
+                    screen_id
+                )));
+            }
+            ExecutionResult::Success { .. } | ExecutionResult::Continue => {
+                return Err(Error::System(
+                    "Invitation flow did not suspend for async delivery".to_string(),
+                ));
+            }
         };
 
         let delivered = context
