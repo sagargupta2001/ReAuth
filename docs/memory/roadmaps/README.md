@@ -2,27 +2,30 @@
 
 Use one file per feature area for detailed tasks and milestones.
 
-Example paths:
-- `reauth/docs/memory/roadmaps/rbac.md`
-- `reauth/docs/memory/roadmaps/flow-builder.md`
-- `reauth/docs/memory/roadmaps/testing.md`
-- `reauth/docs/memory/roadmaps/configuration.md`
-- `reauth/docs/memory/roadmaps/observability.md`
-- `reauth/docs/memory/roadmaps/seeding.md`
-- `reauth/docs/memory/roadmaps/webhooks.md`
-- `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
-- `reauth/docs/memory/roadmaps/oidc-future-enhancements.md`
-- `reauth/docs/memory/roadmaps/identity-flows.md`
-- `reauth/docs/memory/roadmaps/developer-experience.md`
-- `reauth/docs/memory/roadmaps/identity-brokering.md`
-- `reauth/docs/memory/roadmaps/advanced-iam.md`
-- `reauth/docs/memory/roadmaps/remove-plugin.md`
-- `reauth/docs/memory/roadmaps/auth-production-grade.md`
-- `reauth/docs/memory/roadmaps/theme-engine.md`
-- `reauth/docs/memory/roadmaps/flow-extensibility.md`
-- `reauth/docs/memory/roadmaps/flow-action-binding.md`
-- `reauth/docs/memory/roadmaps/harbor.md`
-- `reauth/docs/memory/roadmaps/ui-data-fetching.md`
+## Index
+
+- `advanced-iam.md`
+- `auth-production-grade.md`
+- `configuration.md`
+- `developer-experience.md`
+- `flow-action-binding.md`
+- `flow-extensibility.md`
+- `flow-resume-design.md`
+- `harbor.md`
+- `identity-brokering.md`
+- `identity-flows.md`
+- `observability.md`
+- `oidc-flow-engine.md`
+- `oidc-future-enhancements.md`
+- `omni-search.md`
+- `rbac.md`
+- `remove-plugin.md`
+- `seeding.md`
+- `template.md`
+- `testing.md`
+- `theme-engine.md`
+- `ui-data-fetching.md`
+- `webhooks.md`
 
 ## Suggested template
 - Goal

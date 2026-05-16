@@ -25,3 +25,5 @@ data
 .tmp/
 
 .idea
+
+graphify-out

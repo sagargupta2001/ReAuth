@@ -39,7 +39,7 @@ Status: Complete (Phase 1 scope)
 - [x] UI settings/toggles to override PKCE enforcement, lockout thresholds, and lockout duration.
 
 ## Future enhancements
-- See `reauth/docs/memory/roadmaps/oidc-future-enhancements.md`.
+- See `docs/memory/roadmaps/oidc-future-enhancements.md`.
 
 ## Risks / dependencies
 Resolved/mitigated in Phase 1:

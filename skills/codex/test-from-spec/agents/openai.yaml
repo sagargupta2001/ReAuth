@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test From Spec"
+  short_description: "Derive and implement tests from a ReAuth feature spec."
+  default_prompt: "Map the provided ReAuth spec to missing test coverage, add the smallest effective tests, and verify the relevant checks."

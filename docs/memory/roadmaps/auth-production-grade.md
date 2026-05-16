@@ -5,12 +5,12 @@
 - Make flow-canvas nodes map cleanly to Fluid pages wherever a node renders UI.
 
 ## Aligned roadmap inputs
-- `reauth/docs/memory/roadmaps/identity-flows.md`
-- `reauth/docs/memory/roadmaps/oidc-flow-engine.md`
-- `reauth/docs/memory/roadmaps/oidc-future-enhancements.md`
-- `reauth/docs/memory/roadmaps/theme-engine.md`
-- `reauth/docs/memory/roadmaps/flow-extensibility.md`
-- `reauth/docs/memory/roadmaps/flow-resume-design.md`
+- `docs/memory/roadmaps/identity-flows.md`
+- `docs/memory/roadmaps/oidc-flow-engine.md`
+- `docs/memory/roadmaps/oidc-future-enhancements.md`
+- `docs/memory/roadmaps/theme-engine.md`
+- `docs/memory/roadmaps/flow-extensibility.md`
+- `docs/memory/roadmaps/flow-resume-design.md`
 
 ## Current state (code-aligned)
 - OIDC Phase 1 hardening is complete: discovery, `/userinfo`, PKCE S256, refresh-token rotation with reuse detection, and async pause/resume are already implemented.

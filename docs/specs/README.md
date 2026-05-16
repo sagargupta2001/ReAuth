@@ -26,15 +26,18 @@ Each spec should define:
 
 ## Relationship to other docs
 
-- `docs/agent/` tells you how to work in this codebase.
+- `AGENTS.md` is the repo-wide onboarding contract.
+- `docs/agent/07-spec-driven-delivery.md` explains how to work with specs in this codebase.
 - `docs/memory/` gives deeper architectural and product context.
 - `docs/specs/` is the build contract for an individual feature.
 
-## Current Specs
+## Index
 
-- `passkey-first-auth.md`
 - `magic-link-builtins.md`
+- `passkey-first-auth.md`
 - `spec-template.md`
+- `user-invitations.md`
+- `users-table-filters.md`
 
 ## Rule
 

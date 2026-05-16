@@ -4,8 +4,8 @@
 ReAuth follows hexagonal architecture in the backend and feature-sliced design (FSD) in the UI. The system can run with a separate UI dev server for rapid iteration or embed a static UI into the Rust binary for single-file deployment.
 
 Key code locations:
-- Backend crate: ``
-- UI app: `reauth/ui`
+- Backend crate: `src/`
+- UI app: `ui/`
 
 ## System diagram
 ```mermaid
@@ -50,12 +50,12 @@ graph TD
 - Logging (tracing + banner): `/src/adapters/logging`.
 
 ## UI architecture (FSD)
-- App shell and providers: `reauth/ui/src/app`.
-- Pages: `reauth/ui/src/pages`.
-- Widgets: `reauth/ui/src/widgets`.
-- Features: `reauth/ui/src/features`.
-- Entities: `reauth/ui/src/entities`.
-- Shared (UI, api, hooks, config, libs, store): `reauth/ui/src/shared`.
+- App shell and providers: `ui/src/app`.
+- Pages: `ui/src/pages`.
+- Widgets: `ui/src/widgets`.
+- Features: `ui/src/features`.
+- Entities: `ui/src/entities`.
+- Shared (UI, api, hooks, config, libs, store): `ui/src/shared`.
 
 ## UI delivery modes
 - Dev mode: API proxies UI requests to the React dev server when `embed-ui` feature is not enabled.

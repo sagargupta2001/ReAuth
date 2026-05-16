@@ -1,0 +1,4 @@
+interface:
+  display_name: "Docs Sync After Change"
+  short_description: "Keep specs, memory, and indexes aligned after changes."
+  default_prompt: "Review the recent ReAuth changes, update any required docs or indexes, run docs validation, and refresh Graphify if code changed."

@@ -42,7 +42,7 @@ Use concise kebab-case filenames:
 
 - `docs/specs/passkey-first-auth.md`
 - `docs/specs/magic-link-builtins.md`
-- `docs/specs/realm-security-headers.md`
+- `docs/specs/user-invitations.md`
 
 ## Guidance for writing a good spec
 

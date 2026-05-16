@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement From Spec"
+  short_description: "Implement the smallest coherent slice from a ReAuth spec."
+  default_prompt: "Implement the requested ReAuth feature from the provided spec path, following the repo architecture, Graphify-first workflow, and smallest-vertical-slice rule."

@@ -4,12 +4,12 @@
 A visual editor for auth flows using React Flow. The builder persists drafts, publishes versions, and deploys a flow per realm + flow type.
 
 ## UI architecture (FSD)
-- Page shell: `reauth/ui/src/pages/flow/builder/FlowBuilderPage.tsx`
-- Canvas: `reauth/ui/src/features/flow-builder/components/FlowCanvas.tsx`
-- Palette: `reauth/ui/src/features/flow-builder/components/NodePalette.tsx`
-- Inspector: `reauth/ui/src/features/flow-builder/components/NodeInspector.tsx`
-- Store (Zustand): `reauth/ui/src/features/flow-builder/store/flowBuilderStore.ts`
-- Node type mapping: `reauth/ui/src/entities/flow/config/nodeTypes.ts`
+- Page shell: `ui/src/pages/flow/builder/FlowBuilderPage.tsx`
+- Canvas: `ui/src/features/flow-builder/components/FlowCanvas.tsx`
+- Palette: `ui/src/features/flow-builder/components/NodePalette.tsx`
+- Inspector: `ui/src/features/flow-builder/components/NodeInspector.tsx`
+- Store (Zustand): `ui/src/features/flow-builder/store/flowBuilderStore.ts`
+- Node type mapping: `ui/src/entities/flow/config/nodeTypes.ts`
 
 ## Backend APIs used
 - List nodes: `GET /api/realms/{realm}/flows/nodes`

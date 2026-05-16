@@ -61,6 +61,7 @@ That is the project-standard pre-PR command.
 Targeted commands when iterating:
 
 ```bash
+make docs-check
 cargo test --all-features
 cargo test --doc
 cd ui && npm run test
