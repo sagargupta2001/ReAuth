@@ -100,6 +100,7 @@ GRAPHIFY_REQUIRED_SNIPPETS = [
 
 LOCAL_PATH_RE = re.compile(r"`([^`]+)`|\[[^\]]+\]\(([^)]+)\)")
 SECTION_PATH_RE = re.compile(r"`([^`]+)`")
+OPTIONAL_LOCAL_PREFIXES = ("graphify-out/",)
 
 
 def read_text(rel_path: str) -> str:
@@ -184,6 +185,8 @@ def validate_local_references(errors: list[str]) -> None:
     for rel_path in NAV_FILES:
         text = read_text(rel_path)
         for token in sorted(extract_local_paths(text)):
+            if token.startswith(OPTIONAL_LOCAL_PREFIXES) and not (ROOT / token).exists():
+                continue
             if not (ROOT / token).exists():
                 error(errors, f"broken local reference in {rel_path}: {token}")
 
