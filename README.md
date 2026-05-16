@@ -26,7 +26,7 @@ ReAuth is a lightweight identity provider inspired by Keycloak, designed for fas
 - UI: Feature‑Sliced Design (FSD)
 - Styling: shadcn/ui + Tailwind
 
-For deeper documentation, see `docs/memory/`.
+For deeper documentation, start with `docs/README.md`.
 
 ---
 
@@ -151,6 +151,7 @@ reauth/
 ---
 
 ## Roadmaps & docs
+- Documentation map: `docs/README.md`
 - Agent onboarding docs: `docs/agent/`
 - Memory docs: `docs/memory/`
 - Feature roadmaps: `docs/memory/roadmaps/`

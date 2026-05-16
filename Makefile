@@ -1,4 +1,4 @@
-.PHONY: run-before-raising-pr fmt clippy test test-docs coverage ui-build ui-lint ui-test ui-coverage summary dev embed clean-tmp
+.PHONY: run-before-raising-pr docs-check fmt clippy test test-docs coverage ui-build ui-lint ui-test ui-coverage summary dev embed clean-tmp
 
 # Colors
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -18,6 +18,7 @@ run-before-raising-pr: clean-tmp
 	@mkdir -p $(TMP_DIR)
 	@echo "$(YELLOW)🚀 Starting pre-PR validation...$(RESET)"
 
+	$(call run_step,Validating docs,$(MAKE) docs-check,docs_check.log)
 	$(call run_step,Building UI,$(MAKE) ui-build,ui_build.log)
 	$(call run_step,Checking formatting,$(MAKE) fmt,fmt.log)
 	$(call run_step,Running Clippy,$(MAKE) clippy,clippy.log)
@@ -105,6 +106,9 @@ define run_step
 	wait $$PID || { echo "$(RED)❌ $(1) failed!$(RESET)"; cat $$LOG; exit 1; }; \
 	echo "$(GREEN)✔ $(1) done$(RESET)"
 endef
+
+docs-check:
+	python3 scripts/validate_docs.py
 
 fmt:
 	cargo fmt --all

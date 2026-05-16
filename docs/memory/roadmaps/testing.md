@@ -37,9 +37,9 @@ Run the following command before pushing any changes:
 make run-before-raising-pr
 ```
 This target performs:
-1.  **Rust Formatting** (`cargo fmt`)
-2.  **Rust Linting** (`cargo clippy`)
-3.  **Backend Tests** (`cargo test`)
+1.  **Docs Validation** (`make docs-check`)
+2.  **Rust Formatting** (`cargo fmt`)
+3.  **Rust Linting** (`cargo clippy`)
 4.  **Documentation Tests** (`cargo test --doc`)
 5.  **Coverage Analysis** (`cargo llvm-cov`)
 6.  **UI Linting** (`npm run lint`)

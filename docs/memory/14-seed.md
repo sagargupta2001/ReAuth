@@ -60,7 +60,7 @@ The seed history table is the source of truth for which seeders have run:
 - Columns: `name`, `version`, `checksum`, `applied_at`
 
 See:
-- `reauth/migrations/20260218101500_seed_history.sql`
+- `migrations/20260218101500_seed_history.sql`
 - `/src/bootstrap/seed/history.rs`
 
 ## Seed registry and context

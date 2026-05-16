@@ -11,7 +11,7 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 ## Conventions
 - Keep files concise. Prefer bullet lists and diagrams.
 - When adding a decision, add an ADR under `adr/` and list it in `adr/README.md`.
-- When naming paths, use repo-relative paths rooted at `reauth/`.
+- When naming paths, use repo-relative paths from the repository root.
 
 ## Index
 - `00-context.md`
@@ -25,21 +25,15 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 - `09-roadmap.md`
 - `10-open-questions.md`
 - `11-auth-flow-catalog.md`
+- `12-rbac.md`
 - `13-hot-reload.md`
 - `14-seed.md`
 - `15-observability.md`
+- `16-omni-search.md`
+- `17-webhooks.md`
 - `18-fluid-theme-builder.md`
 - `19-harbor.md`
+- `20-ui-development-practices.md`
 - `harbor-bundle.md`
-- `roadmaps/README.md`
-- `roadmaps/rbac.md`
-- `roadmaps/configuration.md`
-- `roadmaps/observability.md`
-- `roadmaps/seeding.md`
-- `roadmaps/testing.md`
-- `roadmaps/omni-search.md`
-- `roadmaps/remove-plugin.md`
-- `roadmaps/auth-production-grade.md`
-- `roadmaps/theme-engine.md`
-- `roadmaps/oidc-future-enhancements.md`
 - `adr/README.md`
+- `roadmaps/README.md`

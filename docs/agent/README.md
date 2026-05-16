@@ -1,58 +1,34 @@
 # Agent Docs
 
-Purpose: this is the required entrypoint for any human or agent starting work in ReAuth.
+Use this folder as a guide map after reading `AGENTS.md`.
 
-This folder does not replace `docs/memory/`. It curates the minimum docs, rules, and workflow needed to start implementation consistently.
+## Guides
 
-## Read this before any task
+- `docs/agent/01-core-mental-models.md`
+- `docs/agent/02-repo-map.md`
+- `docs/agent/03-backend-development.md`
+- `docs/agent/04-frontend-development.md`
+- `docs/agent/05-testing.md`
+- `docs/agent/06-migrations-and-data.md`
+- `docs/agent/07-spec-driven-delivery.md`
+- `docs/agent/08-documentation-system.md`
+- `docs/agent/09-ai-skill-workflow.md`
 
-1. Read the root `README.md`.
-2. Read `docs/agent/01-core-mental-models.md`.
-3. Read `docs/agent/02-repo-map.md`.
-4. Read the development guide that matches your change:
-   - Backend-heavy: `docs/agent/03-backend-development.md`
-   - Frontend-heavy: `docs/agent/04-frontend-development.md`
-   - Cross-cutting: read both
-5. Read `docs/agent/05-testing.md`.
-6. If the task touches persistence, read `docs/agent/06-migrations-and-data.md`.
-7. Read `docs/agent/07-spec-driven-delivery.md`.
+## Typical Task Paths
 
-## Then read task-specific project memory
+- Backend changes: `docs/agent/01-core-mental-models.md`, `docs/agent/02-repo-map.md`, `docs/agent/03-backend-development.md`, `docs/agent/05-testing.md`, and `docs/agent/06-migrations-and-data.md` when persistence changes.
+- Frontend changes: `docs/agent/01-core-mental-models.md`, `docs/agent/02-repo-map.md`, `docs/agent/04-frontend-development.md`, and `docs/agent/05-testing.md`.
+- Cross-cutting features: both development guides plus `docs/agent/07-spec-driven-delivery.md`.
+- Docs or workflow changes: `docs/agent/08-documentation-system.md` plus the relevant `docs/memory/` or `docs/specs/` index.
+- AI-assisted requirement-to-feature flow: `docs/agent/09-ai-skill-workflow.md`.
 
-Always pull in the relevant `docs/memory/` docs before implementation. Minimum project context:
+## Project Memory
 
-- `docs/memory/00-context.md`
-- `docs/memory/01-architecture.md`
-- `docs/memory/03-control-flow.md`
-- `docs/memory/09-roadmap.md`
+- Start with `docs/memory/README.md`.
+- Pull in the specific subsystem docs before implementation.
+- Use `docs/memory/roadmaps/README.md` and `docs/memory/adr/README.md` when the task touches strategic direction or prior decisions.
 
-Area-specific examples:
+## Graphify
 
-- Auth and login work:
-  - `docs/memory/04-oidc-sso-flows.md`
-  - `docs/memory/11-auth-flow-catalog.md`
-- Flow builder and nodes:
-  - `docs/memory/05-flow-builder.md`
-  - relevant roadmap under `docs/memory/roadmaps/`
-- UI/theme/fluid work:
-  - `docs/memory/18-fluid-theme-builder.md`
-  - `docs/memory/20-ui-development-practices.md`
-- Data/model work:
-  - `docs/memory/02-domain-model.md`
-  - `docs/memory/07-data-model.md`
-
-## Required workflow
-
-For new features or meaningful changes:
-
-1. Create or update a spec in `docs/specs/`.
-2. Align the implementation plan with the spec.
-3. Implement the smallest coherent vertical slice.
-4. Add or update tests with the change.
-5. Update the spec status and any relevant memory docs if the architecture or workflow changed.
-
-## Source of truth
-
-- `docs/agent/` is the implementation workflow and engineering-rules entrypoint.
-- `docs/memory/` is the deeper architectural and product memory.
-- `docs/specs/` is the source of truth for feature-level implementation scope and acceptance.
+- For architecture or codebase-structure questions, run `graphify query`, `graphify explain`, or `graphify path` first when `graphify-out/graph.json` exists.
+- If the graph is missing, stale, or insufficient, fall back to targeted repo reads.

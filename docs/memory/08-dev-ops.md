@@ -1,10 +1,10 @@
 # Dev and Ops
 
 ## Local dev
-- UI dev server: `npm run dev` from `reauth/ui` (Vite on `http://localhost:5173`).
+- UI dev server: `npm run dev` from `ui/` (Vite on `http://localhost:5173`).
 - UI proxy target override: set `VITE_API_PROXY_TARGET` (defaults to `http://localhost:3000`).
 - Backend run: `cargo run --package reauth --bin reauth` (API on `http://127.0.0.1:3000`).
-- Embed UI mode: `npm run build` from `reauth/ui`, then `cargo run --package reauth --features embed-ui`.
+- Embed UI mode: `npm run build` from `ui/`, then `cargo run --package reauth --features embed-ui`.
 
 ## Migrations
 - Migrations are applied on backend startup via `sqlx::migrate!`.
@@ -12,7 +12,7 @@
   - `cargo run --package reauth --bin reauth -- --benchmark`
 
 ## Config and environment
-- Default config: `reauth/config/default.toml`.
+- Default config: `config/default.toml`.
 - Overrides via environment variables using `REAUTH__` prefix.
 - Config precedence (low → high): embedded defaults → `config/default.toml` (dev) → `reauth.toml` / `--config` / `REAUTH_CONFIG` → env.
 - CORS allowlist: `cors.allowed_origins` (TOML array).

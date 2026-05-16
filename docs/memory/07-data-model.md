@@ -1,6 +1,6 @@
 # Data Model
 
-Source of truth: `reauth/migrations/20251214045651_initial_schema.sql` and subsequent migrations.
+Source of truth: `migrations/20251214045651_initial_schema.sql` and subsequent migrations.
 
 ## Core tables
 
@@ -54,7 +54,7 @@ Source of truth: `reauth/migrations/20251214045651_initial_schema.sql` and subse
 
 ## Legacy tables removed
 - `auth_flow_steps`, `authenticator_config`, `login_sessions` were removed in migration:
-  - `reauth/migrations/20260215120000_remove_step_based_flows.sql`
+  - `migrations/20260215120000_remove_step_based_flows.sql`
 
 ## Notes
 - Realm flow bindings are nullable to avoid circular FK constraints.

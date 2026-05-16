@@ -1,0 +1,4 @@
+interface:
+  display_name: "Spec From Requirement"
+  short_description: "Turn a rough requirement into a buildable ReAuth spec."
+  default_prompt: "Create or update a ReAuth spec from the provided requirement, using project docs and Graphify first when architecture context is needed."

@@ -1,7 +1,7 @@
 # Control Flow
 
 ## Scope
-This doc captures the primary control paths and state transitions. It is intentionally high level and stable. Protocol specifics live in `reauth/docs/memory/04-oidc-sso-flows.md`. Flow-builder internals live in `reauth/docs/memory/05-flow-builder.md`.
+This doc captures the primary control paths and state transitions. It is intentionally high level and stable. Protocol specifics live in `docs/memory/04-oidc-sso-flows.md`. Flow-builder internals live in `docs/memory/05-flow-builder.md`.
 
 ## Backend startup
 ```mermaid
@@ -94,4 +94,4 @@ stateDiagram-v2
 - Embedded mode: API serves static assets from the binary when `embed-ui` is enabled.
 
 ## Flow catalog (summary)
-All auth flows share the same execution engine. Per-flow details live in `reauth/docs/memory/11-auth-flow-catalog.md`.
+All auth flows share the same execution engine. Per-flow details live in `docs/memory/11-auth-flow-catalog.md`.
