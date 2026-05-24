@@ -90,6 +90,12 @@ pub enum Error {
     #[error("Validation failed: {0}")]
     Validation(String),
 
+    #[error("{0}")]
+    Conflict(String),
+
+    #[error("{0}")]
+    RateLimited(String),
+
     #[error("Validation failed")]
     FieldsValidation {
         message: String,

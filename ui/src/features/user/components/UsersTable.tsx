@@ -66,7 +66,7 @@ export function UsersTable() {
       sorting={sorting}
       onSortingChange={setSorting}
       searchKey="username"
-      searchPlaceholder="Filter users..."
+      searchPlaceholder="Search..."
       searchValue={searchTerm}
       onSearch={setSearchTerm}
       onRowClick={(user) => navigate(`/users/${user.id}`)}

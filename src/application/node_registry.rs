@@ -1,6 +1,7 @@
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::domain::flow::models::NodeContract;
 use crate::domain::flow::node_registry::NodeRegistry;
+use crate::domain::flow::nodes::collect_idp_choice_node::CollectIdpChoiceNodeProvider;
 use crate::domain::flow::nodes::condition_node::ConditionNodeProvider;
 use crate::domain::flow::nodes::cookie_node::CookieNodeProvider;
 use crate::domain::flow::nodes::email_otp_issue_node::EmailOtpIssueNodeProvider;
@@ -8,6 +9,7 @@ use crate::domain::flow::nodes::forgot_credentials_node::ForgotCredentialsNodePr
 use crate::domain::flow::nodes::invitation_issue_node::InvitationIssueNodeProvider;
 use crate::domain::flow::nodes::invitation_token_node::InvitationTokenNodeProvider;
 use crate::domain::flow::nodes::invitation_unavailable_node::InvitationUnavailableNodeProvider;
+use crate::domain::flow::nodes::oauth_idp_node::OAuthIdpNodeProvider;
 use crate::domain::flow::nodes::oidc_consent_node::OidcConsentNodeProvider;
 use crate::domain::flow::nodes::passkey_assert_node::PasskeyAssertNodeProvider;
 use crate::domain::flow::nodes::passkey_enroll_node::PasskeyEnrollNodeProvider;
@@ -39,11 +41,13 @@ impl NodeRegistryService {
                 Box::new(PasskeyAssertNodeProvider),
                 Box::new(PasskeyEnrollNodeProvider),
                 Box::new(PasswordNodeProvider),
+                Box::new(CollectIdpChoiceNodeProvider),
                 Box::new(ForgotCredentialsNodeProvider),
                 Box::new(InvitationTokenNodeProvider),
                 Box::new(InvitationIssueNodeProvider),
                 Box::new(InvitationUnavailableNodeProvider),
                 Box::new(OidcConsentNodeProvider),
+                Box::new(OAuthIdpNodeProvider),
                 Box::new(RegistrationNodeProvider),
                 Box::new(ResetPasswordNodeProvider),
                 Box::new(VerifyEmailOtpNodeProvider),

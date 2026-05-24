@@ -139,6 +139,8 @@ mod tests {
             async fn mark_replaced(&self, old_id: &Uuid, new_id: &Uuid) -> Result<()>;
             async fn revoke_family(&self, family_id: &Uuid) -> Result<()>;
             async fn revoke_all_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()>;
+            async fn revoke_by_user_and_client(&self, realm_id: &Uuid, user_id: &Uuid, client_id: &str) -> Result<()>;
+            async fn revoke_root_tokens_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()>;
             async fn list(&self, realm_id: &Uuid, req: &crate::domain::pagination::PageRequest) -> Result<crate::domain::pagination::PageResponse<RefreshToken>>;
         }
     }

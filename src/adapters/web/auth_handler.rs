@@ -1,3 +1,4 @@
+use crate::application::idp_service::IdentityProviderLoginOption;
 use crate::application::passkey_assertion_service::{
     BeginAssertionRequest, BeginEnrollmentRequest, VerifyAssertionRequest, VerifyEnrollmentRequest,
 };
@@ -71,7 +72,7 @@ impl PublicAuthFlowKind {
     }
 }
 
-fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
+pub(crate) fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
     let expires_time = time::OffsetDateTime::from_unix_timestamp(token.expires_at.timestamp())
         .unwrap_or(time::OffsetDateTime::UNIX_EPOCH);
     Cookie::build((REFRESH_TOKEN_COOKIE, token.id.to_string()))
@@ -83,7 +84,7 @@ fn create_refresh_cookie(token: &RefreshToken) -> Cookie<'static> {
         .into()
 }
 
-fn create_clear_cookie() -> Cookie<'static> {
+pub(crate) fn create_clear_cookie() -> Cookie<'static> {
     Cookie::build(REFRESH_TOKEN_COOKIE)
         .path("/")
         .http_only(true)
@@ -93,7 +94,7 @@ fn create_clear_cookie() -> Cookie<'static> {
         .into()
 }
 
-fn create_clear_login_cookie() -> Cookie<'static> {
+pub(crate) fn create_clear_login_cookie() -> Cookie<'static> {
     Cookie::build(LOGIN_SESSION_COOKIE)
         .path("/api")
         .expires(time::OffsetDateTime::UNIX_EPOCH)
@@ -103,20 +104,22 @@ fn create_clear_login_cookie() -> Cookie<'static> {
         .into()
 }
 
-fn create_login_cookie(session_id: Uuid) -> Cookie<'static> {
+pub(crate) fn create_login_cookie(session_id: Uuid) -> Cookie<'static> {
     // 15 min expiry for login session
     let expires = time::OffsetDateTime::now_utc() + time::Duration::minutes(15);
     Cookie::build((LOGIN_SESSION_COOKIE, session_id.to_string()))
         .path("/api")
         .http_only(true)
-        .same_site(SameSite::Strict)
+        // OAuth/OIDC callbacks return from a third-party origin, so the browser must
+        // be allowed to send the login session cookie on the top-level redirect back.
+        .same_site(SameSite::Lax)
         .expires(expires)
         .into()
 }
 
 // GET /api/auth/login
 // This handles generating OIDC codes OR Dashboard Cookies upon flow completion
-async fn handle_flow_success(
+pub(crate) async fn handle_flow_success(
     state: &AppState,
     session_id: Uuid,
     redirect_url: String,
@@ -501,7 +504,24 @@ async fn start_public_flow(
                 handle_flow_success(&state, session_id, redirect_url, headers, ip).await
             }
         }
-        _ => map_execution_result(result, headers, Some(&capabilities)),
+        _ => {
+            let enabled_providers = if flow_kind == PublicAuthFlowKind::Login {
+                Some(
+                    state
+                        .identity_provider_service
+                        .list_enabled_login_options(realm.id)
+                        .await?,
+                )
+            } else {
+                None
+            };
+            map_execution_result(
+                result,
+                headers,
+                Some(&capabilities),
+                enabled_providers.as_deref(),
+            )
+        }
     }
 }
 
@@ -560,7 +580,18 @@ pub async fn execute_login_step_handler(
         ExecutionResult::Success { redirect_url } => {
             handle_flow_success(&state, session_id, redirect_url, HeaderMap::new(), ip).await
         }
-        _ => map_execution_result(result, HeaderMap::new(), Some(&capabilities)),
+        _ => {
+            let enabled_providers = state
+                .identity_provider_service
+                .list_enabled_login_options(realm.id)
+                .await?;
+            map_execution_result(
+                result,
+                HeaderMap::new(),
+                Some(&capabilities),
+                Some(enabled_providers.as_slice()),
+            )
+        }
     }
 }
 
@@ -607,24 +638,31 @@ pub async fn execute_reset_step_handler(
         ExecutionResult::Success { .. } => {
             reset_flow_success_response(HeaderMap::new(), &realm_name)
         }
-        _ => map_execution_result(result, HeaderMap::new(), Some(&capabilities)),
+        _ => map_execution_result(result, HeaderMap::new(), Some(&capabilities), None),
     }
 }
 
 // Helper to map result to response (Deduped logic)
-fn map_execution_result(
+pub(crate) fn map_execution_result(
     result: ExecutionResult,
     headers: HeaderMap,
     capabilities: Option<&RealmCapabilities>,
+    enabled_providers: Option<&[IdentityProviderLoginOption]>,
 ) -> Result<Response> {
     match result {
         ExecutionResult::Challenge { screen_id, context } => {
-            let context = attach_capabilities(context, capabilities);
+            let context = attach_enabled_providers(
+                attach_capabilities(context, capabilities),
+                enabled_providers,
+            );
             let body = serde_json::json!({ "status": "challenge", "challengeName": screen_id, "context": context });
             Ok((StatusCode::OK, headers, Json(body)).into_response())
         }
         ExecutionResult::AwaitingAction { screen_id, context } => {
-            let context = attach_capabilities(context, capabilities);
+            let context = attach_enabled_providers(
+                attach_capabilities(context, capabilities),
+                enabled_providers,
+            );
             let body = serde_json::json!({ "status": "awaiting_action", "challengeName": screen_id, "context": context });
             Ok((StatusCode::OK, headers, Json(body)).into_response())
         }
@@ -674,6 +712,32 @@ fn attach_capabilities(
         }
         _ => serde_json::json!({
             "capabilities": caps_value,
+            "value": context
+        }),
+    }
+}
+
+fn attach_enabled_providers(
+    mut context: serde_json::Value,
+    enabled_providers: Option<&[IdentityProviderLoginOption]>,
+) -> serde_json::Value {
+    let Some(enabled_providers) = enabled_providers else {
+        return context;
+    };
+    let providers_value =
+        serde_json::to_value(enabled_providers).unwrap_or_else(|_| serde_json::json!([]));
+    match context {
+        serde_json::Value::Object(ref mut map) => {
+            map.insert("enabled_providers".to_string(), providers_value);
+            map.insert(
+                "enabled_providers_count".to_string(),
+                serde_json::json!(enabled_providers.len()),
+            );
+            context
+        }
+        _ => serde_json::json!({
+            "enabled_providers": providers_value,
+            "enabled_providers_count": enabled_providers.len(),
             "value": context
         }),
     }
@@ -817,7 +881,7 @@ pub async fn passkey_authenticate_verify_handler(
             )
             .await
         }
-        other => map_execution_result(other, response_headers, Some(&capabilities)),
+        other => map_execution_result(other, response_headers, Some(&capabilities), None),
     }
 }
 
@@ -918,7 +982,7 @@ pub async fn passkey_enroll_verify_handler(
             )
             .await
         }
-        other => map_execution_result(other, response_headers, Some(&capabilities)),
+        other => map_execution_result(other, response_headers, Some(&capabilities), None),
     }
 }
 
@@ -1011,7 +1075,7 @@ pub async fn resume_action_handler(
         HeaderValue::from_str(&new_cookie.to_string())?,
     );
 
-    map_execution_result(result, headers, Some(&capabilities))
+    map_execution_result(result, headers, Some(&capabilities), None)
 }
 
 // POST /api/realms/{realm}/auth/resend
@@ -1098,9 +1162,15 @@ pub async fn refresh_handler(
     }
 }
 
+#[derive(Deserialize)]
+pub struct LogoutQuery {
+    pub client_id: Option<String>,
+}
+
 pub async fn logout_handler(
     State(state): State<AppState>,
     Path(_realm): Path<String>,
+    Query(query): Query<LogoutQuery>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse> {
     let mut headers = HeaderMap::new();
@@ -1115,8 +1185,27 @@ pub async fn logout_handler(
 
     if let Some(c) = jar.get(REFRESH_TOKEN_COOKIE) {
         if let Ok(id) = Uuid::parse_str(c.value()) {
-            let _ = state.auth_service.logout(id).await;
+            if let Some(client_id) = &query.client_id {
+                let _ = state.auth_service.logout_with_client(id, client_id).await;
+            } else {
+                let _ = state.auth_service.logout(id).await;
+            }
         }
     }
     Ok((StatusCode::OK, headers, Json("Logged out")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::create_login_cookie;
+    use axum_extra::extract::cookie::SameSite;
+    use uuid::Uuid;
+
+    #[test]
+    fn login_cookie_uses_lax_same_site_for_oauth_callbacks() {
+        let cookie = create_login_cookie(Uuid::new_v4());
+        assert_eq!(cookie.same_site(), Some(SameSite::Lax));
+        assert_eq!(cookie.path(), Some("/api"));
+        assert!(cookie.http_only().unwrap_or(false));
+    }
 }

@@ -9,6 +9,16 @@ export const queryKeys = {
   client: (realm: string, clientId: string) => ['client', realm, clientId] as const,
   clients: (realm?: string, params?: unknown) =>
     realm ? (['clients', realm, params] as const) : (['clients'] as const),
+  identityProvider: (realm: string, providerId: string) =>
+    ['identity-provider', realm, providerId] as const,
+  identityProviderActivity: (realm: string, providerId: string, limit?: number) =>
+    ['identity-provider-activity', realm, providerId, limit ?? 20] as const,
+  identityProviderLinkedUsers: (realm: string, providerId: string) =>
+    ['identity-provider-linked-users', realm, providerId] as const,
+  identityProviders: (realm?: string) =>
+    realm ? (['identity-providers', realm] as const) : (['identity-providers'] as const),
+  identityProviderPresets: (realm?: string) =>
+    realm ? (['identity-provider-presets', realm] as const) : (['identity-provider-presets'] as const),
   role: (realm: string, roleId: string) => ['role', realm, roleId] as const,
   roles: (realm: string, params?: unknown) => ['roles', realm, params] as const,
   group: (realm: string, groupId: string) => ['group', realm, groupId] as const,
@@ -102,6 +112,8 @@ export const queryKeys = {
     realmId
       ? (['realm-recovery-settings', realmId] as const)
       : (['realm-recovery-settings'] as const),
+  realmIdpSettings: (realmId?: string) =>
+    realmId ? (['realm-idp-settings', realmId] as const) : (['realm-idp-settings'] as const),
   realmPasskeySettings: (realmId?: string) =>
     realmId
       ? (['realm-passkey-settings', realmId] as const)

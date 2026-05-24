@@ -2,6 +2,7 @@ use crate::application::flow_service::FlowService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::config::Settings;
 use crate::constants::DEFAULT_REALM_NAME;
+use crate::domain::realm::{RealmIdpDefaultEmailLinkPolicy, RealmIdpDefaultJitPolicy};
 use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use crate::{
     domain::realm::Realm,
@@ -31,6 +32,10 @@ pub struct UpdateRealmPayload {
     pub registration_enabled: Option<bool>,
     pub default_registration_role_ids: Option<Vec<Uuid>>,
     pub invitation_resend_limit: Option<i64>,
+    pub idp_broker_enabled: Option<bool>,
+    pub idp_default_jit_policy: Option<RealmIdpDefaultJitPolicy>,
+    pub idp_default_email_link_policy: Option<RealmIdpDefaultEmailLinkPolicy>,
+    pub idp_minimum_remaining_factor: Option<bool>,
     pub browser_flow_id: Option<Option<Uuid>>,
     pub registration_flow_id: Option<Option<Uuid>>,
     pub direct_grant_flow_id: Option<Option<Uuid>>,
@@ -88,6 +93,10 @@ impl RealmService {
                 registration_enabled: !is_system,
                 default_registration_role_ids: Vec::new(),
                 invitation_resend_limit: 3,
+                idp_broker_enabled: false,
+                idp_default_jit_policy: RealmIdpDefaultJitPolicy::PerProvider,
+                idp_default_email_link_policy: RealmIdpDefaultEmailLinkPolicy::ManualOnly,
+                idp_minimum_remaining_factor: true,
                 browser_flow_id: None,
                 registration_flow_id: None,
                 direct_grant_flow_id: None,
@@ -214,6 +223,18 @@ impl RealmService {
                 ));
             }
             realm.invitation_resend_limit = value;
+        }
+        if let Some(value) = payload.idp_broker_enabled {
+            realm.idp_broker_enabled = value;
+        }
+        if let Some(value) = payload.idp_default_jit_policy {
+            realm.idp_default_jit_policy = value;
+        }
+        if let Some(value) = payload.idp_default_email_link_policy {
+            realm.idp_default_email_link_policy = value;
+        }
+        if let Some(value) = payload.idp_minimum_remaining_factor {
+            realm.idp_minimum_remaining_factor = value;
         }
 
         if let Some(val) = payload.browser_flow_id {

@@ -1,9 +1,11 @@
+pub mod collect_idp_choice_authenticator;
 pub mod cookie_authenticator;
 pub mod email_otp_issue_node;
 pub mod forgot_credentials_authenticator;
 pub mod invitation_issue_node;
 pub mod invitation_token_node;
 pub mod invitation_unavailable_authenticator;
+pub mod oauth_idp_authenticator;
 pub mod oidc_consent_authenticator;
 pub mod passkey_assert_authenticator;
 pub mod passkey_enroll_authenticator;
@@ -14,12 +16,14 @@ pub mod reset_password_authenticator;
 pub mod subflow_node;
 pub mod verify_email_otp_authenticator;
 
+use crate::adapters::auth::collect_idp_choice_authenticator::CollectIdpChoiceAuthenticator;
 use crate::adapters::auth::cookie_authenticator::CookieAuthenticator;
 use crate::adapters::auth::email_otp_issue_node::EmailOtpIssueNode;
 use crate::adapters::auth::forgot_credentials_authenticator::ForgotCredentialsAuthenticator;
 use crate::adapters::auth::invitation_issue_node::InvitationIssueNode;
 use crate::adapters::auth::invitation_token_node::InvitationTokenNode;
 use crate::adapters::auth::invitation_unavailable_authenticator::InvitationUnavailableAuthenticator;
+use crate::adapters::auth::oauth_idp_authenticator::OAuthIdpAuthenticator;
 use crate::adapters::auth::oidc_consent_authenticator::OidcConsentAuthenticator;
 use crate::adapters::auth::passkey_assert_authenticator::PasskeyAssertAuthenticator;
 use crate::adapters::auth::passkey_enroll_authenticator::PasskeyEnrollAuthenticator;
@@ -30,6 +34,8 @@ use crate::adapters::auth::reset_password_authenticator::ResetPasswordAuthentica
 use crate::adapters::auth::subflow_node::SubflowNode;
 use crate::adapters::auth::verify_email_otp_authenticator::VerifyEmailOtpAuthenticator;
 use crate::application::audit_service::AuditService;
+use crate::application::idp_service::IdentityProviderService;
+use crate::application::oauth_broker_service::OAuthBrokerService;
 use crate::application::rbac_service::RbacService;
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::application::user_service::UserService;
@@ -60,6 +66,8 @@ pub struct BuiltinAuthContext {
     pub audit_service: Arc<AuditService>,
     pub recovery_settings_repo: Arc<dyn RealmRecoverySettingsRepository>,
     pub passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
+    pub identity_provider_service: Arc<IdentityProviderService>,
+    pub oauth_broker_service: Arc<OAuthBrokerService>,
 }
 
 pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext) {
@@ -69,6 +77,8 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
         ctx.user_repo,
         ctx.realm_repo.clone(),
         ctx.login_attempt_repo,
+        ctx.identity_provider_service.clone(),
+        ctx.oauth_broker_service.clone(),
         ctx.lockout_threshold,
         ctx.lockout_duration_secs,
     ));
@@ -133,6 +143,25 @@ pub fn register_builtins(registry: &mut RuntimeRegistry, ctx: BuiltinAuthContext
     // 5. OIDC Consent Node
     let consent_node = Arc::new(OidcConsentAuthenticator::new());
     registry.register_node("core.oidc.consent", consent_node, StepType::Authenticator);
+
+    let collect_idp_choice_node = Arc::new(CollectIdpChoiceAuthenticator::new(
+        ctx.identity_provider_service.clone(),
+    ));
+    registry.register_node(
+        "core.auth.collect_idp_choice",
+        collect_idp_choice_node,
+        StepType::Authenticator,
+    );
+
+    let oauth_idp_node = Arc::new(OAuthIdpAuthenticator::new(
+        ctx.identity_provider_service,
+        ctx.oauth_broker_service,
+    ));
+    registry.register_node(
+        "core.auth.oauth_idp",
+        oauth_idp_node,
+        StepType::Authenticator,
+    );
 
     // 6. Recovery Issue Logic Node
     let recovery_issue_node = Arc::new(RecoveryIssueNode::new(

@@ -1,3 +1,4 @@
+use super::collect_idp_choice_node::CollectIdpChoiceNodeProvider;
 use super::condition_node::ConditionNodeProvider;
 use super::cookie_node::CookieNodeProvider;
 use super::email_otp_issue_node::EmailOtpIssueNodeProvider;
@@ -5,6 +6,7 @@ use super::forgot_credentials_node::ForgotCredentialsNodeProvider;
 use super::invitation_issue_node::InvitationIssueNodeProvider;
 use super::invitation_token_node::InvitationTokenNodeProvider;
 use super::invitation_unavailable_node::InvitationUnavailableNodeProvider;
+use super::oauth_idp_node::OAuthIdpNodeProvider;
 use super::oidc_consent_node::OidcConsentNodeProvider;
 use super::passkey_assert_node::PasskeyAssertNodeProvider;
 use super::passkey_enroll_node::PasskeyEnrollNodeProvider;
@@ -219,6 +221,37 @@ fn oidc_consent_node_metadata_is_consistent() {
     assert_eq!(node.category(), "Authenticator");
     assert_eq!(node.outputs(), vec!["allow", "deny"]);
     assert_eq!(node.default_template_key(), Some("consent"));
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn oauth_idp_node_metadata_is_consistent() {
+    let node = OAuthIdpNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.oauth_idp");
+    assert_eq!(node.display_name(), "OAuth Identity Provider");
+    assert!(node.description().contains("external OAuth"));
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(
+        node.outputs(),
+        vec!["logged_in", "jit_provisioned", "failed"]
+    );
+    assert_eq!(node.default_template_key(), Some("oauth_redirecting"));
+    let schema = node.config_schema();
+    assert!(schema.get("required").is_none());
+    assert!(node.supports_ui());
+}
+
+#[test]
+fn collect_idp_choice_node_metadata_is_consistent() {
+    let node = CollectIdpChoiceNodeProvider;
+
+    assert_eq!(node.id(), "core.auth.collect_idp_choice");
+    assert_eq!(node.display_name(), "Choose Identity Provider");
+    assert!(node.description().contains("provider picker"));
+    assert_eq!(node.category(), "Authenticator");
+    assert_eq!(node.outputs(), vec!["selected", "failed"]);
+    assert_eq!(node.default_template_key(), Some("oauth_select"));
     assert!(node.supports_ui());
 }
 

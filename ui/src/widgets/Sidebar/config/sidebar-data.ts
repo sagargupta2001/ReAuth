@@ -2,6 +2,7 @@ import {
   Anchor,
   AppWindow,
   Database,
+  Fingerprint,
   Group,
   KeyRound,
   LayoutDashboard,
@@ -75,6 +76,11 @@ export const sidebarData: SidebarData = {
       icon: AppWindow,
     },
     {
+      title: 'Identity Providers',
+      url: '/identity-providers',
+      icon: Fingerprint,
+    },
+    {
       title: 'Flows', // This Key will trigger the custom sidebar
       url: '/flows',
       icon: Workflow,
@@ -103,6 +109,10 @@ export const sidebarData: SidebarData = {
         {
           title: 'Security Defenses',
           url: '/settings/security',
+        },
+        {
+          title: 'Identity Brokering',
+          url: '/settings/identity-brokering',
         },
         {
           title: 'Recovery',

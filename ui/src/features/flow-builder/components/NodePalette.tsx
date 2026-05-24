@@ -4,8 +4,10 @@ import { type DragEvent, type ElementType, useEffect, useMemo, useState } from '
 import {
   Box,
   CheckCircle,
+  GlobeLock,
   Loader2,
   Lock,
+  ListChecks,
   Mail,
   Play,
   ShieldAlert,
@@ -31,6 +33,8 @@ const IconMap: Record<string, ElementType> = {
   Mail: Mail,
   Box: Box,
   Zap: Zap,
+  GlobeLock: GlobeLock,
+  ListChecks: ListChecks,
 }
 
 export function NodePalette() {

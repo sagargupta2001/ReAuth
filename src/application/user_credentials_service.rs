@@ -2,13 +2,19 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
+use serde_json::json;
 use uuid::Uuid;
 
+use crate::application::audit_service::AuditService;
 use crate::application::user_service::UserService;
+use crate::domain::audit::NewAuditEvent;
 use crate::domain::realm_passkey_settings::RealmPasskeySettings;
 use crate::error::{Error, Result};
+use crate::ports::federated_identity_repository::FederatedIdentityRepository;
+use crate::ports::identity_provider_repository::IdentityProviderRepository;
 use crate::ports::passkey_credential_repository::PasskeyCredentialRepository;
 use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
+use crate::ports::realm_repository::RealmRepository;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UserPasswordCredentialSummary {
@@ -30,16 +36,32 @@ pub struct UserPasskeyCredentialSummary {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct UserFederatedIdentitySummary {
+    pub id: Uuid,
+    pub provider_alias: String,
+    pub provider_display_name: String,
+    pub subject: String,
+    pub external_email: Option<String>,
+    pub linked_via: String,
+    pub last_login_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct UserCredentialsSummary {
     pub user_id: Uuid,
     pub password: UserPasswordCredentialSummary,
     pub passkeys: Vec<UserPasskeyCredentialSummary>,
+    pub federated_identities: Vec<UserFederatedIdentitySummary>,
 }
 
 pub struct UserCredentialsService {
     user_service: Arc<UserService>,
     passkey_credential_repo: Arc<dyn PasskeyCredentialRepository>,
     passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
+    realm_repo: Arc<dyn RealmRepository>,
+    federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
+    identity_provider_repo: Arc<dyn IdentityProviderRepository>,
+    audit_service: Arc<AuditService>,
 }
 
 impl UserCredentialsService {
@@ -47,11 +69,19 @@ impl UserCredentialsService {
         user_service: Arc<UserService>,
         passkey_credential_repo: Arc<dyn PasskeyCredentialRepository>,
         passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
+        realm_repo: Arc<dyn RealmRepository>,
+        federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
+        identity_provider_repo: Arc<dyn IdentityProviderRepository>,
+        audit_service: Arc<AuditService>,
     ) -> Self {
         Self {
             user_service,
             passkey_credential_repo,
             passkey_settings_repo,
+            realm_repo,
+            federated_identity_repo,
+            identity_provider_repo,
+            audit_service,
         }
     }
 
@@ -68,6 +98,17 @@ impl UserCredentialsService {
             .passkey_credential_repo
             .list_by_user(&realm_id, &user.id)
             .await?;
+        let federated_identities = self
+            .federated_identity_repo
+            .list_by_user(&realm_id, &user.id)
+            .await?;
+        let providers = self
+            .identity_provider_repo
+            .list_by_realm(&realm_id)
+            .await?
+            .into_iter()
+            .map(|provider| (provider.id, provider))
+            .collect::<std::collections::HashMap<_, _>>();
 
         let passkeys = passkeys
             .into_iter()
@@ -82,6 +123,25 @@ impl UserCredentialsService {
                 last_used_at: credential.last_used_at,
             })
             .collect();
+        let federated_identities = federated_identities
+            .into_iter()
+            .map(|identity| {
+                let provider = providers.get(&identity.provider_id);
+                UserFederatedIdentitySummary {
+                    id: identity.id,
+                    provider_alias: provider
+                        .map(|provider| provider.alias.clone())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    provider_display_name: provider
+                        .map(|provider| provider.display_name.clone())
+                        .unwrap_or_else(|| "Unknown provider".to_string()),
+                    subject: identity.subject,
+                    external_email: identity.external_email,
+                    linked_via: identity.linked_via,
+                    last_login_at: identity.last_login_at,
+                }
+            })
+            .collect();
 
         Ok(UserCredentialsSummary {
             user_id: user.id,
@@ -91,6 +151,7 @@ impl UserCredentialsService {
                 password_login_disabled: user.password_login_disabled,
             },
             passkeys,
+            federated_identities,
         })
     }
 
@@ -143,6 +204,86 @@ impl UserCredentialsService {
         if !updated {
             return Err(Error::NotFound("Passkey credential not found".to_string()));
         }
+        Ok(())
+    }
+
+    pub async fn unlink_federated_identity(
+        &self,
+        realm_id: Uuid,
+        actor_user_id: Option<Uuid>,
+        user_id: Uuid,
+        federated_identity_id: Uuid,
+    ) -> Result<()> {
+        let user = self
+            .user_service
+            .get_user_in_realm(realm_id, user_id)
+            .await?;
+        let realm = self
+            .realm_repo
+            .find_by_id(&realm_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Realm not found".to_string()))?;
+        let passkeys = self
+            .passkey_credential_repo
+            .list_by_user(&realm_id, &user_id)
+            .await?;
+        let federated_identities = self
+            .federated_identity_repo
+            .list_by_user(&realm_id, &user_id)
+            .await?;
+        let target = federated_identities
+            .iter()
+            .find(|identity| identity.id == federated_identity_id)
+            .cloned()
+            .ok_or_else(|| Error::NotFound("Federated identity not found".to_string()))?;
+
+        let remaining_federated_count = federated_identities
+            .iter()
+            .filter(|identity| identity.id != federated_identity_id)
+            .count();
+        let has_password_login =
+            !user.hashed_password.trim().is_empty() && !user.password_login_disabled;
+
+        // Prevent orphaning the account by removing its final usable sign-in method.
+        if realm.idp_minimum_remaining_factor
+            && !has_password_login
+            && passkeys.is_empty()
+            && remaining_federated_count == 0
+        {
+            return Err(Error::Conflict(
+                "Cannot unlink the last sign-in method for this user. Configure a password or passkey first.".to_string(),
+            ));
+        }
+
+        let deleted = self
+            .federated_identity_repo
+            .delete_by_id_for_user(&realm_id, &user_id, &federated_identity_id)
+            .await?;
+        if !deleted {
+            return Err(Error::NotFound("Federated identity not found".to_string()));
+        }
+
+        let provider = self
+            .identity_provider_repo
+            .find_by_id(&target.provider_id)
+            .await?;
+        self.audit_service
+            .record(NewAuditEvent {
+                realm_id,
+                actor_user_id,
+                action: "idp_user_unlinked".to_string(),
+                target_type: "identity_provider".to_string(),
+                target_id: Some(target.provider_id.to_string()),
+                metadata: json!({
+                    "user_id": user_id,
+                    "federated_identity_id": target.id,
+                    "provider_alias": provider.as_ref().map(|provider| provider.alias.clone()),
+                    "subject": target.subject,
+                    "linked_via": target.linked_via,
+                }),
+            })
+            .await?;
+
         Ok(())
     }
 

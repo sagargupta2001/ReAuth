@@ -6,7 +6,7 @@ use reauth::adapters::persistence::connection::Database;
 use reauth::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
 use reauth::domain::oidc::{AuthCode, OidcClient};
 use reauth::domain::pagination::{PageRequest, SortDirection};
-use reauth::domain::realm::Realm;
+use reauth::domain::realm::{Realm, RealmIdpDefaultEmailLinkPolicy, RealmIdpDefaultJitPolicy};
 use reauth::error::Error;
 use reauth::ports::oidc_repository::OidcRepository;
 use support::TestDb;
@@ -24,11 +24,15 @@ fn realm(id: Uuid, name: &str) -> Realm {
         is_system: false,
         registration_enabled: true,
         default_registration_role_ids: Vec::new(),
+        invitation_resend_limit: 3,
+        idp_broker_enabled: false,
+        idp_default_jit_policy: RealmIdpDefaultJitPolicy::PerProvider,
+        idp_default_email_link_policy: RealmIdpDefaultEmailLinkPolicy::ManualOnly,
+        idp_minimum_remaining_factor: true,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
         reset_credentials_flow_id: None,
-        invitation_resend_limit: 3,
         invitation_flow_id: None,
     }
 }

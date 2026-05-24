@@ -409,6 +409,27 @@ pub async fn revoke_user_passkey_handler(
     ))
 }
 
+pub async fn unlink_user_federated_identity_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(current_user)): Extension<AuthUser>,
+    Path((realm_name, id, federated_identity_id)): Path<(String, Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state
+        .user_credentials_service
+        .unlink_federated_identity(realm.id, Some(current_user.id), id, federated_identity_id)
+        .await?;
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "unlinked" })),
+    ))
+}
+
 pub async fn update_user_passkey_metadata_handler(
     State(state): State<AppState>,
     Path((realm_name, id, credential_id)): Path<(String, Uuid, Uuid)>,

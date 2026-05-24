@@ -14,9 +14,25 @@ pub trait AuditRepository: Send + Sync {
         actions: &[&str],
         since: Option<DateTime<Utc>>,
     ) -> Result<Vec<AuditActionCount>>;
+    async fn count_by_target_and_actions_since(
+        &self,
+        realm_id: &Uuid,
+        target_type: &str,
+        target_id: &str,
+        actions: &[&str],
+        since: Option<DateTime<Utc>>,
+    ) -> Result<Vec<AuditActionCount>>;
     async fn list_recent_by_actions(
         &self,
         realm_id: &Uuid,
+        actions: &[&str],
+        limit: usize,
+    ) -> Result<Vec<AuditEvent>>;
+    async fn list_recent_by_target_and_actions(
+        &self,
+        realm_id: &Uuid,
+        target_type: &str,
+        target_id: &str,
         actions: &[&str],
         limit: usize,
     ) -> Result<Vec<AuditEvent>>;

@@ -7,6 +7,7 @@ use crate::domain::realm_passkey_settings::RealmPasskeySettings;
 use crate::domain::theme_pages::ThemePageTemplate;
 use crate::domain::ui::PageCategory;
 use crate::error::{Error, Result};
+use crate::ports::identity_provider_repository::IdentityProviderRepository;
 use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
 use async_trait::async_trait;
 use serde_json::Value;
@@ -24,6 +25,7 @@ pub struct UiBindingPublishValidator {
     theme_service: Arc<ThemeResolverService>,
     node_registry: Arc<NodeRegistryService>,
     realm_passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
+    identity_provider_repo: Arc<dyn IdentityProviderRepository>,
     settings: Settings,
 }
 
@@ -32,12 +34,14 @@ impl UiBindingPublishValidator {
         theme_service: Arc<ThemeResolverService>,
         node_registry: Arc<NodeRegistryService>,
         realm_passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
+        identity_provider_repo: Arc<dyn IdentityProviderRepository>,
         settings: Settings,
     ) -> Self {
         Self {
             theme_service,
             node_registry,
             realm_passkey_settings_repo,
+            identity_provider_repo,
             settings,
         }
     }
@@ -137,6 +141,13 @@ impl FlowPublishValidator for UiBindingPublishValidator {
         let mut signal_parse_errors: Vec<(String, Vec<String>)> = Vec::new();
         let mut payload_map_errors: Vec<(String, Vec<String>)> = Vec::new();
         let mut passkey_capability_errors: Vec<String> = Vec::new();
+        let mut oauth_provider_errors: Vec<(String, Vec<String>)> = Vec::new();
+        let enabled_login_provider_exists = self
+            .identity_provider_repo
+            .list_by_realm(&realm_id)
+            .await?
+            .into_iter()
+            .any(|provider| provider.enabled && provider.allow_login);
 
         if !passkey_node_ids.is_empty() {
             let passkey_settings = self
@@ -228,6 +239,72 @@ impl FlowPublishValidator for UiBindingPublishValidator {
             }
         }
 
+        for node in nodes {
+            let node_type = node
+                .get("type")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+            if node_type != "core.auth.oauth_idp" && node_type != "core.auth.collect_idp_choice" {
+                continue;
+            }
+
+            let node_id = node
+                .get("id")
+                .and_then(|value| value.as_str())
+                .unwrap_or("unknown")
+                .to_string();
+            let provider_alias = node
+                .get("data")
+                .and_then(|value| value.get("config"))
+                .and_then(|value| value.get("provider_alias"))
+                .and_then(|value| value.as_str())
+                .map(str::trim)
+                .filter(|value| !value.is_empty());
+
+            if node_type == "core.auth.oauth_idp" {
+                if let Some(provider_alias) = provider_alias {
+                    match self
+                        .identity_provider_repo
+                        .find_by_alias(&realm_id, provider_alias)
+                        .await?
+                    {
+                        Some(provider) if provider.enabled && provider.allow_login => {}
+                        Some(_) => oauth_provider_errors.push((
+                            format!(
+                                "OAuth IdP node '{}' references provider '{}' but it is disabled for login.",
+                                node_id, provider_alias
+                            ),
+                            vec![node_id.clone()],
+                        )),
+                        None => oauth_provider_errors.push((
+                            format!(
+                                "OAuth IdP node '{}' references missing provider '{}'.",
+                                node_id, provider_alias
+                            ),
+                            vec![node_id.clone()],
+                        )),
+                    }
+                } else if !enabled_login_provider_exists {
+                    oauth_provider_errors.push((
+                        format!(
+                            "OAuth IdP node '{}' requires at least one enabled login provider when provider_alias is unset.",
+                            node_id
+                        ),
+                        vec![node_id.clone()],
+                    ));
+                }
+            }
+            if node_type == "core.auth.collect_idp_choice" && !enabled_login_provider_exists {
+                oauth_provider_errors.push((
+                    format!(
+                        "Collect IdP Choice node '{}' requires at least one enabled login provider.",
+                        node_id
+                    ),
+                    vec![node_id],
+                ));
+            }
+        }
+
         for (page_key, nodes_for_page) in &used_pages {
             let Some(template) = pages_by_key.get(page_key) else {
                 continue;
@@ -292,6 +369,7 @@ impl FlowPublishValidator for UiBindingPublishValidator {
             && signal_parse_errors.is_empty()
             && payload_map_errors.is_empty()
             && passkey_capability_errors.is_empty()
+            && oauth_provider_errors.is_empty()
         {
             return Ok(());
         }
@@ -432,6 +510,22 @@ impl FlowPublishValidator for UiBindingPublishValidator {
             parts.push(format!(
                 "Passkey capability unavailable: {}",
                 passkey_capability_errors.join(" | ")
+            ));
+        }
+        if !oauth_provider_errors.is_empty() {
+            for (message, node_ids) in &oauth_provider_errors {
+                issues.push(FlowPublishIssue {
+                    message: message.clone(),
+                    node_ids: node_ids.clone(),
+                });
+            }
+            parts.push(format!(
+                "OAuth provider configuration invalid: {}",
+                oauth_provider_errors
+                    .iter()
+                    .map(|(message, _)| message.clone())
+                    .collect::<Vec<String>>()
+                    .join(" | ")
             ));
         }
 
@@ -625,16 +719,20 @@ mod tests {
     use crate::application::runtime_registry::RuntimeRegistry;
     use crate::application::theme_service::ThemeResolverService;
     use crate::domain::execution::StepType;
+    use crate::domain::flow::nodes::collect_idp_choice_node::CollectIdpChoiceNodeProvider;
+    use crate::domain::flow::nodes::oauth_idp_node::OAuthIdpNodeProvider;
     use crate::domain::flow::nodes::oidc_consent_node::OidcConsentNodeProvider;
     use crate::domain::flow::nodes::passkey_assert_node::PasskeyAssertNodeProvider;
     use crate::domain::flow::nodes::password_node::PasswordNodeProvider;
     use crate::domain::flow::nodes::subflow_node::SubflowNodeProvider;
     use crate::domain::flow::provider::NodeProvider;
+    use crate::domain::identity_provider::IdentityProvider;
     use crate::domain::realm_passkey_settings::RealmPasskeySettings;
     use crate::domain::theme::{
         Theme, ThemeAsset, ThemeAssetMeta, ThemeBinding, ThemeLayout, ThemeNode, ThemeTokens,
         ThemeVersion,
     };
+    use crate::ports::identity_provider_repository::IdentityProviderRepository;
     use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
     use crate::ports::theme_repository::ThemeRepository;
     use crate::ports::transaction_manager::{Transaction, TransactionManager};
@@ -906,6 +1004,11 @@ mod tests {
         settings: Option<RealmPasskeySettings>,
     }
 
+    #[derive(Clone, Default)]
+    struct TestIdentityProviderRepo {
+        providers: Vec<IdentityProvider>,
+    }
+
     #[async_trait]
     impl RealmPasskeySettingsRepository for TestPasskeySettingsRepo {
         async fn find_by_realm_id(&self, realm_id: &Uuid) -> Result<Option<RealmPasskeySettings>> {
@@ -916,6 +1019,46 @@ mod tests {
         }
 
         async fn upsert(&self, _settings: &RealmPasskeySettings) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl IdentityProviderRepository for TestIdentityProviderRepo {
+        async fn create(&self, _provider: &IdentityProvider) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update(&self, _provider: &IdentityProvider) -> Result<()> {
+            Ok(())
+        }
+
+        async fn find_by_id(&self, _id: &Uuid) -> Result<Option<IdentityProvider>> {
+            Ok(None)
+        }
+
+        async fn find_by_alias(
+            &self,
+            realm_id: &Uuid,
+            alias: &str,
+        ) -> Result<Option<IdentityProvider>> {
+            Ok(self
+                .providers
+                .iter()
+                .find(|provider| provider.realm_id == *realm_id && provider.alias == alias)
+                .cloned())
+        }
+
+        async fn list_by_realm(&self, realm_id: &Uuid) -> Result<Vec<IdentityProvider>> {
+            Ok(self
+                .providers
+                .iter()
+                .filter(|provider| provider.realm_id == *realm_id)
+                .cloned()
+                .collect())
+        }
+
+        async fn delete(&self, _id: &Uuid) -> Result<()> {
             Ok(())
         }
     }
@@ -958,11 +1101,11 @@ mod tests {
     }
 
     fn build_validator() -> (UiBindingPublishValidator, Uuid) {
-        build_validator_with_nodes_and_passkey_settings(Vec::new(), None, None, None)
+        build_validator_with_nodes_and_passkey_settings(Vec::new(), None, None, None, None)
     }
 
     fn build_validator_with_nodes(nodes: Vec<ThemeNode>) -> (UiBindingPublishValidator, Uuid) {
-        build_validator_with_nodes_and_passkey_settings(nodes, None, None, None)
+        build_validator_with_nodes_and_passkey_settings(nodes, None, None, None, None)
     }
 
     fn build_validator_with_nodes_and_passkey_settings(
@@ -970,6 +1113,7 @@ mod tests {
         passkey_settings: Option<RealmPasskeySettings>,
         settings_override: Option<crate::config::Settings>,
         realm_id_override: Option<Uuid>,
+        identity_providers: Option<Vec<IdentityProvider>>,
     ) -> (UiBindingPublishValidator, Uuid) {
         let realm_id = realm_id_override.unwrap_or_else(Uuid::new_v4);
         let theme_id = nodes
@@ -1001,6 +1145,8 @@ mod tests {
 
         let mut registry = RuntimeRegistry::new();
         registry.register_definition("core.auth.password", StepType::Authenticator);
+        registry.register_definition("core.auth.collect_idp_choice", StepType::Authenticator);
+        registry.register_definition("core.auth.oauth_idp", StepType::Authenticator);
         registry.register_definition("core.oidc.consent", StepType::Authenticator);
         registry.register_definition("core.auth.passkey_assert", StepType::Authenticator);
         registry.register_definition("core.ui.no_default", StepType::Authenticator);
@@ -1009,6 +1155,8 @@ mod tests {
 
         let providers: Vec<Box<dyn NodeProvider>> = vec![
             Box::new(PasswordNodeProvider),
+            Box::new(CollectIdpChoiceNodeProvider),
+            Box::new(OAuthIdpNodeProvider),
             Box::new(OidcConsentNodeProvider),
             Box::new(PasskeyAssertNodeProvider),
             Box::new(NoDefaultUiNodeProvider),
@@ -1021,6 +1169,9 @@ mod tests {
         let passkey_settings_repo = Arc::new(TestPasskeySettingsRepo {
             settings: passkey_settings,
         });
+        let identity_provider_repo = Arc::new(TestIdentityProviderRepo {
+            providers: identity_providers.unwrap_or_default(),
+        });
         let settings = settings_override.unwrap_or_else(|| {
             crate::config::Settings::new().expect("default settings should load")
         });
@@ -1030,6 +1181,7 @@ mod tests {
                 theme_service,
                 node_registry,
                 passkey_settings_repo,
+                identity_provider_repo,
                 settings,
             ),
             realm_id,
@@ -1060,6 +1212,44 @@ mod tests {
         })
     }
 
+    fn identity_provider_fixture(realm_id: Uuid, alias: &str, enabled: bool) -> IdentityProvider {
+        IdentityProvider {
+            id: Uuid::new_v4(),
+            realm_id,
+            alias: alias.to_string(),
+            display_name: alias.to_string(),
+            protocol: crate::domain::identity_provider::IdentityProviderProtocol::Oidc,
+            preset_key: Some(alias.to_string()),
+            enabled,
+            client_id: "client-id".to_string(),
+            client_secret: None,
+            issuer: None,
+            authorization_endpoint: Some(
+                "https://accounts.google.com/o/oauth2/v2/auth".to_string(),
+            ),
+            token_endpoint: Some("https://oauth2.googleapis.com/token".to_string()),
+            userinfo_endpoint: Some("https://openidconnect.googleapis.com/v1/userinfo".to_string()),
+            jwks_uri: None,
+            scopes_json: "[\"openid\",\"email\"]".to_string(),
+            claim_mapping_json: "{}".to_string(),
+            pkce_required: true,
+            allow_login: true,
+            allow_link: true,
+            allow_jit_provisioning: false,
+            allow_email_auto_link: false,
+            require_verified_email: true,
+            icon_ref: None,
+            button_color: None,
+            sort_order: 0,
+            metadata_cached_at: None,
+            metadata_cache_json: None,
+            jwks_cached_at: None,
+            jwks_cache_json: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
     #[tokio::test]
     async fn publish_validator_rejects_missing_page_key() {
         let (validator, realm_id) = build_validator();
@@ -1070,6 +1260,81 @@ mod tests {
 
         let err = validator.validate(realm_id, &graph).await.unwrap_err();
         assert!(err.to_string().contains("Missing theme pages"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_missing_oauth_provider() {
+        let (validator, realm_id) =
+            build_validator_with_nodes_and_passkey_settings(Vec::new(), None, None, None, None);
+        let graph = graph_with_node("core.auth.oauth_idp", json!({ "provider_alias": "google" }));
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("references missing provider 'google'"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_disabled_oauth_provider() {
+        let realm_id = Uuid::new_v4();
+        let provider = identity_provider_fixture(realm_id, "google", false);
+        let (validator, _) = build_validator_with_nodes_and_passkey_settings(
+            Vec::new(),
+            None,
+            None,
+            Some(realm_id),
+            Some(vec![provider]),
+        );
+        let graph = graph_with_node("core.auth.oauth_idp", json!({ "provider_alias": "google" }));
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        assert!(err
+            .to_string()
+            .contains("references provider 'google' but it is disabled for login"));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_allows_runtime_oauth_provider_selection() {
+        let realm_id = Uuid::new_v4();
+        let provider = identity_provider_fixture(realm_id, "google", true);
+        let (validator, _) = build_validator_with_nodes_and_passkey_settings(
+            Vec::new(),
+            None,
+            None,
+            Some(realm_id),
+            Some(vec![provider]),
+        );
+        let graph = graph_with_node("core.auth.oauth_idp", json!({}));
+
+        validator.validate(realm_id, &graph).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn publish_validator_rejects_collect_idp_choice_without_enabled_provider() {
+        let (validator, realm_id) =
+            build_validator_with_nodes_and_passkey_settings(Vec::new(), None, None, None, None);
+        let graph = graph_with_node("core.auth.collect_idp_choice", json!({}));
+
+        let err = validator.validate(realm_id, &graph).await.unwrap_err();
+        assert!(err.to_string().contains(
+            "Collect IdP Choice node 'node-1' requires at least one enabled login provider"
+        ));
+    }
+
+    #[tokio::test]
+    async fn publish_validator_allows_collect_idp_choice_with_enabled_provider() {
+        let realm_id = Uuid::new_v4();
+        let provider = identity_provider_fixture(realm_id, "google", true);
+        let (validator, _) = build_validator_with_nodes_and_passkey_settings(
+            Vec::new(),
+            None,
+            None,
+            Some(realm_id),
+            Some(vec![provider]),
+        );
+        let graph = graph_with_node("core.auth.collect_idp_choice", json!({}));
+
+        validator.validate(realm_id, &graph).await.unwrap();
     }
 
     #[tokio::test]
@@ -1373,6 +1638,7 @@ mod tests {
             Some(passkey_settings),
             Some(settings),
             Some(realm_id),
+            None,
         );
         let graph = graph_with_node("core.auth.passkey_assert", json!({}));
 

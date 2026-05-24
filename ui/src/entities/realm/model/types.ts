@@ -10,6 +10,10 @@ export interface Realm {
   registration_enabled: boolean
   default_registration_role_ids: string[]
   invitation_resend_limit: number
+  idp_broker_enabled: boolean
+  idp_default_jit_policy: 'allow' | 'deny' | 'per_provider'
+  idp_default_email_link_policy: 'allow_verified' | 'manual_only' | 'deny'
+  idp_minimum_remaining_factor: boolean
   browser_flow_id?: string | null
   registration_flow_id?: string | null
   direct_grant_flow_id?: string | null
@@ -38,6 +42,12 @@ export interface RealmRecoverySettings {
   revoke_sessions_on_reset: boolean
   email_subject?: string | null
   email_body?: string | null
+}
+
+export interface RealmIdpSettings {
+  realm_id: string
+  oauth_start_rate_limit_max: number
+  oauth_start_rate_limit_window_minutes: number
 }
 
 export interface RealmPasskeySettings {

@@ -7,7 +7,7 @@ use reauth::adapters::persistence::sqlite_flow_store::SqliteFlowStore;
 use reauth::adapters::persistence::transaction::SqliteTransactionManager;
 use reauth::domain::flow::models::{FlowDeployment, FlowDraft, FlowVersion};
 use reauth::domain::pagination::{PageRequest, SortDirection};
-use reauth::domain::realm::Realm;
+use reauth::domain::realm::{Realm, RealmIdpDefaultEmailLinkPolicy, RealmIdpDefaultJitPolicy};
 use reauth::ports::flow_store::FlowStore;
 use reauth::ports::transaction_manager::TransactionManager;
 use support::TestDb;
@@ -25,11 +25,15 @@ fn realm(id: Uuid, name: &str) -> Realm {
         is_system: false,
         registration_enabled: true,
         default_registration_role_ids: Vec::new(),
+        invitation_resend_limit: 3,
+        idp_broker_enabled: false,
+        idp_default_jit_policy: RealmIdpDefaultJitPolicy::PerProvider,
+        idp_default_email_link_policy: RealmIdpDefaultEmailLinkPolicy::ManualOnly,
+        idp_minimum_remaining_factor: true,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
         reset_credentials_flow_id: None,
-        invitation_resend_limit: 3,
         invitation_flow_id: None,
     }
 }

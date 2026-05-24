@@ -527,6 +527,31 @@ impl SessionRepository for TestSessionRepo {
         Ok(())
     }
 
+    async fn revoke_by_user_and_client(
+        &self,
+        _realm_id: &Uuid,
+        user_id: &Uuid,
+        client_id: &str,
+    ) -> Result<()> {
+        let mut stored = self.stored.lock().unwrap();
+        for token in stored.values_mut() {
+            if &token.user_id == user_id && token.client_id.as_deref() == Some(client_id) {
+                token.revoked_at = Some(Utc::now());
+            }
+        }
+        Ok(())
+    }
+
+    async fn revoke_root_tokens_for_user(&self, _realm_id: &Uuid, user_id: &Uuid) -> Result<()> {
+        let mut stored = self.stored.lock().unwrap();
+        for token in stored.values_mut() {
+            if &token.user_id == user_id && token.client_id.is_none() {
+                token.revoked_at = Some(Utc::now());
+            }
+        }
+        Ok(())
+    }
+
     async fn list(
         &self,
         _realm_id: &Uuid,
@@ -1066,6 +1091,8 @@ fn build_auth_service(
         refresh_token_retention_secs: 0,
         passkey_challenge_cleanup_interval_secs: 300,
         passkey_challenge_cleanup_batch_size: 500,
+        oauth_broker_state_cleanup_interval_secs: 300,
+        oauth_broker_state_cleanup_batch_size: 500,
     };
 
     Arc::new(AuthService::new(
@@ -1120,6 +1147,11 @@ fn base_realm() -> crate::domain::realm::Realm {
         registration_enabled: true,
         default_registration_role_ids: Vec::new(),
         invitation_resend_limit: 3,
+        idp_broker_enabled: false,
+        idp_default_jit_policy: crate::domain::realm::RealmIdpDefaultJitPolicy::PerProvider,
+        idp_default_email_link_policy:
+            crate::domain::realm::RealmIdpDefaultEmailLinkPolicy::ManualOnly,
+        idp_minimum_remaining_factor: true,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,

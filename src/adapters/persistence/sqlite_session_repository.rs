@@ -146,6 +146,38 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
+    async fn revoke_by_user_and_client(
+        &self,
+        realm_id: &Uuid,
+        user_id: &Uuid,
+        client_id: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE refresh_tokens SET revoked_at = ? WHERE realm_id = ? AND user_id = ? AND client_id = ? AND revoked_at IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(realm_id.to_string())
+        .bind(user_id.to_string())
+        .bind(client_id)
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
+    async fn revoke_root_tokens_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()> {
+        sqlx::query(
+            "UPDATE refresh_tokens SET revoked_at = ? WHERE realm_id = ? AND user_id = ? AND client_id IS NULL AND revoked_at IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(realm_id.to_string())
+        .bind(user_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
+
     #[instrument(
         skip_all,
         fields(telemetry = "span", db_table = "refresh_tokens", db_op = "select")

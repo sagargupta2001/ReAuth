@@ -82,6 +82,21 @@ impl AuthService {
             );
         }
 
+        // 1.6 Revoke any existing active tokens for the same user+client combo
+        // This prevents stale sessions from accumulating on repeated logins.
+        if let Some(ref cid) = client_id {
+            let _ = self
+                .session_repo
+                .revoke_by_user_and_client(&user.realm_id, &user.id, cid)
+                .await;
+        } else {
+            // Root SSO token — revoke previous root tokens (client_id IS NULL)
+            let _ = self
+                .session_repo
+                .revoke_root_tokens_for_user(&user.realm_id, &user.id)
+                .await;
+        }
+
         // 2. Create the Stateful Refresh Token
         let expires_at = Utc::now() + Duration::seconds(self.settings.refresh_token_ttl_secs);
         let now = Utc::now();
@@ -258,10 +273,22 @@ impl AuthService {
 
     /// Logs out a user by deleting their specific refresh token session.
     pub async fn logout(&self, refresh_token_id: Uuid) -> Result<()> {
-        // We delete the token from the database.
-        // If it fails (e.g., database down), we return the error.
-        // If it doesn't exist (already deleted), the repo usually returns Ok(()).
         self.session_repo.delete_by_id(&refresh_token_id).await
+    }
+
+    /// Logs out by revoking the cookie's token, then also revokes any tokens
+    /// for the specified client so cross-origin OIDC sessions are cleaned up.
+    pub async fn logout_with_client(&self, refresh_token_id: Uuid, client_id: &str) -> Result<()> {
+        if let Ok(Some(token)) = self.session_repo.find_by_id_any(&refresh_token_id).await {
+            let _ = self.session_repo.delete_by_id(&refresh_token_id).await;
+            let _ = self
+                .session_repo
+                .revoke_by_user_and_client(&token.realm_id, &token.user_id, client_id)
+                .await;
+        } else {
+            let _ = self.session_repo.delete_by_id(&refresh_token_id).await;
+        }
+        Ok(())
     }
 
     pub async fn list_sessions(

@@ -13,12 +13,15 @@ use crate::application::harbor::runner::TokioHarborJobRunner;
 use crate::application::harbor::service::HarborService;
 use crate::application::harbor::theme_provider::ThemeHarborProvider;
 use crate::application::harbor::user_provider::UserHarborProvider;
+use crate::application::idp_service::IdentityProviderService;
 use crate::application::invitation_service::InvitationService;
 use crate::application::node_registry::NodeRegistryService;
+use crate::application::oauth_broker_service::OAuthBrokerService;
 use crate::application::oidc_service::OidcService;
 use crate::application::passkey_analytics_service::PasskeyAnalyticsService;
 use crate::application::passkey_assertion_service::PasskeyAssertionService;
 use crate::application::realm_email_settings_service::RealmEmailSettingsService;
+use crate::application::realm_idp_settings_service::RealmIdpSettingsService;
 use crate::application::realm_passkey_settings_service::RealmPasskeySettingsService;
 use crate::application::realm_recovery_settings_service::RealmRecoverySettingsService;
 use crate::application::realm_security_headers_service::RealmSecurityHeadersService;
@@ -48,6 +51,7 @@ pub struct Services {
     pub rbac_service: Arc<RbacService>,
     pub realm_service: Arc<RealmService>,
     pub realm_email_settings_service: Arc<RealmEmailSettingsService>,
+    pub realm_idp_settings_service: Arc<RealmIdpSettingsService>,
     pub realm_passkey_settings_service: Arc<RealmPasskeySettingsService>,
     pub realm_recovery_settings_service: Arc<RealmRecoverySettingsService>,
     pub realm_security_headers_service: Arc<RealmSecurityHeadersService>,
@@ -55,12 +59,14 @@ pub struct Services {
     pub passkey_analytics_service: Arc<PasskeyAnalyticsService>,
     pub email_delivery_service: Arc<EmailDeliveryService>,
     pub invitation_service: Arc<InvitationService>,
+    pub identity_provider_service: Arc<IdentityProviderService>,
     pub auth_service: Arc<AuthService>,
     pub audit_service: Arc<AuditService>,
     pub webhook_service: Arc<WebhookService>,
     pub theme_service: Arc<ThemeResolverService>,
     pub harbor_service: Arc<HarborService>,
     pub oidc_service: Arc<OidcService>,
+    pub oauth_broker_service: Arc<OAuthBrokerService>,
     pub flow_service: Arc<FlowService>,
     pub flow_manager: Arc<FlowManager>,
     pub node_registry: Arc<NodeRegistryService>,
@@ -102,12 +108,16 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         outbox_repo.clone(),
         tx_manager.clone(),
     ));
+    let audit_service = Arc::new(AuditService::new(repos.audit_repo.clone()));
     let user_credentials_service = Arc::new(UserCredentialsService::new(
         user_service.clone(),
         repos.passkey_credential_repo.clone(),
         repos.realm_passkey_settings_repo.clone(),
+        repos.realm_repo.clone(),
+        repos.federated_identity_repo.clone(),
+        repos.identity_provider_repo.clone(),
+        audit_service.clone(),
     ));
-    let audit_service = Arc::new(AuditService::new(repos.audit_repo.clone()));
     let webhook_service = Arc::new(WebhookService::new(
         repos.webhook_repo.clone(),
         tx_manager.clone(),
@@ -137,6 +147,13 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     let realm_email_settings_service = Arc::new(RealmEmailSettingsService::new(
         repos.realm_repo.clone(),
         repos.realm_email_settings_repo.clone(),
+    ));
+
+    let realm_idp_settings_service = Arc::new(RealmIdpSettingsService::new(
+        repos.realm_repo.clone(),
+        repos.realm_idp_settings_repo.clone(),
+        repos.oauth_start_attempt_repo.clone(),
+        audit_service.clone(),
     ));
 
     let realm_passkey_settings_service = Arc::new(RealmPasskeySettingsService::new(
@@ -171,6 +188,29 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     ));
 
     let secret_service = Arc::new(SecretService::from_settings(settings));
+
+    let identity_provider_service = Arc::new(IdentityProviderService::new(
+        repos.identity_provider_repo.clone(),
+        repos.federated_identity_repo.clone(),
+        repos.realm_repo.clone(),
+        repos.user_repo.clone(),
+        audit_service.clone(),
+        secret_service.clone(),
+        http_client.clone(),
+    ));
+
+    let oauth_broker_service = Arc::new(OAuthBrokerService::new(
+        repos.identity_provider_repo.clone(),
+        repos.federated_identity_repo.clone(),
+        repos.oauth_broker_state_repo.clone(),
+        repos.auth_session_repo.clone(),
+        repos.realm_repo.clone(),
+        repos.user_repo.clone(),
+        audit_service.clone(),
+        secret_service.clone(),
+        http_client.clone(),
+        settings.server.public_url.clone(),
+    ));
 
     let passkey_assertion_service = Arc::new(PasskeyAssertionService::new(
         repos.auth_session_repo.clone(),
@@ -211,6 +251,8 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
             audit_service: audit_service.clone(),
             recovery_settings_repo: repos.realm_recovery_settings_repo.clone(),
             passkey_settings_repo: repos.realm_passkey_settings_repo.clone(),
+            identity_provider_service: identity_provider_service.clone(),
+            oauth_broker_service: oauth_broker_service.clone(),
         },
     );
 
@@ -235,6 +277,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
             theme_service.clone(),
             node_registry.clone(),
             repos.realm_passkey_settings_repo.clone(),
+            repos.identity_provider_repo.clone(),
             settings.clone(),
         ),
     );
@@ -263,7 +306,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.user_repo.clone(),
         auth_service.clone(),
         token_service.clone(),
-        secret_service,
+        secret_service.clone(),
         repos.auth_session_repo.clone(),
         repos.flow_store.clone(),
         repos.realm_repo.clone(),
@@ -307,6 +350,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         rbac_service,
         realm_service,
         realm_email_settings_service,
+        realm_idp_settings_service,
         realm_passkey_settings_service,
         realm_recovery_settings_service,
         realm_security_headers_service,
@@ -314,12 +358,14 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         passkey_analytics_service,
         email_delivery_service,
         invitation_service,
+        identity_provider_service,
         auth_service,
         audit_service,
         webhook_service,
         theme_service,
         harbor_service,
         oidc_service,
+        oauth_broker_service,
         flow_service,
         flow_manager,
         node_registry,

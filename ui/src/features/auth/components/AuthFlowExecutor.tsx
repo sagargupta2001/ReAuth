@@ -74,6 +74,10 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
     const searchParams = new URLSearchParams(location.search)
     return searchParams.get('redirect')
   }, [location.search])
+  const oauthError = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search)
+    return searchParams.get('oauth_error')
+  }, [location.search])
 
   const [currentStep, setCurrentStep] = useState<AuthExecutionResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -89,6 +93,10 @@ export function BaseAuthFlowExecutor({ flowPath = 'login' }: BaseAuthFlowExecuto
     if (!redirectParam) return
     sessionStorage.setItem(REDIRECT_STORAGE_KEY, redirectParam)
   }, [redirectParam])
+
+  useEffect(() => {
+    setGlobalError(oauthError)
+  }, [oauthError])
 
   // 1. INITIALIZE FLOW (GET /api/auth/login)
   useEffect(() => {

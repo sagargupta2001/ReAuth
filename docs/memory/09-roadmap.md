@@ -40,7 +40,7 @@ This is the cross-cutting roadmap. Feature-specific roadmaps live in `docs/memor
 - Goal: React SDK and Node.js/Express SDK for 5-minute integration.
 
 ### Phase 5: Enterprise Identity Brokering (Post-MVP)
-- Status: Planned
+- Status: In Progress
 - Roadmap: `docs/memory/roadmaps/identity-brokering.md`
 - Goal: inbound social login and LDAP/AD integrations.
 

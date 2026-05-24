@@ -2,16 +2,21 @@ use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::sqlite_audit_repository::SqliteAuditRepository;
 use crate::adapters::persistence::sqlite_auth_session_action_repository::SqliteAuthSessionActionRepository;
 use crate::adapters::persistence::sqlite_auth_session_repository::SqliteAuthSessionRepository;
+use crate::adapters::persistence::sqlite_federated_identity_repository::SqliteFederatedIdentityRepository;
 use crate::adapters::persistence::sqlite_flow_store::SqliteFlowStore;
 use crate::adapters::persistence::sqlite_harbor_job_conflict_repository::SqliteHarborJobConflictRepository;
 use crate::adapters::persistence::sqlite_harbor_job_repository::SqliteHarborJobRepository;
+use crate::adapters::persistence::sqlite_identity_provider_repository::SqliteIdentityProviderRepository;
 use crate::adapters::persistence::sqlite_invitation_repository::SqliteInvitationRepository;
 use crate::adapters::persistence::sqlite_login_attempt_repository::SqliteLoginAttemptRepository;
+use crate::adapters::persistence::sqlite_oauth_broker_state_repository::SqliteOAuthBrokerStateRepository;
+use crate::adapters::persistence::sqlite_oauth_start_attempt_repository::SqliteOAuthStartAttemptRepository;
 use crate::adapters::persistence::sqlite_oidc_repository::SqliteOidcRepository;
 use crate::adapters::persistence::sqlite_outbox_repository::SqliteOutboxRepository;
 use crate::adapters::persistence::sqlite_passkey_challenge_repository::SqlitePasskeyChallengeRepository;
 use crate::adapters::persistence::sqlite_passkey_credential_repository::SqlitePasskeyCredentialRepository;
 use crate::adapters::persistence::sqlite_realm_email_settings_repository::SqliteRealmEmailSettingsRepository;
+use crate::adapters::persistence::sqlite_realm_idp_settings_repository::SqliteRealmIdpSettingsRepository;
 use crate::adapters::persistence::sqlite_realm_passkey_settings_repository::SqliteRealmPasskeySettingsRepository;
 use crate::adapters::persistence::sqlite_realm_recovery_settings_repository::SqliteRealmRecoverySettingsRepository;
 use crate::adapters::persistence::sqlite_realm_security_headers_repository::SqliteRealmSecurityHeadersRepository;
@@ -21,15 +26,20 @@ use crate::adapters::persistence::sqlite_webhook_repository::SqliteWebhookReposi
 use crate::ports::audit_repository::AuditRepository;
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
 use crate::ports::auth_session_repository::AuthSessionRepository;
+use crate::ports::federated_identity_repository::FederatedIdentityRepository;
 use crate::ports::flow_store::FlowStore;
 use crate::ports::harbor_job_conflict_repository::HarborJobConflictRepository;
 use crate::ports::harbor_job_repository::HarborJobRepository;
+use crate::ports::identity_provider_repository::IdentityProviderRepository;
 use crate::ports::invitation_repository::InvitationRepository;
+use crate::ports::oauth_broker_state_repository::OAuthBrokerStateRepository;
+use crate::ports::oauth_start_attempt_repository::OAuthStartAttemptRepository;
 use crate::ports::oidc_repository::OidcRepository;
 use crate::ports::outbox_repository::OutboxRepository;
 use crate::ports::passkey_challenge_repository::PasskeyChallengeRepository;
 use crate::ports::passkey_credential_repository::PasskeyCredentialRepository;
 use crate::ports::realm_email_settings_repository::RealmEmailSettingsRepository;
+use crate::ports::realm_idp_settings_repository::RealmIdpSettingsRepository;
 use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
 use crate::ports::realm_recovery_settings_repository::RealmRecoverySettingsRepository;
 use crate::ports::realm_security_headers_repository::RealmSecurityHeadersRepository;
@@ -61,6 +71,7 @@ pub struct Repositories {
     pub rbac_repo: Arc<dyn RbacRepository>,
     pub realm_repo: Arc<dyn RealmRepository>,
     pub realm_email_settings_repo: Arc<dyn RealmEmailSettingsRepository>,
+    pub realm_idp_settings_repo: Arc<dyn RealmIdpSettingsRepository>,
     pub realm_passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
     pub realm_recovery_settings_repo: Arc<dyn RealmRecoverySettingsRepository>,
     pub realm_security_headers_repo: Arc<dyn RealmSecurityHeadersRepository>,
@@ -72,6 +83,10 @@ pub struct Repositories {
     pub flow_repo: Arc<dyn FlowRepository>,
     pub oidc_repo: Arc<dyn OidcRepository>,
     pub flow_store: Arc<dyn FlowStore>,
+    pub identity_provider_repo: Arc<dyn IdentityProviderRepository>,
+    pub federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
+    pub oauth_broker_state_repo: Arc<dyn OAuthBrokerStateRepository>,
+    pub oauth_start_attempt_repo: Arc<dyn OAuthStartAttemptRepository>,
     pub harbor_job_repo: Arc<dyn HarborJobRepository>,
     pub harbor_job_conflict_repo: Arc<dyn HarborJobConflictRepository>,
     pub invitation_repo: Arc<dyn InvitationRepository>,
@@ -91,6 +106,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let realm_repo = Arc::new(SqliteRealmRepository::new(db_pool.clone()));
     let realm_email_settings_repo =
         Arc::new(SqliteRealmEmailSettingsRepository::new(db_pool.clone()));
+    let realm_idp_settings_repo = Arc::new(SqliteRealmIdpSettingsRepository::new(db_pool.clone()));
     let realm_passkey_settings_repo =
         Arc::new(SqliteRealmPasskeySettingsRepository::new(db_pool.clone()));
     let realm_recovery_settings_repo =
@@ -105,6 +121,11 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     let flow_repo = Arc::new(SqliteFlowRepository::new(db_pool.clone()));
     let oidc_repo = Arc::new(SqliteOidcRepository::new(db_pool.clone()));
     let flow_store = Arc::new(SqliteFlowStore::new(db_pool.clone()));
+    let identity_provider_repo = Arc::new(SqliteIdentityProviderRepository::new(db_pool.clone()));
+    let federated_identity_repo = Arc::new(SqliteFederatedIdentityRepository::new(db_pool.clone()));
+    let oauth_broker_state_repo = Arc::new(SqliteOAuthBrokerStateRepository::new(db_pool.clone()));
+    let oauth_start_attempt_repo =
+        Arc::new(SqliteOAuthStartAttemptRepository::new(db_pool.clone()));
     let harbor_job_repo = Arc::new(SqliteHarborJobRepository::new(db_pool.clone()));
     let harbor_job_conflict_repo =
         Arc::new(SqliteHarborJobConflictRepository::new(db_pool.clone()));
@@ -122,6 +143,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         rbac_repo,
         realm_repo,
         realm_email_settings_repo,
+        realm_idp_settings_repo,
         realm_passkey_settings_repo,
         realm_recovery_settings_repo,
         realm_security_headers_repo,
@@ -133,6 +155,10 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
         flow_repo,
         oidc_repo,
         flow_store,
+        identity_provider_repo,
+        federated_identity_repo,
+        oauth_broker_state_repo,
+        oauth_start_attempt_repo,
         harbor_job_repo,
         harbor_job_conflict_repo,
         invitation_repo,

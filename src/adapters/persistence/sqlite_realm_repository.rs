@@ -1,6 +1,7 @@
 use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::auth_flow::AuthFlow;
+use crate::domain::realm::{RealmIdpDefaultEmailLinkPolicy, RealmIdpDefaultJitPolicy};
 use crate::ports::transaction_manager::Transaction;
 use crate::{
     domain::realm::Realm,
@@ -34,6 +35,10 @@ struct RealmRecord {
     registration_enabled: bool,
     default_registration_role_ids: String,
     invitation_resend_limit: i64,
+    idp_broker_enabled: bool,
+    idp_default_jit_policy: String,
+    idp_default_email_link_policy: String,
+    idp_minimum_remaining_factor: bool,
     browser_flow_id: Option<String>,
     registration_flow_id: Option<String>,
     direct_grant_flow_id: Option<String>,
@@ -58,6 +63,14 @@ impl RealmRecord {
             registration_enabled: self.registration_enabled,
             default_registration_role_ids: role_ids,
             invitation_resend_limit: self.invitation_resend_limit,
+            idp_broker_enabled: self.idp_broker_enabled,
+            idp_default_jit_policy: RealmIdpDefaultJitPolicy::try_from(self.idp_default_jit_policy)
+                .map_err(Error::System)?,
+            idp_default_email_link_policy: RealmIdpDefaultEmailLinkPolicy::try_from(
+                self.idp_default_email_link_policy,
+            )
+            .map_err(Error::System)?,
+            idp_minimum_remaining_factor: self.idp_minimum_remaining_factor,
             browser_flow_id: self.browser_flow_id,
             registration_flow_id: self.registration_flow_id,
             direct_grant_flow_id: self.direct_grant_flow_id,
@@ -108,8 +121,10 @@ impl RealmRepository for SqliteRealmRepository {
                 id, name, access_token_ttl_secs, refresh_token_ttl_secs,
                 pkce_required_public_clients, lockout_threshold, lockout_duration_secs,
                 is_system, registration_enabled, default_registration_role_ids, invitation_resend_limit,
+                idp_broker_enabled, idp_default_jit_policy, idp_default_email_link_policy,
+                idp_minimum_remaining_factor,
                 browser_flow_id, registration_flow_id, direct_grant_flow_id, reset_credentials_flow_id, invitation_flow_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
             .bind(realm.id.to_string())
             .bind(&realm.name)
@@ -122,6 +137,10 @@ impl RealmRepository for SqliteRealmRepository {
             .bind(realm.registration_enabled)
             .bind(serialize_role_ids(&realm.default_registration_role_ids)?)
             .bind(realm.invitation_resend_limit)
+            .bind(realm.idp_broker_enabled)
+            .bind(realm.idp_default_jit_policy.to_string())
+            .bind(realm.idp_default_email_link_policy.to_string())
+            .bind(realm.idp_minimum_remaining_factor)
             .bind(&realm.browser_flow_id)
             .bind(&realm.registration_flow_id)
             .bind(&realm.direct_grant_flow_id)
@@ -197,6 +216,10 @@ impl RealmRepository for SqliteRealmRepository {
                 registration_enabled = ?,
                 default_registration_role_ids = ?,
                 invitation_resend_limit = ?,
+                idp_broker_enabled = ?,
+                idp_default_jit_policy = ?,
+                idp_default_email_link_policy = ?,
+                idp_minimum_remaining_factor = ?,
                 browser_flow_id = ?,
                 registration_flow_id = ?,
                 direct_grant_flow_id = ?,
@@ -214,6 +237,10 @@ impl RealmRepository for SqliteRealmRepository {
         .bind(realm.registration_enabled)
         .bind(serialize_role_ids(&realm.default_registration_role_ids)?)
         .bind(realm.invitation_resend_limit)
+        .bind(realm.idp_broker_enabled)
+        .bind(realm.idp_default_jit_policy.to_string())
+        .bind(realm.idp_default_email_link_policy.to_string())
+        .bind(realm.idp_minimum_remaining_factor)
         .bind(&realm.browser_flow_id)
         .bind(&realm.registration_flow_id)
         .bind(&realm.direct_grant_flow_id)

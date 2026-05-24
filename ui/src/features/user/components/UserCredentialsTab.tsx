@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { KeyRound, ShieldCheck } from 'lucide-react'
+import { KeyRound, Link2, ShieldCheck } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -10,6 +10,7 @@ import { Switch } from '@/components/switch'
 import {
   useRenameUserPasskey,
   useRevokeUserPasskey,
+  useUnlinkFederatedIdentity,
   useUpdateUserPassword,
   useUpdateUserPasswordPolicy,
   useUserCredentials,
@@ -30,12 +31,14 @@ export function UserCredentialsTab({ userId }: UserCredentialsTabProps) {
   const updatePasswordPolicyMutation = useUpdateUserPasswordPolicy(userId)
   const revokePasskeyMutation = useRevokeUserPasskey(userId)
   const renamePasskeyMutation = useRenameUserPasskey(userId)
+  const unlinkFederatedIdentityMutation = useUnlinkFederatedIdentity(userId)
   const [password, setPassword] = useState('')
   const [passkeyDraftNames, setPasskeyDraftNames] = useState<Record<string, string>>({})
 
   if (isLoading) return null
 
   const passkeys = data?.passkeys ?? []
+  const federatedIdentities = data?.federated_identities ?? []
 
   return (
     <div className="flex h-full w-full flex-col gap-6">
@@ -191,6 +194,58 @@ export function UserCredentialsTab({ userId }: UserCredentialsTabProps) {
                     Revoke
                   </Button>
                 </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Link2 className="h-4 w-4" />
+            Federated Identities
+          </CardTitle>
+          <CardDescription>Review or unlink external identity provider accounts for this user.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {federatedIdentities.length === 0 ? (
+            <div className="text-muted-foreground text-sm">No federated identities linked.</div>
+          ) : (
+            federatedIdentities.map((identity) => (
+              <div key={identity.id} className="flex items-center justify-between rounded-md border p-3">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium">{identity.provider_display_name}</div>
+                  <div className="text-muted-foreground text-xs">
+                    alias: {identity.provider_alias} | linked via: {identity.linked_via}
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    subject: {identity.subject}
+                    {identity.external_email ? ` | email: ${identity.external_email}` : ''}
+                  </div>
+                  {identity.last_login_at ? (
+                    <div className="text-muted-foreground text-xs">
+                      last sign-in: {new Date(identity.last_login_at).toLocaleString()}
+                    </div>
+                  ) : null}
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={unlinkFederatedIdentityMutation.isPending}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        `Unlink ${identity.provider_display_name} from this user? This may block sign-in if no other credential remains.`,
+                      )
+                    ) {
+                      return
+                    }
+                    unlinkFederatedIdentityMutation.mutate(identity.id)
+                  }}
+                >
+                  Unlink
+                </Button>
               </div>
             ))
           )}

@@ -57,7 +57,7 @@ export function PrimarySidebar({ activeItem }: Props) {
     <div
       className={cn(
         'bg-sidebar z-20 flex h-full shrink-0 flex-col items-center gap-2 border-r py-4 transition-all duration-200 ease-linear',
-        state === 'collapsed' ? 'w-[var(--sidebar-width-icon)]' : 'w-[var(--sidebar-width)]',
+        state === 'collapsed' ? 'w-(--sidebar-width-icon)' : 'w-(--sidebar-width)',
       )}
     >
       {/* Navigation Items */}

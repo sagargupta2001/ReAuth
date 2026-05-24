@@ -32,8 +32,13 @@ pub async fn dynamic_cors_guard(
         }
     };
 
+    let is_preflight = req.method() == axum::http::Method::OPTIONS;
+
     // 1. Allow configured UI + server origins from settings
     if is_allowed_origin(&settings, &origin_str) {
+        if is_preflight {
+            return preflight_response(&origin_str);
+        }
         return allow_response(next.run(req).await, &origin_str);
     }
 
@@ -45,6 +50,9 @@ pub async fn dynamic_cors_guard(
         .unwrap_or(false);
 
     if exists {
+        if is_preflight {
+            return preflight_response(&origin_str);
+        }
         return allow_response(next.run(req).await, &origin_str);
     }
 
@@ -57,6 +65,32 @@ pub async fn dynamic_cors_guard(
         })),
     )
         .into_response()
+}
+
+fn preflight_response(origin: &str) -> Response {
+    let mut response = Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .body(Body::empty())
+        .unwrap();
+    let headers = response.headers_mut();
+    headers.insert(
+        "Access-Control-Allow-Origin",
+        HeaderValue::from_str(origin).unwrap(),
+    );
+    headers.insert(
+        "Access-Control-Allow-Credentials",
+        HeaderValue::from_static("true"),
+    );
+    headers.insert(
+        "Access-Control-Allow-Methods",
+        HeaderValue::from_static("GET, POST, PUT, DELETE, OPTIONS"),
+    );
+    headers.insert(
+        "Access-Control-Allow-Headers",
+        HeaderValue::from_static("Authorization, Content-Type, Cookie, Accept"),
+    );
+    headers.insert("Access-Control-Max-Age", HeaderValue::from_static("7200"));
+    response
 }
 
 fn allow_response(mut response: Response, origin: &str) -> Response {

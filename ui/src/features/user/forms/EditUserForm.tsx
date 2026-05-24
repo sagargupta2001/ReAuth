@@ -1,23 +1,18 @@
 import { useEffect } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Separator } from '@radix-ui/react-select'
+import { Mail } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
-import { Form } from '@/shared/ui/form.tsx'
 import { useUpdateUser } from '@/features/user/api/useUpdateUser.ts'
 import { useUser } from '@/features/user/api/useUser.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
-import { FormInput } from '@/shared/ui/form-input.tsx'
+import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
+import { Form } from '@/shared/ui/form.tsx'
 import { Skeleton } from '@/shared/ui/skeleton.tsx'
 
-const emailSchema = z
-  .string()
-  .trim()
-  .email('Enter a valid email')
-  .or(z.literal(''))
-  .optional()
+const emailSchema = z.string().trim().email('Enter a valid email').or(z.literal('')).optional()
 
 const formSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -35,25 +30,23 @@ export function EditUserForm({ userId }: { userId: string }) {
     defaultValues: { username: '', email: '' },
   })
 
-  useEffect(() => {
-    if (user) {
-      form.reset({ username: user.username, email: user.email ?? '' })
-    }
-  }, [user, form])
-
   const onSubmit = (values: FormValues) => {
     const email = values.email?.trim() || undefined
     mutation.mutate(
       { ...values, email },
       {
-        onSuccess: () =>
-          form.reset({ username: values.username, email: email ?? '' }), // Reset dirty state
+        onSuccess: () => form.reset({ username: values.username, email: email ?? '' }),
       },
     )
   }
 
-  // Use Floating Action Bar for edits
   useFormPersistence(form, onSubmit, mutation.isPending)
+
+  useEffect(() => {
+    if (user) {
+      form.reset({ username: user.username, email: user.email ?? '' })
+    }
+  }, [user, form])
 
   if (isLoading)
     return (
@@ -64,22 +57,24 @@ export function EditUserForm({ userId }: { userId: string }) {
     )
 
   return (
-    <div className="max-w-2xl space-y-8">
-      <div>
-        <h3 className="text-lg font-medium">Edit User</h3>
-        <p className="text-muted-foreground text-sm">Update user details.</p>
-      </div>
-      <Separator />
+    <Form {...form}>
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>Email addresses</CardTitle>
+        </CardHeader>
 
-      <Form {...form}>
-        <div className="space-y-8">
-          <div className="bg-muted/30 grid gap-4 rounded-lg border p-4">
-            <FormInput control={form.control} name="username" label="Username" />
-            <FormInput control={form.control} name="email" label="Email" type="email" />
+        <CardContent className="grid gap-2">
+          <div className="flex items-center justify-between rounded-2xl bg-black p-4 text-white">
+            <div className="flex items-center gap-3">
+              <Mail className="h-4 w-4 text-white" />
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">{user?.email}</span>
+              </div>
+            </div>
+            <span className="text-xs text-zinc-400">added almost 2y ago</span>
           </div>
-          {/* Password reset logic would go here in a separate section/form */}
-        </div>
-      </Form>
-    </div>
+        </CardContent>
+      </Card>
+    </Form>
   )
 }

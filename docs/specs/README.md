@@ -34,6 +34,7 @@ Each spec should define:
 ## Index
 
 - `magic-link-builtins.md`
+- `oauth-inbound-identity-brokering.md`
 - `passkey-first-auth.md`
 - `spec-template.md`
 - `user-invitations.md`

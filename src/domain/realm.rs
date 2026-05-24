@@ -1,6 +1,71 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RealmIdpDefaultJitPolicy {
+    Allow,
+    Deny,
+    PerProvider,
+}
+
+impl std::fmt::Display for RealmIdpDefaultJitPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Allow => write!(f, "allow"),
+            Self::Deny => write!(f, "deny"),
+            Self::PerProvider => write!(f, "per_provider"),
+        }
+    }
+}
+
+impl TryFrom<String> for RealmIdpDefaultJitPolicy {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "allow" => Ok(Self::Allow),
+            "deny" => Ok(Self::Deny),
+            "per_provider" => Ok(Self::PerProvider),
+            other => Err(format!("Unsupported idp_default_jit_policy: {}", other)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RealmIdpDefaultEmailLinkPolicy {
+    AllowVerified,
+    ManualOnly,
+    Deny,
+}
+
+impl std::fmt::Display for RealmIdpDefaultEmailLinkPolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::AllowVerified => write!(f, "allow_verified"),
+            Self::ManualOnly => write!(f, "manual_only"),
+            Self::Deny => write!(f, "deny"),
+        }
+    }
+}
+
+impl TryFrom<String> for RealmIdpDefaultEmailLinkPolicy {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "allow_verified" => Ok(Self::AllowVerified),
+            "manual_only" => Ok(Self::ManualOnly),
+            "deny" => Ok(Self::Deny),
+            other => Err(format!(
+                "Unsupported idp_default_email_link_policy: {}",
+                other
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Realm {
     pub id: Uuid,
@@ -14,6 +79,10 @@ pub struct Realm {
     pub registration_enabled: bool,
     pub default_registration_role_ids: Vec<Uuid>,
     pub invitation_resend_limit: i64,
+    pub idp_broker_enabled: bool,
+    pub idp_default_jit_policy: RealmIdpDefaultJitPolicy,
+    pub idp_default_email_link_policy: RealmIdpDefaultEmailLinkPolicy,
+    pub idp_minimum_remaining_factor: bool,
 
     // This matches the SQLite TEXT column perfectly.
     pub browser_flow_id: Option<String>,
@@ -54,6 +123,10 @@ mod tests {
             registration_enabled: true,
             default_registration_role_ids: Vec::new(),
             invitation_resend_limit: 3,
+            idp_broker_enabled: false,
+            idp_default_jit_policy: RealmIdpDefaultJitPolicy::PerProvider,
+            idp_default_email_link_policy: RealmIdpDefaultEmailLinkPolicy::ManualOnly,
+            idp_minimum_remaining_factor: true,
             browser_flow_id: Some(flow_id.to_string()),
             registration_flow_id: None,
             direct_grant_flow_id: Some(Uuid::new_v4().to_string()),
@@ -93,6 +166,10 @@ mod tests {
             registration_enabled: true,
             default_registration_role_ids: Vec::new(),
             invitation_resend_limit: 3,
+            idp_broker_enabled: false,
+            idp_default_jit_policy: RealmIdpDefaultJitPolicy::PerProvider,
+            idp_default_email_link_policy: RealmIdpDefaultEmailLinkPolicy::ManualOnly,
+            idp_minimum_remaining_factor: true,
             browser_flow_id: Some("not-a-uuid".to_string()),
             registration_flow_id: None,
             direct_grant_flow_id: None,

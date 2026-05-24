@@ -135,6 +135,7 @@
   - WebAuthn.
   - Step-up auth.
   - Risk-based policies and adaptive challenges.
+- Background refresh-token cleanup job: periodically purge revoked/replaced/expired rows from `refresh_tokens` table (token rotation creates a new row on every refresh, causing unbounded growth). Add a configurable retention period (default 24h) under `[auth]` config and run a sweep on a timer (e.g., hourly).
 
 ## Production track by workstream
 - Flow engine

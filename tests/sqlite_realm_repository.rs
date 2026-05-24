@@ -5,7 +5,7 @@ use reauth::adapters::persistence::connection::Database;
 use reauth::adapters::persistence::sqlite_realm_repository::SqliteRealmRepository;
 use reauth::adapters::persistence::transaction::SqliteTransactionManager;
 use reauth::domain::auth_flow::AuthFlow;
-use reauth::domain::realm::Realm;
+use reauth::domain::realm::{Realm, RealmIdpDefaultEmailLinkPolicy, RealmIdpDefaultJitPolicy};
 use reauth::error::Error;
 use reauth::ports::realm_repository::RealmRepository;
 use reauth::ports::transaction_manager::TransactionManager;
@@ -24,11 +24,15 @@ fn realm(id: Uuid, name: &str) -> Realm {
         is_system: false,
         registration_enabled: true,
         default_registration_role_ids: Vec::new(),
+        invitation_resend_limit: 3,
+        idp_broker_enabled: false,
+        idp_default_jit_policy: RealmIdpDefaultJitPolicy::PerProvider,
+        idp_default_email_link_policy: RealmIdpDefaultEmailLinkPolicy::ManualOnly,
+        idp_minimum_remaining_factor: true,
         browser_flow_id: None,
         registration_flow_id: None,
         direct_grant_flow_id: None,
         reset_credentials_flow_id: None,
-        invitation_resend_limit: 3,
         invitation_flow_id: None,
     }
 }
@@ -84,6 +88,10 @@ async fn create_find_list_and_update_realm() -> Result<()> {
     realm.name = "realm-updated".to_string();
     realm.access_token_ttl_secs = 1200;
     realm.refresh_token_ttl_secs = 700000;
+    realm.idp_broker_enabled = true;
+    realm.idp_default_jit_policy = RealmIdpDefaultJitPolicy::Allow;
+    realm.idp_default_email_link_policy = RealmIdpDefaultEmailLinkPolicy::AllowVerified;
+    realm.idp_minimum_remaining_factor = false;
     realm.browser_flow_id = Some(browser_flow_id.to_string());
 
     repo.update(&realm, None).await?;
@@ -91,6 +99,16 @@ async fn create_find_list_and_update_realm() -> Result<()> {
     let updated = repo.find_by_id(&realm_id).await?.unwrap();
     assert_eq!(updated.name, "realm-updated");
     assert_eq!(updated.access_token_ttl_secs, 1200);
+    assert!(updated.idp_broker_enabled);
+    assert_eq!(
+        updated.idp_default_jit_policy,
+        RealmIdpDefaultJitPolicy::Allow
+    );
+    assert_eq!(
+        updated.idp_default_email_link_policy,
+        RealmIdpDefaultEmailLinkPolicy::AllowVerified
+    );
+    assert!(!updated.idp_minimum_remaining_factor);
     assert_eq!(updated.browser_flow_id, Some(browser_flow_id.to_string()));
     Ok(())
 }

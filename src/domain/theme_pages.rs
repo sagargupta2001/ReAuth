@@ -26,6 +26,36 @@ const SYSTEM_PAGES: &[ThemePageDefinition] = &[
         category: PageCategory::Auth,
     },
     ThemePageDefinition {
+        key: "oauth_redirecting",
+        label: "OAuth Redirecting",
+        description: "Redirecting to an external identity provider.",
+        category: PageCategory::Auth,
+    },
+    ThemePageDefinition {
+        key: "oauth_select",
+        label: "OAuth Provider Select",
+        description: "Choose an external identity provider.",
+        category: PageCategory::Auth,
+    },
+    ThemePageDefinition {
+        key: "oauth_link_confirm",
+        label: "OAuth Link Confirm",
+        description: "Confirm linking an external identity to a local account.",
+        category: PageCategory::Auth,
+    },
+    ThemePageDefinition {
+        key: "oauth_conflict",
+        label: "OAuth Conflict",
+        description: "The external identity could not be mapped automatically.",
+        category: PageCategory::Auth,
+    },
+    ThemePageDefinition {
+        key: "oauth_failure",
+        label: "OAuth Failure",
+        description: "The external sign-in attempt failed.",
+        category: PageCategory::Auth,
+    },
+    ThemePageDefinition {
         key: "passkey_assert",
         label: "Passkey Sign In",
         description: "Passkey-first sign-in prompt.",
@@ -156,6 +186,11 @@ fn custom_page_label(key: &str) -> String {
 pub fn default_page_blueprint(key: &str) -> Option<Value> {
     match key {
         "login" => Some(default_login_blueprint()),
+        "oauth_redirecting" => Some(default_oauth_redirecting_blueprint()),
+        "oauth_select" => Some(default_oauth_select_blueprint()),
+        "oauth_link_confirm" => Some(default_oauth_link_confirm_blueprint()),
+        "oauth_conflict" => Some(default_oauth_conflict_blueprint()),
+        "oauth_failure" => Some(default_oauth_failure_blueprint()),
         "passkey_assert" => Some(default_passkey_assert_blueprint()),
         "register" => Some(default_register_blueprint()),
         "passkey_enroll" => Some(default_passkey_enroll_blueprint()),
@@ -198,7 +233,72 @@ fn default_login_blueprint() -> Value {
             { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
             { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Forgot password?", "href": "/forgot-password", "target": "_self", "align": "right" } },
             { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Create account", "href": "/register", "target": "_self", "align": "left", "visible_if": "capabilities.registration_enabled" } },
+            { "type": "Component", "component": "ProviderButtons", "size": { "width": "fill", "height": "hug" }, "props": { "visible_if": "enabled_providers_count" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } }
+        ]
+    })
+}
+
+fn default_oauth_redirecting_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Redirecting to your identity provider" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "You will be redirected automatically. If nothing happens, continue below." } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } }
+        ]
+    })
+}
+
+fn default_oauth_select_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Choose a sign-in provider" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "message" } },
+            { "type": "Component", "component": "ProviderButtons", "size": { "width": "fill", "height": "hug" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Use another sign-in method", "variant": "outline", "intent": "cancel" } }
+        ]
+    })
+}
+
+fn default_oauth_link_confirm_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Link your account" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "message" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "error", "visible_if": "error" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username", "name": "username", "input_type": "text" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Confirm link", "variant": "primary", "intent": "link" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Use another sign-in method", "variant": "outline", "intent": "cancel" } }
+        ]
+    })
+}
+
+fn default_oauth_conflict_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "We couldn't sign you in automatically" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "message" } },
+            { "type": "Component", "component": "ProviderButtons", "size": { "width": "fill", "height": "hug" }, "props": { "visible_if": "enabled_providers_count" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Try again", "variant": "primary", "intent": "retry" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Use another sign-in method", "variant": "outline", "intent": "cancel" } }
+        ]
+    })
+}
+
+fn default_oauth_failure_blueprint() -> Value {
+    json!({
+        "layout": "default",
+        "nodes": [
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "External sign-in failed" } },
+            { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "message" } },
+            { "type": "Component", "component": "ProviderButtons", "size": { "width": "fill", "height": "hug" }, "props": { "visible_if": "enabled_providers_count" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Try again", "variant": "primary", "intent": "retry", "visible_if": "can_retry" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Use another sign-in method", "variant": "outline", "intent": "cancel" } }
         ]
     })
 }

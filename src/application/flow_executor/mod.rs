@@ -860,7 +860,8 @@ fn attach_template_key(mut context: Value, template_key: Option<&str>) -> Value 
 
     match context {
         Value::Object(ref mut map) => {
-            map.insert("template_key".to_string(), Value::String(key.to_string()));
+            map.entry("template_key".to_string())
+                .or_insert_with(|| Value::String(key.to_string()));
             context
         }
         other => serde_json::json!({
@@ -1264,6 +1265,8 @@ fn resolve_template_key(config: &Value) -> Option<String> {
         Some("core.auth.forgot_credentials") => Some("forgot_credentials".to_string()),
         Some("core.auth.reset_password") => Some("reset_password".to_string()),
         Some("core.auth.verify_email_otp") => Some("verify_email".to_string()),
+        Some("core.auth.collect_idp_choice") => Some("oauth_select".to_string()),
+        Some("core.auth.oauth_idp") => Some("oauth_redirecting".to_string()),
         Some("core.auth.otp") => Some("mfa".to_string()),
         Some("core.oidc.consent") => Some("consent".to_string()),
         _ => None,

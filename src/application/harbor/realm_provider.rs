@@ -205,6 +205,10 @@ impl HarborProvider for RealmHarborProvider {
                 Some(role_ids) => Some(parse_role_ids(&role_ids)?),
                 None => None,
             },
+            idp_broker_enabled: None,
+            idp_default_jit_policy: None,
+            idp_default_email_link_policy: None,
+            idp_minimum_remaining_factor: None,
             browser_flow_id: Some(parse_optional_uuid(flow_bindings.browser_flow_id.clone())?),
             registration_flow_id: Some(parse_optional_uuid(
                 flow_bindings.registration_flow_id.clone(),

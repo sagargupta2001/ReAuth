@@ -27,6 +27,13 @@ import {
 } from '@/features/fluid/lib/themeUtils'
 
 type LoginFormValues = Record<string, string>
+type IdentityProviderOption = {
+  alias: string
+  display_name: string
+  icon_ref?: string | null
+  button_color?: string | null
+  sort_order?: number
+}
 
 type PasskeyRequestOptionsJson = {
   challenge: string
@@ -197,6 +204,15 @@ export function FluidLoginScreen({
   const canSkipEnrollment = context?.can_skip !== false
   const authSessionId =
     typeof context?.auth_session_id === 'string' ? (context.auth_session_id as string) : undefined
+  const oauthProviderAlias =
+    typeof context?.provider_alias === 'string' ? (context.provider_alias as string) : undefined
+  const enabledProviders = useMemo<IdentityProviderOption[]>(
+    () =>
+      Array.isArray(context?.enabled_providers)
+        ? (context.enabled_providers as IdentityProviderOption[])
+        : [],
+    [context?.enabled_providers],
+  )
 
   const form = useForm<LoginFormValues>({
     defaultValues: {
@@ -506,6 +522,43 @@ export function FluidLoginScreen({
       void onSubmit(normalized)
       return
     }
+    if (templateKey === 'oauth_select') {
+      if (normalized.decision === 'cancel') {
+        void onSubmit({ decision: 'cancel' })
+        return
+      }
+      if (!normalized.provider_alias) {
+        setLocalError('Choose an identity provider to continue.')
+        return
+      }
+      void onSubmit({ provider_alias: normalized.provider_alias })
+      return
+    }
+    if (templateKey === 'oauth_link_confirm') {
+      if (normalized.decision === 'cancel') {
+        void onSubmit({ decision: 'cancel' })
+        return
+      }
+      const parsed = loginSchema.safeParse(normalized)
+      if (!parsed.success) {
+        setLocalError(parsed.error.issues[0]?.message ?? 'Enter your local credentials.')
+        return
+      }
+      void onSubmit(normalized)
+      return
+    }
+    if (templateKey === 'oauth_conflict' || templateKey === 'oauth_failure') {
+      if (normalized.provider_alias) {
+        void onSubmit({ provider_alias: normalized.provider_alias })
+        return
+      }
+      if (normalized.decision) {
+        void onSubmit({ decision: normalized.decision })
+        return
+      }
+      setLocalError('Choose how you want to continue.')
+      return
+    }
     const parsed = loginSchema.safeParse(normalized)
     if (!parsed.success) {
       setLocalError(parsed.error.issues[0]?.message ?? 'Invalid login details.')
@@ -643,6 +696,32 @@ export function FluidLoginScreen({
       }
     }
   }, [templateKey, resumeToken, resumePath, activeRealm, autoStatus])
+
+  useEffect(() => {
+    if (templateKey !== 'oauth_redirecting') return
+    if (!oauthProviderAlias) return
+    if (context?.auto_start !== true) return
+    let cancelled = false
+
+    const start = async () => {
+      try {
+        const response = await authApi.startOauth(activeRealm, oauthProviderAlias)
+        if (!cancelled) {
+          window.location.href = response.redirect_url
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'OAuth redirect failed.'
+          setLocalError(message)
+        }
+      }
+    }
+
+    void start()
+    return () => {
+      cancelled = true
+    }
+  }, [templateKey, oauthProviderAlias, activeRealm, context?.auto_start])
 
   const handlePasskeyFallback = () => {
     setPasskeyError(null)
@@ -1064,6 +1143,13 @@ export function FluidLoginScreen({
               data-intent={intent || undefined}
               disabled={isLoading || (isAwaitingResend && (resendStatus === 'sending' || !canResend))}
               onClick={(event) => {
+                if (templateKey === 'oauth_redirecting' && oauthProviderAlias) {
+                  event.preventDefault()
+                  void authApi.startOauth(activeRealm, oauthProviderAlias).then((response) => {
+                    window.location.href = response.redirect_url
+                  })
+                  return
+                }
                 if (isAwaitingResend) {
                   void handleResend()
                   return
@@ -1109,6 +1195,49 @@ export function FluidLoginScreen({
 
         if (component.toLowerCase() === 'divider') {
           return wrap(<Separator />, options?.wrapperClass)
+        }
+
+        if (component.toLowerCase() === 'providerbuttons') {
+          if (enabledProviders.length === 0) {
+            return null
+          }
+
+          return wrap(
+            <div className="flex w-full flex-col gap-3">
+              {enabledProviders.map((provider) => {
+                const accent = provider.button_color || primary
+                return (
+                  <Button
+                    key={provider.alias}
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-center"
+                    style={{ borderColor: accent, color: accent }}
+                    disabled={isLoading}
+                    onClick={() => {
+                      setLocalError(null)
+                      if (templateKey === 'login') {
+                        void authApi.startOauth(activeRealm, provider.alias).then((response) => {
+                          window.location.href = response.redirect_url
+                        }).catch((error) => {
+                          const message =
+                            error instanceof Error
+                              ? error.message
+                              : 'Unable to start external sign-in.'
+                          setLocalError(message)
+                        })
+                        return
+                      }
+                      void onSubmit({ provider_alias: provider.alias })
+                    }}
+                  >
+                    {provider.display_name}
+                  </Button>
+                )
+              })}
+            </div>,
+            options?.wrapperClass,
+          )
         }
 
         return wrap(

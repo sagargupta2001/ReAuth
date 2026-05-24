@@ -1,9 +1,10 @@
 use super::{
     audit_handler, auth_handler, auth_middleware, config_handler, execution_handler, flow_handler,
-    harbor_handler, invitation_handler, log_stream_handler, observability_handler, oidc_handler,
-    rbac_handler, realm_email_handler, realm_handler, realm_passkey_handler,
-    realm_recovery_handler, realm_security_headers_handler, search_handler, server::ui_handler,
-    session_handler, setup_handler, theme_handler, user_handler, webhook_handler,
+    harbor_handler, idp_admin_handler, invitation_handler, log_stream_handler,
+    oauth_broker_handler, observability_handler, oidc_handler, rbac_handler, realm_email_handler,
+    realm_handler, realm_idp_settings_handler, realm_passkey_handler, realm_recovery_handler,
+    realm_security_headers_handler, search_handler, server::ui_handler, session_handler,
+    setup_handler, theme_handler, user_handler, webhook_handler,
 };
 use crate::adapters::web::middleware::{
     cors_middleware, permission_guard, request_logging, security_headers,
@@ -36,6 +37,10 @@ pub fn create_router(app_state: AppState) -> Router {
         .merge(config_routes(app_state.clone()))
         .nest("/realms", realm_routes(app_state.clone()))
         .nest("/realms/{realm}/clients", client_routes(app_state.clone()))
+        .nest(
+            "/realms/{realm}/identity-providers",
+            identity_provider_routes(app_state.clone()),
+        )
         .nest("/realms/{realm}/rbac", rbac_routes(app_state.clone()))
         .nest("/realms/{realm}/audits", audit_routes(app_state.clone()))
         .nest(
@@ -152,8 +157,57 @@ fn auth_routes() -> Router<AppState> {
         .route("/resume", post(auth_handler::resume_action_handler))
         .route("/resend", post(auth_handler::resend_action_handler))
         .route("/action-status", get(auth_handler::action_status_handler))
+        .route(
+            "/oauth/{alias}/start",
+            get(oauth_broker_handler::oauth_start_handler),
+        )
+        .route(
+            "/oauth/{alias}/callback",
+            get(oauth_broker_handler::oauth_callback_handler),
+        )
         .route("/refresh", post(auth_handler::refresh_handler))
         .route("/logout", post(auth_handler::logout_handler))
+}
+
+fn identity_provider_routes(state: AppState) -> Router<AppState> {
+    Router::new()
+        .route(
+            "/",
+            get(idp_admin_handler::list_identity_providers_handler)
+                .post(idp_admin_handler::create_identity_provider_handler),
+        )
+        .route(
+            "/presets",
+            get(idp_admin_handler::list_identity_provider_presets_handler),
+        )
+        .route(
+            "/{id}",
+            get(idp_admin_handler::get_identity_provider_handler)
+                .put(idp_admin_handler::update_identity_provider_handler)
+                .delete(idp_admin_handler::delete_identity_provider_handler),
+        )
+        .route(
+            "/{id}/linked-users",
+            get(idp_admin_handler::list_identity_provider_linked_users_handler),
+        )
+        .route(
+            "/{id}/activity",
+            get(idp_admin_handler::list_identity_provider_activity_handler),
+        )
+        .route(
+            "/{id}/refresh-metadata",
+            post(idp_admin_handler::refresh_identity_provider_metadata_handler),
+        )
+        .route(
+            "/{id}/test-connection",
+            post(idp_admin_handler::test_identity_provider_connection_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::REALM_WRITE)
+            },
+        ))
 }
 
 fn config_routes(state: AppState) -> Router<AppState> {
@@ -216,6 +270,10 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{id}/credentials/passkeys/{credential_id}",
             put(user_handler::update_user_passkey_metadata_handler),
+        )
+        .route(
+            "/{id}/credentials/federated/{federated_identity_id}",
+            delete(user_handler::unlink_user_federated_identity_handler),
         )
         .route(
             "/{id}/credentials/password-policy",
@@ -287,6 +345,10 @@ fn realm_routes(state: AppState) -> Router<AppState> {
             get(realm_recovery_handler::get_realm_recovery_settings_handler),
         )
         .route(
+            "/{id}/idp-settings",
+            get(realm_idp_settings_handler::get_realm_idp_settings_handler),
+        )
+        .route(
             "/{id}/passkey-settings",
             get(realm_passkey_handler::get_realm_passkey_settings_handler),
         )
@@ -327,6 +389,10 @@ fn realm_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{id}/recovery-settings",
             put(realm_recovery_handler::update_realm_recovery_settings_handler),
+        )
+        .route(
+            "/{id}/idp-settings",
+            put(realm_idp_settings_handler::update_realm_idp_settings_handler),
         )
         .route(
             "/{id}/passkey-settings",

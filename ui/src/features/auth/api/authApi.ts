@@ -42,6 +42,10 @@ export const authApi = {
     )
   },
 
+  startOauth: async (realm: string, alias: string) => {
+    return apiClient.get<{ redirect_url: string }>(`/api/realms/${realm}/auth/oauth/${alias}/start`)
+  },
+
   /**
    * Resume a flow that is waiting on an async action (email, magic link).
    */

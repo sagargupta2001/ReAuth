@@ -1,7 +1,7 @@
-use crate::domain::audit::{AuditEvent, NewAuditEvent};
+use crate::domain::audit::{AuditActionCount, AuditEvent, NewAuditEvent};
 use crate::error::Result;
 use crate::ports::audit_repository::AuditRepository;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -31,5 +31,42 @@ impl AuditService {
 
     pub async fn list_recent(&self, realm_id: Uuid, limit: usize) -> Result<Vec<AuditEvent>> {
         self.repo.list_recent(&realm_id, limit).await
+    }
+
+    pub async fn count_by_actions_since(
+        &self,
+        realm_id: Uuid,
+        actions: &[&str],
+        since: Option<DateTime<Utc>>,
+    ) -> Result<Vec<AuditActionCount>> {
+        self.repo
+            .count_by_actions_since(&realm_id, actions, since)
+            .await
+    }
+
+    pub async fn count_by_target_and_actions_since(
+        &self,
+        realm_id: Uuid,
+        target_type: &str,
+        target_id: &str,
+        actions: &[&str],
+        since: Option<DateTime<Utc>>,
+    ) -> Result<Vec<AuditActionCount>> {
+        self.repo
+            .count_by_target_and_actions_since(&realm_id, target_type, target_id, actions, since)
+            .await
+    }
+
+    pub async fn list_recent_by_target_and_actions(
+        &self,
+        realm_id: Uuid,
+        target_type: &str,
+        target_id: &str,
+        actions: &[&str],
+        limit: usize,
+    ) -> Result<Vec<AuditEvent>> {
+        self.repo
+            .list_recent_by_target_and_actions(&realm_id, target_type, target_id, actions, limit)
+            .await
     }
 }

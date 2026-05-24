@@ -4,12 +4,12 @@
 - Broker external identities into ReAuth for social login and enterprise directory auth.
 
 ## Current state
-- Local database authentication only.
+- Inbound OAuth2 / OIDC identity brokering is implemented for realm-scoped providers.
+- Current broker surface covers provider CRUD, runtime login/link/JIT flows, provider buttons, admin activity, unlink protection, cache refresh, and rollout diagnostics.
 
 ## Now
-- Inbound OIDC/OAuth2 social login (Google, GitHub, Microsoft).
-- Account linking between external identities and local users.
-- Profile mapping and conflict resolution strategy.
+- Stabilize and operate the inbound brokered-login surface.
+- Canonical rollout guidance lives in `docs/memory/21-identity-brokering-operations.md`.
 
 ## Next
 - LDAP and Active Directory integration with group-to-role mapping.

@@ -14,6 +14,9 @@ import { CachePage } from '@/pages/CachePage.tsx'
 import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
+import { CreateIdentityProviderPage } from '@/pages/identity-provider/create/CreateIdentityProviderPage.tsx'
+import { EditIdentityProviderPage } from '@/pages/identity-provider/edit/EditIdentityProviderPage.tsx'
+import { IdentityProvidersPage } from '@/pages/identity-provider/listing/IdentityProvidersPage.tsx'
 import { FlowDetailsPage } from '@/pages/flow/FlowDetailsPage.tsx'
 import { FlowsIndexPage } from '@/pages/flow/FlowsIndexPage.tsx'
 import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
@@ -23,6 +26,7 @@ import { FluidBuilderPage } from '@/pages/theme/builder/FluidBuilderPage.tsx'
 import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { EmailSettingsPage } from '@/pages/realm/settings/EmailSettingsPage.tsx'
+import { IdentityBrokeringSettingsPage } from '@/pages/realm/settings/IdentityBrokeringSettingsPage.tsx'
 import { RecoverySettingsPage } from '@/pages/realm/settings/RecoverySettingsPage.tsx'
 import { ObservabilitySettingsPage } from '@/pages/realm/settings/ObservabilitySettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
@@ -120,6 +124,12 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
+    path: '/:realm/settings/identity-brokering',
+    element: IdentityBrokeringSettingsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
     path: '/:realm/settings/recovery',
     element: RecoverySettingsPage,
     layout: AuthenticatedLayout,
@@ -158,6 +168,24 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/clients/:clientId/:tab?',
     element: EditClientPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/identity-providers',
+    element: IdentityProvidersPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/identity-providers/new',
+    element: CreateIdentityProviderPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/identity-providers/:providerId',
+    element: EditIdentityProviderPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

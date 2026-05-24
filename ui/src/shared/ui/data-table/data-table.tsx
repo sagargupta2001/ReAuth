@@ -130,7 +130,7 @@ export function DataTable<TData, TValue>({
       ) : null}
       <div className={cn('relative overflow-auto rounded-2xl p-2 bg-[#171717]', className)}>
         <Table className="w-full table-fixed " noWrapper>
-          <TableHeader className="sticky top-0 z-10  bg-[#171717]">
+          <TableHeader className="sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {

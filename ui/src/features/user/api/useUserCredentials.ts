@@ -16,6 +16,16 @@ export interface UserPasskeyCredential {
   last_used_at?: string | null
 }
 
+export interface UserFederatedIdentity {
+  id: string
+  provider_alias: string
+  provider_display_name: string
+  subject: string
+  external_email?: string | null
+  linked_via: string
+  last_login_at?: string | null
+}
+
 export interface UserCredentials {
   user_id: string
   password: {
@@ -24,6 +34,7 @@ export interface UserCredentials {
     password_login_disabled: boolean
   }
   passkeys: UserPasskeyCredential[]
+  federated_identities: UserFederatedIdentity[]
 }
 
 export function useUserCredentials(userId: string) {
@@ -91,6 +102,24 @@ export function useRenameUserPasskey(userId: string) {
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to update passkey metadata.')
+    },
+  })
+}
+
+export function useUnlinkFederatedIdentity(userId: string) {
+  const realm = useActiveRealm()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (federatedIdentityId: string) => {
+      return apiClient.delete(`/api/realms/${realm}/users/${userId}/credentials/federated/${federatedIdentityId}`)
+    },
+    onSuccess: () => {
+      toast.success('Federated identity unlinked.')
+      void queryClient.invalidateQueries({ queryKey: queryKeys.userCredentials(userId) })
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to unlink federated identity.')
     },
   })
 }

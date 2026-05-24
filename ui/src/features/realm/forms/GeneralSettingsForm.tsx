@@ -18,8 +18,23 @@ import {
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
 import { Button } from '@/shared/ui/button'
+import {
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/shared/ui/form.tsx'
 import { FormInput } from '@/shared/ui/form-input.tsx'
 import { Form } from '@/shared/ui/form.tsx'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/shared/ui/select'
 import { Switch } from '@/shared/ui/switch'
 
 export function GeneralSettingsForm() {
@@ -38,6 +53,10 @@ export function GeneralSettingsForm() {
     defaultValues: {
       name: '',
       invitation_resend_limit: 3,
+      idp_broker_enabled: false,
+      idp_default_jit_policy: 'per_provider',
+      idp_default_email_link_policy: 'manual_only',
+      idp_minimum_remaining_factor: true,
     },
   })
 
@@ -56,6 +75,10 @@ export function GeneralSettingsForm() {
       form.reset({
         name: realm.name,
         invitation_resend_limit: realm.invitation_resend_limit ?? 3,
+        idp_broker_enabled: realm.idp_broker_enabled,
+        idp_default_jit_policy: realm.idp_default_jit_policy,
+        idp_default_email_link_policy: realm.idp_default_email_link_policy,
+        idp_minimum_remaining_factor: realm.idp_minimum_remaining_factor,
       })
   }, [realm, form])
 
@@ -156,6 +179,108 @@ export function GeneralSettingsForm() {
                   description="Maximum number of resends allowed per invitation in this realm."
                 />
               </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div id="realm-identity-brokering" className="scroll-mt-24 rounded-md -m-2 p-2">
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>Identity Brokering</CardTitle>
+              <CardDescription>
+                Control whether inbound OAuth and OIDC providers are available in this realm.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <FormField
+                control={form.control}
+                name="idp_broker_enabled"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <FormLabel>Enable Identity Brokering</FormLabel>
+                      <FormDescription>
+                        Turns provider buttons and OAuth callback handling on for this realm.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="idp_default_jit_policy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Default JIT Provisioning</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="allow">Allow by default</SelectItem>
+                          <SelectItem value="per_provider">Require per-provider opt-in</SelectItem>
+                          <SelectItem value="deny">Deny by default</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Sets the default Just-In-Time provisioning policy for newly created identity providers.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="idp_default_email_link_policy"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Default Email Auto-Link Policy</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="allow_verified">Allow verified email matches</SelectItem>
+                          <SelectItem value="manual_only">Require manual linking</SelectItem>
+                          <SelectItem value="deny">Disable email matching</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Controls the default provider behavior when an upstream email matches an existing local user.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="idp_minimum_remaining_factor"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-1">
+                      <FormLabel>Protect The Last Sign-In Method</FormLabel>
+                      <FormDescription>
+                        Prevents users from unlinking their final remaining password, passkey, or federated sign-in factor.
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
         </div>

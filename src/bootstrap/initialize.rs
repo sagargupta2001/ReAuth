@@ -18,6 +18,7 @@ use crate::bootstrap::repositories::initialize_repositories;
 use crate::bootstrap::services::initialize_services;
 use crate::config::Settings;
 use crate::constants::DEFAULT_REALM_NAME;
+use crate::ports::oauth_broker_state_repository::OAuthBrokerStateRepository;
 use crate::ports::passkey_challenge_repository::PasskeyChallengeRepository;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::AppState;
@@ -39,6 +40,7 @@ struct InitializeOptions {
     enable_refresh_cleanup: bool,
     enable_harbor_cleanup: bool,
     enable_passkey_challenge_cleanup: bool,
+    enable_oauth_broker_state_cleanup: bool,
 }
 
 pub async fn initialize() -> anyhow::Result<AppState> {
@@ -54,6 +56,7 @@ pub async fn initialize() -> anyhow::Result<AppState> {
             enable_refresh_cleanup: true,
             enable_harbor_cleanup: true,
             enable_passkey_challenge_cleanup: true,
+            enable_oauth_broker_state_cleanup: true,
         },
     )
     .await
@@ -72,6 +75,7 @@ pub async fn initialize_for_tests() -> anyhow::Result<AppState> {
             enable_refresh_cleanup: false,
             enable_harbor_cleanup: false,
             enable_passkey_challenge_cleanup: false,
+            enable_oauth_broker_state_cleanup: false,
         },
     )
     .await
@@ -169,6 +173,12 @@ async fn initialize_with_settings(
             repos.passkey_challenge_repo.clone(),
         );
     }
+    if options.enable_oauth_broker_state_cleanup {
+        spawn_oauth_broker_state_cleanup(
+            settings_shared.clone(),
+            repos.oauth_broker_state_repo.clone(),
+        );
+    }
 
     Ok(AppState {
         settings: settings_shared,
@@ -182,6 +192,7 @@ async fn initialize_with_settings(
         metrics_service,
         realm_service: services.realm_service,
         realm_email_settings_service: services.realm_email_settings_service,
+        realm_idp_settings_service: services.realm_idp_settings_service,
         realm_passkey_settings_service: services.realm_passkey_settings_service,
         realm_recovery_settings_service: services.realm_recovery_settings_service,
         realm_security_headers_service: services.realm_security_headers_service,
@@ -189,6 +200,7 @@ async fn initialize_with_settings(
         passkey_analytics_service: services.passkey_analytics_service,
         email_delivery_service: services.email_delivery_service,
         invitation_service: services.invitation_service,
+        identity_provider_service: services.identity_provider_service,
         webhook_service: services.webhook_service,
         theme_service: services.theme_service,
         harbor_service: services.harbor_service,
@@ -198,6 +210,7 @@ async fn initialize_with_settings(
         flow_store: repos.flow_store,
         // flow_engine has been removed
         oidc_service: services.oidc_service,
+        oauth_broker_service: services.oauth_broker_service,
         flow_service: services.flow_service,
         flow_manager: services.flow_manager,
         node_registry: services.node_registry,
@@ -525,6 +538,66 @@ fn spawn_passkey_challenge_cleanup(
             if total_removed > 0 {
                 info!(
                     "Passkey challenge cleanup removed {} rows (cutoff {}).",
+                    total_removed, cutoff
+                );
+            }
+        }
+    });
+}
+
+fn spawn_oauth_broker_state_cleanup(
+    settings: Arc<RwLock<Settings>>,
+    oauth_broker_state_repo: Arc<dyn OAuthBrokerStateRepository>,
+) {
+    tokio::spawn(async move {
+        loop {
+            let interval_secs = {
+                settings
+                    .read()
+                    .await
+                    .auth
+                    .oauth_broker_state_cleanup_interval_secs
+            };
+            if interval_secs == 0 {
+                info!(
+                    "OAuth broker state cleanup disabled (oauth_broker_state_cleanup_interval_secs=0)."
+                );
+                return;
+            }
+
+            tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
+
+            let batch_size = {
+                settings
+                    .read()
+                    .await
+                    .auth
+                    .oauth_broker_state_cleanup_batch_size
+            };
+            let cutoff = Utc::now();
+            let mut total_removed = 0u64;
+
+            loop {
+                match oauth_broker_state_repo
+                    .delete_expired_before(cutoff, batch_size)
+                    .await
+                {
+                    Ok(removed) => {
+                        total_removed += removed;
+                        if removed < batch_size.max(1) as u64 {
+                            break;
+                        }
+                    }
+                    Err(err) => {
+                        warn!("Failed to cleanup OAuth broker state: {}", err);
+                        break;
+                    }
+                }
+            }
+
+            if total_removed > 0 {
+                info!(
+                    "OAuth broker state cleanup removed {} rows (cutoff {}).",
                     total_removed, cutoff
                 );
             }

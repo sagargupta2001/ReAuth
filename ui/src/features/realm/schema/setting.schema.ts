@@ -31,6 +31,10 @@ export const generalSettingsSchema = z.object({
     .int('Must be a whole number')
     .min(0, 'Must be greater than or equal to 0')
     .max(100, 'Must be less than or equal to 100'),
+  idp_broker_enabled: z.boolean(),
+  idp_default_jit_policy: z.enum(['allow', 'deny', 'per_provider']),
+  idp_default_email_link_policy: z.enum(['allow_verified', 'manual_only', 'deny']),
+  idp_minimum_remaining_factor: z.boolean(),
 })
 
 export type GeneralSettingsSchema = z.infer<typeof generalSettingsSchema>

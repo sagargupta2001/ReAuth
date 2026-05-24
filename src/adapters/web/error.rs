@@ -27,7 +27,11 @@ impl IntoResponse for Error {
             | Error::EmailAlreadyExists
             | Error::RoleAlreadyExists
             | Error::GroupAlreadyExists
-            | Error::RealmAlreadyExists => (StatusCode::CONFLICT, self.to_string(), None),
+            | Error::RealmAlreadyExists
+            | Error::Conflict(_) => (StatusCode::CONFLICT, self.to_string(), None),
+
+            // 429 Too Many Requests
+            Error::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, self.to_string(), None),
 
             // 404 Not Found
             Error::UserNotFound
@@ -118,6 +122,7 @@ fn error_code(error: &Error) -> &'static str {
         Error::RoleAlreadyExists => "rbac.role.already_exists",
         Error::GroupAlreadyExists => "rbac.group.already_exists",
         Error::RealmAlreadyExists => "realm.already_exists",
+        Error::RateLimited(_) => "request.rate_limited",
         Error::UserNotFound => "user.not_found",
         Error::RealmNotFound(_) => "realm.not_found",
         Error::FlowNotFound(_) => "flow.not_found",
@@ -125,6 +130,7 @@ fn error_code(error: &Error) -> &'static str {
         Error::InvalidLoginStep => "auth.invalid_login_step",
         Error::InvalidLoginSession => "auth.invalid_login_session",
         Error::Validation(_) => "validation.failed",
+        Error::Conflict(_) => "request.conflict",
         Error::FieldsValidation { .. } => "validation.failed",
         Error::FlowPublishValidation(_) => "validation.failed",
         Error::NotFound(_) => "resource.not_found",
