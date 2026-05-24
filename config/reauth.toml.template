@@ -46,6 +46,8 @@
 # refresh_token_retention_secs = 0
 # passkey_challenge_cleanup_interval_secs = 300
 # passkey_challenge_cleanup_batch_size = 500
+# oauth_broker_state_cleanup_interval_secs = 300
+# oauth_broker_state_cleanup_batch_size = 500
 # jwt_key_id = "reauth-rs-v1"
 # issuer = "" # Leave empty to derive from server.public_url
 
