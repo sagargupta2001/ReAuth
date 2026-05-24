@@ -21,7 +21,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-export function EditUserForm({ userId }: { userId: string }) {
+export function UseProfileTab({ userId }: { userId: string }) {
   const { data: user, isLoading } = useUser(userId)
   const mutation = useUpdateUser(userId)
 
