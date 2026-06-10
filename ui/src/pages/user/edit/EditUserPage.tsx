@@ -65,7 +65,7 @@ export function EditUserPage() {
         userIconSkeleton()
       ) : (
         <div className="flex items-center gap-4">
-          <div className="border-primary flex items-center justify-center rounded-full border p-4">
+          <div className="flex items-center justify-center rounded-full border-4 p-4">
             <UserRound className="h-7 w-7" />
           </div>
 

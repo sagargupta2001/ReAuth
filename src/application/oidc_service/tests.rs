@@ -1762,7 +1762,6 @@ async fn exchange_code_for_token_returns_tokens_and_deletes_code() {
         id: user_id,
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
-        email: None,
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,

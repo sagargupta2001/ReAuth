@@ -24,7 +24,8 @@ use crate::application::webhook_service::WebhookService;
 use crate::application::{
     audit_service::AuditService, auth_service::AuthService, rbac_service::RbacService,
     realm_service::RealmService, telemetry_service::TelemetryService,
-    user_credentials_service::UserCredentialsService, user_service::UserService,
+    user_credentials_service::UserCredentialsService, user_email_service::UserEmailService,
+    user_service::UserService,
 };
 use crate::config::Settings;
 use crate::domain::log::LogSubscriber;
@@ -63,6 +64,7 @@ pub struct AppState {
 
     // Services
     pub user_service: Arc<UserService>,
+    pub user_email_service: Arc<UserEmailService>,
     pub user_credentials_service: Arc<UserCredentialsService>,
     pub rbac_service: Arc<RbacService>,
     pub auth_service: Arc<AuthService>,

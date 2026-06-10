@@ -27,6 +27,9 @@ pub enum Error {
     #[error("User not found.")]
     UserNotFound,
 
+    #[error("Email address not found.")]
+    UserEmailNotFound,
+
     #[error(transparent)]
     Unexpected(#[from] anyhow::Error),
 

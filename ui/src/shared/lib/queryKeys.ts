@@ -1,6 +1,7 @@
 export const queryKeys = {
   setupStatus: () => ['setup-status'] as const,
   user: (userId: string) => ['user', userId] as const,
+  userEmails: (userId: string) => ['user-emails', userId] as const,
   userCredentials: (userId: string) => ['user-credentials', userId] as const,
   users: (realm?: string, params?: unknown) =>
     realm ? (['users', realm, params] as const) : (['users'] as const),

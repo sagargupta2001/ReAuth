@@ -3,9 +3,12 @@ mod support;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use reauth::adapters::persistence::connection::Database;
+use reauth::adapters::persistence::sqlite_user_email_repository::SqliteUserEmailRepository;
 use reauth::adapters::persistence::sqlite_user_repository::SqliteUserRepository;
 use reauth::domain::pagination::{PageRequest, SortDirection};
 use reauth::domain::user::{User, UserDateTimeRangeFilter, UserListFilters};
+use reauth::domain::user_email::UserEmail;
+use reauth::ports::user_email_repository::UserEmailRepository;
 use reauth::ports::user_repository::UserRepository;
 use support::TestDb;
 use uuid::Uuid;
@@ -30,7 +33,6 @@ fn user(id: Uuid, realm_id: Uuid, username: &str, hashed_password: &str) -> User
         id,
         realm_id,
         username: username.to_string(),
-        email: None,
         hashed_password: hashed_password.to_string(),
         force_password_reset: false,
         password_login_disabled: false,
@@ -52,10 +54,24 @@ async fn insert_realm(pool: &Database, realm_id: Uuid, name: &str) -> Result<()>
     Ok(())
 }
 
+/// Helper: save a user_email row via the email repo.
+async fn add_email(
+    email_repo: &SqliteUserEmailRepository,
+    user_id: Uuid,
+    realm_id: Uuid,
+    email: &str,
+    is_primary: bool,
+) -> Result<()> {
+    let row = UserEmail::new(user_id, realm_id, email.to_string(), is_primary, false);
+    email_repo.save(&row, None).await?;
+    Ok(())
+}
+
 #[tokio::test]
 async fn save_and_find_users_by_id_and_username() -> Result<()> {
     let db = TestDb::new().await;
     let repo = SqliteUserRepository::new(db.pool.clone());
+    let email_repo = SqliteUserEmailRepository::new(db.pool.clone());
     let realm_id = Uuid::new_v4();
     let other_realm = Uuid::new_v4();
 
@@ -63,16 +79,22 @@ async fn save_and_find_users_by_id_and_username() -> Result<()> {
     insert_realm(&db.pool, other_realm, "realm-other").await?;
 
     let alice = user(Uuid::new_v4(), realm_id, "alice", "hash1");
-    let mut alice = alice;
-    alice.email = Some("alice@example.com".to_string());
     repo.save(&alice, None).await?;
+    add_email(&email_repo, alice.id, realm_id, "alice@example.com", true).await?;
 
     let by_id = repo.find_by_id(&alice.id).await?.unwrap();
     assert_eq!(by_id.username, "alice");
-    assert_eq!(by_id.email.as_deref(), Some("alice@example.com"));
 
     let by_username = repo.find_by_username(&realm_id, "alice").await?;
     assert_eq!(by_username.unwrap().id, alice.id);
+
+    // find_by_email now looks through user_emails
+    let by_email = repo.find_by_email(&realm_id, "alice@example.com").await?;
+    assert_eq!(by_email.unwrap().id, alice.id);
+
+    // Case-insensitive lookup
+    let by_email_upper = repo.find_by_email(&realm_id, "ALICE@EXAMPLE.COM").await?;
+    assert_eq!(by_email_upper.unwrap().id, alice.id);
 
     let other = repo.find_by_username(&other_realm, "alice").await?;
     assert!(other.is_none());
@@ -180,22 +202,20 @@ async fn list_users_with_filters_sorting_and_pagination() -> Result<()> {
 async fn list_users_applies_email_and_date_filters() -> Result<()> {
     let db = TestDb::new().await;
     let repo = SqliteUserRepository::new(db.pool.clone());
+    let email_repo = SqliteUserEmailRepository::new(db.pool.clone());
     let realm_id = Uuid::new_v4();
 
     insert_realm(&db.pool, realm_id, "realm-filtered-list").await?;
 
     let mut alice = user(Uuid::new_v4(), realm_id, "alice", "hash");
-    alice.email = Some("alice@example.com".to_string());
     alice.created_at = Some(Utc.with_ymd_and_hms(2026, 5, 1, 8, 0, 0).unwrap());
     alice.last_sign_in_at = Some(Utc.with_ymd_and_hms(2026, 5, 7, 12, 0, 0).unwrap());
 
     let mut bob = user(Uuid::new_v4(), realm_id, "bob", "hash");
-    bob.email = Some("bob@sample.test".to_string());
     bob.created_at = Some(Utc.with_ymd_and_hms(2026, 5, 3, 8, 0, 0).unwrap());
     bob.last_sign_in_at = Some(Utc.with_ymd_and_hms(2026, 5, 9, 12, 0, 0).unwrap());
 
     let mut carol = user(Uuid::new_v4(), realm_id, "carol", "hash");
-    carol.email = Some("carol@example.com".to_string());
     carol.created_at = Some(Utc.with_ymd_and_hms(2026, 5, 10, 8, 0, 0).unwrap());
     carol.last_sign_in_at = None;
 
@@ -203,6 +223,11 @@ async fn list_users_applies_email_and_date_filters() -> Result<()> {
         repo.save(u, None).await?;
     }
 
+    add_email(&email_repo, alice.id, realm_id, "alice@example.com", true).await?;
+    add_email(&email_repo, bob.id, realm_id, "bob@sample.test", true).await?;
+    add_email(&email_repo, carol.id, realm_id, "carol@example.com", true).await?;
+
+    // Email filter via user_emails subquery
     let email_filtered = repo
         .list(
             &realm_id,
@@ -216,6 +241,17 @@ async fn list_users_applies_email_and_date_filters() -> Result<()> {
     assert_eq!(email_filtered.meta.total, 2);
     assert_eq!(email_filtered.data[0].username, "alice");
     assert_eq!(email_filtered.data[1].username, "carol");
+
+    // Email search via q parameter (OR email LIKE)
+    let q_email = repo
+        .list(
+            &realm_id,
+            &page_request(1, 10, Some(SortDirection::Asc), Some("sample.test")),
+            &UserListFilters::default(),
+        )
+        .await?;
+    assert_eq!(q_email.meta.total, 1);
+    assert_eq!(q_email.data[0].username, "bob");
 
     let created_filtered = repo
         .list(
