@@ -1010,7 +1010,7 @@ async fn link_existing_provider_identity(
                 provider_alias: provider.alias.clone(),
                 provider_display_name: provider.display_name.clone(),
                 subject: subject.to_string(),
-                external_email: user.email.clone(),
+                external_email: None,
                 external_username: Some(user.username.clone()),
                 message: None,
             },
@@ -3796,7 +3796,7 @@ async fn oauth_callback_conflict_redirects_back_to_oauth_conflict_page() {
     let realm = setup_master_realm(&ctx).await;
 
     let upstream = FakeOauthUpstream::start().await;
-    let user = ctx
+    let _user = ctx
         .app_state
         .user_service
         .create_user(
@@ -3947,7 +3947,7 @@ async fn oauth_callback_conflict_redirects_back_to_oauth_conflict_page() {
         json.get("context")
             .and_then(|value| value.get("external_email"))
             .and_then(|value| value.as_str()),
-        user.email.as_deref()
+        Some("conflict-user@example.com")
     );
 }
 

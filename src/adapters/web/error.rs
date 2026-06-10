@@ -35,6 +35,7 @@ impl IntoResponse for Error {
 
             // 404 Not Found
             Error::UserNotFound
+            | Error::UserEmailNotFound
             | Error::RealmNotFound(_)
             | Error::FlowNotFound(_)
             | Error::AuthenticatorNotFound(_)
@@ -124,6 +125,7 @@ fn error_code(error: &Error) -> &'static str {
         Error::RealmAlreadyExists => "realm.already_exists",
         Error::RateLimited(_) => "request.rate_limited",
         Error::UserNotFound => "user.not_found",
+        Error::UserEmailNotFound => "user.email_not_found",
         Error::RealmNotFound(_) => "realm.not_found",
         Error::FlowNotFound(_) => "flow.not_found",
         Error::AuthenticatorNotFound(_) => "authenticator.not_found",

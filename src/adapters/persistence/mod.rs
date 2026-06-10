@@ -27,6 +27,7 @@ pub mod sqlite_realm_security_headers_repository;
 pub mod sqlite_recovery_attempt_repository;
 pub mod sqlite_session_repository;
 pub mod sqlite_theme_repository;
+pub mod sqlite_user_email_repository;
 pub mod sqlite_user_repository;
 pub mod sqlite_webhook_repository;
 pub mod transaction;

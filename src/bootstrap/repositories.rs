@@ -22,6 +22,7 @@ use crate::adapters::persistence::sqlite_realm_recovery_settings_repository::Sql
 use crate::adapters::persistence::sqlite_realm_security_headers_repository::SqliteRealmSecurityHeadersRepository;
 use crate::adapters::persistence::sqlite_recovery_attempt_repository::SqliteRecoveryAttemptRepository;
 use crate::adapters::persistence::sqlite_theme_repository::SqliteThemeRepository;
+use crate::adapters::persistence::sqlite_user_email_repository::SqliteUserEmailRepository;
 use crate::adapters::persistence::sqlite_webhook_repository::SqliteWebhookRepository;
 use crate::ports::audit_repository::AuditRepository;
 use crate::ports::auth_session_action_repository::AuthSessionActionRepository;
@@ -45,6 +46,7 @@ use crate::ports::realm_recovery_settings_repository::RealmRecoverySettingsRepos
 use crate::ports::realm_security_headers_repository::RealmSecurityHeadersRepository;
 use crate::ports::recovery_attempt_repository::RecoveryAttemptRepository;
 use crate::ports::theme_repository::ThemeRepository;
+use crate::ports::user_email_repository::UserEmailRepository;
 use crate::ports::webhook_repository::WebhookRepository;
 use crate::{
     adapters::persistence::{
@@ -68,6 +70,7 @@ use std::sync::Arc;
 /// A struct to hold all initialized repositories.
 pub struct Repositories {
     pub user_repo: Arc<dyn UserRepository>,
+    pub user_email_repo: Arc<dyn UserEmailRepository>,
     pub rbac_repo: Arc<dyn RbacRepository>,
     pub realm_repo: Arc<dyn RealmRepository>,
     pub realm_email_settings_repo: Arc<dyn RealmEmailSettingsRepository>,
@@ -102,6 +105,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
     // We instantiate the concrete types but return them as `Arc<dyn Trait>`
     // to enforce the hexagonal architecture.
     let user_repo = Arc::new(SqliteUserRepository::new(db_pool.clone()));
+    let user_email_repo = Arc::new(SqliteUserEmailRepository::new(db_pool.clone()));
     let rbac_repo = Arc::new(SqliteRbacRepository::new(db_pool.clone()));
     let realm_repo = Arc::new(SqliteRealmRepository::new(db_pool.clone()));
     let realm_email_settings_repo =
@@ -140,6 +144,7 @@ pub fn initialize_repositories(db_pool: &Database) -> Repositories {
 
     Repositories {
         user_repo,
+        user_email_repo,
         rbac_repo,
         realm_repo,
         realm_email_settings_repo,

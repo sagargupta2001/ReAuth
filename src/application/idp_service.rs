@@ -13,6 +13,7 @@ use crate::ports::federated_identity_repository::FederatedIdentityRepository;
 use crate::ports::http_client::{HttpDeliveryClient, HttpDeliveryRequest};
 use crate::ports::identity_provider_repository::IdentityProviderRepository;
 use crate::ports::realm_repository::RealmRepository;
+use crate::ports::user_email_repository::UserEmailRepository;
 use crate::ports::user_repository::UserRepository;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -197,17 +198,20 @@ pub struct IdentityProviderService {
     federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
     realm_repo: Arc<dyn RealmRepository>,
     user_repo: Arc<dyn UserRepository>,
+    user_email_repo: Arc<dyn UserEmailRepository>,
     audit_service: Arc<AuditService>,
     secret_service: Arc<SecretService>,
     http_client: Arc<dyn HttpDeliveryClient>,
 }
 
 impl IdentityProviderService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         repo: Arc<dyn IdentityProviderRepository>,
         federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
         realm_repo: Arc<dyn RealmRepository>,
         user_repo: Arc<dyn UserRepository>,
+        user_email_repo: Arc<dyn UserEmailRepository>,
         audit_service: Arc<AuditService>,
         secret_service: Arc<SecretService>,
         http_client: Arc<dyn HttpDeliveryClient>,
@@ -217,6 +221,7 @@ impl IdentityProviderService {
             federated_identity_repo,
             realm_repo,
             user_repo,
+            user_email_repo,
             audit_service,
             secret_service,
             http_client,
@@ -287,11 +292,16 @@ impl IdentityProviderService {
             if user.realm_id != provider.realm_id {
                 continue;
             }
+            let primary_email = self
+                .user_email_repo
+                .find_primary(&user.id)
+                .await?
+                .map(|e| e.email);
             linked_users.push(IdentityProviderLinkedUser {
                 federated_identity_id: identity.id,
                 user_id: user.id,
                 username: user.username,
-                email: user.email,
+                email: primary_email,
                 subject: identity.subject,
                 external_username: identity.external_username,
                 external_email: identity.external_email,

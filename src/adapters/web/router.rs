@@ -11,7 +11,7 @@ use crate::adapters::web::middleware::{
 };
 use crate::domain::permissions;
 use crate::AppState;
-use axum::routing::{delete, put};
+use axum::routing::{delete, patch, put};
 use axum::{
     middleware,
     routing::{get, post},
@@ -290,6 +290,23 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{id}/roles/{role_id}",
             delete(rbac_handler::remove_user_role_handler),
+        )
+        // Email sub-resource
+        .route(
+            "/{id}/emails",
+            get(user_handler::list_user_emails_handler).post(user_handler::add_user_email_handler),
+        )
+        .route(
+            "/{id}/emails/{email_id}",
+            delete(user_handler::remove_user_email_handler),
+        )
+        .route(
+            "/{id}/emails/{email_id}/primary",
+            put(user_handler::set_primary_email_handler),
+        )
+        .route(
+            "/{id}/emails/{email_id}/verified",
+            patch(user_handler::set_email_verified_handler),
         )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

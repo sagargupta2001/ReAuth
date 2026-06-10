@@ -8,12 +8,14 @@ use crate::domain::identity_provider::{
     FederatedIdentity, IdentityProvider, OAuthBrokerResult, OAuthBrokerState, OAuthUpstreamIdentity,
 };
 use crate::domain::user::User;
+use crate::domain::user_email::UserEmail;
 use crate::error::{Error, Result};
 use crate::ports::auth_session_repository::AuthSessionRepository;
 use crate::ports::federated_identity_repository::FederatedIdentityRepository;
 use crate::ports::http_client::{HttpDeliveryClient, HttpDeliveryRequest};
 use crate::ports::oauth_broker_state_repository::OAuthBrokerStateRepository;
 use crate::ports::realm_repository::RealmRepository;
+use crate::ports::user_email_repository::UserEmailRepository;
 use crate::ports::user_repository::UserRepository;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -35,6 +37,7 @@ pub struct OAuthBrokerService {
     auth_session_repo: Arc<dyn AuthSessionRepository>,
     realm_repo: Arc<dyn RealmRepository>,
     user_repo: Arc<dyn UserRepository>,
+    user_email_repo: Arc<dyn UserEmailRepository>,
     audit_service: Arc<AuditService>,
     secret_service: Arc<SecretService>,
     http_client: Arc<dyn HttpDeliveryClient>,
@@ -70,6 +73,7 @@ impl OAuthBrokerService {
         auth_session_repo: Arc<dyn AuthSessionRepository>,
         realm_repo: Arc<dyn RealmRepository>,
         user_repo: Arc<dyn UserRepository>,
+        user_email_repo: Arc<dyn UserEmailRepository>,
         audit_service: Arc<AuditService>,
         secret_service: Arc<SecretService>,
         http_client: Arc<dyn HttpDeliveryClient>,
@@ -82,6 +86,7 @@ impl OAuthBrokerService {
             auth_session_repo,
             realm_repo,
             user_repo,
+            user_email_repo,
             audit_service,
             secret_service,
             http_client,
@@ -954,7 +959,13 @@ impl OAuthBrokerService {
             return Err(Error::InvalidCredentials);
         }
         if let Some(expected_email) = broker_result.external_email.as_deref() {
-            if user.email.as_deref() != Some(expected_email) {
+            let primary_email = self
+                .user_email_repo
+                .find_primary(&user.id)
+                .await?
+                .map(|e| e.email_normalized);
+            let expected_normalized = expected_email.trim().to_lowercase();
+            if primary_email.as_deref() != Some(expected_normalized.as_str()) {
                 return Err(Error::Validation(format!(
                     "Sign in with the local account that uses {} to confirm this link.",
                     expected_email
@@ -1088,7 +1099,6 @@ impl OAuthBrokerService {
             id: Uuid::new_v4(),
             realm_id: provider.realm_id,
             username: unique_username(&*self.user_repo, provider.realm_id, &username).await?,
-            email: candidate_email,
             hashed_password: hashed_password.as_str().to_string(),
             force_password_reset: false,
             password_login_disabled: true,
@@ -1112,6 +1122,10 @@ impl OAuthBrokerService {
         };
 
         self.user_repo.save(&user, None).await?;
+        if let Some(email) = candidate_email {
+            let user_email = UserEmail::new(user.id, provider.realm_id, email, true, true);
+            self.user_email_repo.save(&user_email, None).await?;
+        }
         self.federation_repo.create(&federation).await?;
 
         self.audit_service

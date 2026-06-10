@@ -269,7 +269,7 @@ impl PasskeyAssertionService {
 
         let user_id_bytes = user.id.as_bytes();
         let user_name = user.username.clone();
-        let user_display_name = user.email.clone().unwrap_or_else(|| user_name.clone());
+        let user_display_name = user_name.clone();
         let public_key = json!({
             "challenge": challenge_raw,
             "rp": {

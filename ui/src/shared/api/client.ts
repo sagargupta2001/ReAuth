@@ -169,6 +169,9 @@ export const apiClient = {
       },
     }),
 
+  patch: <T>(url: string, body: unknown, config?: RequestConfig) =>
+    request<T>(url, { ...config, method: 'PATCH', body: JSON.stringify(body) }),
+
   raw: (url: string, config?: RequestConfig) => requestRaw(url, config),
 
   delete: <T>(url: string, config?: RequestConfig) =>

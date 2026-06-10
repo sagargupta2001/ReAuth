@@ -137,7 +137,7 @@ async fn link_federated_identity(
                 provider_alias: provider.alias.clone(),
                 provider_display_name: provider.display_name.clone(),
                 subject: subject.to_string(),
-                external_email: user.email.clone(),
+                external_email: None,
                 external_username: Some(user.username.clone()),
                 message: None,
             },

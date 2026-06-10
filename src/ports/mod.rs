@@ -31,5 +31,6 @@ pub mod telemetry_repository;
 pub mod theme_repository;
 pub mod token_service;
 pub mod transaction_manager;
+pub mod user_email_repository;
 pub mod user_repository;
 pub mod webhook_repository;

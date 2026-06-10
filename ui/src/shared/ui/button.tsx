@@ -35,12 +35,14 @@ const buttonVariants = cva(
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
         soft: 'bg-primary/10 text-primary hover:bg-primary/20 shadow-sm',
+        highlight: 'group transition-none text-muted-foreground hover:text-foreground',
       },
       size: {
         default: 'h-9 px-4 py-2',
         sm: 'h-8 rounded-md px-3 text-xs',
         lg: 'h-10 rounded-md px-8',
         icon: 'h-9 w-9',
+        clear: 'h-auto p-0 min-w-fit',
       },
     },
     defaultVariants: {

@@ -4,13 +4,12 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct User {
-    #[sqlx(try_from = "String")] // Convert TEXT from DB to Uuid
+    #[sqlx(try_from = "String")]
     pub id: Uuid,
     #[sqlx(try_from = "String")]
     pub realm_id: Uuid,
     pub username: String,
-    pub email: Option<String>,
-    #[serde(skip_serializing)] // Don't send hash to UI
+    #[serde(skip_serializing)]
     pub hashed_password: String,
     #[serde(default)]
     #[sqlx(default)]
@@ -28,7 +27,6 @@ impl User {
             id: Uuid::new_v4(),
             realm_id,
             username,
-            email: None,
             hashed_password,
             force_password_reset: false,
             password_login_disabled: false,
@@ -93,12 +91,13 @@ mod tests {
         let realm_id = Uuid::new_v4();
 
         let user: User = sqlx::query_as(
-            "SELECT ? as id, ? as realm_id, ? as username, ? as email, ? as hashed_password, ? as force_password_reset, ? as password_login_disabled, ? as created_at, ? as last_sign_in_at",
+            "SELECT ? as id, ? as realm_id, ? as username, ? as hashed_password, \
+             ? as force_password_reset, ? as password_login_disabled, \
+             ? as created_at, ? as last_sign_in_at",
         )
         .bind(id.to_string())
         .bind(realm_id.to_string())
         .bind("alice")
-        .bind(None::<String>)
         .bind("hash")
         .bind(false)
         .bind(false)
@@ -111,7 +110,6 @@ mod tests {
         assert_eq!(user.id, id);
         assert_eq!(user.realm_id, realm_id);
         assert_eq!(user.username, "alice");
-        assert!(user.email.is_none());
         assert_eq!(user.hashed_password, "hash");
         assert!(!user.force_password_reset);
         assert!(!user.password_login_disabled);
@@ -125,7 +123,6 @@ mod tests {
             id: Uuid::new_v4(),
             realm_id: Uuid::new_v4(),
             username: "alice".to_string(),
-            email: None,
             hashed_password: "hash".to_string(),
             force_password_reset: false,
             password_login_disabled: false,
@@ -138,14 +135,13 @@ mod tests {
     }
 
     #[test]
-    fn user_deserializes_with_hashed_password() {
+    fn user_deserializes_without_email() {
         let id = Uuid::new_v4();
         let realm_id = Uuid::new_v4();
         let value = json!({
             "id": id,
             "realm_id": realm_id,
             "username": "alice",
-            "email": null,
             "hashed_password": "hash",
             "force_password_reset": true,
             "password_login_disabled": true,
@@ -158,7 +154,6 @@ mod tests {
         assert_eq!(user.id, id);
         assert_eq!(user.realm_id, realm_id);
         assert_eq!(user.username, "alice");
-        assert!(user.email.is_none());
         assert_eq!(user.hashed_password, "hash");
         assert!(user.force_password_reset);
         assert!(user.password_login_disabled);
@@ -172,7 +167,6 @@ mod tests {
         assert!(!user.id.is_nil());
         assert_eq!(user.realm_id, realm_id);
         assert_eq!(user.username, "bob");
-        assert!(user.email.is_none());
         assert!(!user.force_password_reset);
         assert!(!user.password_login_disabled);
     }

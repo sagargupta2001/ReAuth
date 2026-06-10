@@ -73,9 +73,11 @@ impl LifecycleNode for RecoveryIssueNode {
         let email_target = if Self::looks_like_email(&identifier) {
             identifier.clone()
         } else {
-            user.as_ref()
-                .and_then(|user| user.email.clone())
-                .unwrap_or_else(|| identifier.clone())
+            let primary = match user.as_ref() {
+                Some(u) => self.user_service.get_primary_email(&u.id).await?,
+                None => None,
+            };
+            primary.unwrap_or_else(|| identifier.clone())
         };
 
         let token = Alphanumeric.sample_string(&mut rand::rng(), RECOVERY_TOKEN_LENGTH);

@@ -12,35 +12,36 @@ use sqlx::{QueryBuilder, Sqlite};
 use tracing::instrument;
 use uuid::Uuid;
 
-/// The SQLx "Adapter" for the UserRepository port.
 pub struct SqliteUserRepository {
-    // The struct now holds the shared pointer to the pool.
     pool: Database,
 }
 
 impl SqliteUserRepository {
-    // The `new` function now correctly accepts the shared pool.
     pub fn new(pool: Database) -> Self {
         Self { pool }
     }
 
-    // Helper to keep count and select logic in sync
     fn apply_filters<'a>(
         builder: &mut QueryBuilder<'a, Sqlite>,
         realm_id: &Uuid,
         q: &Option<String>,
         filters: &UserListFilters,
     ) {
-        builder.push(" WHERE realm_id = ");
+        builder.push(" WHERE u.realm_id = ");
         builder.push_bind(realm_id.to_string());
 
         if let Some(query_text) = q {
             if !query_text.is_empty() {
-                builder.push(" AND (username LIKE ");
+                // Match username OR any email belonging to this user
+                builder.push(" AND (u.username LIKE ");
                 builder.push_bind(format!("%{}%", query_text));
-                builder.push(" OR email LIKE ");
+                builder.push(
+                    " OR u.id IN (SELECT ue.user_id FROM user_emails ue WHERE ue.realm_id = ",
+                );
+                builder.push_bind(realm_id.to_string());
+                builder.push(" AND ue.email LIKE ");
                 builder.push_bind(format!("%{}%", query_text));
-                builder.push(")");
+                builder.push("))");
             }
         }
 
@@ -50,12 +51,16 @@ impl SqliteUserRepository {
             .map(|value| value.trim())
             .filter(|value| !value.is_empty())
         {
-            builder.push(" AND lower(email) LIKE ");
+            builder
+                .push(" AND u.id IN (SELECT ue.user_id FROM user_emails ue WHERE ue.realm_id = ");
+            builder.push_bind(realm_id.to_string());
+            builder.push(" AND lower(ue.email) LIKE ");
             builder.push_bind(format!("%{}%", email.to_lowercase()));
+            builder.push(")");
         }
 
-        Self::apply_datetime_range_filter(builder, "created_at", &filters.created_at);
-        Self::apply_datetime_range_filter(builder, "last_sign_in_at", &filters.last_sign_in_at);
+        Self::apply_datetime_range_filter(builder, "u.created_at", &filters.created_at);
+        Self::apply_datetime_range_filter(builder, "u.last_sign_in_at", &filters.last_sign_in_at);
     }
 
     fn apply_datetime_range_filter<'a>(
@@ -98,12 +103,18 @@ impl UserRepository for SqliteUserRepository {
         fields(telemetry = "span", db_table = "users", db_op = "select")
     )]
     async fn find_by_email(&self, realm_id: &Uuid, email: &str) -> Result<Option<User>> {
-        let user = sqlx::query_as("SELECT * FROM users WHERE realm_id = ? AND email = ?")
-            .bind(realm_id.to_string())
-            .bind(email)
-            .fetch_optional(&*self.pool)
-            .await
-            .map_err(|e| Error::Unexpected(e.into()))?;
+        let normalized = email.trim().to_lowercase();
+        let user = sqlx::query_as(
+            "SELECT u.* FROM users u
+             JOIN user_emails ue ON ue.user_id = u.id
+             WHERE ue.realm_id = ? AND ue.email_normalized = ?
+             LIMIT 1",
+        )
+        .bind(realm_id.to_string())
+        .bind(normalized)
+        .fetch_optional(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(user)
     }
 
@@ -127,13 +138,13 @@ impl UserRepository for SqliteUserRepository {
     async fn save(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
             "INSERT INTO users (
-                id, realm_id, username, email, hashed_password, force_password_reset, password_login_disabled, created_at, last_sign_in_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                id, realm_id, username, hashed_password,
+                force_password_reset, password_login_disabled, created_at, last_sign_in_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(user.realm_id.to_string())
         .bind(&user.username)
-        .bind(&user.email)
         .bind(&user.hashed_password)
         .bind(user.force_password_reset)
         .bind(user.password_login_disabled)
@@ -165,11 +176,11 @@ impl UserRepository for SqliteUserRepository {
     async fn update(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
             "UPDATE users
-             SET username = ?, email = ?, hashed_password = ?, force_password_reset = ?, password_login_disabled = ?, created_at = ?, last_sign_in_at = ?
+             SET username = ?, hashed_password = ?, force_password_reset = ?,
+                 password_login_disabled = ?, created_at = ?, last_sign_in_at = ?
              WHERE id = ?",
         )
         .bind(&user.username)
-        .bind(&user.email)
         .bind(&user.hashed_password)
         .bind(user.force_password_reset)
         .bind(user.password_login_disabled)
@@ -208,8 +219,8 @@ impl UserRepository for SqliteUserRepository {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;
 
-        // 1. Count
-        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM users");
+        // Count
+        let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM users u");
         Self::apply_filters(&mut count_builder, realm_id, &req.q, filters);
         let total: i64 = count_builder
             .build_query_scalar()
@@ -217,17 +228,15 @@ impl UserRepository for SqliteUserRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
 
-        // 2. Select
-        let mut query_builder = QueryBuilder::new("SELECT * FROM users");
+        // Select
+        let mut query_builder = QueryBuilder::new("SELECT u.* FROM users u");
         Self::apply_filters(&mut query_builder, realm_id, &req.q, filters);
 
-        // Sorting
         let sort_col = match req.sort_by.as_deref() {
-            Some("username") => "username",
-            Some("email") => "email",
-            Some("created_at") => "created_at",
-            Some("last_sign_in_at") => "last_sign_in_at",
-            _ => "username",
+            Some("username") => "u.username",
+            Some("created_at") => "u.created_at",
+            Some("last_sign_in_at") => "u.last_sign_in_at",
+            _ => "u.username",
         };
         let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
             SortDirection::Asc => "ASC",
@@ -235,7 +244,6 @@ impl UserRepository for SqliteUserRepository {
         };
         query_builder.push(format!(" ORDER BY {} {}", sort_col, sort_dir));
 
-        // Pagination
         query_builder.push(" LIMIT ");
         query_builder.push_bind(limit);
         query_builder.push(" OFFSET ");

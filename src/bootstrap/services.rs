@@ -29,6 +29,7 @@ use crate::application::runtime_registry::RuntimeRegistry;
 use crate::application::secret_service::SecretService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::user_credentials_service::UserCredentialsService;
+use crate::application::user_email_service::UserEmailService;
 use crate::application::webhook_service::WebhookService;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::{
@@ -47,6 +48,7 @@ use std::sync::Arc;
 /// A struct to hold all initialized application services.
 pub struct Services {
     pub user_service: Arc<UserService>,
+    pub user_email_service: Arc<UserEmailService>,
     pub user_credentials_service: Arc<UserCredentialsService>,
     pub rbac_service: Arc<RbacService>,
     pub realm_service: Arc<RealmService>,
@@ -104,8 +106,13 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     // 1. Foundation Services
     let user_service = Arc::new(UserService::new(
         repos.user_repo.clone(),
+        repos.user_email_repo.clone(),
         event_publisher.clone(),
         outbox_repo.clone(),
+        tx_manager.clone(),
+    ));
+    let user_email_service = Arc::new(UserEmailService::new(
+        repos.user_email_repo.clone(),
         tx_manager.clone(),
     ));
     let audit_service = Arc::new(AuditService::new(repos.audit_repo.clone()));
@@ -194,6 +201,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.federated_identity_repo.clone(),
         repos.realm_repo.clone(),
         repos.user_repo.clone(),
+        repos.user_email_repo.clone(),
         audit_service.clone(),
         secret_service.clone(),
         http_client.clone(),
@@ -206,6 +214,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.auth_session_repo.clone(),
         repos.realm_repo.clone(),
         repos.user_repo.clone(),
+        repos.user_email_repo.clone(),
         audit_service.clone(),
         secret_service.clone(),
         http_client.clone(),
@@ -346,6 +355,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
 
     Services {
         user_service,
+        user_email_service,
         user_credentials_service,
         rbac_service,
         realm_service,

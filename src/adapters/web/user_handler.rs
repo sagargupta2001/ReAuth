@@ -2,16 +2,61 @@ use crate::adapters::web::auth_middleware::AuthUser;
 use crate::adapters::web::validation::ValidatedJson;
 use crate::application::user_credentials_service::UserCredentialsSummary;
 use crate::domain::pagination::PageRequest;
-use crate::domain::user::{UserDateTimeRangeFilter, UserListFilters};
+use crate::domain::user::{User, UserDateTimeRangeFilter, UserListFilters};
+use crate::domain::user_email::UserEmail;
 use crate::error::{Error, Result};
 use crate::AppState;
 use axum::extract::{Path, Query};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use chrono::{DateTime, Days, NaiveDate, TimeZone, Utc};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use tracing::warn;
 use uuid::Uuid;
 use validator::Validate;
+
+// ---------------------------------------------------------------------------
+// Response types
+// ---------------------------------------------------------------------------
+
+/// API response envelope for a single user — includes the primary email for
+/// backward compatibility and the full emails list for the profile UI.
+#[derive(Serialize)]
+pub struct UserResponse {
+    #[serde(flatten)]
+    pub user: User,
+    /// The primary email address, or the first available one (backward compat).
+    pub email: Option<String>,
+    pub emails: Vec<UserEmail>,
+}
+
+impl UserResponse {
+    pub fn new(user: User, emails: Vec<UserEmail>) -> Self {
+        let primary = emails
+            .iter()
+            .find(|e| e.is_primary)
+            .or_else(|| emails.first())
+            .map(|e| e.email.clone());
+        Self {
+            user,
+            email: primary,
+            emails,
+        }
+    }
+
+    /// Lightweight variant used in list responses where only the primary email
+    /// is needed (no full emails array).
+    pub fn list_item(user: User, primary_email: Option<String>) -> Self {
+        Self {
+            user,
+            email: primary_email,
+            emails: vec![],
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Create user
+// ---------------------------------------------------------------------------
 
 #[derive(Deserialize, Validate)]
 pub struct CreateUserPayload {
@@ -60,8 +105,6 @@ pub async fn create_user_handler(
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-
-    let ignore_policies = payload.ignore_password_policies.unwrap_or(false);
 
     let user_result = state
         .user_service
@@ -114,16 +157,33 @@ pub async fn create_user_handler(
         }
     }
 
-    Ok((StatusCode::CREATED, Json(user)))
+    let emails = state
+        .user_email_service
+        .list_emails(user.id)
+        .await
+        .unwrap_or_default();
+    Ok((StatusCode::CREATED, Json(UserResponse::new(user, emails))))
 }
 
+// ---------------------------------------------------------------------------
+// Get /me
+// ---------------------------------------------------------------------------
+
 pub async fn get_me_handler(
-    // Get the `AuthUser` that the middleware inserted
     Extension(AuthUser(user)): Extension<AuthUser>,
+    State(state): State<AppState>,
 ) -> Result<impl IntoResponse> {
-    // The user is already authenticated and fetched. Just return it.
-    Ok((StatusCode::OK, Json(user)))
+    let emails = state
+        .user_email_service
+        .list_emails(user.id)
+        .await
+        .unwrap_or_default();
+    Ok((StatusCode::OK, Json(UserResponse::new(user, emails))))
 }
+
+// ---------------------------------------------------------------------------
+// List users
+// ---------------------------------------------------------------------------
 
 pub async fn list_users_handler(
     State(state): State<AppState>,
@@ -137,10 +197,31 @@ pub async fn list_users_handler(
         .ok_or(Error::RealmNotFound(realm_name))?;
 
     let filters = query.filters();
-    let response = state
+    let page = state
         .user_service
         .list_users(realm.id, query.page, filters)
         .await?;
+
+    // Bulk-fetch primary emails for all listed users in one query per user.
+    // For list views this is acceptable (page sizes are small, ≤100).
+    let mut items: Vec<UserResponse> = Vec::with_capacity(page.data.len());
+    for user in page.data {
+        let primary = state
+            .user_email_service
+            .get_primary_email(user.id)
+            .await
+            .ok()
+            .flatten()
+            .map(|e| e.email);
+        items.push(UserResponse::list_item(user, primary));
+    }
+
+    let response = crate::domain::pagination::PageResponse::new(
+        items,
+        page.meta.total,
+        page.meta.page,
+        page.meta.per_page,
+    );
     Ok((StatusCode::OK, Json(response)))
 }
 
@@ -235,6 +316,10 @@ fn parse_rfc3339(value: &str) -> Option<DateTime<Utc>> {
         .map(|datetime| datetime.with_timezone(&Utc))
 }
 
+// ---------------------------------------------------------------------------
+// Get single user
+// ---------------------------------------------------------------------------
+
 pub async fn get_user_handler(
     State(state): State<AppState>,
     Path((realm_name, id)): Path<(String, Uuid)>,
@@ -246,9 +331,17 @@ pub async fn get_user_handler(
         .ok_or(Error::RealmNotFound(realm_name))?;
 
     let user = state.user_service.get_user_in_realm(realm.id, id).await?;
-
-    Ok((StatusCode::OK, Json(user)))
+    let emails = state
+        .user_email_service
+        .list_emails(user.id)
+        .await
+        .unwrap_or_default();
+    Ok((StatusCode::OK, Json(UserResponse::new(user, emails))))
 }
+
+// ---------------------------------------------------------------------------
+// Delete users
+// ---------------------------------------------------------------------------
 
 #[derive(Deserialize, Validate)]
 pub struct DeleteUsersRequest {
@@ -284,12 +377,14 @@ pub async fn delete_users_handler(
     ))
 }
 
+// ---------------------------------------------------------------------------
+// Update user profile (username only; emails go through /emails sub-resource)
+// ---------------------------------------------------------------------------
+
 #[derive(Deserialize, Validate)]
 pub struct UpdateUserRequest {
     #[validate(length(min = 3, message = "Username must be at least 3 characters long"))]
     pub username: Option<String>,
-    #[validate(email(message = "Email address is invalid"))]
-    pub email: Option<String>,
 }
 
 pub async fn update_user_handler(
@@ -304,24 +399,185 @@ pub async fn update_user_handler(
         .ok_or(Error::RealmNotFound(realm_name))?;
 
     let username = payload.username.map(|value| value.trim().to_string());
-    let email = payload.email.map(|value| value.trim().to_string());
     if username.as_deref().is_some_and(|value| value.is_empty()) {
         return Err(Error::Validation("Username cannot be empty".to_string()));
     }
 
-    let email_update = email.map(|value| if value.is_empty() { None } else { Some(value) });
-
-    if username.is_none() && email_update.is_none() {
+    if username.is_none() {
         return Err(Error::Validation("No updates provided".to_string()));
     }
 
     let user = state
         .user_service
-        .update_profile(realm.id, id, username, email_update)
+        .update_profile(realm.id, id, username)
         .await?;
 
-    Ok((StatusCode::OK, Json(user)))
+    let emails = state
+        .user_email_service
+        .list_emails(user.id)
+        .await
+        .unwrap_or_default();
+    Ok((StatusCode::OK, Json(UserResponse::new(user, emails))))
 }
+
+// ---------------------------------------------------------------------------
+// Email sub-resource: list
+// ---------------------------------------------------------------------------
+
+pub async fn list_user_emails_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    // Confirm the user belongs to this realm
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+
+    let emails = state.user_email_service.list_emails(id).await?;
+    Ok((StatusCode::OK, Json(emails)))
+}
+
+// ---------------------------------------------------------------------------
+// Email sub-resource: add
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, Validate)]
+pub struct AddUserEmailPayload {
+    #[validate(email(message = "Email address is invalid"))]
+    pub email: String,
+    #[serde(default)]
+    pub is_primary: bool,
+    #[serde(default)]
+    pub is_verified: bool,
+}
+
+pub async fn add_user_email_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+    ValidatedJson(payload): ValidatedJson<AddUserEmailPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+
+    let email = match state
+        .user_email_service
+        .add_email(
+            id,
+            realm.id,
+            &payload.email,
+            payload.is_primary,
+            payload.is_verified,
+        )
+        .await
+    {
+        Ok(e) => e,
+        Err(Error::EmailAlreadyExists) => {
+            let mut fields = std::collections::HashMap::new();
+            fields.insert(
+                "email".to_string(),
+                "Email address is already in use".to_string(),
+            );
+            return Err(Error::FieldsValidation {
+                message: "Validation failed".to_string(),
+                fields,
+            });
+        }
+        Err(err) => return Err(err),
+    };
+
+    Ok((StatusCode::CREATED, Json(email)))
+}
+
+// ---------------------------------------------------------------------------
+// Email sub-resource: remove
+// ---------------------------------------------------------------------------
+
+pub async fn remove_user_email_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id, email_id)): Path<(String, Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+    state.user_email_service.remove_email(id, email_id).await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "removed" })),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Email sub-resource: set primary
+// ---------------------------------------------------------------------------
+
+pub async fn set_primary_email_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id, email_id)): Path<(String, Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+    state.user_email_service.set_primary(id, email_id).await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "updated" })),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Email sub-resource: set verified
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+pub struct SetVerifiedPayload {
+    pub is_verified: bool,
+}
+
+pub async fn set_email_verified_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id, email_id)): Path<(String, Uuid, Uuid)>,
+    Json(payload): Json<SetVerifiedPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+    state
+        .user_email_service
+        .set_verified(id, email_id, payload.is_verified)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "updated" })),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Credentials handlers (unchanged, kept here for co-location)
+// ---------------------------------------------------------------------------
 
 #[derive(Deserialize)]
 pub struct UpdateUserPasswordRequest {

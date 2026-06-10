@@ -30,5 +30,6 @@ pub mod secret_service;
 pub mod telemetry_service;
 pub mod theme_service;
 pub mod user_credentials_service;
+pub mod user_email_service;
 pub mod user_service;
 pub mod webhook_service;
