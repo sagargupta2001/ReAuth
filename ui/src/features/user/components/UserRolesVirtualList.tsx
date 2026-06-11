@@ -34,10 +34,13 @@ export function UserRolesVirtualList({
 }: UserRolesVirtualListProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const rowCount = roles.length + (hasNextPage ? 1 : 0)
+  const rowHeight = 56
+  const emptyStateHeight = 128
+  const listHeight = rowCount === 0 ? emptyStateHeight : rowCount * rowHeight
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 56,
+    estimateSize: () => rowHeight,
     overscan: 8,
   })
 
@@ -72,7 +75,11 @@ export function UserRolesVirtualList({
         <span>Direct</span>
       </div>
 
-      <div ref={scrollRef} className="h-[calc(100vh-450px)] overflow-auto">
+      <div
+        ref={scrollRef}
+        className="max-h-[calc(100vh-450px)] overflow-auto"
+        style={{ height: `${listHeight}px` }}
+      >
         {rowCount === 0 ? (
           <div className="text-muted-foreground flex h-32 items-center justify-center text-sm">
             No roles found.
