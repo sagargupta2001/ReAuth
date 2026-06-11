@@ -123,7 +123,7 @@ export function UserRolesVirtualList({
                 >
                   <div
                     className={cn(
-                      'grid h-14 grid-cols-[2.25rem_minmax(10rem,1fr)_8rem_5rem] items-center gap-3 border-x border-b border-border/60 bg-background px-2 transition-colors hover:bg-table-row-hover',
+                      'grid h-14 grid-cols-[2.25rem_minmax(10rem,1fr)_8rem_5rem] items-center gap-3 border-x border-b border-border/60 bg-background px-2 transition-colors',
                       isFirstRole && 'rounded-t-2xl border-t',
                       isLastRole && 'rounded-b-2xl',
                       selected && 'ring-1 ring-primary/40',
