@@ -28,7 +28,9 @@ use crate::application::realm_security_headers_service::RealmSecurityHeadersServ
 use crate::application::runtime_registry::RuntimeRegistry;
 use crate::application::secret_service::SecretService;
 use crate::application::theme_service::ThemeResolverService;
-use crate::application::user_credentials_service::UserCredentialsService;
+use crate::application::user_credentials_service::{
+    UserCredentialsRepositories, UserCredentialsService,
+};
 use crate::application::user_email_service::UserEmailService;
 use crate::application::user_phone_number_service::UserPhoneNumberService;
 use crate::application::webhook_service::WebhookService;
@@ -124,12 +126,14 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     let audit_service = Arc::new(AuditService::new(repos.audit_repo.clone()));
     let user_credentials_service = Arc::new(UserCredentialsService::new(
         user_service.clone(),
-        repos.passkey_credential_repo.clone(),
-        repos.realm_passkey_settings_repo.clone(),
-        repos.realm_repo.clone(),
-        repos.federated_identity_repo.clone(),
-        repos.identity_provider_repo.clone(),
-        repos.session_repo.clone(),
+        UserCredentialsRepositories {
+            passkey_credential_repo: repos.passkey_credential_repo.clone(),
+            passkey_settings_repo: repos.realm_passkey_settings_repo.clone(),
+            realm_repo: repos.realm_repo.clone(),
+            federated_identity_repo: repos.federated_identity_repo.clone(),
+            identity_provider_repo: repos.identity_provider_repo.clone(),
+            session_repo: repos.session_repo.clone(),
+        },
         audit_service.clone(),
     ));
     let webhook_service = Arc::new(WebhookService::new(
