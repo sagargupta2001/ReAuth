@@ -181,6 +181,12 @@ async fn user_credentials_list_and_password_update_work() {
         .await
         .expect("create target user");
     let old_hash = target_user.hashed_password.clone();
+    let (_target_login, target_refresh_token) = ctx
+        .app_state
+        .auth_service
+        .create_session(&target_user, None, None, None)
+        .await
+        .expect("create target session");
 
     let list_req = Request::builder()
         .method("GET")
@@ -218,7 +224,12 @@ async fn user_credentials_list_and_password_update_work() {
         .header(header::AUTHORIZATION, format!("Bearer {}", token))
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(
-            serde_json::json!({ "password": "new-password-123" }).to_string(),
+            serde_json::json!({
+                "password": "short",
+                "skip_password_checks": true,
+                "sign_out_all_sessions": true,
+            })
+            .to_string(),
         ))
         .expect("update request");
     let update_res = ctx.request(update_req).await;
@@ -231,6 +242,15 @@ async fn user_credentials_list_and_password_update_work() {
         .await
         .expect("updated user");
     assert_ne!(old_hash, updated_user.hashed_password);
+
+    let revoked_refresh_token = ctx
+        .app_state
+        .session_repo
+        .find_by_id_any(&target_refresh_token.id)
+        .await
+        .expect("find refresh token")
+        .expect("refresh token exists");
+    assert!(revoked_refresh_token.revoked_at.is_some());
 }
 
 #[tokio::test]

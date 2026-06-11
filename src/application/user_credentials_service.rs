@@ -15,6 +15,7 @@ use crate::ports::identity_provider_repository::IdentityProviderRepository;
 use crate::ports::passkey_credential_repository::PasskeyCredentialRepository;
 use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
 use crate::ports::realm_repository::RealmRepository;
+use crate::ports::session_repository::SessionRepository;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UserPasswordCredentialSummary {
@@ -56,31 +57,28 @@ pub struct UserCredentialsSummary {
 
 pub struct UserCredentialsService {
     user_service: Arc<UserService>,
-    passkey_credential_repo: Arc<dyn PasskeyCredentialRepository>,
-    passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
-    realm_repo: Arc<dyn RealmRepository>,
-    federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
-    identity_provider_repo: Arc<dyn IdentityProviderRepository>,
+    repos: UserCredentialsRepositories,
     audit_service: Arc<AuditService>,
+}
+
+pub struct UserCredentialsRepositories {
+    pub passkey_credential_repo: Arc<dyn PasskeyCredentialRepository>,
+    pub passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
+    pub realm_repo: Arc<dyn RealmRepository>,
+    pub federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
+    pub identity_provider_repo: Arc<dyn IdentityProviderRepository>,
+    pub session_repo: Arc<dyn SessionRepository>,
 }
 
 impl UserCredentialsService {
     pub fn new(
         user_service: Arc<UserService>,
-        passkey_credential_repo: Arc<dyn PasskeyCredentialRepository>,
-        passkey_settings_repo: Arc<dyn RealmPasskeySettingsRepository>,
-        realm_repo: Arc<dyn RealmRepository>,
-        federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
-        identity_provider_repo: Arc<dyn IdentityProviderRepository>,
+        repos: UserCredentialsRepositories,
         audit_service: Arc<AuditService>,
     ) -> Self {
         Self {
             user_service,
-            passkey_credential_repo,
-            passkey_settings_repo,
-            realm_repo,
-            federated_identity_repo,
-            identity_provider_repo,
+            repos,
             audit_service,
         }
     }
@@ -95,14 +93,17 @@ impl UserCredentialsService {
             .get_user_in_realm(realm_id, user_id)
             .await?;
         let passkeys = self
+            .repos
             .passkey_credential_repo
             .list_by_user(&realm_id, &user.id)
             .await?;
         let federated_identities = self
+            .repos
             .federated_identity_repo
             .list_by_user(&realm_id, &user.id)
             .await?;
         let providers = self
+            .repos
             .identity_provider_repo
             .list_by_realm(&realm_id)
             .await?
@@ -160,10 +161,17 @@ impl UserCredentialsService {
         realm_id: Uuid,
         user_id: Uuid,
         new_password: &str,
+        sign_out_all_sessions: bool,
     ) -> Result<()> {
         self.user_service
             .update_password(realm_id, user_id, new_password)
             .await?;
+        if sign_out_all_sessions {
+            self.repos
+                .session_repo
+                .revoke_all_for_user(&realm_id, &user_id)
+                .await?;
+        }
         Ok(())
     }
 
@@ -178,6 +186,7 @@ impl UserCredentialsService {
             .get_user_in_realm(realm_id, user_id)
             .await?;
         let deleted = self
+            .repos
             .passkey_credential_repo
             .delete_by_id_for_user(&realm_id, &user_id, &credential_id)
             .await?;
@@ -198,6 +207,7 @@ impl UserCredentialsService {
             .get_user_in_realm(realm_id, user_id)
             .await?;
         let updated = self
+            .repos
             .passkey_credential_repo
             .update_friendly_name_for_user(&realm_id, &user_id, &credential_id, friendly_name)
             .await?;
@@ -219,15 +229,18 @@ impl UserCredentialsService {
             .get_user_in_realm(realm_id, user_id)
             .await?;
         let realm = self
+            .repos
             .realm_repo
             .find_by_id(&realm_id)
             .await?
             .ok_or_else(|| Error::NotFound("Realm not found".to_string()))?;
         let passkeys = self
+            .repos
             .passkey_credential_repo
             .list_by_user(&realm_id, &user_id)
             .await?;
         let federated_identities = self
+            .repos
             .federated_identity_repo
             .list_by_user(&realm_id, &user_id)
             .await?;
@@ -256,6 +269,7 @@ impl UserCredentialsService {
         }
 
         let deleted = self
+            .repos
             .federated_identity_repo
             .delete_by_id_for_user(&realm_id, &user_id, &federated_identity_id)
             .await?;
@@ -264,6 +278,7 @@ impl UserCredentialsService {
         }
 
         let provider = self
+            .repos
             .identity_provider_repo
             .find_by_id(&target.provider_id)
             .await?;
@@ -322,6 +337,7 @@ impl UserCredentialsService {
         user_id: Uuid,
     ) -> Result<()> {
         let settings = self
+            .repos
             .passkey_settings_repo
             .find_by_realm_id(&realm_id)
             .await?
@@ -333,6 +349,7 @@ impl UserCredentialsService {
         }
 
         let passkeys = self
+            .repos
             .passkey_credential_repo
             .list_by_user(&realm_id, &user_id)
             .await?;

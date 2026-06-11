@@ -37,6 +37,12 @@ export interface UserCredentials {
   federated_identities: UserFederatedIdentity[]
 }
 
+export interface UpdateUserPasswordRequest {
+  password: string
+  sign_out_all_sessions?: boolean
+  skip_password_checks?: boolean
+}
+
 export function useUserCredentials(userId: string) {
   const realm = useActiveRealm()
 
@@ -52,10 +58,8 @@ export function useUpdateUserPassword(userId: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (password: string) => {
-      return apiClient.put(`/api/realms/${realm}/users/${userId}/credentials/password`, {
-        password,
-      })
+    mutationFn: async (payload: UpdateUserPasswordRequest) => {
+      return apiClient.put(`/api/realms/${realm}/users/${userId}/credentials/password`, payload)
     },
     onSuccess: () => {
       toast.success('Password updated successfully.')

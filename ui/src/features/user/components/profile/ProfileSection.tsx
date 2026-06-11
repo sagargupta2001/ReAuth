@@ -84,10 +84,25 @@ export function ProfileSection({ userId }: ProfileSectionProps) {
         <div className='bg-primary-foreground p-4 rounded-2xl'>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormInput control={form.control} name="username" label="Username" />
+              <FormInput
+                control={form.control}
+                name="username"
+                label="Username"
+                placeholder="Enter username"
+              />
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormInput control={form.control} name="first_name" label="First name" />
-                <FormInput control={form.control} name="last_name" label="Last name" />
+                <FormInput
+                  control={form.control}
+                  name="first_name"
+                  label="First name"
+                  placeholder="Enter first name"
+                />
+                <FormInput
+                  control={form.control}
+                  name="last_name"
+                  label="Last name"
+                  placeholder="Enter last name"
+                />
               </div>
             </form>
           </Form>

@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 import { format } from 'date-fns'
-import { ArrowLeft, KeyRound, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
+import { ArrowLeft, KeyRound, Settings, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { buttonVariants } from '@/components/button'
@@ -12,6 +12,7 @@ import { useUser } from '@/features/user/api/useUser.ts'
 import { UserTabLayout } from '@/features/user/components/UserTabLayout'
 import { UserCredentialsTab } from '@/features/user/components/UserCredentialsTab'
 import { UserRolesTab } from '@/features/user/components/UserRolesTab'
+import { UserSettingsTab } from '@/features/user/components/UserSettingsTab'
 import { UseProfileTab } from '@/features/user/components/UseProfileTab.tsx'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/shared/ui/skeleton.tsx'
@@ -22,7 +23,7 @@ export function EditUserPage() {
 
   const { data: user, isLoading: isUserLoading } = useUser(userId as string)
 
-  const validTabs = ['profile', 'roles', 'credentials']
+  const validTabs = ['profile', 'roles', 'credentials', 'settings']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'profile'
 
   const handleTabChange = (newTab: string) => userId && navigate(`/users/${userId}/${newTab}`)
@@ -98,6 +99,9 @@ export function EditUserPage() {
             <TabsTrigger variant="line" value="credentials" className="tab-trigger-styles">
               <KeyRound className="mr-2 h-4 w-4" /> Credentials
             </TabsTrigger>
+            <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
+              <Settings className="mr-2 h-4 w-4" /> Settings
+            </TabsTrigger>
           </TabsList>
         </div>
 
@@ -115,6 +119,11 @@ export function EditUserPage() {
           <TabsContent value="credentials" className="mt-0 h-full w-full p-6">
             <UserTabLayout userId={userId}>
               <UserCredentialsTab userId={userId} />
+            </UserTabLayout>
+          </TabsContent>
+          <TabsContent value="settings" className="mt-0 h-full w-full p-6">
+            <UserTabLayout userId={userId}>
+              <UserSettingsTab userId={userId} />
             </UserTabLayout>
           </TabsContent>
         </div>
