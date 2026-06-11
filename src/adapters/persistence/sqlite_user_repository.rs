@@ -139,8 +139,9 @@ impl UserRepository for SqliteUserRepository {
         let query = sqlx::query(
             "INSERT INTO users (
                 id, realm_id, username, first_name, last_name, hashed_password,
+                public_metadata_json, private_metadata_json, unsafe_metadata_json,
                 force_password_reset, password_login_disabled, created_at, updated_at, last_sign_in_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(user.realm_id.to_string())
@@ -148,6 +149,9 @@ impl UserRepository for SqliteUserRepository {
         .bind(&user.first_name)
         .bind(&user.last_name)
         .bind(&user.hashed_password)
+        .bind(&user.public_metadata_json)
+        .bind(&user.private_metadata_json)
+        .bind(&user.unsafe_metadata_json)
         .bind(user.force_password_reset)
         .bind(user.password_login_disabled)
         .bind(user.created_at)
@@ -180,6 +184,7 @@ impl UserRepository for SqliteUserRepository {
         let query = sqlx::query(
             "UPDATE users
              SET username = ?, first_name = ?, last_name = ?, hashed_password = ?,
+                 public_metadata_json = ?, private_metadata_json = ?, unsafe_metadata_json = ?,
                  force_password_reset = ?, password_login_disabled = ?,
                  created_at = ?, updated_at = ?, last_sign_in_at = ?
              WHERE id = ?",
@@ -188,6 +193,9 @@ impl UserRepository for SqliteUserRepository {
         .bind(&user.first_name)
         .bind(&user.last_name)
         .bind(&user.hashed_password)
+        .bind(&user.public_metadata_json)
+        .bind(&user.private_metadata_json)
+        .bind(&user.unsafe_metadata_json)
         .bind(user.force_password_reset)
         .bind(user.password_login_disabled)
         .bind(user.created_at)

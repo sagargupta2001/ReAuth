@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::Utc;
 use reauth::adapters::persistence::sqlite_user_phone_number_repository::SqliteUserPhoneNumberRepository;
 use reauth::adapters::persistence::sqlite_user_repository::SqliteUserRepository;
-use reauth::domain::user::User;
+use reauth::domain::user::{User, EMPTY_METADATA_JSON};
 use reauth::domain::user_phone_number::UserPhoneNumber;
 use reauth::ports::user_phone_number_repository::UserPhoneNumberRepository;
 use reauth::ports::user_repository::UserRepository;
@@ -19,6 +19,9 @@ fn make_user(realm_id: Uuid, username: &str) -> User {
         first_name: None,
         last_name: None,
         hashed_password: "hash".to_string(),
+        public_metadata_json: EMPTY_METADATA_JSON.to_string(),
+        private_metadata_json: EMPTY_METADATA_JSON.to_string(),
+        unsafe_metadata_json: EMPTY_METADATA_JSON.to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),

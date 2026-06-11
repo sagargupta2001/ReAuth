@@ -11,6 +11,10 @@ Source of truth: `migrations/20251214045651_initial_schema.sql` and subsequent m
 
 ### users
 - `id`, `realm_id`, `username`, `first_name`, `last_name`, `hashed_password`, `created_at`, `updated_at`, `last_sign_in_at`
+- Metadata JSON text columns:
+  - `public_metadata_json`: authenticated frontend-safe and backend/admin-readable user metadata.
+  - `private_metadata_json`: backend/admin-only metadata; current v1 redaction is handled in the application response layer to allow future granular permissions.
+  - `unsafe_metadata_json`: authenticated frontend-safe and backend/admin-readable/writable metadata.
 - Uniqueness: `(realm_id, username)`
 
 ### user_emails / user_phone_numbers

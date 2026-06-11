@@ -104,7 +104,7 @@ export function EditUserPage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto">
+        <div className="bg-muted/5 flex-1 overflow-y-auto xl:overflow-hidden">
           <TabsContent value="profile" className="mt-0 h-full w-full p-6">
             <UserTabLayout userId={userId}>
               <UseProfileTab userId={userId} />

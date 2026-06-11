@@ -1,6 +1,7 @@
 use crate::adapters::web::auth_middleware::AuthUser;
 use crate::adapters::web::validation::ValidatedJson;
 use crate::application::user_credentials_service::UserCredentialsSummary;
+use crate::application::user_service::{admin_metadata_response, UserMetadataVisibility};
 use crate::domain::pagination::PageRequest;
 use crate::domain::user::{User, UserDateTimeRangeFilter, UserListFilters};
 use crate::domain::user_email::UserEmail;
@@ -11,6 +12,7 @@ use axum::extract::{Path, Query};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use chrono::{DateTime, Days, NaiveDate, TimeZone, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use tracing::warn;
 use uuid::Uuid;
 use validator::Validate;
@@ -31,10 +33,35 @@ pub struct UserResponse {
     /// The primary phone number, or the first available one.
     pub phone_number: Option<String>,
     pub phone_numbers: Vec<UserPhoneNumber>,
+    pub public_metadata: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub private_metadata: Option<Value>,
+    pub unsafe_metadata: Value,
 }
 
 impl UserResponse {
-    pub fn new(user: User, emails: Vec<UserEmail>, phone_numbers: Vec<UserPhoneNumber>) -> Self {
+    pub fn new_admin(
+        user: User,
+        emails: Vec<UserEmail>,
+        phone_numbers: Vec<UserPhoneNumber>,
+    ) -> Self {
+        Self::from_parts(user, emails, phone_numbers, true)
+    }
+
+    pub fn new_self(
+        user: User,
+        emails: Vec<UserEmail>,
+        phone_numbers: Vec<UserPhoneNumber>,
+    ) -> Self {
+        Self::from_parts(user, emails, phone_numbers, false)
+    }
+
+    fn from_parts(
+        user: User,
+        emails: Vec<UserEmail>,
+        phone_numbers: Vec<UserPhoneNumber>,
+        include_private_metadata: bool,
+    ) -> Self {
         let primary = emails
             .iter()
             .find(|e| e.is_primary)
@@ -45,12 +72,16 @@ impl UserResponse {
             .find(|phone_number| phone_number.is_primary)
             .or_else(|| phone_numbers.first())
             .map(|phone_number| phone_number.phone_number.clone());
+        let metadata = admin_metadata_response(&user, include_private_metadata);
         Self {
             user,
             email: primary,
             emails,
             phone_number: primary_phone_number,
             phone_numbers,
+            public_metadata: metadata.public_metadata,
+            private_metadata: include_private_metadata.then_some(metadata.private_metadata),
+            unsafe_metadata: metadata.unsafe_metadata,
         }
     }
 
@@ -63,6 +94,9 @@ impl UserResponse {
             emails: vec![],
             phone_number: None,
             phone_numbers: vec![],
+            public_metadata: serde_json::json!({}),
+            private_metadata: None,
+            unsafe_metadata: serde_json::json!({}),
         }
     }
 }
@@ -182,7 +216,7 @@ pub async fn create_user_handler(
         .unwrap_or_default();
     Ok((
         StatusCode::CREATED,
-        Json(UserResponse::new(user, emails, phone_numbers)),
+        Json(UserResponse::new_self(user, emails, phone_numbers)),
     ))
 }
 
@@ -206,8 +240,46 @@ pub async fn get_me_handler(
         .unwrap_or_default();
     Ok((
         StatusCode::OK,
-        Json(UserResponse::new(user, emails, phone_numbers)),
+        Json(UserResponse::new_self(user, emails, phone_numbers)),
     ))
+}
+
+#[derive(Deserialize)]
+pub struct UpdateUserMetadataPayload {
+    pub metadata: Value,
+}
+
+pub async fn get_me_metadata_handler(
+    Extension(AuthUser(user)): Extension<AuthUser>,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse> {
+    let metadata = state
+        .user_service
+        .get_self_metadata(user.realm_id, user.id)
+        .await?;
+    Ok((StatusCode::OK, Json(metadata)))
+}
+
+pub async fn update_me_unsafe_metadata_handler(
+    Extension(AuthUser(user)): Extension<AuthUser>,
+    State(state): State<AppState>,
+    Json(payload): Json<UpdateUserMetadataPayload>,
+) -> Result<impl IntoResponse> {
+    state
+        .user_service
+        .update_metadata(
+            user.realm_id,
+            user.id,
+            UserMetadataVisibility::Unsafe,
+            payload.metadata,
+        )
+        .await?;
+
+    let metadata = state
+        .user_service
+        .get_self_metadata(user.realm_id, user.id)
+        .await?;
+    Ok((StatusCode::OK, Json(metadata)))
 }
 
 // ---------------------------------------------------------------------------
@@ -372,8 +444,90 @@ pub async fn get_user_handler(
         .unwrap_or_default();
     Ok((
         StatusCode::OK,
-        Json(UserResponse::new(user, emails, phone_numbers)),
+        Json(UserResponse::new_admin(user, emails, phone_numbers)),
     ))
+}
+
+pub async fn get_user_metadata_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let metadata = state
+        .user_service
+        .get_admin_metadata(realm.id, id, true)
+        .await?;
+    Ok((StatusCode::OK, Json(metadata)))
+}
+
+pub async fn update_user_public_metadata_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+    Json(payload): Json<UpdateUserMetadataPayload>,
+) -> Result<impl IntoResponse> {
+    update_user_metadata(
+        state,
+        realm_name,
+        id,
+        UserMetadataVisibility::Public,
+        payload.metadata,
+    )
+    .await
+}
+
+pub async fn update_user_private_metadata_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+    Json(payload): Json<UpdateUserMetadataPayload>,
+) -> Result<impl IntoResponse> {
+    update_user_metadata(
+        state,
+        realm_name,
+        id,
+        UserMetadataVisibility::Private,
+        payload.metadata,
+    )
+    .await
+}
+
+pub async fn update_user_unsafe_metadata_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+    Json(payload): Json<UpdateUserMetadataPayload>,
+) -> Result<impl IntoResponse> {
+    update_user_metadata(
+        state,
+        realm_name,
+        id,
+        UserMetadataVisibility::Unsafe,
+        payload.metadata,
+    )
+    .await
+}
+
+async fn update_user_metadata(
+    state: AppState,
+    realm_name: String,
+    user_id: Uuid,
+    visibility: UserMetadataVisibility,
+    metadata: Value,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let metadata = state
+        .user_service
+        .update_metadata(realm.id, user_id, visibility, metadata)
+        .await?;
+    Ok((StatusCode::OK, Json(metadata)))
 }
 
 // ---------------------------------------------------------------------------
@@ -471,7 +625,7 @@ pub async fn update_user_handler(
         .unwrap_or_default();
     Ok((
         StatusCode::OK,
-        Json(UserResponse::new(user, emails, phone_numbers)),
+        Json(UserResponse::new_admin(user, emails, phone_numbers)),
     ))
 }
 

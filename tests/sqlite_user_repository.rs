@@ -6,7 +6,7 @@ use reauth::adapters::persistence::connection::Database;
 use reauth::adapters::persistence::sqlite_user_email_repository::SqliteUserEmailRepository;
 use reauth::adapters::persistence::sqlite_user_repository::SqliteUserRepository;
 use reauth::domain::pagination::{PageRequest, SortDirection};
-use reauth::domain::user::{User, UserDateTimeRangeFilter, UserListFilters};
+use reauth::domain::user::{User, UserDateTimeRangeFilter, UserListFilters, EMPTY_METADATA_JSON};
 use reauth::domain::user_email::UserEmail;
 use reauth::ports::user_email_repository::UserEmailRepository;
 use reauth::ports::user_repository::UserRepository;
@@ -36,6 +36,9 @@ fn user(id: Uuid, realm_id: Uuid, username: &str, hashed_password: &str) -> User
         first_name: None,
         last_name: None,
         hashed_password: hashed_password.to_string(),
+        public_metadata_json: EMPTY_METADATA_JSON.to_string(),
+        private_metadata_json: EMPTY_METADATA_JSON.to_string(),
+        unsafe_metadata_json: EMPTY_METADATA_JSON.to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
@@ -120,11 +123,17 @@ async fn update_user_persists_changes() -> Result<()> {
 
     alice.username = "alice-updated".to_string();
     alice.hashed_password = "hash2".to_string();
+    alice.public_metadata_json = r#"{"theme":"dark"}"#.to_string();
+    alice.private_metadata_json = r#"{"risk_score":7}"#.to_string();
+    alice.unsafe_metadata_json = r#"{"draft":"Ada"}"#.to_string();
     repo.update(&alice, None).await?;
 
     let updated = repo.find_by_id(&alice.id).await?.unwrap();
     assert_eq!(updated.username, "alice-updated");
     assert_eq!(updated.hashed_password, "hash2");
+    assert_eq!(updated.public_metadata_json, r#"{"theme":"dark"}"#);
+    assert_eq!(updated.private_metadata_json, r#"{"risk_score":7}"#);
+    assert_eq!(updated.unsafe_metadata_json, r#"{"draft":"Ada"}"#);
     Ok(())
 }
 

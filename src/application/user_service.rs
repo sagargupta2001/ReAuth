@@ -10,11 +10,45 @@ use crate::ports::outbox_repository::OutboxRepository;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::ports::user_email_repository::UserEmailRepository;
 use crate::{
-    domain::user::{User, UserListFilters},
+    domain::user::{User, UserListFilters, EMPTY_METADATA_JSON},
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
+use serde::Serialize;
+use serde_json::Value;
+use std::collections::HashMap;
+
+pub const USER_METADATA_MAX_BYTES: usize = 16 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UserMetadataVisibility {
+    Public,
+    Private,
+    Unsafe,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AdminUserMetadataResponse {
+    pub public_metadata: Value,
+    pub private_metadata: Value,
+    pub unsafe_metadata: Value,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SelfUserMetadataResponse {
+    pub public_metadata: Value,
+    pub unsafe_metadata: Value,
+    pub updated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserMetadataUpdateResponse {
+    pub public_metadata: Value,
+    pub private_metadata: Value,
+    pub unsafe_metadata: Value,
+    pub updated_at: Option<DateTime<Utc>>,
+}
 
 pub struct UserService {
     user_repo: Arc<dyn UserRepository>,
@@ -81,6 +115,9 @@ impl UserService {
             first_name: None,
             last_name: None,
             hashed_password: hashed_password.as_str().to_string(),
+            public_metadata_json: EMPTY_METADATA_JSON.to_string(),
+            private_metadata_json: EMPTY_METADATA_JSON.to_string(),
+            unsafe_metadata_json: EMPTY_METADATA_JSON.to_string(),
             force_password_reset: false,
             password_login_disabled: false,
             created_at: Some(Utc::now()),
@@ -249,6 +286,56 @@ impl UserService {
         Ok(user)
     }
 
+    pub async fn get_admin_metadata(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        include_private: bool,
+    ) -> Result<AdminUserMetadataResponse> {
+        let user = self.get_user_in_realm(realm_id, user_id).await?;
+        Ok(admin_metadata_response(&user, include_private))
+    }
+
+    pub async fn get_self_metadata(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<SelfUserMetadataResponse> {
+        let user = self.get_user_in_realm(realm_id, user_id).await?;
+        Ok(SelfUserMetadataResponse {
+            public_metadata: parse_metadata_json(&user.public_metadata_json),
+            unsafe_metadata: parse_metadata_json(&user.unsafe_metadata_json),
+            updated_at: user.updated_at,
+        })
+    }
+
+    pub async fn update_metadata(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        visibility: UserMetadataVisibility,
+        metadata: Value,
+    ) -> Result<UserMetadataUpdateResponse> {
+        let metadata_json = validate_metadata_object(metadata)?;
+        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+
+        match visibility {
+            UserMetadataVisibility::Public => user.public_metadata_json = metadata_json,
+            UserMetadataVisibility::Private => user.private_metadata_json = metadata_json,
+            UserMetadataVisibility::Unsafe => user.unsafe_metadata_json = metadata_json,
+        }
+
+        user.updated_at = Some(Utc::now());
+        self.user_repo.update(&user, None).await?;
+
+        Ok(UserMetadataUpdateResponse {
+            public_metadata: parse_metadata_json(&user.public_metadata_json),
+            private_metadata: parse_metadata_json(&user.private_metadata_json),
+            unsafe_metadata: parse_metadata_json(&user.unsafe_metadata_json),
+            updated_at: user.updated_at,
+        })
+    }
+
     pub async fn update_password(
         &self,
         realm_id: Uuid,
@@ -321,4 +408,53 @@ fn normalize_optional_profile_text(value: Option<String>) -> Option<String> {
     value
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+pub fn parse_metadata_json(raw: &str) -> Value {
+    serde_json::from_str(raw).unwrap_or_else(|_| serde_json::json!({}))
+}
+
+pub fn admin_metadata_response(user: &User, include_private: bool) -> AdminUserMetadataResponse {
+    AdminUserMetadataResponse {
+        public_metadata: parse_metadata_json(&user.public_metadata_json),
+        private_metadata: if include_private {
+            parse_metadata_json(&user.private_metadata_json)
+        } else {
+            serde_json::json!({})
+        },
+        unsafe_metadata: parse_metadata_json(&user.unsafe_metadata_json),
+    }
+}
+
+fn validate_metadata_object(metadata: Value) -> Result<String> {
+    if !metadata.is_object() {
+        let mut fields = HashMap::new();
+        fields.insert(
+            "metadata".to_string(),
+            "Metadata must be a JSON object.".to_string(),
+        );
+        return Err(Error::FieldsValidation {
+            message: "Validation failed".to_string(),
+            fields,
+        });
+    }
+
+    let metadata_json =
+        serde_json::to_string(&metadata).map_err(|e| Error::Unexpected(e.into()))?;
+    if metadata_json.len() > USER_METADATA_MAX_BYTES {
+        let mut fields = HashMap::new();
+        fields.insert(
+            "metadata".to_string(),
+            format!(
+                "Metadata must be at most {} bytes.",
+                USER_METADATA_MAX_BYTES
+            ),
+        );
+        return Err(Error::FieldsValidation {
+            message: "Validation failed".to_string(),
+            fields,
+        });
+    }
+
+    Ok(metadata_json)
 }

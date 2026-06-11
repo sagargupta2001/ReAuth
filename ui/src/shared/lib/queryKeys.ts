@@ -1,6 +1,7 @@
 export const queryKeys = {
   setupStatus: () => ['setup-status'] as const,
   user: (userId: string) => ['user', userId] as const,
+  userMetadata: (userId: string) => ['user-metadata', userId] as const,
   userEmails: (userId: string) => ['user-emails', userId] as const,
   userPhoneNumbers: (userId: string) => ['user-phone-numbers', userId] as const,
   userCredentials: (userId: string) => ['user-credentials', userId] as const,
