@@ -217,9 +217,11 @@ GET /api/realms/{realm}/users/{id}/credentials
   Auth:     protected, user:write
 
 PUT /api/realms/{realm}/users/{id}/credentials/password
-  Request:  { password: string }
+  Request:  { password: string, sign_out_all_sessions?: boolean, skip_password_checks?: boolean }
   Response: { status: "updated" }
   Auth:     protected, user:write
+  Policy:   skip_password_checks=true bypasses the admin password length check, but password must still be non-empty and <=100 chars.
+            sign_out_all_sessions=true revokes all refresh sessions for the target user after updating the password.
 
 PUT /api/realms/{realm}/users/{id}/credentials/password-policy
   Request:  { force_reset_on_next_login?: boolean, password_login_disabled?: boolean }

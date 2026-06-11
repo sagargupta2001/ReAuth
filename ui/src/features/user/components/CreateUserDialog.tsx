@@ -153,9 +153,26 @@ export function CreateUserDialog() {
           <TabsContent value="create">
             <Form {...createForm}>
               <div className="grid gap-4 px-6 pb-6">
-                <FormInput control={createForm.control} name="username" label="Username" />
-                <FormInput control={createForm.control} name="email" label="Email (Optional)" type="email" />
-                <FormInput control={createForm.control} name="password" label="Password" type="password" />
+                <FormInput
+                  control={createForm.control}
+                  name="username"
+                  label="Username"
+                  placeholder="Enter username"
+                />
+                <FormInput
+                  control={createForm.control}
+                  name="email"
+                  label="Email (Optional)"
+                  type="email"
+                  placeholder="name@example.com"
+                />
+                <FormInput
+                  control={createForm.control}
+                  name="password"
+                  label="Password"
+                  type="password"
+                  placeholder="Enter password"
+                />
                 
                 <div className="flex items-start space-x-3 mt-2">
                   <Checkbox 
@@ -190,7 +207,13 @@ export function CreateUserDialog() {
           <TabsContent value="invite">
             <Form {...inviteForm}>
               <div className="grid gap-4 px-6 pb-6">
-                <FormInput control={inviteForm.control} name="email" label="Email address" type="email" />
+                <FormInput
+                  control={inviteForm.control}
+                  name="email"
+                  label="Email address"
+                  type="email"
+                  placeholder="name@example.com"
+                />
                 
                 <FormInput
                   control={inviteForm.control}
@@ -199,6 +222,7 @@ export function CreateUserDialog() {
                   description="Invite links will expire after the specified number of days."
                   type="number"
                   min={1}
+                  placeholder="7"
                   className="w-24 no-number-arrows"
                   onChange={(e) => inviteForm.setValue('expiry_days', parseInt(e.target.value) || 0)}
                   render={(input: React.ReactNode) => (

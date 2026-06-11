@@ -949,6 +949,8 @@ pub async fn set_phone_number_verified_handler(
 #[derive(Deserialize)]
 pub struct UpdateUserPasswordRequest {
     pub password: String,
+    pub sign_out_all_sessions: Option<bool>,
+    pub skip_password_checks: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -984,11 +986,22 @@ pub async fn update_user_password_handler(
     Path((realm_name, id)): Path<(String, Uuid)>,
     Json(payload): Json<UpdateUserPasswordRequest>,
 ) -> Result<impl IntoResponse> {
-    if payload.password.len() < 8 || payload.password.len() > 100 {
+    let skip_password_checks = payload.skip_password_checks.unwrap_or(false);
+    let invalid_password = if skip_password_checks {
+        payload.password.is_empty() || payload.password.len() > 100
+    } else {
+        payload.password.len() < 8 || payload.password.len() > 100
+    };
+
+    if invalid_password {
         let mut fields = std::collections::HashMap::new();
         fields.insert(
             "password".to_string(),
-            "Password must be between 8 and 100 characters".to_string(),
+            if skip_password_checks {
+                "Password is required and must be no more than 100 characters".to_string()
+            } else {
+                "Password must be between 8 and 100 characters".to_string()
+            },
         );
         return Err(Error::FieldsValidation {
             message: "Validation failed".to_string(),
@@ -1004,7 +1017,12 @@ pub async fn update_user_password_handler(
 
     state
         .user_credentials_service
-        .update_password(realm.id, id, &payload.password)
+        .update_password(
+            realm.id,
+            id,
+            &payload.password,
+            payload.sign_out_all_sessions.unwrap_or(false),
+        )
         .await?;
     Ok((
         StatusCode::OK,

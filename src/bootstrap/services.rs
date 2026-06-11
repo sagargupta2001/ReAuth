@@ -129,6 +129,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         repos.realm_repo.clone(),
         repos.federated_identity_repo.clone(),
         repos.identity_provider_repo.clone(),
+        repos.session_repo.clone(),
         audit_service.clone(),
     ));
     let webhook_service = Arc::new(WebhookService::new(

@@ -88,7 +88,13 @@ export function AddEmailDialog({ userId }: AddEmailDialogProps) {
 
         <Form {...form}>
           <div className="grid gap-4 px-6 pb-6">
-            <FormInput control={form.control} name="email" label="Email address" type="email" />
+            <FormInput
+              control={form.control}
+              name="email"
+              label="Email address"
+              type="email"
+              placeholder="name@example.com"
+            />
 
             <div className="mt-2 flex items-start space-x-3">
               <Checkbox

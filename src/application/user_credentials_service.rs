@@ -15,6 +15,7 @@ use crate::ports::identity_provider_repository::IdentityProviderRepository;
 use crate::ports::passkey_credential_repository::PasskeyCredentialRepository;
 use crate::ports::realm_passkey_settings_repository::RealmPasskeySettingsRepository;
 use crate::ports::realm_repository::RealmRepository;
+use crate::ports::session_repository::SessionRepository;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UserPasswordCredentialSummary {
@@ -61,6 +62,7 @@ pub struct UserCredentialsService {
     realm_repo: Arc<dyn RealmRepository>,
     federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
     identity_provider_repo: Arc<dyn IdentityProviderRepository>,
+    session_repo: Arc<dyn SessionRepository>,
     audit_service: Arc<AuditService>,
 }
 
@@ -72,6 +74,7 @@ impl UserCredentialsService {
         realm_repo: Arc<dyn RealmRepository>,
         federated_identity_repo: Arc<dyn FederatedIdentityRepository>,
         identity_provider_repo: Arc<dyn IdentityProviderRepository>,
+        session_repo: Arc<dyn SessionRepository>,
         audit_service: Arc<AuditService>,
     ) -> Self {
         Self {
@@ -81,6 +84,7 @@ impl UserCredentialsService {
             realm_repo,
             federated_identity_repo,
             identity_provider_repo,
+            session_repo,
             audit_service,
         }
     }
@@ -160,10 +164,16 @@ impl UserCredentialsService {
         realm_id: Uuid,
         user_id: Uuid,
         new_password: &str,
+        sign_out_all_sessions: bool,
     ) -> Result<()> {
         self.user_service
             .update_password(realm_id, user_id, new_password)
             .await?;
+        if sign_out_all_sessions {
+            self.session_repo
+                .revoke_all_for_user(&realm_id, &user_id)
+                .await?;
+        }
         Ok(())
     }
 

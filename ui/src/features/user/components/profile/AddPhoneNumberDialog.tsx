@@ -84,7 +84,12 @@ export function AddPhoneNumberDialog({ userId }: AddPhoneNumberDialogProps) {
 
         <Form {...form}>
           <div className="grid gap-4 px-6 pb-6">
-            <FormInput control={form.control} name="phone_number" label="Phone number" />
+            <FormInput
+              control={form.control}
+              name="phone_number"
+              label="Phone number"
+              placeholder="+1 555 123 4567"
+            />
 
             <div className="mt-2 flex items-start space-x-3">
               <Checkbox
