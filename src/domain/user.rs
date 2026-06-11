@@ -9,6 +9,12 @@ pub struct User {
     #[sqlx(try_from = "String")]
     pub realm_id: Uuid,
     pub username: String,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub first_name: Option<String>,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub last_name: Option<String>,
     #[serde(skip_serializing)]
     pub hashed_password: String,
     #[serde(default)]
@@ -18,6 +24,9 @@ pub struct User {
     #[sqlx(default)]
     pub password_login_disabled: bool,
     pub created_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub updated_at: Option<DateTime<Utc>>,
     pub last_sign_in_at: Option<DateTime<Utc>>,
 }
 
@@ -27,10 +36,13 @@ impl User {
             id: Uuid::new_v4(),
             realm_id,
             username,
+            first_name: None,
+            last_name: None,
             hashed_password,
             force_password_reset: false,
             password_login_disabled: false,
             created_at: Some(Utc::now()),
+            updated_at: Some(Utc::now()),
             last_sign_in_at: None,
         }
     }
@@ -91,16 +103,19 @@ mod tests {
         let realm_id = Uuid::new_v4();
 
         let user: User = sqlx::query_as(
-            "SELECT ? as id, ? as realm_id, ? as username, ? as hashed_password, \
+            "SELECT ? as id, ? as realm_id, ? as username, ? as first_name, ? as last_name, ? as hashed_password, \
              ? as force_password_reset, ? as password_login_disabled, \
-             ? as created_at, ? as last_sign_in_at",
+             ? as created_at, ? as updated_at, ? as last_sign_in_at",
         )
         .bind(id.to_string())
         .bind(realm_id.to_string())
         .bind("alice")
+        .bind(None::<String>)
+        .bind(None::<String>)
         .bind("hash")
         .bind(false)
         .bind(false)
+        .bind(None::<DateTime<Utc>>)
         .bind(None::<DateTime<Utc>>)
         .bind(None::<DateTime<Utc>>)
         .fetch_one(&pool)
@@ -123,10 +138,13 @@ mod tests {
             id: Uuid::new_v4(),
             realm_id: Uuid::new_v4(),
             username: "alice".to_string(),
+            first_name: None,
+            last_name: None,
             hashed_password: "hash".to_string(),
             force_password_reset: false,
             password_login_disabled: false,
             created_at: None,
+            updated_at: None,
             last_sign_in_at: None,
         };
 
@@ -146,6 +164,7 @@ mod tests {
             "force_password_reset": true,
             "password_login_disabled": true,
             "created_at": null,
+            "updated_at": null,
             "last_sign_in_at": null
         });
 
@@ -154,6 +173,8 @@ mod tests {
         assert_eq!(user.id, id);
         assert_eq!(user.realm_id, realm_id);
         assert_eq!(user.username, "alice");
+        assert_eq!(user.first_name, None);
+        assert_eq!(user.last_name, None);
         assert_eq!(user.hashed_password, "hash");
         assert!(user.force_password_reset);
         assert!(user.password_login_disabled);

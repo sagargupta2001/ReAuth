@@ -184,6 +184,7 @@ async fn initialize_with_settings(
         settings: settings_shared,
         user_service: services.user_service,
         user_email_service: services.user_email_service,
+        user_phone_number_service: services.user_phone_number_service,
         user_credentials_service: services.user_credentials_service,
         rbac_service: services.rbac_service,
         auth_service: services.auth_service,

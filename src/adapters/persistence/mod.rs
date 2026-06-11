@@ -28,6 +28,7 @@ pub mod sqlite_recovery_attempt_repository;
 pub mod sqlite_session_repository;
 pub mod sqlite_theme_repository;
 pub mod sqlite_user_email_repository;
+pub mod sqlite_user_phone_number_repository;
 pub mod sqlite_user_repository;
 pub mod sqlite_webhook_repository;
 pub mod transaction;

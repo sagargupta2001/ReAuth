@@ -308,6 +308,24 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
             "/{id}/emails/{email_id}/verified",
             patch(user_handler::set_email_verified_handler),
         )
+        // Phone-number sub-resource
+        .route(
+            "/{id}/phone-numbers",
+            get(user_handler::list_user_phone_numbers_handler)
+                .post(user_handler::add_user_phone_number_handler),
+        )
+        .route(
+            "/{id}/phone-numbers/{phone_number_id}",
+            delete(user_handler::remove_user_phone_number_handler),
+        )
+        .route(
+            "/{id}/phone-numbers/{phone_number_id}/primary",
+            put(user_handler::set_primary_phone_number_handler),
+        )
+        .route(
+            "/{id}/phone-numbers/{phone_number_id}/verified",
+            patch(user_handler::set_phone_number_verified_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {

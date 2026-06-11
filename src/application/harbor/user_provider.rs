@@ -492,10 +492,13 @@ async fn import_new_user(
         id: user_id,
         realm_id: ctx.realm_id,
         username: payload.username.clone(),
+        first_name: None,
+        last_name: None,
         hashed_password,
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(chrono::Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     };
 

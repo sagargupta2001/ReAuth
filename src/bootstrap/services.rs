@@ -30,6 +30,7 @@ use crate::application::secret_service::SecretService;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::user_credentials_service::UserCredentialsService;
 use crate::application::user_email_service::UserEmailService;
+use crate::application::user_phone_number_service::UserPhoneNumberService;
 use crate::application::webhook_service::WebhookService;
 use crate::ports::transaction_manager::TransactionManager;
 use crate::{
@@ -49,6 +50,7 @@ use std::sync::Arc;
 pub struct Services {
     pub user_service: Arc<UserService>,
     pub user_email_service: Arc<UserEmailService>,
+    pub user_phone_number_service: Arc<UserPhoneNumberService>,
     pub user_credentials_service: Arc<UserCredentialsService>,
     pub rbac_service: Arc<RbacService>,
     pub realm_service: Arc<RealmService>,
@@ -113,6 +115,10 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     ));
     let user_email_service = Arc::new(UserEmailService::new(
         repos.user_email_repo.clone(),
+        tx_manager.clone(),
+    ));
+    let user_phone_number_service = Arc::new(UserPhoneNumberService::new(
+        repos.user_phone_number_repo.clone(),
         tx_manager.clone(),
     ));
     let audit_service = Arc::new(AuditService::new(repos.audit_repo.clone()));
@@ -356,6 +362,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
     Services {
         user_service,
         user_email_service,
+        user_phone_number_service,
         user_credentials_service,
         rbac_service,
         realm_service,

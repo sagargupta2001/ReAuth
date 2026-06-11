@@ -10,8 +10,16 @@ Source of truth: `migrations/20251214045651_initial_schema.sql` and subsequent m
 - Flow bindings: `browser_flow_id`, `registration_flow_id`, `direct_grant_flow_id`, `reset_credentials_flow_id`
 
 ### users
-- `id`, `realm_id`, `username`, `hashed_password`, `created_at`
+- `id`, `realm_id`, `username`, `first_name`, `last_name`, `hashed_password`, `created_at`, `updated_at`, `last_sign_in_at`
 - Uniqueness: `(realm_id, username)`
+
+### user_emails / user_phone_numbers
+- `user_emails`: multiple email addresses per user with `email`, `email_normalized`, `is_primary`, `is_verified`, timestamps.
+- `user_phone_numbers`: multiple phone numbers per user with `phone_number`, `phone_number_normalized`, `is_primary`, `is_verified`, timestamps.
+- Uniqueness is realm-scoped on normalized values:
+  - `user_emails`: `(realm_id, email_normalized)`
+  - `user_phone_numbers`: `(realm_id, phone_number_normalized)`
+- Triggers enforce one primary email or phone number per user by demoting existing primary rows on insert/update.
 
 ### roles / groups
 - `roles`: `id`, `realm_id`, optional `client_id`, `name`, `description`, `created_at`

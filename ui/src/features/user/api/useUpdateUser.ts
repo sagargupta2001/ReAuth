@@ -7,6 +7,8 @@ import { queryKeys } from '@/shared/lib/queryKeys'
 
 interface UpdateUserPayload {
   username: string
+  first_name?: string | null
+  last_name?: string | null
 }
 
 export function useUpdateUser(userId: string) {

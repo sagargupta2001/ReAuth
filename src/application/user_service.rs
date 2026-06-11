@@ -78,10 +78,13 @@ impl UserService {
             id: Uuid::new_v4(),
             realm_id,
             username: username.to_string(),
+            first_name: None,
+            last_name: None,
             hashed_password: hashed_password.as_str().to_string(),
             force_password_reset: false,
             password_login_disabled: false,
             created_at: Some(Utc::now()),
+            updated_at: Some(Utc::now()),
             last_sign_in_at: None,
         };
 
@@ -178,16 +181,18 @@ impl UserService {
         user_id: Uuid,
         new_username: String,
     ) -> Result<User> {
-        self.update_profile(realm_id, user_id, Some(new_username))
+        self.update_profile(realm_id, user_id, Some(new_username), None, None)
             .await
     }
 
-    /// Update mutable profile fields (username only — email is managed via UserEmailService).
+    /// Update mutable profile fields. Emails and phone numbers are managed via sub-resource services.
     pub async fn update_profile(
         &self,
         realm_id: Uuid,
         user_id: Uuid,
         new_username: Option<String>,
+        new_first_name: Option<Option<String>>,
+        new_last_name: Option<Option<String>>,
     ) -> Result<User> {
         let mut user = self.get_user_in_realm(realm_id, user_id).await?;
         let mut changed = false;
@@ -207,7 +212,24 @@ impl UserService {
             }
         }
 
+        if let Some(first_name) = new_first_name {
+            let first_name = normalize_optional_profile_text(first_name);
+            if user.first_name != first_name {
+                user.first_name = first_name;
+                changed = true;
+            }
+        }
+
+        if let Some(last_name) = new_last_name {
+            let last_name = normalize_optional_profile_text(last_name);
+            if user.last_name != last_name {
+                user.last_name = last_name;
+                changed = true;
+            }
+        }
+
         if changed {
+            user.updated_at = Some(Utc::now());
             self.user_repo.update(&user, None).await?;
         }
         Ok(user)
@@ -292,5 +314,11 @@ impl UserService {
 fn normalize_optional_email(email: Option<&str>) -> Option<String> {
     email
         .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty())
+}
+
+fn normalize_optional_profile_text(value: Option<String>) -> Option<String> {
+    value
+        .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
 }

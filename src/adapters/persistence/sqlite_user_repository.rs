@@ -138,17 +138,20 @@ impl UserRepository for SqliteUserRepository {
     async fn save(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
             "INSERT INTO users (
-                id, realm_id, username, hashed_password,
-                force_password_reset, password_login_disabled, created_at, last_sign_in_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                id, realm_id, username, first_name, last_name, hashed_password,
+                force_password_reset, password_login_disabled, created_at, updated_at, last_sign_in_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(user.realm_id.to_string())
         .bind(&user.username)
+        .bind(&user.first_name)
+        .bind(&user.last_name)
         .bind(&user.hashed_password)
         .bind(user.force_password_reset)
         .bind(user.password_login_disabled)
         .bind(user.created_at)
+        .bind(user.updated_at)
         .bind(user.last_sign_in_at);
 
         match tx {
@@ -176,15 +179,19 @@ impl UserRepository for SqliteUserRepository {
     async fn update(&self, user: &User, tx: Option<&mut dyn Transaction>) -> Result<()> {
         let query = sqlx::query(
             "UPDATE users
-             SET username = ?, hashed_password = ?, force_password_reset = ?,
-                 password_login_disabled = ?, created_at = ?, last_sign_in_at = ?
+             SET username = ?, first_name = ?, last_name = ?, hashed_password = ?,
+                 force_password_reset = ?, password_login_disabled = ?,
+                 created_at = ?, updated_at = ?, last_sign_in_at = ?
              WHERE id = ?",
         )
         .bind(&user.username)
+        .bind(&user.first_name)
+        .bind(&user.last_name)
         .bind(&user.hashed_password)
         .bind(user.force_password_reset)
         .bind(user.password_login_disabled)
         .bind(user.created_at)
+        .bind(user.updated_at)
         .bind(user.last_sign_in_at)
         .bind(user.id.to_string());
 

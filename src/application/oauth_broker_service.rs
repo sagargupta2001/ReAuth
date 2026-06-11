@@ -1099,10 +1099,13 @@ impl OAuthBrokerService {
             id: Uuid::new_v4(),
             realm_id: provider.realm_id,
             username: unique_username(&*self.user_repo, provider.realm_id, &username).await?,
+            first_name: None,
+            last_name: None,
             hashed_password: hashed_password.as_str().to_string(),
             force_password_reset: false,
             password_login_disabled: true,
             created_at: Some(now),
+            updated_at: None,
             last_sign_in_at: Some(now),
         };
 

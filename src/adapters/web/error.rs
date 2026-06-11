@@ -25,6 +25,7 @@ impl IntoResponse for Error {
             Error::UserAlreadyExists
             | Error::UsernameAlreadyExists
             | Error::EmailAlreadyExists
+            | Error::PhoneNumberAlreadyExists
             | Error::RoleAlreadyExists
             | Error::GroupAlreadyExists
             | Error::RealmAlreadyExists
@@ -120,6 +121,7 @@ fn error_code(error: &Error) -> &'static str {
         Error::UserAlreadyExists => "user.already_exists",
         Error::UsernameAlreadyExists => "user.username_already_exists",
         Error::EmailAlreadyExists => "user.email_already_exists",
+        Error::PhoneNumberAlreadyExists => "user.phone_number_already_exists",
         Error::RoleAlreadyExists => "rbac.role.already_exists",
         Error::GroupAlreadyExists => "rbac.group.already_exists",
         Error::RealmAlreadyExists => "realm.already_exists",
