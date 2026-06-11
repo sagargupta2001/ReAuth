@@ -97,7 +97,6 @@ export function RolesTable({ clientId }: RolesTableProps) {
       searchValue={searchTerm}
       onSearch={handleSearch}
       onRowClick={(role) => clientId ? navigate(`/clients/${clientId}/roles/${role.id}`) : navigate(`/roles/${role.id}`)}
-      className={clientId ? "" : "h-[calc(100vh-328px)]"}
     />
   )
 }
