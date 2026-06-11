@@ -67,7 +67,7 @@ export function MetadataSection({ userId }: MetadataSectionProps) {
       <CardHeader>
         <CardTitle>Metadata</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent>
         {metadataBuckets.map((bucket, index) => (
           <MetadataBucketRow
             key={bucket.visibility}
@@ -114,7 +114,7 @@ function MetadataBucketRow({
   return (
     <div
       className={cn(
-        'bg-primary-foreground border p-4',
+        'bg-primary-foreground p-4',
         isFirst && 'rounded-t-2xl',
         isLast && 'rounded-b-2xl',
         !isLast && 'border-b-0',

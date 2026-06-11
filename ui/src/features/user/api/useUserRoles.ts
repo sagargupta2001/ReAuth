@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import type { PaginatedResponse } from '@/entities/oidc/model/types'
@@ -14,13 +20,31 @@ export interface UserRoleRow {
   is_effective: boolean
 }
 
+export type UserRoleFilter = 'all' | 'direct' | 'effective' | 'unassigned'
+
 export interface UserRoleListParams {
   page?: number
   per_page?: number
   q?: string
   sort_by?: string
   sort_dir?: 'asc' | 'desc'
-  filter?: 'all' | 'direct' | 'effective' | 'unassigned'
+  filter?: UserRoleFilter
+}
+
+function buildUserRolesListQuery(params: UserRoleListParams, page: number) {
+  const query = new URLSearchParams()
+  query.set('page', String(page))
+  query.set('per_page', String(params.per_page || 10))
+  if (params.q) query.set('q', params.q)
+  if (params.sort_by) query.set('sort_by', params.sort_by)
+  if (params.sort_dir) query.set('sort_dir', params.sort_dir)
+  if (params.filter) query.set('filter', params.filter)
+  return query
+}
+
+export function getNextUserRolesPageParam(lastPage: PaginatedResponse<UserRoleRow>) {
+  const nextPage = lastPage.meta.page + 1
+  return nextPage <= lastPage.meta.total_pages ? nextPage : undefined
 }
 
 export function useUserRolesList(userId: string, params: UserRoleListParams) {
@@ -29,18 +53,29 @@ export function useUserRolesList(userId: string, params: UserRoleListParams) {
   return useQuery({
     queryKey: queryKeys.userRoleList(realm, userId, params),
     queryFn: async () => {
-      const query = new URLSearchParams()
-      query.set('page', String(params.page || 1))
-      query.set('per_page', String(params.per_page || 10))
-      if (params.q) query.set('q', params.q)
-      if (params.sort_by) query.set('sort_by', params.sort_by)
-      if (params.sort_dir) query.set('sort_dir', params.sort_dir)
-      if (params.filter) query.set('filter', params.filter)
+      const query = buildUserRolesListQuery(params, params.page || 1)
 
       return apiClient.get<PaginatedResponse<UserRoleRow>>(
         `/api/realms/${realm}/users/${userId}/roles/list?${query.toString()}`,
       )
     },
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useInfiniteUserRolesList(userId: string, params: UserRoleListParams) {
+  const realm = useActiveRealm()
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.userRoleList(realm, userId, { ...params, mode: 'infinite' }),
+    queryFn: async ({ pageParam }) => {
+      const query = buildUserRolesListQuery(params, pageParam)
+      return apiClient.get<PaginatedResponse<UserRoleRow>>(
+        `/api/realms/${realm}/users/${userId}/roles/list?${query.toString()}`,
+      )
+    },
+    initialPageParam: 1,
+    getNextPageParam: getNextUserRolesPageParam,
     placeholderData: keepPreviousData,
   })
 }
@@ -65,7 +100,7 @@ export function useManageUserRoles(userId: string) {
   const queryClient = useQueryClient()
   const directQueryKey = queryKeys.userRoles(realm, userId, 'direct')
   const effectiveQueryKey = queryKeys.userRoles(realm, userId, 'effective')
-  const listQueryKey = queryKeys.userRoleList(realm, userId)
+  const listQueryKey = ['user-role-list', realm, userId] as const
 
   const addMutation = useMutation({
     mutationFn: async (roleId: string) => {

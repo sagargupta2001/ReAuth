@@ -81,7 +81,7 @@ export function ProfileSection({ userId }: ProfileSectionProps) {
         <CardTitle>Personal Information</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className='bg-primary-foreground m-1 p-4 rounded-2xl'>
+        <div className='bg-primary-foreground p-4 rounded-2xl'>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormInput control={form.control} name="username" label="Username" />
