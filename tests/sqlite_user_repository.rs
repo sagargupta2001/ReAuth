@@ -33,10 +33,13 @@ fn user(id: Uuid, realm_id: Uuid, username: &str, hashed_password: &str) -> User
         id,
         realm_id,
         username: username.to_string(),
+        first_name: None,
+        last_name: None,
         hashed_password: hashed_password.to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     }
 }

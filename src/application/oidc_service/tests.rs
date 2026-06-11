@@ -1762,10 +1762,13 @@ async fn exchange_code_for_token_returns_tokens_and_deletes_code() {
         id: user_id,
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        first_name: None,
+        last_name: None,
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     });
 

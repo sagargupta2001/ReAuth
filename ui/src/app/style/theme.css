@@ -34,8 +34,11 @@
     --sidebar-border: rgba(255, 255, 255, 0.14);
     --sidebar-ring: hsla(212, 100%, 48%, 1);
 
-    --bg-hover: rgba(0, 0, 0, 0.29);
-    --table-background: #171717;
+    --surface-elevated: #171717;
+    --table-background: var(--surface-elevated);
+    --table-row-hover: rgba(0, 0, 0, 0.29);
+    --bg-table: var(--table-background);
+    --bg-hover: var(--table-row-hover);
 
     --font-sans: 'Geist Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
@@ -104,7 +107,9 @@
     --radius-lg: var(--radius);
     --radius-xl: calc(var(--radius) + 4px);
 
-    --table-background: var(--table-background);
+    --color-surface-elevated: var(--surface-elevated);
+    --color-table-background: var(--table-background);
+    --color-table-row-hover: var(--table-row-hover);
 
     --shadow-2xs: var(--shadow-2xs);
     --shadow-xs: var(--shadow-xs);

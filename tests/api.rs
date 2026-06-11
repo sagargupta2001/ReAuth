@@ -20,3 +20,6 @@ mod passkey_http;
 
 #[path = "api/user_credentials_http.rs"]
 mod user_credentials_http;
+
+#[path = "api/user_profile_phone_http.rs"]
+mod user_profile_phone_http;

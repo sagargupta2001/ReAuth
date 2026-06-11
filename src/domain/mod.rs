@@ -37,4 +37,5 @@ pub mod theme_pages;
 pub mod ui;
 pub mod user;
 pub mod user_email;
+pub mod user_phone_number;
 pub mod webhook;

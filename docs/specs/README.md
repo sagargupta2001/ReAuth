@@ -38,6 +38,7 @@ Each spec should define:
 - `passkey-first-auth.md`
 - `spec-template.md`
 - `user-invitations.md`
+- `user-profile-phone-numbers.md`
 - `users-table-filters.md`
 
 ## Rule

@@ -4,6 +4,7 @@ use crate::application::user_credentials_service::UserCredentialsSummary;
 use crate::domain::pagination::PageRequest;
 use crate::domain::user::{User, UserDateTimeRangeFilter, UserListFilters};
 use crate::domain::user_email::UserEmail;
+use crate::domain::user_phone_number::UserPhoneNumber;
 use crate::error::{Error, Result};
 use crate::AppState;
 use axum::extract::{Path, Query};
@@ -27,19 +28,29 @@ pub struct UserResponse {
     /// The primary email address, or the first available one (backward compat).
     pub email: Option<String>,
     pub emails: Vec<UserEmail>,
+    /// The primary phone number, or the first available one.
+    pub phone_number: Option<String>,
+    pub phone_numbers: Vec<UserPhoneNumber>,
 }
 
 impl UserResponse {
-    pub fn new(user: User, emails: Vec<UserEmail>) -> Self {
+    pub fn new(user: User, emails: Vec<UserEmail>, phone_numbers: Vec<UserPhoneNumber>) -> Self {
         let primary = emails
             .iter()
             .find(|e| e.is_primary)
             .or_else(|| emails.first())
             .map(|e| e.email.clone());
+        let primary_phone_number = phone_numbers
+            .iter()
+            .find(|phone_number| phone_number.is_primary)
+            .or_else(|| phone_numbers.first())
+            .map(|phone_number| phone_number.phone_number.clone());
         Self {
             user,
             email: primary,
             emails,
+            phone_number: primary_phone_number,
+            phone_numbers,
         }
     }
 
@@ -50,6 +61,8 @@ impl UserResponse {
             user,
             email: primary_email,
             emails: vec![],
+            phone_number: None,
+            phone_numbers: vec![],
         }
     }
 }
@@ -162,7 +175,15 @@ pub async fn create_user_handler(
         .list_emails(user.id)
         .await
         .unwrap_or_default();
-    Ok((StatusCode::CREATED, Json(UserResponse::new(user, emails))))
+    let phone_numbers = state
+        .user_phone_number_service
+        .list_phone_numbers(user.id)
+        .await
+        .unwrap_or_default();
+    Ok((
+        StatusCode::CREATED,
+        Json(UserResponse::new(user, emails, phone_numbers)),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -178,7 +199,15 @@ pub async fn get_me_handler(
         .list_emails(user.id)
         .await
         .unwrap_or_default();
-    Ok((StatusCode::OK, Json(UserResponse::new(user, emails))))
+    let phone_numbers = state
+        .user_phone_number_service
+        .list_phone_numbers(user.id)
+        .await
+        .unwrap_or_default();
+    Ok((
+        StatusCode::OK,
+        Json(UserResponse::new(user, emails, phone_numbers)),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +365,15 @@ pub async fn get_user_handler(
         .list_emails(user.id)
         .await
         .unwrap_or_default();
-    Ok((StatusCode::OK, Json(UserResponse::new(user, emails))))
+    let phone_numbers = state
+        .user_phone_number_service
+        .list_phone_numbers(user.id)
+        .await
+        .unwrap_or_default();
+    Ok((
+        StatusCode::OK,
+        Json(UserResponse::new(user, emails, phone_numbers)),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -385,6 +422,10 @@ pub async fn delete_users_handler(
 pub struct UpdateUserRequest {
     #[validate(length(min = 3, message = "Username must be at least 3 characters long"))]
     pub username: Option<String>,
+    #[serde(default)]
+    pub first_name: Option<Option<String>>,
+    #[serde(default)]
+    pub last_name: Option<Option<String>>,
 }
 
 pub async fn update_user_handler(
@@ -403,13 +444,19 @@ pub async fn update_user_handler(
         return Err(Error::Validation("Username cannot be empty".to_string()));
     }
 
-    if username.is_none() {
+    if username.is_none() && payload.first_name.is_none() && payload.last_name.is_none() {
         return Err(Error::Validation("No updates provided".to_string()));
     }
 
     let user = state
         .user_service
-        .update_profile(realm.id, id, username)
+        .update_profile(
+            realm.id,
+            id,
+            username,
+            payload.first_name,
+            payload.last_name,
+        )
         .await?;
 
     let emails = state
@@ -417,7 +464,15 @@ pub async fn update_user_handler(
         .list_emails(user.id)
         .await
         .unwrap_or_default();
-    Ok((StatusCode::OK, Json(UserResponse::new(user, emails))))
+    let phone_numbers = state
+        .user_phone_number_service
+        .list_phone_numbers(user.id)
+        .await
+        .unwrap_or_default();
+    Ok((
+        StatusCode::OK,
+        Json(UserResponse::new(user, emails, phone_numbers)),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -567,6 +622,164 @@ pub async fn set_email_verified_handler(
     state
         .user_email_service
         .set_verified(id, email_id, payload.is_verified)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "updated" })),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Phone-number sub-resource: list
+// ---------------------------------------------------------------------------
+
+pub async fn list_user_phone_numbers_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+
+    let phone_numbers = state
+        .user_phone_number_service
+        .list_phone_numbers(id)
+        .await?;
+    Ok((StatusCode::OK, Json(phone_numbers)))
+}
+
+// ---------------------------------------------------------------------------
+// Phone-number sub-resource: add
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize, Validate)]
+pub struct AddUserPhoneNumberPayload {
+    #[validate(length(min = 1, message = "Phone number is required"))]
+    pub phone_number: String,
+    #[serde(default)]
+    pub is_primary: bool,
+    #[serde(default)]
+    pub is_verified: bool,
+}
+
+pub async fn add_user_phone_number_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+    ValidatedJson(payload): ValidatedJson<AddUserPhoneNumberPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+
+    let phone_number = match state
+        .user_phone_number_service
+        .add_phone_number(
+            id,
+            realm.id,
+            &payload.phone_number,
+            payload.is_primary,
+            payload.is_verified,
+        )
+        .await
+    {
+        Ok(phone_number) => phone_number,
+        Err(Error::PhoneNumberAlreadyExists) => {
+            let mut fields = std::collections::HashMap::new();
+            fields.insert(
+                "phone_number".to_string(),
+                "Phone number is already in use".to_string(),
+            );
+            return Err(Error::FieldsValidation {
+                message: "Validation failed".to_string(),
+                fields,
+            });
+        }
+        Err(err) => return Err(err),
+    };
+
+    Ok((StatusCode::CREATED, Json(phone_number)))
+}
+
+// ---------------------------------------------------------------------------
+// Phone-number sub-resource: remove
+// ---------------------------------------------------------------------------
+
+pub async fn remove_user_phone_number_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id, phone_number_id)): Path<(String, Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+    state
+        .user_phone_number_service
+        .remove_phone_number(id, phone_number_id)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "removed" })),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Phone-number sub-resource: set primary
+// ---------------------------------------------------------------------------
+
+pub async fn set_primary_phone_number_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id, phone_number_id)): Path<(String, Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+    state
+        .user_phone_number_service
+        .set_primary(id, phone_number_id)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(serde_json::json!({ "status": "updated" })),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Phone-number sub-resource: set verified
+// ---------------------------------------------------------------------------
+
+pub async fn set_phone_number_verified_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id, phone_number_id)): Path<(String, Uuid, Uuid)>,
+    Json(payload): Json<SetVerifiedPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.user_service.get_user_in_realm(realm.id, id).await?;
+    state
+        .user_phone_number_service
+        .set_verified(id, phone_number_id, payload.is_verified)
         .await?;
 
     Ok((

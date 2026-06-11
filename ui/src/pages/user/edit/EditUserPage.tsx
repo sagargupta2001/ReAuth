@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { RealmLink } from '@/entities/realm/lib/navigation'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useUser } from '@/features/user/api/useUser.ts'
+import { UserTabLayout } from '@/features/user/components/UserTabLayout'
 import { UserCredentialsTab } from '@/features/user/components/UserCredentialsTab'
 import { UserRolesTab } from '@/features/user/components/UserRolesTab'
 import { UseProfileTab } from '@/features/user/components/UseProfileTab.tsx'
@@ -105,16 +106,24 @@ export function EditUserPage() {
 
         <div className="bg-muted/5 flex-1 overflow-y-auto">
           <TabsContent value="profile" className="mt-0 h-full w-full p-6">
-            <UseProfileTab userId={userId} />
+            <UserTabLayout userId={userId}>
+              <UseProfileTab userId={userId} />
+            </UserTabLayout>
           </TabsContent>
           <TabsContent value="settings" className="mt-0 h-full w-full p-6">
-            <UseProfileTab userId={userId} />
+            <UserTabLayout userId={userId}>
+              <UseProfileTab userId={userId} />
+            </UserTabLayout>
           </TabsContent>
           <TabsContent value="roles" className="mt-0 h-full w-full p-6">
-            <UserRolesTab userId={userId} />
+            <UserTabLayout userId={userId}>
+              <UserRolesTab userId={userId} />
+            </UserTabLayout>
           </TabsContent>
           <TabsContent value="credentials" className="mt-0 h-full w-full p-6">
-            <UserCredentialsTab userId={userId} />
+            <UserTabLayout userId={userId}>
+              <UserCredentialsTab userId={userId} />
+            </UserTabLayout>
           </TabsContent>
         </div>
       </Tabs>

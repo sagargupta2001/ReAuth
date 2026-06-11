@@ -128,7 +128,7 @@ export function DataTable<TData, TValue>({
           onFilterChange={onFilterChange}
         />
       ) : null}
-      <div className={cn('relative overflow-auto rounded-2xl p-2 bg-[#171717]', className)}>
+      <div className={cn('relative overflow-auto rounded-2xl bg-table-background p-2', className)}>
         <Table className="w-full table-fixed " noWrapper>
           <TableHeader className="sticky top-0 z-10">
             {table.getHeaderGroups().map((headerGroup) => (

@@ -24,6 +24,9 @@ pub enum Error {
     #[error("This email address is already in use.")]
     EmailAlreadyExists,
 
+    #[error("This phone number is already in use.")]
+    PhoneNumberAlreadyExists,
+
     #[error("User not found.")]
     UserNotFound,
 

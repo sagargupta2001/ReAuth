@@ -882,10 +882,13 @@ async fn create_session_returns_tokens_and_refresh_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        first_name: None,
+        last_name: None,
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
@@ -930,10 +933,13 @@ async fn create_session_without_client_id_skips_id_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        first_name: None,
+        last_name: None,
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
@@ -964,10 +970,13 @@ async fn create_session_errors_when_realm_missing() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        first_name: None,
+        last_name: None,
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
@@ -1021,10 +1030,13 @@ async fn validate_token_and_get_user_returns_user() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        first_name: None,
+        last_name: None,
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
@@ -1123,10 +1135,13 @@ async fn refresh_session_errors_when_realm_missing() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        first_name: None,
+        last_name: None,
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
@@ -1169,10 +1184,13 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
         id: Uuid::new_v4(),
         realm_id: Uuid::new_v4(),
         username: "user".to_string(),
+        first_name: None,
+        last_name: None,
         hashed_password: "hash".to_string(),
         force_password_reset: false,
         password_login_disabled: false,
         created_at: Some(Utc::now()),
+        updated_at: None,
         last_sign_in_at: None,
     };
     user_repo.insert(user.clone());
