@@ -1,3 +1,5 @@
+export type JsonObject = Record<string, unknown>
+
 export interface User {
   id: string
   username: string
@@ -7,6 +9,9 @@ export interface User {
   emails?: UserEmail[]
   phone_number?: string | null
   phone_numbers?: UserPhoneNumber[]
+  public_metadata?: JsonObject
+  private_metadata?: JsonObject
+  unsafe_metadata?: JsonObject
   created_at?: string
   updated_at?: string | null
   last_sign_in_at?: string | null
@@ -35,3 +40,12 @@ export interface UserPhoneNumber {
   created_at: string
   updated_at: string
 }
+
+export interface UserMetadata {
+  public_metadata: JsonObject
+  private_metadata?: JsonObject
+  unsafe_metadata: JsonObject
+  updated_at?: string | null
+}
+
+export type UserMetadataVisibility = 'public' | 'private' | 'unsafe'

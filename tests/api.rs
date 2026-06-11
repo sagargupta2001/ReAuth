@@ -23,3 +23,6 @@ mod user_credentials_http;
 
 #[path = "api/user_profile_phone_http.rs"]
 mod user_profile_phone_http;
+
+#[path = "api/user_metadata_http.rs"]
+mod user_metadata_http;

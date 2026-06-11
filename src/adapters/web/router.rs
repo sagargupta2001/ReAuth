@@ -238,11 +238,21 @@ fn public_invitation_routes() -> Router<AppState> {
 // [FIXED] Split routes by permission requirement
 fn protected_user_routes(state: AppState) -> Router<AppState> {
     // 1. No Special Permission (Just Auth)
-    let base_routes = Router::new().route("/me", get(user_handler::get_me_handler));
+    let base_routes = Router::new()
+        .route("/me", get(user_handler::get_me_handler))
+        .route("/me/metadata", get(user_handler::get_me_metadata_handler))
+        .route(
+            "/me/metadata/unsafe",
+            put(user_handler::update_me_unsafe_metadata_handler),
+        );
 
     // 2. Read Permission
     let read_routes = Router::new()
         .route("/", get(user_handler::list_users_handler))
+        .route(
+            "/{id}/metadata",
+            get(user_handler::get_user_metadata_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -325,6 +335,19 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
         .route(
             "/{id}/phone-numbers/{phone_number_id}/verified",
             patch(user_handler::set_phone_number_verified_handler),
+        )
+        // Metadata sub-resource
+        .route(
+            "/{id}/metadata/public",
+            put(user_handler::update_user_public_metadata_handler),
+        )
+        .route(
+            "/{id}/metadata/private",
+            put(user_handler::update_user_private_metadata_handler),
+        )
+        .route(
+            "/{id}/metadata/unsafe",
+            put(user_handler::update_user_unsafe_metadata_handler),
         )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

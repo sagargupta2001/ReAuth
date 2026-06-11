@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 
 import { format } from 'date-fns'
-import { ArrowLeft, KeyRound, Settings, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
+import { ArrowLeft, KeyRound, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { buttonVariants } from '@/components/button'
@@ -22,7 +22,7 @@ export function EditUserPage() {
 
   const { data: user, isLoading: isUserLoading } = useUser(userId as string)
 
-  const validTabs = ['profile', 'settings', 'roles', 'credentials']
+  const validTabs = ['profile', 'roles', 'credentials']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'profile'
 
   const handleTabChange = (newTab: string) => userId && navigate(`/users/${userId}/${newTab}`)
@@ -92,9 +92,6 @@ export function EditUserPage() {
             <TabsTrigger variant="line" value="profile" className="tab-trigger-styles">
               <UserRoundPen className="mr-2 h-4 w-4" /> Profile
             </TabsTrigger>
-            <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
-              <Settings className="mr-2 h-4 w-4" /> Settings
-            </TabsTrigger>
             <TabsTrigger variant="line" value="roles" className="tab-trigger-styles">
               <ShieldCheck className="mr-2 h-4 w-4" /> Roles
             </TabsTrigger>
@@ -104,13 +101,8 @@ export function EditUserPage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto">
+        <div className="bg-muted/5 flex-1 overflow-y-auto xl:overflow-hidden">
           <TabsContent value="profile" className="mt-0 h-full w-full p-6">
-            <UserTabLayout userId={userId}>
-              <UseProfileTab userId={userId} />
-            </UserTabLayout>
-          </TabsContent>
-          <TabsContent value="settings" className="mt-0 h-full w-full p-6">
             <UserTabLayout userId={userId}>
               <UseProfileTab userId={userId} />
             </UserTabLayout>

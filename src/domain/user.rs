@@ -2,6 +2,12 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub const EMPTY_METADATA_JSON: &str = "{}";
+
+fn default_metadata_json() -> String {
+    EMPTY_METADATA_JSON.to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
 pub struct User {
     #[sqlx(try_from = "String")]
@@ -17,6 +23,15 @@ pub struct User {
     pub last_name: Option<String>,
     #[serde(skip_serializing)]
     pub hashed_password: String,
+    #[serde(default = "default_metadata_json", skip_serializing)]
+    #[sqlx(default)]
+    pub public_metadata_json: String,
+    #[serde(default = "default_metadata_json", skip_serializing)]
+    #[sqlx(default)]
+    pub private_metadata_json: String,
+    #[serde(default = "default_metadata_json", skip_serializing)]
+    #[sqlx(default)]
+    pub unsafe_metadata_json: String,
     #[serde(default)]
     #[sqlx(default)]
     pub force_password_reset: bool,
@@ -39,6 +54,9 @@ impl User {
             first_name: None,
             last_name: None,
             hashed_password,
+            public_metadata_json: default_metadata_json(),
+            private_metadata_json: default_metadata_json(),
+            unsafe_metadata_json: default_metadata_json(),
             force_password_reset: false,
             password_login_disabled: false,
             created_at: Some(Utc::now()),
@@ -141,6 +159,9 @@ mod tests {
             first_name: None,
             last_name: None,
             hashed_password: "hash".to_string(),
+            public_metadata_json: default_metadata_json(),
+            private_metadata_json: default_metadata_json(),
+            unsafe_metadata_json: default_metadata_json(),
             force_password_reset: false,
             password_login_disabled: false,
             created_at: None,
@@ -150,6 +171,9 @@ mod tests {
 
         let value = serde_json::to_value(&user).expect("serialize");
         assert!(value.get("hashed_password").is_none());
+        assert!(value.get("public_metadata_json").is_none());
+        assert!(value.get("private_metadata_json").is_none());
+        assert!(value.get("unsafe_metadata_json").is_none());
     }
 
     #[test]
