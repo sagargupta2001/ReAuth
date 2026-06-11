@@ -27,6 +27,8 @@ fn make_user(realm_id: Uuid, username: &str) -> User {
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     }
 }
 

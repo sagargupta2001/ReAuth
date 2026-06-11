@@ -140,8 +140,9 @@ impl UserRepository for SqliteUserRepository {
             "INSERT INTO users (
                 id, realm_id, username, first_name, last_name, hashed_password,
                 public_metadata_json, private_metadata_json, unsafe_metadata_json,
-                force_password_reset, password_login_disabled, created_at, updated_at, last_sign_in_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                force_password_reset, password_login_disabled, created_at, updated_at, last_sign_in_at,
+                locked_until, banned_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(user.id.to_string())
         .bind(user.realm_id.to_string())
@@ -156,7 +157,9 @@ impl UserRepository for SqliteUserRepository {
         .bind(user.password_login_disabled)
         .bind(user.created_at)
         .bind(user.updated_at)
-        .bind(user.last_sign_in_at);
+        .bind(user.last_sign_in_at)
+        .bind(user.locked_until)
+        .bind(user.banned_at);
 
         match tx {
             Some(tx) => {
@@ -186,7 +189,7 @@ impl UserRepository for SqliteUserRepository {
              SET username = ?, first_name = ?, last_name = ?, hashed_password = ?,
                  public_metadata_json = ?, private_metadata_json = ?, unsafe_metadata_json = ?,
                  force_password_reset = ?, password_login_disabled = ?,
-                 created_at = ?, updated_at = ?, last_sign_in_at = ?
+                 created_at = ?, updated_at = ?, last_sign_in_at = ?, locked_until = ?, banned_at = ?
              WHERE id = ?",
         )
         .bind(&user.username)
@@ -201,6 +204,8 @@ impl UserRepository for SqliteUserRepository {
         .bind(user.created_at)
         .bind(user.updated_at)
         .bind(user.last_sign_in_at)
+        .bind(user.locked_until)
+        .bind(user.banned_at)
         .bind(user.id.to_string());
 
         match tx {

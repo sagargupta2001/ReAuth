@@ -26,3 +26,6 @@ mod user_profile_phone_http;
 
 #[path = "api/user_metadata_http.rs"]
 mod user_metadata_http;
+
+#[path = "api/user_admin_actions_http.rs"]
+mod user_admin_actions_http;

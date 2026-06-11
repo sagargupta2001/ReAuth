@@ -115,6 +115,9 @@ pub async fn setup_handler(
         permissions::RBAC_WRITE,
         permissions::USER_READ,
         permissions::USER_WRITE,
+        permissions::USER_DELETE,
+        permissions::USER_LOCK,
+        permissions::USER_BAN,
         "*",
     ];
 

@@ -144,6 +144,11 @@ impl PasskeyAssertionService {
         let resolved_user = self
             .resolve_user_from_identifier(request.realm_id, request.identifier.as_deref())
             .await?;
+        if let Some(user) = resolved_user.as_ref() {
+            if let Some(reason) = user.sign_in_block_reason(Utc::now()) {
+                return Err(Error::Validation(reason.to_string()));
+            }
+        }
         let allow_credentials = if let Some(user) = resolved_user.as_ref() {
             self.credential_repo
                 .list_by_user(&request.realm_id, &user.id)
@@ -329,6 +334,14 @@ impl PasskeyAssertionService {
             .find_by_realm_and_credential_id(&request.realm_id, &credential_id)
             .await?
             .ok_or(Error::InvalidCredentials)?;
+        let user = self
+            .user_repo
+            .find_by_id(&credential.user_id)
+            .await?
+            .ok_or(Error::UserNotFound)?;
+        if let Some(reason) = user.sign_in_block_reason(now) {
+            return Err(Error::Validation(reason.to_string()));
+        }
 
         let client_data_json_bytes = extract_client_data_json_bytes(&request.credential)?;
         let client_data = parse_client_data_json(&client_data_json_bytes)?;

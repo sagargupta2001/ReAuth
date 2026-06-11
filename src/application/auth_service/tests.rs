@@ -893,6 +893,8 @@ async fn create_session_returns_tokens_and_refresh_token() {
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -947,6 +949,8 @@ async fn create_session_without_client_id_skips_id_token() {
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -987,6 +991,8 @@ async fn create_session_errors_when_realm_missing() {
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -1050,6 +1056,8 @@ async fn validate_token_and_get_user_returns_user() {
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -1158,6 +1166,8 @@ async fn refresh_session_errors_when_realm_missing() {
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     };
     user_repo.insert(user.clone());
 
@@ -1210,6 +1220,8 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     };
     user_repo.insert(user.clone());
 

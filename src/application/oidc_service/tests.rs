@@ -1773,6 +1773,8 @@ async fn exchange_code_for_token_returns_tokens_and_deletes_code() {
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     });
 
     let realm_repo = Arc::new(TestRealmRepo::default());

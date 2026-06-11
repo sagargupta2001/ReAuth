@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN locked_until DATETIME;
+ALTER TABLE users ADD COLUMN banned_at DATETIME;

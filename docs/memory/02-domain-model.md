@@ -4,7 +4,7 @@ This summarizes domain structs/enums in `/src/domain`.
 
 ## Identity and tenancy
 - Realm: `id`, `name`, token TTLs, and flow bindings (`browser_flow_id`, `registration_flow_id`, `direct_grant_flow_id`, `reset_credentials_flow_id`).
-- User: `id`, `realm_id`, `username`, `hashed_password`.
+- User: `id`, `realm_id`, `username`, `hashed_password`, access status (`locked_until`, `banned_at`).
 
 ## RBAC and permissions
 - Role: `id`, `realm_id`, optional `client_id`, `name`, `description`.
@@ -12,7 +12,7 @@ This summarizes domain structs/enums in `/src/domain`.
 - Permission (alias): `String`.
 - PermissionDef: UI metadata for a permission (`id`, `name`, `description`).
 - ResourceGroup: groups permissions for UI display (`id`, `label`, `description`, `permissions`).
-- System permission registry: constants like `realm:read`, `user:write`, `rbac:write`, `event:read`, `session:revoke`, plus wildcard `*`.
+- System permission registry: constants like `realm:read`, `user:write`, `user:delete`, `user:lock`, `user:ban`, `rbac:write`, `event:read`, `session:revoke`, plus wildcard `*`.
 
 ## Sessions and auth state
 - AuthenticationSession: tracks flow execution state with `realm_id`, `flow_version_id`, `current_node_id`, `context`, `status`, optional `user_id`, timestamps, and `expires_at`.

@@ -776,6 +776,14 @@ impl OAuthBrokerService {
             existing.last_login_at = Some(Utc::now());
             existing.updated_at = Utc::now();
             self.federation_repo.update(&existing).await?;
+            let user = self
+                .user_repo
+                .find_by_id(&existing.user_id)
+                .await?
+                .ok_or(Error::UserNotFound)?;
+            if let Some(reason) = user.sign_in_block_reason(Utc::now()) {
+                return Err(Error::Validation(reason.to_string()));
+            }
             return Ok(self.build_result(
                 &provider,
                 "logged_in",
@@ -793,6 +801,9 @@ impl OAuthBrokerService {
                     .await?
                 {
                     let now = Utc::now();
+                    if let Some(reason) = user.sign_in_block_reason(now) {
+                        return Err(Error::Validation(reason.to_string()));
+                    }
                     self.federation_repo
                         .create(&FederatedIdentity {
                             id: Uuid::new_v4(),
@@ -948,6 +959,9 @@ impl OAuthBrokerService {
             .find_by_username(&realm_id, username)
             .await?
             .ok_or(Error::InvalidCredentials)?;
+        if let Some(reason) = user.sign_in_block_reason(Utc::now()) {
+            return Err(Error::Validation(reason.to_string()));
+        }
         if user.password_login_disabled {
             return Err(Error::Validation(
                 "Password login is disabled for this account. Use another local sign-in method."
@@ -1110,6 +1124,8 @@ impl OAuthBrokerService {
             created_at: Some(now),
             updated_at: None,
             last_sign_in_at: Some(now),
+            locked_until: None,
+            banned_at: None,
         };
 
         let federation = FederatedIdentity {

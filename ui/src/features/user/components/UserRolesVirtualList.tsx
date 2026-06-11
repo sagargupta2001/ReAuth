@@ -63,7 +63,7 @@ export function UserRolesVirtualList({
 
   return (
     <div className="bg-table-background min-w-0 overflow-hidden rounded-2xl p-2">
-      <div className="text-muted-foreground grid min-w-176 grid-cols-[2.25rem_minmax(10rem,1fr)_8rem_5rem] items-center gap-3  px-3 py-2 text-xs font-medium">
+      <div className="text-muted-foreground grid min-w-176 grid-cols-[2.25rem_minmax(10rem,1fr)_8rem_5rem] items-center gap-3  px-4 py-2 text-xs font-medium">
         <Checkbox
           checked={selectionState}
           disabled={!roles.length}
@@ -123,7 +123,7 @@ export function UserRolesVirtualList({
                 >
                   <div
                     className={cn(
-                      'grid h-14 grid-cols-[2.25rem_minmax(10rem,1fr)_8rem_5rem] items-center gap-3 border-x border-b border-border/60 bg-background px-2 transition-colors',
+                      'grid h-14 grid-cols-[2.25rem_minmax(10rem,1fr)_8rem_5rem] items-center gap-3 border-x border-b border-border/60 bg-background px-4 transition-colors',
                       isFirstRole && 'rounded-t-2xl border-t',
                       isLastRole && 'rounded-b-2xl',
                       selected && 'bg-table-row-hover',

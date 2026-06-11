@@ -260,9 +260,36 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
             },
         ));
 
-    // 3. Write Permission
-    let write_routes = Router::new()
+    // 3. Delete Permission
+    let delete_routes = Router::new()
         .route("/", delete(user_handler::delete_users_handler))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::USER_DELETE)
+            },
+        ));
+
+    let lock_routes = Router::new()
+        .route("/{id}/lock", post(user_handler::lock_user_handler))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::USER_LOCK)
+            },
+        ));
+
+    let ban_routes = Router::new()
+        .route("/{id}/ban", post(user_handler::ban_user_handler))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::USER_BAN)
+            },
+        ));
+
+    // 4. Write Permission
+    let write_routes = Router::new()
         .route("/{id}", put(user_handler::update_user_handler))
         .route("/{id}", get(user_handler::get_user_handler))
         .route(
@@ -357,7 +384,12 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
         ));
 
     // Merge them all
-    base_routes.merge(read_routes).merge(write_routes)
+    base_routes
+        .merge(read_routes)
+        .merge(delete_routes)
+        .merge(lock_routes)
+        .merge(ban_routes)
+        .merge(write_routes)
 }
 
 fn protected_invitation_routes(state: AppState) -> Router<AppState> {

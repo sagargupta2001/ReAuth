@@ -15,6 +15,8 @@ export interface User {
   created_at?: string
   updated_at?: string | null
   last_sign_in_at?: string | null
+  locked_until?: string | null
+  banned_at?: string | null
 }
 
 export interface UserEmail {
