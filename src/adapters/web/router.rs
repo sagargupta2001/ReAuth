@@ -557,12 +557,20 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             delete(rbac_handler::remove_composite_role_handler),
         )
         .route(
+            "/roles/{id}/composites/bulk",
+            post(rbac_handler::bulk_composites_handler),
+        )
+        .route(
             "/roles/{id}/members",
             get(rbac_handler::list_role_members_handler),
         )
         .route(
             "/roles/{id}/members/list",
             get(rbac_handler::list_role_members_page_handler),
+        )
+        .route(
+            "/roles/{id}/members/bulk",
+            post(rbac_handler::bulk_role_members_handler),
         )
         .route(
             "/roles/{id}/permissions/bulk",

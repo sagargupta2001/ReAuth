@@ -100,11 +100,10 @@ export function useManageRoleMembers(roleId: string) {
 
   const bulkAddMutation = useMutation({
     mutationFn: async (userIds: string[]) => {
-      await Promise.all(
-        userIds.map((userId) =>
-          apiClient.post(`/api/realms/${realm}/users/${userId}/roles`, { role_id: roleId }),
-        ),
-      )
+      return apiClient.post(`/api/realms/${realm}/rbac/roles/${roleId}/members/bulk`, {
+        user_ids: userIds,
+        action: 'add',
+      })
     },
     onSuccess: (_, userIds) => {
       queryClient.setQueryData(queryKey, (old: string[] = []) => {
@@ -120,11 +119,10 @@ export function useManageRoleMembers(roleId: string) {
 
   const bulkRemoveMutation = useMutation({
     mutationFn: async (userIds: string[]) => {
-      await Promise.all(
-        userIds.map((userId) =>
-          apiClient.delete(`/api/realms/${realm}/users/${userId}/roles/${roleId}`),
-        ),
-      )
+      return apiClient.post(`/api/realms/${realm}/rbac/roles/${roleId}/members/bulk`, {
+        user_ids: userIds,
+        action: 'remove',
+      })
     },
     onSuccess: (_, userIds) => {
       queryClient.setQueryData(queryKey, (old: string[] = []) =>

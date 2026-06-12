@@ -781,3 +781,77 @@ pub async fn bulk_permissions_handler(
 
     Ok((StatusCode::OK, Json(json!({}))))
 }
+
+// POST /roles/:id/members/bulk
+pub async fn bulk_role_members_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+    Json(payload): Json<BulkRoleMembersPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let action = payload.action.clone();
+    let count = payload.user_ids.len();
+    state
+        .rbac_service
+        .bulk_update_role_members(realm.id, role_id, payload.user_ids, payload.action)
+        .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.member.bulk",
+        "role",
+        Some(role_id.to_string()),
+        json!({
+            "action": action,
+            "count": count,
+        }),
+    )
+    .await;
+
+    Ok((StatusCode::OK, Json(json!({ "count": count }))))
+}
+
+// POST /roles/:id/composites/bulk
+pub async fn bulk_composites_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+    Json(payload): Json<BulkCompositesPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let action = payload.action.clone();
+    let count = payload.role_ids.len();
+    state
+        .rbac_service
+        .bulk_update_role_composites(realm.id, role_id, payload.role_ids, payload.action)
+        .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.composite.bulk",
+        "role",
+        Some(role_id.to_string()),
+        json!({
+            "action": action,
+            "count": count,
+        }),
+    )
+    .await;
+
+    Ok((StatusCode::OK, Json(json!({ "count": count }))))
+}

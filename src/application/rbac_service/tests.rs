@@ -5278,3 +5278,263 @@ async fn group_lookup_failures_propagate_in_group_scoped_methods() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn bulk_update_role_members_add_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_a = Uuid::new_v4();
+    let user_b = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    harness
+        .service
+        .bulk_update_role_members(realm_id, role_id, vec![user_a, user_b], "add".to_string())
+        .await
+        .expect("bulk add members");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    for user_id in [user_a, user_b] {
+        let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRoleAssigned(UserRoleChanged { user_id: uid, role_id: rid }) if *uid == user_id && *rid == role_id));
+        assert!(has_event, "expected UserRoleAssigned event for {user_id}");
+    }
+}
+
+#[tokio::test]
+async fn bulk_update_role_members_remove_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    harness
+        .service
+        .bulk_update_role_members(realm_id, role_id, vec![user_id], "remove".to_string())
+        .await
+        .expect("bulk remove members");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRoleRemoved(UserRoleChanged { user_id: uid, role_id: rid }) if *uid == user_id && *rid == role_id));
+    assert!(has_event, "expected UserRoleRemoved event");
+}
+
+#[tokio::test]
+async fn bulk_update_role_members_rejects_invalid_action() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_role_members(
+            realm_id,
+            role_id,
+            vec![Uuid::new_v4()],
+            "invalid".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_role_members_rejects_cross_realm() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let other_realm = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_role_members(other_realm, role_id, vec![Uuid::new_v4()], "add".to_string())
+        .await;
+
+    assert!(matches!(result, Err(Error::SecurityViolation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_role_composites_add_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+    let child_a = Uuid::new_v4();
+    let child_b = Uuid::new_v4();
+
+    for (id, name) in [(parent_role_id, "parent"), (child_a, "child-a"), (child_b, "child-b")] {
+        harness.repo.insert_role(Role {
+            id,
+            realm_id,
+            client_id: None,
+            name: name.to_string(),
+            description: None,
+            created_at: None,
+            user_count: None,
+            permission_count: None,
+        });
+    }
+
+    harness
+        .service
+        .bulk_update_role_composites(
+            realm_id,
+            parent_role_id,
+            vec![child_a, child_b],
+            "add".to_string(),
+        )
+        .await
+        .expect("bulk add composites");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    for child_role_id in [child_a, child_b] {
+        let has_event = events.iter().any(|event| match event {
+            DomainEvent::RoleCompositeChanged(payload) => {
+                payload.parent_role_id == parent_role_id
+                    && payload.child_role_id == child_role_id
+                    && payload.action == "assigned"
+            }
+            _ => false,
+        });
+        assert!(has_event, "expected RoleCompositeChanged assigned event for {child_role_id}");
+    }
+}
+
+#[tokio::test]
+async fn bulk_update_role_composites_rejects_invalid_action() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: parent_role_id,
+        realm_id,
+        client_id: None,
+        name: "parent".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_role_composites(
+            realm_id,
+            parent_role_id,
+            vec![Uuid::new_v4()],
+            "invalid".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_role_composites_rejects_self_reference() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: parent_role_id,
+        realm_id,
+        client_id: None,
+        name: "parent".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_role_composites(
+            realm_id,
+            parent_role_id,
+            vec![parent_role_id],
+            "add".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_role_composites_rejects_cycle() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+    let child_role_id = Uuid::new_v4();
+
+    for (id, name) in [(parent_role_id, "parent"), (child_role_id, "child")] {
+        harness.repo.insert_role(Role {
+            id,
+            realm_id,
+            client_id: None,
+            name: name.to_string(),
+            description: None,
+            created_at: None,
+            user_count: None,
+            permission_count: None,
+        });
+    }
+    harness.repo.set_role_descendant(true);
+
+    let result = harness
+        .service
+        .bulk_update_role_composites(
+            realm_id,
+            parent_role_id,
+            vec![child_role_id],
+            "add".to_string(),
+        )
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => assert!(message.contains("create a cycle")),
+        other => panic!("expected validation error, got {other:?}"),
+    }
+}
