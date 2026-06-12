@@ -15,10 +15,10 @@ export const roleColumns: ColumnDef<Role>[] = [
       const description = row.original.description
 
       return (
-        <div className="flex min-w-0 items-start gap-2">
-          <Shield className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" />
+        <div className="flex min-w-0 items-center gap-2">
+          <Shield className="text-muted-foreground h-4 w-4 shrink-0" />
           <div className="flex min-w-0 flex-col">
-            <span className="truncate font-medium text-foreground">{name}</span>
+            <span className="text-foreground truncate font-medium">{name}</span>
             <span className="text-muted-foreground truncate text-xs">
               {description || 'No description'}
             </span>
@@ -69,7 +69,11 @@ export const roleColumns: ColumnDef<Role>[] = [
     cell: ({ row }) => {
       const value = row.original.created_at
       if (!value) return <span className="text-muted-foreground text-sm">-</span>
-      return <span className="text-muted-foreground text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>
+      return (
+        <span className="text-muted-foreground text-sm">
+          {format(new Date(value), 'MMM d, yyyy')}
+        </span>
+      )
     },
     enableSorting: true,
     size: 140,

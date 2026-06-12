@@ -70,6 +70,18 @@ pub struct GroupDeleteSummary {
 }
 
 #[derive(Debug, Serialize, Clone)]
+pub struct RoleDeleteSummary {
+    pub role_id: Uuid,
+    pub name: String,
+    pub direct_user_count: i64,
+    pub effective_user_count: i64,
+    pub group_count: i64,
+    pub parent_role_count: i64,
+    pub child_role_count: i64,
+    pub permission_count: i64,
+}
+
+#[derive(Debug, Serialize, Clone)]
 pub struct CustomPermission {
     pub id: Uuid,
     pub realm_id: Uuid,

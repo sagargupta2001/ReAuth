@@ -52,8 +52,9 @@ Then load the relevant `docs/memory/` files for the area you are changing.
 
 ## Working Rules
 
-- Prefer specs for any meaningful feature or behavior change. Create or update the relevant file in `docs/specs/`.
-- Implement the smallest coherent vertical slice that satisfies the spec.
+- Use specs for large feature slices, breaking changes, major domain/API/persistence changes, and new auth or protocol capabilities.
+- Small enhancements, local UI changes, and bug fixes do not need a new spec unless they change product contracts or fit an existing active spec.
+- When a spec is needed, implement the smallest coherent vertical slice that satisfies it.
 - Add or update tests with each change.
 - If you change architecture, flows, or developer workflow, update the relevant `docs/memory/` or `docs/agent/` file.
 - Treat `docs/agent/` as the execution workflow, `docs/memory/` as deeper system context, and `docs/specs/` as feature-level build contracts.

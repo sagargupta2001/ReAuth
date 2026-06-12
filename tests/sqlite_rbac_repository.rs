@@ -585,6 +585,12 @@ async fn membership_and_composites_queries() -> Result<()> {
     let role_count = repo.count_role_ids_in_groups(&[g1.id]).await?;
     assert_eq!(role_count, 1);
 
+    let group_count_for_role = repo.count_group_ids_for_role(&r2.id).await?;
+    assert_eq!(group_count_for_role, 1);
+
+    let parent_role_count = repo.count_parent_role_ids_for_role(&r3.id).await?;
+    assert_eq!(parent_role_count, 1);
+
     let direct_role_ids = repo.find_direct_role_ids_for_user(&u1).await?;
     assert_eq!(direct_role_ids, vec![r1.id]);
 

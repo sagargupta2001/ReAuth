@@ -17,7 +17,7 @@ Use this guide when the task changes docs, developer workflow, or project memory
 - Update `docs/memory/` when durable architecture, domain concepts, or subsystem behavior changes.
 - Update `docs/memory/adr/` when a significant decision is locked.
 - Update `docs/memory/roadmaps/` when strategic sequencing, milestones, or dependencies change.
-- Update `docs/specs/` when a feature's scope, rules, or acceptance changes.
+- Update `docs/specs/` when large feature scope, breaking behavior, product contracts, or acceptance criteria change.
 - Update the relevant README indexes when files are added, removed, or renamed.
 
 ## Anti-Duplication Rules

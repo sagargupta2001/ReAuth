@@ -1,9 +1,6 @@
 import { Shield } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Badge } from '@/components/badge'
-import { Button } from '@/components/button'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import type { Role } from '@/features/roles/api/useRoles.ts'
 
 interface RoleHeaderProps {
@@ -11,15 +8,8 @@ interface RoleHeaderProps {
 }
 
 export function RoleHeader({ role }: RoleHeaderProps) {
-  const navigate = useRealmNavigate()
-
-  const copyId = () => {
-    void navigator.clipboard.writeText(role.id)
-    toast.success('Role ID copied')
-  }
-
   return (
-    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between px-6 backdrop-blur">
+    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center px-6 backdrop-blur">
       <div className="flex items-center gap-4">
         <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
           <Shield className="text-primary h-5 w-5" />
@@ -38,19 +28,10 @@ export function RoleHeader({ role }: RoleHeaderProps) {
               </Badge>
             )}
           </div>
-          <div className="text-muted-foreground flex items-center gap-1 text-xs">
-            <span>ID:</span>
-            <button onClick={copyId} className="hover:text-foreground font-mono hover:underline">
-              {role.id.slice(0, 8)}...
-            </button>
-          </div>
+          {role.description ? (
+            <span className="text-muted-foreground truncate text-sm">{role.description}</span>
+          ) : null}
         </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Button variant="outline" onClick={() => navigate('/roles')} size="sm">
-          Back
-        </Button>
       </div>
     </header>
   )

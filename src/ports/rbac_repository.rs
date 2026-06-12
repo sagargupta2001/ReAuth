@@ -159,6 +159,8 @@ pub trait RbacRepository: Send + Sync {
     async fn find_effective_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn count_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64>;
     async fn count_role_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64>;
+    async fn count_group_ids_for_role(&self, role_id: &Uuid) -> Result<i64>;
+    async fn count_parent_role_ids_for_role(&self, role_id: &Uuid) -> Result<i64>;
     async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn find_effective_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>>;

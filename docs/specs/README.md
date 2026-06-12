@@ -36,7 +36,6 @@ Each spec should define:
 - `magic-link-builtins.md`
 - `oauth-inbound-identity-brokering.md`
 - `passkey-first-auth.md`
-- `roles-table-create-dialog.md`
 - `spec-template.md`
 - `user-admin-actions.md`
 - `user-invitations.md`
@@ -46,4 +45,4 @@ Each spec should define:
 
 ## Rule
 
-If a change materially affects business rules, APIs, domain models, flows, or persistence, it should have a spec.
+Use specs for large feature slices, breaking changes, major domain/API/persistence changes, and new auth or protocol capabilities. Small enhancements, local UI changes, and bug fixes do not need a new spec unless they change product contracts or fit an existing active spec.

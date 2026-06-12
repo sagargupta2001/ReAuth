@@ -149,6 +149,8 @@ struct TestRbacRepo {
     next_group_sort_order: Mutex<i64>,
     count_user_ids_in_groups_result: Mutex<i64>,
     count_role_ids_in_groups_result: Mutex<i64>,
+    count_group_ids_for_role_result: Mutex<i64>,
+    count_parent_role_ids_for_role_result: Mutex<i64>,
     list_roles_result: Mutex<PageResponse<Role>>,
     list_client_roles_result: Mutex<PageResponse<Role>>,
     list_groups_result: Mutex<PageResponse<Group>>,
@@ -198,6 +200,8 @@ impl Default for TestRbacRepo {
             next_group_sort_order: Mutex::new(0),
             count_user_ids_in_groups_result: Mutex::new(0),
             count_role_ids_in_groups_result: Mutex::new(0),
+            count_group_ids_for_role_result: Mutex::new(0),
+            count_parent_role_ids_for_role_result: Mutex::new(0),
             list_roles_result: Mutex::new(Self::empty_page()),
             list_client_roles_result: Mutex::new(Self::empty_page()),
             list_groups_result: Mutex::new(Self::empty_page()),
@@ -261,6 +265,14 @@ impl TestRbacRepo {
 
     fn set_count_role_ids_in_groups_result(&self, value: i64) {
         *self.count_role_ids_in_groups_result.lock().unwrap() = value;
+    }
+
+    fn set_count_group_ids_for_role_result(&self, value: i64) {
+        *self.count_group_ids_for_role_result.lock().unwrap() = value;
+    }
+
+    fn set_count_parent_role_ids_for_role_result(&self, value: i64) {
+        *self.count_parent_role_ids_for_role_result.lock().unwrap() = value;
     }
 
     fn set_group_children(&self, parent_id: Option<Uuid>, children: Vec<Uuid>) {
@@ -830,6 +842,16 @@ impl RbacRepository for TestRbacRepo {
     async fn count_role_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64> {
         self.maybe_fail("count_role_ids_in_groups")?;
         Ok(*self.count_role_ids_in_groups_result.lock().unwrap())
+    }
+
+    async fn count_group_ids_for_role(&self, _role_id: &Uuid) -> Result<i64> {
+        self.maybe_fail("count_group_ids_for_role")?;
+        Ok(*self.count_group_ids_for_role_result.lock().unwrap())
+    }
+
+    async fn count_parent_role_ids_for_role(&self, _role_id: &Uuid) -> Result<i64> {
+        self.maybe_fail("count_parent_role_ids_for_role")?;
+        Ok(*self.count_parent_role_ids_for_role_result.lock().unwrap())
     }
 
     async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
@@ -1743,6 +1765,54 @@ async fn delete_role_publishes_event_with_affected_users() {
     });
 
     assert!(has_event, "expected RoleDeleted event");
+}
+
+#[tokio::test]
+async fn get_role_delete_summary_returns_assignment_impact() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let direct_users = vec![Uuid::new_v4(), Uuid::new_v4()];
+    let effective_users = vec![direct_users[0], direct_users[1], Uuid::new_v4()];
+    let child_roles = vec![Uuid::new_v4(), Uuid::new_v4()];
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+    harness
+        .repo
+        .set_find_direct_user_ids_for_role(role_id, direct_users);
+    harness
+        .repo
+        .set_find_user_ids_for_role(role_id, effective_users);
+    harness.repo.set_count_group_ids_for_role_result(4);
+    harness.repo.set_count_parent_role_ids_for_role_result(1);
+    harness.repo.set_list_role_composite_ids(role_id, child_roles);
+    harness
+        .repo
+        .set_get_permissions_for_role_result(vec!["users:read".into(), "users:write".into()]);
+
+    let summary = harness
+        .service
+        .get_role_delete_summary(realm_id, role_id)
+        .await
+        .expect("role delete summary");
+
+    assert_eq!(summary.role_id, role_id);
+    assert_eq!(summary.name, "admin");
+    assert_eq!(summary.direct_user_count, 2);
+    assert_eq!(summary.effective_user_count, 3);
+    assert_eq!(summary.group_count, 4);
+    assert_eq!(summary.parent_role_count, 1);
+    assert_eq!(summary.child_role_count, 2);
+    assert_eq!(summary.permission_count, 2);
 }
 
 #[tokio::test]

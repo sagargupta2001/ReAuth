@@ -23,6 +23,8 @@ export const queryKeys = {
   identityProviderPresets: (realm?: string) =>
     realm ? (['identity-provider-presets', realm] as const) : (['identity-provider-presets'] as const),
   role: (realm: string, roleId: string) => ['role', realm, roleId] as const,
+  roleDeleteSummary: (realm: string, roleId: string) =>
+    ['role-delete-summary', realm, roleId] as const,
   roles: (realm: string, params?: unknown) =>
     params === undefined ? (['roles', realm] as const) : (['roles', realm, params] as const),
   group: (realm: string, groupId: string) => ['group', realm, groupId] as const,

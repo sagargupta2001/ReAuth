@@ -3,7 +3,7 @@ use super::{CreateCustomPermissionPayload, CreateRolePayload, UpdateCustomPermis
 use crate::domain::events::DomainEvent;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::permissions;
-use crate::domain::rbac::CustomPermission;
+use crate::domain::rbac::{CustomPermission, RoleDeleteSummary};
 use crate::domain::role::Role;
 use crate::error::{Error, Result};
 use uuid::Uuid;
@@ -68,6 +68,47 @@ impl RbacService {
         }
 
         Ok(role)
+    }
+
+    pub async fn get_role_delete_summary(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<RoleDeleteSummary> {
+        let role = self.get_role(realm_id, role_id).await?;
+        let direct_user_count = self
+            .rbac_repo
+            .find_direct_user_ids_for_role(&role_id)
+            .await?
+            .len() as i64;
+        let effective_user_count =
+            self.rbac_repo.find_user_ids_for_role(&role_id).await?.len() as i64;
+        let group_count = self.rbac_repo.count_group_ids_for_role(&role_id).await?;
+        let parent_role_count = self
+            .rbac_repo
+            .count_parent_role_ids_for_role(&role_id)
+            .await?;
+        let child_role_count = self
+            .rbac_repo
+            .list_role_composite_ids(&role_id)
+            .await?
+            .len() as i64;
+        let permission_count = self
+            .rbac_repo
+            .get_permissions_for_role(&role_id)
+            .await?
+            .len() as i64;
+
+        Ok(RoleDeleteSummary {
+            role_id,
+            name: role.name,
+            direct_user_count,
+            effective_user_count,
+            group_count,
+            parent_role_count,
+            child_role_count,
+            permission_count,
+        })
     }
 
     pub async fn update_role(

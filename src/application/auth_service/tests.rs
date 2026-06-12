@@ -278,6 +278,14 @@ impl RbacRepository for TestRbacRepo {
         Ok(0)
     }
 
+    async fn count_group_ids_for_role(&self, _role_id: &Uuid) -> Result<i64> {
+        Ok(0)
+    }
+
+    async fn count_parent_role_ids_for_role(&self, _role_id: &Uuid) -> Result<i64> {
+        Ok(0)
+    }
+
     async fn find_direct_role_ids_for_user(&self, _user_id: &Uuid) -> Result<Vec<Uuid>> {
         Ok(Vec::new())
     }

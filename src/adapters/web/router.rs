@@ -569,6 +569,10 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             post(rbac_handler::bulk_permissions_handler), // [NEW] Bulk
         )
         .route(
+            "/roles/{id}/delete-summary",
+            get(rbac_handler::get_role_delete_summary_handler),
+        )
+        .route(
             "/groups",
             post(rbac_handler::create_group_handler).get(rbac_handler::list_groups_handler),
         )

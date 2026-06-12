@@ -385,6 +385,24 @@ pub async fn delete_role_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn get_role_delete_summary_handler(
+    State(state): State<AppState>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let summary = state
+        .rbac_service
+        .get_role_delete_summary(realm.id, role_id)
+        .await?;
+
+    Ok((StatusCode::OK, Json(summary)))
+}
+
 pub async fn get_role_handler(
     State(state): State<AppState>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,

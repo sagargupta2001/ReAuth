@@ -48,7 +48,7 @@ export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
   useFormPersistence(form, onSubmit, mutation.isPending)
 
   return (
-    <div className="max-w-4xl space-y-6 p-6">
+    <div className="max-w-4xl space-y-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>

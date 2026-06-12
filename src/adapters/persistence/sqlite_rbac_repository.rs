@@ -1754,6 +1754,30 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(count)
     }
 
+    async fn count_group_ids_for_role(&self, role_id: &Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT group_id) FROM group_roles WHERE role_id = ?",
+        )
+        .bind(role_id.to_string())
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(count)
+    }
+
+    async fn count_parent_role_ids_for_role(&self, role_id: &Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT parent_role_id) FROM role_composite_roles WHERE child_role_id = ?",
+        )
+        .bind(role_id.to_string())
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(count)
+    }
+
     async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
         let rows: Vec<(String,)> =
             sqlx::query_as("SELECT role_id FROM user_roles WHERE user_id = ?")
