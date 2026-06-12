@@ -417,6 +417,10 @@ impl LifecycleNode for PasswordAuthenticator {
             }
         };
 
+        if let Some(reason) = user.sign_in_block_reason(Utc::now()) {
+            return self.reject_auth(_session, username, reason).await;
+        }
+
         if user.password_login_disabled {
             return self
                 .reject_auth(

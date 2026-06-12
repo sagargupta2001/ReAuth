@@ -37,6 +37,7 @@ Each spec should define:
 - `oauth-inbound-identity-brokering.md`
 - `passkey-first-auth.md`
 - `spec-template.md`
+- `user-admin-actions.md`
 - `user-invitations.md`
 - `user-profile-metadata.md`
 - `user-profile-phone-numbers.md`

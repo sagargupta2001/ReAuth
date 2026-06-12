@@ -503,6 +503,8 @@ async fn import_new_user(
         created_at: Some(chrono::Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     };
 
     if let Some(tx) = tx {

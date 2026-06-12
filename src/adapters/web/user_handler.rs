@@ -101,6 +101,20 @@ impl UserResponse {
     }
 }
 
+async fn user_response_from_user(state: &AppState, user: User) -> Result<UserResponse> {
+    let emails = state
+        .user_email_service
+        .list_emails(user.id)
+        .await
+        .unwrap_or_default();
+    let phone_numbers = state
+        .user_phone_number_service
+        .list_phone_numbers(user.id)
+        .await
+        .unwrap_or_default();
+    Ok(UserResponse::new_admin(user, emails, phone_numbers))
+}
+
 // ---------------------------------------------------------------------------
 // Create user
 // ---------------------------------------------------------------------------
@@ -432,19 +446,9 @@ pub async fn get_user_handler(
         .ok_or(Error::RealmNotFound(realm_name))?;
 
     let user = state.user_service.get_user_in_realm(realm.id, id).await?;
-    let emails = state
-        .user_email_service
-        .list_emails(user.id)
-        .await
-        .unwrap_or_default();
-    let phone_numbers = state
-        .user_phone_number_service
-        .list_phone_numbers(user.id)
-        .await
-        .unwrap_or_default();
     Ok((
         StatusCode::OK,
-        Json(UserResponse::new_admin(user, emails, phone_numbers)),
+        Json(user_response_from_user(&state, user).await?),
     ))
 }
 
@@ -568,6 +572,67 @@ pub async fn delete_users_handler(
     ))
 }
 
+pub async fn lock_user_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(current_user)): Extension<AuthUser>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    if current_user.id == id {
+        return Err(Error::Validation(
+            "You cannot lock your own account.".to_string(),
+        ));
+    }
+
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let user = state
+        .user_service
+        .lock_user(realm.id, id, realm.lockout_duration_secs)
+        .await?;
+    state
+        .session_repo
+        .revoke_all_for_user(&realm.id, &id)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(user_response_from_user(&state, user).await?),
+    ))
+}
+
+pub async fn ban_user_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(current_user)): Extension<AuthUser>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    if current_user.id == id {
+        return Err(Error::Validation(
+            "You cannot ban your own account.".to_string(),
+        ));
+    }
+
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let user = state.user_service.ban_user(realm.id, id).await?;
+    state
+        .session_repo
+        .revoke_all_for_user(&realm.id, &id)
+        .await?;
+
+    Ok((
+        StatusCode::OK,
+        Json(user_response_from_user(&state, user).await?),
+    ))
+}
+
 // ---------------------------------------------------------------------------
 // Update user profile (username only; emails go through /emails sub-resource)
 // ---------------------------------------------------------------------------
@@ -613,19 +678,9 @@ pub async fn update_user_handler(
         )
         .await?;
 
-    let emails = state
-        .user_email_service
-        .list_emails(user.id)
-        .await
-        .unwrap_or_default();
-    let phone_numbers = state
-        .user_phone_number_service
-        .list_phone_numbers(user.id)
-        .await
-        .unwrap_or_default();
     Ok((
         StatusCode::OK,
-        Json(UserResponse::new_admin(user, emails, phone_numbers)),
+        Json(user_response_from_user(&state, user).await?),
     ))
 }
 

@@ -40,6 +40,7 @@ Provide a single, code-aligned reference for how RBAC entities relate, how permi
 - Permission keys must be namespaced (e.g., `billing:invoices:read`).
 - Wildcard `*` is reserved for system usage.
 - System permissions are defined in `domain/permissions.rs` and are not stored in DB.
+- High-risk user actions use dedicated system permissions: `user:delete`, `user:lock`, and `user:ban`.
 - Custom permissions are exposed in the UI under a “Custom Permissions” group.
 
 ## Caching

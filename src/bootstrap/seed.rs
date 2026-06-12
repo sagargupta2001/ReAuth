@@ -20,6 +20,7 @@ use crate::application::realm_service::UpdateRealmPayload;
 use crate::application::theme_service::ThemeResolverService;
 use crate::application::user_service::UserService;
 use crate::config::Settings;
+use crate::domain::permissions;
 use crate::domain::realm::Realm;
 use crate::ports::flow_repository::FlowRepository;
 use crate::ports::flow_store::FlowStore;
@@ -44,7 +45,7 @@ pub async fn seed_database(
     flow_manager: &Arc<FlowManager>,
     settings: &Settings,
     oidc_service: &Arc<OidcService>,
-    _rbac_service: &Arc<RbacService>,
+    rbac_service: &Arc<RbacService>,
     theme_service: &Arc<ThemeResolverService>,
     harbor_service: &Arc<HarborService>,
 ) -> anyhow::Result<()> {
@@ -55,6 +56,7 @@ pub async fn seed_database(
         flow_manager,
         settings,
         oidc_service,
+        rbac_service,
         theme_service,
         harbor_service,
     };
@@ -62,6 +64,7 @@ pub async fn seed_database(
     let mut state = SeedState::default();
     let seeders: Vec<Box<dyn Seeder>> = vec![
         Box::new(RealmSeeder),
+        Box::new(SuperAdminPermissionsSeeder),
         Box::new(HarborBundleSeeder),
         Box::new(FlowsSeeder),
         Box::new(ThemeSeeder),
@@ -164,6 +167,7 @@ trait Seeder: Send + Sync {
 }
 
 struct RealmSeeder;
+struct SuperAdminPermissionsSeeder;
 struct HarborBundleSeeder;
 struct FlowsSeeder;
 struct ThemeSeeder;
@@ -195,6 +199,53 @@ impl Seeder for RealmSeeder {
     ) -> anyhow::Result<()> {
         let realm = realm::ensure_default_realm(ctx).await?;
         state.set_realm(realm);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl Seeder for SuperAdminPermissionsSeeder {
+    fn name(&self) -> &'static str {
+        "super_admin_permissions"
+    }
+
+    fn version(&self) -> i32 {
+        1
+    }
+
+    fn always_run(&self) -> bool {
+        true
+    }
+
+    fn checksum(&self, _ctx: &SeedContext<'_>) -> String {
+        "user_delete_lock_ban_v1".to_string()
+    }
+
+    async fn run(
+        &self,
+        ctx: &SeedContext<'_>,
+        state: &mut SeedState,
+        _tx: &mut Option<&mut dyn Transaction>,
+    ) -> anyhow::Result<()> {
+        let realm = state.require_realm()?;
+        let Some(role) = ctx
+            .rbac_service
+            .find_role_by_name(realm.id, "super_admin")
+            .await?
+        else {
+            return Ok(());
+        };
+
+        for permission in [
+            permissions::USER_DELETE,
+            permissions::USER_LOCK,
+            permissions::USER_BAN,
+        ] {
+            let _ = ctx
+                .rbac_service
+                .assign_permission_to_role(realm.id, role.id, permission.to_string())
+                .await;
+        }
         Ok(())
     }
 }

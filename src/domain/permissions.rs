@@ -14,6 +14,8 @@ pub const CLIENT_DELETE: &str = "client:delete";
 pub const USER_READ: &str = "user:read";
 pub const USER_WRITE: &str = "user:write";
 pub const USER_DELETE: &str = "user:delete";
+pub const USER_LOCK: &str = "user:lock";
+pub const USER_BAN: &str = "user:ban";
 pub const USER_IMPERSONATE: &str = "user:impersonate"; // High privilege
 
 pub const RBAC_READ: &str = "rbac:read";
@@ -110,6 +112,16 @@ pub fn get_system_permissions() -> Vec<ResourceGroup> {
                     "Update profiles, reset passwords.",
                 ),
                 p(USER_DELETE, "Delete Users", "Remove users permanently."),
+                p(
+                    USER_LOCK,
+                    "Lock Users",
+                    "Temporarily block users from signing in.",
+                ),
+                p(
+                    USER_BAN,
+                    "Ban Users",
+                    "Indefinitely block users from signing in.",
+                ),
                 p(
                     USER_IMPERSONATE,
                     "Impersonate",

@@ -10,7 +10,10 @@ Source of truth: `migrations/20251214045651_initial_schema.sql` and subsequent m
 - Flow bindings: `browser_flow_id`, `registration_flow_id`, `direct_grant_flow_id`, `reset_credentials_flow_id`
 
 ### users
-- `id`, `realm_id`, `username`, `first_name`, `last_name`, `hashed_password`, `created_at`, `updated_at`, `last_sign_in_at`
+- `id`, `realm_id`, `username`, `first_name`, `last_name`, `hashed_password`, `created_at`, `updated_at`, `last_sign_in_at`, `locked_until`, `banned_at`
+- Access status:
+  - `locked_until`: temporary admin lock timestamp; future values block sign-in.
+  - `banned_at`: indefinite admin ban timestamp; non-null values block sign-in.
 - Metadata JSON text columns:
   - `public_metadata_json`: authenticated frontend-safe and backend/admin-readable user metadata.
   - `private_metadata_json`: backend/admin-only metadata; current v1 redaction is handled in the application response layer to allow future granular permissions.

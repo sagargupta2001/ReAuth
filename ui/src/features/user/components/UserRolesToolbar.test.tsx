@@ -24,27 +24,23 @@ function StatefulToolbar({
       }}
       filterValue="all"
       onFilterChange={onFilterChange}
-      loadedCount={0}
-      totalCount={0}
     />
   )
 }
 
 describe('UserRolesToolbar', () => {
-  it('renders a full-width search input with loaded role count', () => {
+  it('renders the search input and access filter', () => {
     render(
       <UserRolesToolbar
         searchValue=""
         onSearchChange={vi.fn()}
         filterValue="all"
         onFilterChange={vi.fn()}
-        loadedCount={25}
-        totalCount={80}
       />,
     )
 
-    expect(screen.getByText('25 of 80 roles')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Search...')).toHaveClass('pl-10')
+    expect(screen.getByRole('button', { name: /filter roles by assignment/i })).toBeInTheDocument()
   })
 
   it('emits search and single access filter changes', async () => {

@@ -123,6 +123,8 @@ impl UserService {
             created_at: Some(Utc::now()),
             updated_at: Some(Utc::now()),
             last_sign_in_at: None,
+            locked_until: None,
+            banned_at: None,
         };
 
         let event = DomainEvent::UserCreated(UserCreated {
@@ -378,6 +380,28 @@ impl UserService {
             self.user_repo.update(&user, None).await?;
         }
 
+        Ok(user)
+    }
+
+    pub async fn lock_user(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        duration_secs: i64,
+    ) -> Result<User> {
+        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+        let duration_secs = duration_secs.max(1);
+        user.locked_until = Some(Utc::now() + chrono::Duration::seconds(duration_secs));
+        user.updated_at = Some(Utc::now());
+        self.user_repo.update(&user, None).await?;
+        Ok(user)
+    }
+
+    pub async fn ban_user(&self, realm_id: Uuid, user_id: Uuid) -> Result<User> {
+        let mut user = self.get_user_in_realm(realm_id, user_id).await?;
+        user.banned_at = Some(Utc::now());
+        user.updated_at = Some(Utc::now());
+        self.user_repo.update(&user, None).await?;
         Ok(user)
     }
 

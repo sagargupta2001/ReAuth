@@ -11,7 +11,7 @@ export function UserRoleAccessBadge({ role }: UserRoleAccessBadgeProps) {
   switch (accessType) {
     case 'direct':
       return (
-        <Badge variant="secondary" className="min-w-20 justify-center">
+        <Badge variant="secondary" className="w-20 justify-center">
           Direct
         </Badge>
       )
@@ -22,6 +22,8 @@ export function UserRoleAccessBadge({ role }: UserRoleAccessBadgeProps) {
         </Badge>
       )
     case 'none':
-      return <span className="text-muted-foreground text-xs">-</span>
+      return (
+        <span className="text-muted-foreground inline-block w-20 text-center text-xs">-</span>
+      )
   }
 }

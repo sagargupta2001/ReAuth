@@ -43,7 +43,6 @@ export function UserRolesTab({ userId }: UserRolesTabProps) {
     () => rolesPage?.pages.flatMap((page) => page.data) ?? [],
     [rolesPage?.pages],
   )
-  const totalRoles = rolesPage?.pages[0]?.meta.total ?? 0
 
   const { addMutation, removeMutation, bulkAddMutation, bulkRemoveMutation } =
     useManageUserRoles(userId)
@@ -111,8 +110,6 @@ export function UserRolesTab({ userId }: UserRolesTabProps) {
         onSearchChange={setSearchTerm}
         filterValue={roleFilter}
         onFilterChange={setRoleFilter}
-        loadedCount={roles.length}
-        totalCount={totalRoles}
       />
 
       <UserRolesBulkActions

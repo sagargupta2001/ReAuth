@@ -44,6 +44,8 @@ fn user(id: Uuid, realm_id: Uuid, username: &str, hashed_password: &str) -> User
         created_at: Some(Utc::now()),
         updated_at: None,
         last_sign_in_at: None,
+        locked_until: None,
+        banned_at: None,
     }
 }
 

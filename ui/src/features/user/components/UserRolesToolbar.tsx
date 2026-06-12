@@ -23,8 +23,6 @@ interface UserRolesToolbarProps {
   onSearchChange: (value: string) => void
   filterValue: UserRoleFilter
   onFilterChange: (value: UserRoleFilter) => void
-  loadedCount: number
-  totalCount: number
 }
 
 export function UserRolesToolbar({
@@ -32,22 +30,15 @@ export function UserRolesToolbar({
   onSearchChange,
   filterValue,
   onFilterChange,
-  loadedCount,
-  totalCount,
 }: UserRolesToolbarProps) {
   const selectedFilter =
     userRoleFilterOptions.find((option) => option.value === filterValue) ?? userRoleFilterOptions[0]
 
   return (
     <div className="flex min-w-0 flex-col gap-3 px-1 pt-1">
-      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-        <p className="text-muted-foreground min-w-0 text-sm">
-          Direct roles are assigned here. Effective roles include group and composite access.
-        </p>
-        <Badge variant="outline" className="w-fit shrink-0">
-          {loadedCount} of {totalCount} roles
-        </Badge>
-      </div>
+      <p className="text-muted-foreground min-w-0 text-sm">
+        Direct roles are assigned here. Effective roles include group and composite access.
+      </p>
 
       <div className="flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center">
         <div className="relative min-w-0 sm:w-64 md:w-72">

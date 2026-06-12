@@ -43,6 +43,12 @@ pub struct User {
     #[sqlx(default)]
     pub updated_at: Option<DateTime<Utc>>,
     pub last_sign_in_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub locked_until: Option<DateTime<Utc>>,
+    #[serde(default)]
+    #[sqlx(default)]
+    pub banned_at: Option<DateTime<Utc>>,
 }
 
 impl User {
@@ -62,6 +68,8 @@ impl User {
             created_at: Some(Utc::now()),
             updated_at: Some(Utc::now()),
             last_sign_in_at: None,
+            locked_until: None,
+            banned_at: None,
         }
     }
 
@@ -73,6 +81,25 @@ impl User {
             return Err("Username must be at least 3 characters long".to_string());
         }
         Ok(())
+    }
+
+    pub fn is_banned(&self) -> bool {
+        self.banned_at.is_some()
+    }
+
+    pub fn is_locked_at(&self, now: DateTime<Utc>) -> bool {
+        self.locked_until
+            .is_some_and(|locked_until| locked_until > now)
+    }
+
+    pub fn sign_in_block_reason(&self, now: DateTime<Utc>) -> Option<&'static str> {
+        if self.is_banned() {
+            return Some("Account is banned.");
+        }
+        if self.is_locked_at(now) {
+            return Some("Account temporarily locked. Try again later.");
+        }
+        None
     }
 }
 
@@ -123,7 +150,8 @@ mod tests {
         let user: User = sqlx::query_as(
             "SELECT ? as id, ? as realm_id, ? as username, ? as first_name, ? as last_name, ? as hashed_password, \
              ? as force_password_reset, ? as password_login_disabled, \
-             ? as created_at, ? as updated_at, ? as last_sign_in_at",
+             ? as created_at, ? as updated_at, ? as last_sign_in_at, \
+             ? as locked_until, ? as banned_at",
         )
         .bind(id.to_string())
         .bind(realm_id.to_string())
@@ -133,6 +161,8 @@ mod tests {
         .bind("hash")
         .bind(false)
         .bind(false)
+        .bind(None::<DateTime<Utc>>)
+        .bind(None::<DateTime<Utc>>)
         .bind(None::<DateTime<Utc>>)
         .bind(None::<DateTime<Utc>>)
         .bind(None::<DateTime<Utc>>)
@@ -148,6 +178,8 @@ mod tests {
         assert!(!user.password_login_disabled);
         assert!(user.created_at.is_none());
         assert!(user.last_sign_in_at.is_none());
+        assert!(user.locked_until.is_none());
+        assert!(user.banned_at.is_none());
     }
 
     #[test]
@@ -167,6 +199,8 @@ mod tests {
             created_at: None,
             updated_at: None,
             last_sign_in_at: None,
+            locked_until: None,
+            banned_at: None,
         };
 
         let value = serde_json::to_value(&user).expect("serialize");
@@ -189,7 +223,9 @@ mod tests {
             "password_login_disabled": true,
             "created_at": null,
             "updated_at": null,
-            "last_sign_in_at": null
+            "last_sign_in_at": null,
+            "locked_until": null,
+            "banned_at": null
         });
 
         let user: User = serde_json::from_value(value).expect("deserialize");
@@ -202,6 +238,8 @@ mod tests {
         assert_eq!(user.hashed_password, "hash");
         assert!(user.force_password_reset);
         assert!(user.password_login_disabled);
+        assert_eq!(user.locked_until, None);
+        assert_eq!(user.banned_at, None);
     }
 
     #[test]
@@ -214,6 +252,8 @@ mod tests {
         assert_eq!(user.username, "bob");
         assert!(!user.force_password_reset);
         assert!(!user.password_login_disabled);
+        assert!(!user.is_banned());
+        assert!(!user.is_locked_at(Utc::now()));
     }
 
     #[test]
