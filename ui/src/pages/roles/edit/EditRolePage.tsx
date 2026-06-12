@@ -53,9 +53,7 @@ export function EditRolePage() {
 
   return (
     <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
-      <div className="shrink-0">
-        <RoleHeader role={role} />
-      </div>
+      <RoleHeader role={role} />
 
       <Tabs
         value={activeTab}
@@ -63,8 +61,8 @@ export function EditRolePage() {
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">
-          <TabsList className="gap-6 bg-transparent p-0">
-            <TabsTrigger value="settings" className="tab-trigger-styles">
+          <TabsList variant="line" className="gap-6 bg-transparent p-0">
+            <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
               <Settings className="mr-2 h-4 w-4" /> Settings
             </TabsTrigger>
 

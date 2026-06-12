@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useRoles } from '@/features/roles/api/useRoles.ts'
 import { roleColumns } from '@/features/roles/components/RoleColumns.tsx'
+import { RolesPrimaryButtons } from '@/features/roles/components/RolesPrimaryButtons'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
 import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
 
@@ -78,7 +79,7 @@ export function RolesTable({ clientId }: RolesTableProps) {
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-240px)]">
-        <DataTableSkeleton columnCount={3} rowCount={5} />
+        <DataTableSkeleton columnCount={5} rowCount={5} />
       </div>
     )
   }
@@ -93,9 +94,9 @@ export function RolesTable({ clientId }: RolesTableProps) {
       sorting={sorting}
       onSortingChange={handleSortingChange}
       searchKey="name"
-      searchPlaceholder="Filter roles..."
       searchValue={searchTerm}
       onSearch={handleSearch}
+      customToolbarButtons={!clientId ? <RolesPrimaryButtons /> : undefined}
       onRowClick={(role) => clientId ? navigate(`/clients/${clientId}/roles/${role.id}`) : navigate(`/roles/${role.id}`)}
     />
   )

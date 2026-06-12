@@ -271,7 +271,8 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             assignedPermissions.includes(id),
           ).length
           const isAllSelected = assignedCount === resourcePermIds.length && resourcePermIds.length > 0
-          const isIndeterminate = assignedCount > 0 && assignedCount < resourcePermIds.length
+          const isPartiallySelected = assignedCount > 0 && assignedCount < resourcePermIds.length
+          const nextBulkAction = isAllSelected ? 'remove' : 'add'
 
           return (
             <div
@@ -289,17 +290,44 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
                   </h3>
                   <p className="text-muted-foreground mt-1 text-sm">{resource.description}</p>
                 </div>
-                <div className="bg-muted/30 flex items-center space-x-2 rounded-md border px-3 py-1.5">
-                  <Checkbox
-                    id={`select-all-${resource.id}`}
-                    checked={isAllSelected ? true : isIndeterminate ? 'indeterminate' : false}
-                    onCheckedChange={(c) =>
-                      bulkMutation.mutate({ permissions: resourcePermIds, action: c ? 'add' : 'remove' })
+                <div className="bg-muted/30 flex items-center rounded-md border">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isAllSelected}
+                    aria-label={`${isAllSelected ? 'Clear' : 'Select'} all ${resource.label} permissions`}
+                    disabled={!resourcePermIds.length || bulkMutation.isPending}
+                    onClick={() =>
+                      bulkMutation.mutate({ permissions: resourcePermIds, action: nextBulkAction })
                     }
-                  />
-                  <label htmlFor={`select-all-${resource.id}`} className="cursor-pointer select-none text-sm font-medium">
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 text-sm font-medium transition-colors',
+                      'disabled:cursor-not-allowed disabled:opacity-50',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'border-primary grid h-4 w-4 place-items-center rounded-full border transition-colors',
+                        isAllSelected
+                          ? 'bg-primary text-primary-foreground'
+                          : isPartiallySelected
+                            ? 'bg-primary/20'
+                            : 'bg-background',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full transition-colors',
+                          isAllSelected
+                            ? 'bg-primary-foreground'
+                            : isPartiallySelected
+                              ? 'bg-primary'
+                              : 'bg-transparent',
+                        )}
+                      />
+                    </span>
                     Select All
-                  </label>
+                  </button>
                 </div>
               </div>
 

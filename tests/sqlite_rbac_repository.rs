@@ -39,6 +39,9 @@ fn role(id: Uuid, realm_id: Uuid, client_id: Option<Uuid>, name: &str) -> Role {
         client_id,
         name: name.to_string(),
         description: Some(format!("{} role", name)),
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     }
 }
 
@@ -129,6 +132,18 @@ async fn role_crud_and_listing() -> Result<()> {
 
     repo.create_role(&role_admin, None).await?;
     repo.create_role(&role_viewer, None).await?;
+    let user_one = Uuid::new_v4();
+    let user_two = Uuid::new_v4();
+    insert_user(&db.pool, user_one, realm_id, "role-user-one").await?;
+    insert_user(&db.pool, user_two, realm_id, "role-user-two").await?;
+    repo.assign_role_to_user(&user_one, &role_viewer.id, None)
+        .await?;
+    repo.assign_role_to_user(&user_two, &role_viewer.id, None)
+        .await?;
+    repo.assign_permission_to_role(&"perm.read".to_string(), &role_viewer.id, None)
+        .await?;
+    repo.assign_permission_to_role(&"perm.write".to_string(), &role_viewer.id, None)
+        .await?;
 
     let found = repo.find_role_by_id(&role_admin.id).await?;
     assert_eq!(found.unwrap().name, "admin");
@@ -140,6 +155,9 @@ async fn role_crud_and_listing() -> Result<()> {
     let page = repo.list_roles(&realm_id, &req).await?;
     assert_eq!(page.meta.total, 1);
     assert_eq!(page.data[0].id, role_viewer.id);
+    assert!(page.data[0].created_at.is_some());
+    assert_eq!(page.data[0].user_count, Some(2));
+    assert_eq!(page.data[0].permission_count, Some(2));
 
     let mut updated = role_viewer.clone();
     updated.name = "viewer-updated".to_string();

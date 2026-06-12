@@ -26,6 +26,9 @@ impl RbacService {
             client_id: payload.client_id,
             name: payload.name,
             description: payload.description,
+            created_at: None,
+            user_count: None,
+            permission_count: None,
         };
         self.rbac_repo.create_role(&role, None).await?;
         Ok(role)

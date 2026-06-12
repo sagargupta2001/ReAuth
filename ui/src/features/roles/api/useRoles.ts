@@ -13,6 +13,7 @@ export interface Role {
   description?: string
   created_at?: string
   user_count?: number
+  permission_count?: number
 }
 
 export interface RoleSearchParams {

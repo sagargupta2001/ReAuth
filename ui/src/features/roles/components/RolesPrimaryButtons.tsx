@@ -1,15 +1,13 @@
-import { Plus } from 'lucide-react'
+import { CreateRoleDialog } from '@/features/roles/components/CreateRoleDialog'
 
-import { Button } from '@/shared/ui/button.tsx'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+interface RolesPrimaryButtonsProps {
+  clientId?: string
+}
 
-export function RolesPrimaryButtons() {
-  const navigate = useRealmNavigate()
+export function RolesPrimaryButtons({ clientId }: RolesPrimaryButtonsProps) {
   return (
     <div className="flex gap-2">
-      <Button className="space-x-1" onClick={() => navigate('/roles/new')}>
-        <span>Create Role</span> <Plus size={18} />
-      </Button>
+      <CreateRoleDialog clientId={clientId} />
     </div>
   )
 }

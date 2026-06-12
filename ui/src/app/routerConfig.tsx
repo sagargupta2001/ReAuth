@@ -31,7 +31,6 @@ import { RecoverySettingsPage } from '@/pages/realm/settings/RecoverySettingsPag
 import { ObservabilitySettingsPage } from '@/pages/realm/settings/ObservabilitySettingsPage.tsx'
 import { TokenSettingsPage } from '@/pages/realm/settings/TokenSettingsPage.tsx'
 import { SecurityHeadersSettingsPage } from '@/pages/realm/settings/SecurityHeadersSettingsPage.tsx'
-import { CreateRolePage } from '@/pages/roles/create/CreateRolePage.tsx'
 import { EditRolePage } from '@/pages/roles/edit/EditRolePage.tsx'
 import { RolesPage } from '@/pages/roles/listing/RolesPage.tsx'
 import { CreateGroupPage } from '@/pages/groups/create/CreateGroupPage.tsx'
@@ -265,12 +264,6 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/groups/:groupId/:tab?',
     element: EditGroupPage,
-    layout: AuthenticatedLayout,
-    isProtected: true,
-  },
-  {
-    path: '/:realm/roles/new',
-    element: CreateRolePage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

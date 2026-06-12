@@ -23,7 +23,8 @@ export const queryKeys = {
   identityProviderPresets: (realm?: string) =>
     realm ? (['identity-provider-presets', realm] as const) : (['identity-provider-presets'] as const),
   role: (realm: string, roleId: string) => ['role', realm, roleId] as const,
-  roles: (realm: string, params?: unknown) => ['roles', realm, params] as const,
+  roles: (realm: string, params?: unknown) =>
+    params === undefined ? (['roles', realm] as const) : (['roles', realm, params] as const),
   group: (realm: string, groupId: string) => ['group', realm, groupId] as const,
   groups: (realm?: string, params?: unknown) =>
     realm ? (['groups', realm, params] as const) : (['groups'] as const),
@@ -54,7 +55,10 @@ export const queryKeys = {
     ['role-composites', realm, roleId, scope] as const,
   roleCompositeList: (realm: string, roleId: string, params?: unknown) =>
     ['role-composite-list', realm, roleId, params] as const,
-  rolePermissions: (realm: string, roleId: string) => ['role-permissions', realm, roleId] as const,
+  rolePermissions: (realm: string, roleId?: string) =>
+    roleId === undefined
+      ? (['role-permissions', realm] as const)
+      : (['role-permissions', realm, roleId] as const),
   permissionsDefinitions: (realm: string, clientId?: string | null) =>
     ['permissions-definitions', realm, clientId ?? null] as const,
   flows: (realm?: string) => (realm ? (['flows', realm] as const) : (['flows'] as const)),

@@ -610,16 +610,24 @@ impl RbacRepository for SqliteRbacRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         // 2. Select Query
-        let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
+        let mut query_builder = QueryBuilder::new(
+            "SELECT roles.*, COUNT(DISTINCT user_roles.user_id) AS user_count, \
+             COUNT(DISTINCT role_permissions.permission_name) AS permission_count FROM roles \
+             LEFT JOIN user_roles ON user_roles.role_id = roles.id \
+             LEFT JOIN role_permissions ON role_permissions.role_id = roles.id",
+        );
         Self::apply_filters(&mut query_builder, realm_id, None, &req.q);
+        query_builder.push(" GROUP BY roles.id");
 
         // Sorting
         // Map API sort keys to Safe Database Columns
         let sort_col = match req.sort_by.as_deref() {
-            Some("name") => "name",
-            Some("description") => "description",
-            Some("created_at") => "created_at",
-            _ => "name", // Default sort
+            Some("name") => "roles.name",
+            Some("description") => "roles.description",
+            Some("created_at") => "roles.created_at",
+            Some("user_count") => "user_count",
+            Some("permission_count") => "permission_count",
+            _ => "roles.name", // Default sort
         };
 
         let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
@@ -665,13 +673,23 @@ impl RbacRepository for SqliteRbacRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
 
-        let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
+        let mut query_builder = QueryBuilder::new(
+            "SELECT roles.*, COUNT(DISTINCT user_roles.user_id) AS user_count, \
+             COUNT(DISTINCT role_permissions.permission_name) AS permission_count FROM roles \
+             LEFT JOIN user_roles ON user_roles.role_id = roles.id \
+             LEFT JOIN role_permissions ON role_permissions.role_id = roles.id",
+        );
         Self::apply_filters(&mut query_builder, realm_id, Some(client_id), &req.q);
+        query_builder.push(" GROUP BY roles.id");
 
         // Sorting (Copy sorting logic from list_roles)
         let sort_col = match req.sort_by.as_deref() {
-            Some("name") => "name",
-            _ => "name",
+            Some("name") => "roles.name",
+            Some("description") => "roles.description",
+            Some("created_at") => "roles.created_at",
+            Some("user_count") => "user_count",
+            Some("permission_count") => "permission_count",
+            _ => "roles.name",
         };
         let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
             SortDirection::Asc => "ASC",

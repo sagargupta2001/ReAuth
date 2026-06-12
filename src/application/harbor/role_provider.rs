@@ -407,6 +407,9 @@ async fn import_new_role(
         client_id,
         name: payload.name.clone(),
         description: normalize_description(payload.description),
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     };
 
     if let Some(tx) = tx {

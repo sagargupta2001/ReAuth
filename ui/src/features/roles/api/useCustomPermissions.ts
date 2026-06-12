@@ -63,6 +63,8 @@ export function useDeleteCustomPermission() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.permissionsDefinitions(realm) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.rolePermissions(realm) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.roles(realm) })
       toast.success('Custom permission deleted')
     },
     onError: () => toast.error('Failed to delete permission'),

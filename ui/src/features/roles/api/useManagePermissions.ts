@@ -21,6 +21,7 @@ export function useManagePermissions(roleId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
   const queryKey = queryKeys.rolePermissions(realm, roleId)
+  const rolesQueryKey = queryKeys.roles(realm)
 
   // Single Toggle Mutation
   const toggleMutation = useMutation({
@@ -40,6 +41,7 @@ export function useManagePermissions(roleId: string) {
         if (vars.action === 'add') return [...old, vars.permission]
         return old.filter((p) => p !== vars.permission)
       })
+      void queryClient.invalidateQueries({ queryKey: rolesQueryKey })
       toast.success(vars.action === 'add' ? 'Permission assigned' : 'Permission revoked')
     },
     onError: () => toast.error('Failed to update permission'),
@@ -58,6 +60,7 @@ export function useManagePermissions(roleId: string) {
         if (vars.action === 'add') return Array.from(new Set([...old, ...vars.permissions]))
         return old.filter((p) => !vars.permissions.includes(p))
       })
+      void queryClient.invalidateQueries({ queryKey: rolesQueryKey })
       toast.success(vars.action === 'add' ? 'Resources assigned' : 'Resources cleared')
     },
     onError: () => toast.error('Failed to update permissions'),

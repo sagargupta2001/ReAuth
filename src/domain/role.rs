@@ -9,6 +9,12 @@ pub struct Role {
     pub client_id: Option<Uuid>,
     pub name: String,
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_count: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permission_count: Option<i64>,
 }
 
 // Manual implementation to safely map SQLite Strings -> Rust Uuid
@@ -39,6 +45,12 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for Role {
             client_id,
             name: row.try_get("name")?,
             description: row.try_get("description")?,
+            created_at: row
+                .try_get::<Option<String>, _>("created_at")
+                .ok()
+                .flatten(),
+            user_count: row.try_get::<i64, _>("user_count").ok(),
+            permission_count: row.try_get::<i64, _>("permission_count").ok(),
         })
     }
 }
@@ -76,6 +88,9 @@ mod tests {
         assert!(role.client_id.is_none());
         assert_eq!(role.name, "admin");
         assert_eq!(role.description.as_deref(), Some("Admin role"));
+        assert_eq!(role.created_at, None);
+        assert_eq!(role.user_count, None);
+        assert_eq!(role.permission_count, None);
     }
 
     #[tokio::test]

@@ -1,14 +1,8 @@
-import { MoreVertical, Shield, Trash2 } from 'lucide-react'
+import { Shield } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/dropdown-menu'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import type { Role } from '@/features/roles/api/useRoles.ts'
 
@@ -25,7 +19,7 @@ export function RoleHeader({ role }: RoleHeaderProps) {
   }
 
   return (
-    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b px-6 backdrop-blur">
+    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between px-6 backdrop-blur">
       <div className="flex items-center gap-4">
         <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
           <Shield className="text-primary h-5 w-5" />
@@ -57,18 +51,6 @@ export function RoleHeader({ role }: RoleHeaderProps) {
         <Button variant="outline" onClick={() => navigate('/roles')} size="sm">
           Back
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" /> Delete Role
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </header>
   )
