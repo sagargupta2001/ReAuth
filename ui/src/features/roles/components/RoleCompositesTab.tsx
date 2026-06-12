@@ -78,7 +78,7 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
               }
               onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
               aria-label="Select all"
-              className="translate-y-[2px]"
+              className="translate-y-0.5"
             />
           </div>
         ),
@@ -88,7 +88,7 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
               aria-label="Select row"
-              className="translate-y-[2px]"
+              className="translate-y-0.5"
             />
           </div>
         ),
@@ -187,18 +187,10 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
   return (
     <div className="flex h-full w-full flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">Composite Roles</h3>
-            <p className="text-muted-foreground text-sm">
-              Build composite roles by combining existing roles.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Direct {directRoleIds.length}</Badge>
-            <Badge variant="outline">Effective {effectiveRoleIds.length}</Badge>
-            <Badge variant="outline">Roles {rolesPage?.meta.total ?? 0}</Badge>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">Direct {directRoleIds.length}</Badge>
+          <Badge variant="outline">Effective {effectiveRoleIds.length}</Badge>
+          <Badge variant="outline">Roles {rolesPage?.meta.total ?? 0}</Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -232,7 +224,6 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           searchKey="name"
-          searchPlaceholder="Filter roles..."
           searchValue={searchTerm}
           onSearch={handleSearch}
           bulkEntityName="role"
@@ -270,7 +261,6 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
               </>
             )
           }}
-          className="h-[calc(100vh-450px)]"
         />
       )}
     </div>

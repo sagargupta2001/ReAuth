@@ -187,18 +187,10 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
   return (
     <div className="flex h-full w-full flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">Members</h3>
-            <p className="text-muted-foreground text-sm">
-              Direct assignments are controlled here. Effective access can also come from groups.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className='p-2 pointer-events-none' variant="outline">Direct: {directMemberIds.length}</Badge>
-            <Badge className='p-2 pointer-events-none' variant="outline">Effective: {effectiveMemberIds.length}</Badge>
-            <Badge className='p-2 pointer-events-none' variant="outline">Users: {memberPage?.meta.total ?? 0}</Badge>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className='p-2 pointer-events-none' variant="outline">Direct: {directMemberIds.length}</Badge>
+          <Badge className='p-2 pointer-events-none' variant="outline">Effective: {effectiveMemberIds.length}</Badge>
+          <Badge className='p-2 pointer-events-none' variant="outline">Users: {memberPage?.meta.total ?? 0}</Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -232,7 +224,7 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           searchKey="username"
-          searchPlaceholder="Filter users..."
+          searchPlaceholder="Search..."
           searchValue={searchTerm}
           onSearch={handleSearch}
           onRowClick={(user) => navigate(`/users/${user.id}`)}
@@ -271,7 +263,6 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
               </>
             )
           }}
-          className="h-[calc(100vh-450px)]"
         />
       )}
     </div>

@@ -17,7 +17,7 @@ export function UserRoleAccessBadge({ role }: UserRoleAccessBadgeProps) {
       )
     case 'effective':
       return (
-        <Badge variant="muted" className="min-w-20 justify-center">
+        <Badge variant="secondary" className="w-20 justify-center">
           Effective
         </Badge>
       )

@@ -160,7 +160,8 @@ export function DataTable<TData, TValue>({
                       data-state={row.getIsSelected() && 'selected'}
                       onClick={() => onRowClick?.(row.original)}
                       className={cn(
-                        onRowClick && 'bg-primary-foreground hover:cursor-pointer',
+                        onRowClick && 'hover:cursor-pointer',
+                        'bg-primary-foreground ',
                         rowClassName,
                       )}
                     >
