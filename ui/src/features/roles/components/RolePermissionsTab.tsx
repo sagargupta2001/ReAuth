@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/dialog'
@@ -171,28 +172,27 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
       {/* SIDEBAR */}
-      <aside className="bg-muted/10 flex w-64 flex-shrink-0 flex-col border-r">
+      <aside className="bg-muted/10 flex w-64 shrink-0 flex-col border-r">
         <div className="border-b p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <p className="text-foreground text-sm font-medium">Permissions</p>
-              <p className="text-muted-foreground text-xs">
-                {clientId ? 'Client scope' : 'Realm scope'}
-              </p>
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />
+              <Input
+                placeholder="Search..."
+                className="h-9 pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
-            <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New
+            <Button
+              size="icon"
+              className="grid h-9 w-9 shrink-0 place-items-center p-0"
+              variant="outline"
+              onClick={() => setCreateOpen(true)}
+              aria-label="Create custom permission"
+            >
+              <Plus className="h-4 w-4" />
             </Button>
-          </div>
-          <div className="relative">
-            <Search className="text-muted-foreground absolute left-2.5 top-2.5 h-4 w-4" />
-            <Input
-              placeholder="Filter..."
-              className="h-9 pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
           </div>
         </div>
         <ScrollArea className="flex-1">
@@ -343,13 +343,6 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
                           </span>
                         </div>
                         <p className="text-muted-foreground mt-0.5 text-xs">{perm.description}</p>
-                        {resource.id === CUSTOM_GROUP_ID && perm.custom_id && (
-                          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1 text-[10px]">
-                            <span className="bg-muted/60 rounded px-1.5 py-0.5 font-mono">
-                              UUID: {perm.custom_id}
-                            </span>
-                          </div>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {resource.id === CUSTOM_GROUP_ID && perm.custom_id && (
@@ -401,14 +394,14 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Create Custom Permission</DialogTitle>
             <DialogDescription>
               Define a permission ID and label, then optionally assign it to this role.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 px-6 pb-2">
             <div className="space-y-2">
               <Label htmlFor="permission-id">Permission ID</Label>
               <Input
@@ -454,37 +447,31 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="gap-1 py-3 pr-3">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleCreatePermission} disabled={!canCreate}>
               {createPermission.isPending ? 'Creating...' : 'Create Permission'}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Edit Custom Permission</DialogTitle>
             <DialogDescription>
               Update the name or description for this permission.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 px-6 pb-2">
             <div className="space-y-2">
               <Label>Permission ID</Label>
               <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-sm font-mono">
                 {activePermission?.id}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Permission UUID</Label>
-              <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-xs font-mono">
-                {activePermission?.custom_id}
               </div>
             </div>
             <div className="space-y-2">
@@ -505,36 +492,33 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="gap-1 py-3 pr-3">
             <Button variant="outline" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleUpdatePermission} disabled={!canUpdate}>
               {updatePermission.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Delete Custom Permission</DialogTitle>
             <DialogDescription>
               This will remove the permission from all roles. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2">
+          <div className="px-6 pb-2">
             <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-xs font-mono">
               {activePermission?.id}
             </div>
-            <div className="text-muted-foreground text-[10px] font-mono">
-              UUID: {activePermission?.custom_id}
-            </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="gap-1 py-3 pr-3">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               Cancel
             </Button>
@@ -545,7 +529,7 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             >
               {deletePermission.isPending ? 'Deleting...' : 'Delete Permission'}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

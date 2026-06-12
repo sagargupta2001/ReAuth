@@ -82,15 +82,15 @@ export function EditRolePage() {
               <Settings className="mr-2 h-4 w-4" /> Settings
             </TabsTrigger>
 
-            <TabsTrigger value="permissions" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="permissions" className="tab-trigger-styles">
               <ShieldCheck className="mr-2 h-4 w-4" /> Permissions
             </TabsTrigger>
 
-            <TabsTrigger value="composites" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="composites" className="tab-trigger-styles">
               <Layers className="mr-2 h-4 w-4" /> Composites
             </TabsTrigger>
 
-            <TabsTrigger value="members" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="members" className="tab-trigger-styles">
               <Users className="mr-2 h-4 w-4" /> Members
             </TabsTrigger>
           </TabsList>
