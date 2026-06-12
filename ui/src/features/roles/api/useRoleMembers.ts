@@ -64,7 +64,8 @@ export function useManageRoleMembers(roleId: string) {
   const queryClient = useQueryClient()
   const queryKey = queryKeys.roleMembers(realm, roleId, 'direct')
   const effectiveQueryKey = queryKeys.roleMembers(realm, roleId, 'effective')
-  const listQueryKey = queryKeys.roleMemberList(realm, roleId)
+  // Prefix key (no params) so invalidation matches every paged/filtered list variant.
+  const listQueryKey = ['role-member-list', realm, roleId] as const
 
   const addMutation = useMutation({
     mutationFn: async (userId: string) => {

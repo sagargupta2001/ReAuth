@@ -65,7 +65,8 @@ export function useManageRoleComposites(roleId: string) {
   const queryClient = useQueryClient()
   const directQueryKey = queryKeys.roleComposites(realm, roleId, 'direct')
   const effectiveQueryKey = queryKeys.roleComposites(realm, roleId, 'effective')
-  const listQueryKey = queryKeys.roleCompositeList(realm, roleId)
+  // Prefix key (no params) so invalidation matches every paged/filtered list variant.
+  const listQueryKey = ['role-composite-list', realm, roleId] as const
 
   const addMutation = useMutation({
     mutationFn: async (childRoleId: string) => {
