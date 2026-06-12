@@ -613,6 +613,24 @@ pub async fn delete_custom_permission_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn get_custom_permission_delete_summary_handler(
+    State(state): State<AppState>,
+    Path((realm_name, permission_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let summary = state
+        .rbac_service
+        .get_custom_permission_delete_summary(realm.id, permission_id)
+        .await?;
+
+    Ok((StatusCode::OK, Json(summary)))
+}
+
 // GET /roles/:id/permissions
 pub async fn list_role_permissions_handler(
     State(state): State<AppState>,

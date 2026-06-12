@@ -81,6 +81,22 @@ pub struct RoleDeleteSummary {
     pub permission_count: i64,
 }
 
+#[derive(Debug, Serialize, Clone, sqlx::FromRow)]
+pub struct CustomPermissionRoleImpact {
+    #[sqlx(try_from = "String")]
+    pub id: Uuid,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct CustomPermissionDeleteSummary {
+    pub permission_id: Uuid,
+    pub permission: String,
+    pub name: String,
+    pub role_count: i64,
+    pub roles: Vec<CustomPermissionRoleImpact>,
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct CustomPermission {
     pub id: Uuid,

@@ -343,6 +343,13 @@ async fn custom_permissions_and_role_permissions() -> Result<()> {
         .await?;
     repo.assign_permission_to_role(&"perm.shared".to_string(), &role_two.id, None)
         .await?;
+    let impacted_roles = repo
+        .list_roles_for_permission_key(&realm_id, "perm.shared")
+        .await?;
+    assert_eq!(impacted_roles.len(), 2);
+    assert_eq!(impacted_roles[0].name, "alpha");
+    assert_eq!(impacted_roles[1].name, "beta");
+
     repo.remove_role_permissions_by_key("perm.shared", None)
         .await?;
     let perms_one = repo.get_permissions_for_role(&role_one.id).await?;

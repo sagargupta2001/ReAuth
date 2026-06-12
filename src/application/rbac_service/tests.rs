@@ -1,7 +1,8 @@
 use super::*;
 use crate::domain::events::EventEnvelope;
 use crate::domain::rbac::{
-    GroupMemberRow, GroupRoleRow, GroupTreeRow, RoleCompositeRow, RoleMemberRow, UserRoleRow,
+    CustomPermissionRoleImpact, GroupMemberRow, GroupRoleRow, GroupTreeRow, RoleCompositeRow,
+    RoleMemberRow, UserRoleRow,
 };
 use crate::ports::outbox_repository::OutboxRepository;
 use crate::ports::transaction_manager::{Transaction, TransactionManager};
@@ -1148,6 +1149,15 @@ impl RbacRepository for TestRbacRepo {
     ) -> Result<Vec<CustomPermission>> {
         self.maybe_fail("list_custom_permissions")?;
         Ok(self.list_custom_permissions_result.lock().unwrap().clone())
+    }
+
+    async fn list_roles_for_permission_key(
+        &self,
+        _realm_id: &Uuid,
+        _permission: &str,
+    ) -> Result<Vec<CustomPermissionRoleImpact>> {
+        self.maybe_fail("list_roles_for_permission_key")?;
+        Ok(Vec::new())
     }
 
     async fn remove_role_permissions_by_key(

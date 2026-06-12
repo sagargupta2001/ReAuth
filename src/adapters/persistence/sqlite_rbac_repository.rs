@@ -2,9 +2,9 @@ use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::domain::rbac::{
-    CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-    GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
-    UserRoleFilter, UserRoleRow,
+    CustomPermission, CustomPermissionRoleImpact, GroupMemberFilter, GroupMemberRow,
+    GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
+    RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
 };
 use crate::domain::role::Permission;
 use crate::ports::transaction_manager::Transaction;
@@ -535,6 +535,27 @@ impl RbacRepository for SqliteRbacRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(permissions)
+    }
+
+    async fn list_roles_for_permission_key(
+        &self,
+        realm_id: &Uuid,
+        permission: &str,
+    ) -> Result<Vec<CustomPermissionRoleImpact>> {
+        let roles = sqlx::query_as(
+            "SELECT roles.id, roles.name \
+             FROM roles \
+             INNER JOIN role_permissions ON role_permissions.role_id = roles.id \
+             WHERE roles.realm_id = ? AND role_permissions.permission_name = ? \
+             ORDER BY roles.name ASC",
+        )
+        .bind(realm_id.to_string())
+        .bind(permission)
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(roles)
     }
 
     async fn remove_role_permissions_by_key(

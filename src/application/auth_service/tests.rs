@@ -7,9 +7,9 @@ use crate::domain::events::EventEnvelope;
 use crate::domain::group::Group;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::rbac::{
-    CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-    GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
-    UserRoleFilter, UserRoleRow,
+    CustomPermission, CustomPermissionRoleImpact, GroupMemberFilter, GroupMemberRow,
+    GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
+    RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
 };
 use crate::domain::role::{Permission, Role};
 use crate::domain::session::RefreshToken;
@@ -441,6 +441,14 @@ impl RbacRepository for TestRbacRepo {
         _realm_id: &Uuid,
         _client_id: Option<&Uuid>,
     ) -> Result<Vec<CustomPermission>> {
+        Ok(Vec::new())
+    }
+
+    async fn list_roles_for_permission_key(
+        &self,
+        _realm_id: &Uuid,
+        _permission: &str,
+    ) -> Result<Vec<CustomPermissionRoleImpact>> {
         Ok(Vec::new())
     }
 

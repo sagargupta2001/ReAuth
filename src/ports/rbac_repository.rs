@@ -3,9 +3,9 @@ use crate::domain::role::Permission;
 use crate::domain::{
     group::Group,
     rbac::{
-        CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-        GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
-        UserRoleFilter, UserRoleRow,
+        CustomPermission, CustomPermissionRoleImpact, GroupMemberFilter, GroupMemberRow,
+        GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
+        RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
     },
     role::Role,
 };
@@ -240,6 +240,11 @@ pub trait RbacRepository: Send + Sync {
         realm_id: &Uuid,
         client_id: Option<&Uuid>,
     ) -> Result<Vec<CustomPermission>>;
+    async fn list_roles_for_permission_key(
+        &self,
+        realm_id: &Uuid,
+        permission: &str,
+    ) -> Result<Vec<CustomPermissionRoleImpact>>;
     async fn remove_role_permissions_by_key(
         &self,
         permission: &str,

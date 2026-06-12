@@ -25,6 +25,7 @@ import { useScrollSpy } from '@/shared/hooks/useScrollSpy'
 // Import extracted API hooks (Solid/FSD)
 import {
   useCreateCustomPermission,
+  useCustomPermissionDeleteSummary,
   useDeleteCustomPermission,
   useUpdateCustomPermission,
 } from '@/features/roles/api/useCustomPermissions'
@@ -60,6 +61,10 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
   const createPermission = useCreateCustomPermission()
   const updatePermission = useUpdateCustomPermission()
   const deletePermission = useDeleteCustomPermission()
+  const {
+    data: deleteSummary,
+    isLoading: deleteSummaryLoading,
+  } = useCustomPermissionDeleteSummary(activePermission?.custom_id, deleteOpen)
 
   // 3. Scroll Spy
   // We map the IDs only when data exists.
@@ -168,6 +173,8 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
     !createPermission.isPending
   const canUpdate =
     editPermissionName.trim().length > 0 && !updatePermission.isPending && !!activePermission
+  const visibleDeleteSummaryRoles = deleteSummary?.roles.slice(0, 5) ?? []
+  const hiddenDeleteSummaryRoleCount = Math.max((deleteSummary?.role_count ?? 0) - 5, 0)
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
@@ -508,14 +515,48 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
           <DialogHeader className="px-6 pt-6">
             <DialogTitle>Delete Custom Permission</DialogTitle>
             <DialogDescription>
-              This will remove the permission from all roles. This action cannot be undone.
+              This will remove the permission from all assigned roles. This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-6 pb-2">
+          <div className="space-y-3 px-6 pb-2">
             <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-xs font-mono">
               {activePermission?.id}
             </div>
+            {deleteSummaryLoading ? (
+              <div className="text-muted-foreground text-sm">Loading impact...</div>
+            ) : deleteSummary ? (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-md border px-3 py-2">
+                  <div className="text-muted-foreground text-xs">Roles assigned</div>
+                  <div className="font-medium">{deleteSummary.role_count}</div>
+                </div>
+                {deleteSummary.role_count > 0 ? (
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground mb-2 text-xs">Affected roles</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {visibleDeleteSummaryRoles.map((role) => (
+                        <Badge key={role.id} variant="outline" className="font-normal">
+                          {role.name}
+                        </Badge>
+                      ))}
+                      {hiddenDeleteSummaryRoleCount > 0 ? (
+                        <Badge variant="secondary" className="font-normal">
+                          +{hiddenDeleteSummaryRoleCount} more
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground text-sm">
+                    This permission is not assigned to any roles.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-destructive text-sm">Unable to load delete impact.</div>
+            )}
           </div>
 
           <DialogFooter className="gap-1 py-3 pr-3">
@@ -525,7 +566,7 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             <Button
               variant="destructive"
               onClick={handleDeletePermission}
-              disabled={deletePermission.isPending}
+              disabled={deleteSummaryLoading || deletePermission.isPending || !deleteSummary}
             >
               {deletePermission.isPending ? 'Deleting...' : 'Delete Permission'}
             </Button>

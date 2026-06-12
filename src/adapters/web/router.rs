@@ -630,6 +630,10 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             post(rbac_handler::create_custom_permission_handler),
         )
         .route(
+            "/permissions/custom/{id}/delete-summary",
+            get(rbac_handler::get_custom_permission_delete_summary_handler),
+        )
+        .route(
             "/permissions/custom/{id}",
             put(rbac_handler::update_custom_permission_handler)
                 .delete(rbac_handler::delete_custom_permission_handler),

@@ -25,6 +25,10 @@ export const queryKeys = {
   role: (realm: string, roleId: string) => ['role', realm, roleId] as const,
   roleDeleteSummary: (realm: string, roleId: string) =>
     ['role-delete-summary', realm, roleId] as const,
+  customPermissionDeleteSummaries: (realm: string) =>
+    ['custom-permission-delete-summary', realm] as const,
+  customPermissionDeleteSummary: (realm: string, permissionId: string) =>
+    ['custom-permission-delete-summary', realm, permissionId] as const,
   roles: (realm: string, params?: unknown) =>
     params === undefined ? (['roles', realm] as const) : (['roles', realm, params] as const),
   group: (realm: string, groupId: string) => ['group', realm, groupId] as const,

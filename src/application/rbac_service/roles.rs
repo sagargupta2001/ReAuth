@@ -3,7 +3,7 @@ use super::{CreateCustomPermissionPayload, CreateRolePayload, UpdateCustomPermis
 use crate::domain::events::DomainEvent;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::permissions;
-use crate::domain::rbac::{CustomPermission, RoleDeleteSummary};
+use crate::domain::rbac::{CustomPermission, CustomPermissionDeleteSummary, RoleDeleteSummary};
 use crate::domain::role::Role;
 use crate::error::{Error, Result};
 use uuid::Uuid;
@@ -278,6 +278,30 @@ impl RbacService {
             .update_custom_permission(&updated, None)
             .await?;
         Ok(updated)
+    }
+
+    pub async fn get_custom_permission_delete_summary(
+        &self,
+        realm_id: Uuid,
+        permission_id: Uuid,
+    ) -> Result<CustomPermissionDeleteSummary> {
+        let permission = self
+            .rbac_repo
+            .find_custom_permission_by_id(&realm_id, &permission_id)
+            .await?
+            .ok_or(Error::NotFound("Custom permission not found".into()))?;
+        let roles = self
+            .rbac_repo
+            .list_roles_for_permission_key(&realm_id, &permission.permission)
+            .await?;
+
+        Ok(CustomPermissionDeleteSummary {
+            permission_id,
+            permission: permission.permission,
+            name: permission.name,
+            role_count: roles.len() as i64,
+            roles,
+        })
     }
 
     pub async fn delete_custom_permission(
