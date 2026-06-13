@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { useDndContext, useDraggable, useDroppable } from '@dnd-kit/core'
 import { ChevronRight, Folder, GripVertical, MoreVertical, Plus } from 'lucide-react'
@@ -18,6 +18,10 @@ interface GroupTreeItemProps {
   item: FlattenedGroupNode
   isExpanded: boolean
   isSelected: boolean
+  /** Whether this row is the one currently pointer-hovered (single source of truth in the panel). */
+  isActive: boolean
+  onHoverStart: (id: string) => void
+  onHoverEnd: (id: string) => void
   onToggle: (id: string) => void
   onSelect: (id: string) => void
   onCreateChild: (parentId: string) => void
@@ -29,12 +33,20 @@ export function GroupTreeItem({
   item,
   isExpanded,
   isSelected,
+  isActive,
+  onHoverStart,
+  onHoverEnd,
   onToggle,
   onSelect,
   onCreateChild,
   onMoveToRoot,
   onDelete,
 }: GroupTreeItemProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  // Reveal actions only for the single active row (or while its menu is open), never via CSS
+  // :hover — in a frequently-reflowing dnd tree, browser :hover sticks on rows that shift out
+  // from under a stationary cursor, leaving menus stranded on multiple rows.
+  const showActions = isActive || menuOpen
   const { active } = useDndContext()
   const {
     attributes,
@@ -58,8 +70,10 @@ export function GroupTreeItem({
   return (
     <div
       ref={setNodeRef}
+      onPointerEnter={() => onHoverStart(item.id)}
+      onPointerLeave={() => onHoverEnd(item.id)}
       className={cn(
-        'group flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors',
+        'flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors',
         isSelected && 'bg-primary/10 text-primary',
         isHovered &&
           !isSelected &&
@@ -92,7 +106,19 @@ export function GroupTreeItem({
         <span className="truncate">{item.name}</span>
       </button>
 
-      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      {/*
+        Hide with `visibility`, not opacity. WebKit promotes opacity-transitioned
+        elements to a compositing layer and fails to repaint it when the list reflows
+        (e.g. expanding many nested groups), leaving action menus painted on rows that
+        are no longer hovered. `invisible` toggles paint reliably and keeps the node
+        mounted so the drag activator and layout width stay stable.
+      */}
+      <div
+        className={cn(
+          'flex items-center gap-1',
+          showActions ? 'visible' : 'invisible pointer-events-none',
+        )}
+      >
         <Button
           type="button"
           variant="ghost"
@@ -102,7 +128,7 @@ export function GroupTreeItem({
         >
           <Plus className="h-4 w-4" />
         </Button>
-        <DropdownMenu>
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <Button type="button" variant="ghost" size="icon" className="h-7 w-7">
               <MoreVertical className="h-4 w-4" />
