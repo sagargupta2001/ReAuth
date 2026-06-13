@@ -107,11 +107,11 @@ export function GroupChildrenTab({ groupId }: GroupChildrenTabProps) {
       sorting={sorting}
       onSortingChange={handleSortingChange}
       searchKey="name"
-      searchPlaceholder="Filter sub-groups..."
+      searchPlaceholder="Search..."
       searchValue={searchTerm}
       onSearch={handleSearch}
       onRowClick={(group) => navigate(`/groups/${group.id}/settings`)}
-      className="h-[calc(100vh-482px)]"
+      className="max-h-[calc(100vh-482px)]"
     />
   )
 }

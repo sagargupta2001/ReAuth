@@ -1,26 +1,60 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react';
 
-import {
-  type ColumnDef,
-  type OnChangeFn,
-  type PaginationState,
-  type SortingState,
-} from '@tanstack/react-table'
-import { Shield } from 'lucide-react'
 
-import { Badge } from '@/components/badge'
-import { Button } from '@/components/button'
-import { Switch } from '@/components/switch'
-import {
-  useGroupRoleIds,
-  useGroupRolesList,
-  useManageGroupRoles,
-  type GroupRoleRow,
-} from '@/features/group/api/useGroupRoles'
-import { DataTableColumnHeader } from '@/shared/ui/data-table'
-import { DataTable } from '@/shared/ui/data-table/data-table'
-import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
-import { Checkbox } from '@/shared/ui/checkbox'
+
+import { type ColumnDef, type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table';
+import { Shield } from 'lucide-react';
+
+
+
+import { Badge } from '@/components/badge';
+import { Button } from '@/components/button';
+import { Switch } from '@/components/switch';
+import { type GroupRoleRow, useGroupRoleIds, useGroupRolesList, useManageGroupRoles } from '@/features/group/api/useGroupRoles';
+import { Checkbox } from '@/shared/ui/checkbox';
+import { DataTableColumnHeader } from '@/shared/ui/data-table';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 interface GroupRolesTabProps {
   groupId: string
@@ -69,7 +103,11 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
       {
         id: 'select',
         header: ({ table }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={
                 table.getIsAllPageRowsSelected() ||
@@ -77,17 +115,21 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
               }
               onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
               aria-label="Select all"
-              className="translate-y-[2px]"
+              className="translate-y-0.5"
             />
           </div>
         ),
         cell: ({ row }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
               aria-label="Select row"
-              className="translate-y-[2px]"
+              className="translate-y-0.5"
             />
           </div>
         ),
@@ -187,18 +229,10 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
   return (
     <div className="flex h-full w-full flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">Roles</h3>
-            <p className="text-muted-foreground text-sm">
-              Direct roles are assigned here. Composite roles inherit from assigned roles.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Direct {directRoleIds.length}</Badge>
-            <Badge variant="outline">Effective {effectiveRoleIds.length}</Badge>
-            <Badge variant="outline">Roles {rolesPage?.meta.total ?? 0}</Badge>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline">Direct {directRoleIds.length}</Badge>
+          <Badge variant="outline">Effective {effectiveRoleIds.length}</Badge>
+          <Badge variant="outline">Roles {rolesPage?.meta.total ?? 0}</Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -232,7 +266,6 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           searchKey="name"
-          searchPlaceholder="Filter roles..."
           searchValue={searchTerm}
           onSearch={handleSearch}
           bulkEntityName="role"
@@ -270,7 +303,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
               </>
             )
           }}
-          className="h-[calc(100vh-590px)]"
+          className="max-h-[calc(100vh-590px)]"
         />
       )}
     </div>

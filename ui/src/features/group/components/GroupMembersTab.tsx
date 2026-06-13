@@ -1,27 +1,40 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react';
 
-import {
-  type ColumnDef,
-  type OnChangeFn,
-  type PaginationState,
-  type SortingState,
-} from '@tanstack/react-table'
-import { UserCog } from 'lucide-react'
 
-import { Badge } from '@/components/badge'
-import { Button } from '@/components/button'
-import { Switch } from '@/components/switch'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import {
-  useGroupMemberIds,
-  useGroupMembersList,
-  useManageGroupMembers,
-  type GroupMemberRow,
-} from '@/features/group/api/useGroupMembers'
-import { DataTableColumnHeader } from '@/shared/ui/data-table'
-import { DataTable } from '@/shared/ui/data-table/data-table'
-import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
-import { Checkbox } from '@/shared/ui/checkbox'
+
+import { type ColumnDef, type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table';
+import { UserCog } from 'lucide-react';
+
+
+
+import { Badge } from '@/components/badge';
+import { Button } from '@/components/button';
+import { Switch } from '@/components/switch';
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic';
+import { type GroupMemberRow, useGroupMemberIds, useGroupMembersList, useManageGroupMembers } from '@/features/group/api/useGroupMembers';
+import { Checkbox } from '@/shared/ui/checkbox';
+import { DataTableColumnHeader } from '@/shared/ui/data-table';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 interface GroupMembersTabProps {
   groupId: string
@@ -64,7 +77,11 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
       {
         id: 'select',
         header: ({ table }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={
                 table.getIsAllPageRowsSelected() ||
@@ -72,17 +89,21 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
               }
               onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
               aria-label="Select all"
-              className="translate-y-[2px]"
+              className="translate-y-0.5"
             />
           </div>
         ),
         cell: ({ row }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
               aria-label="Select row"
-              className="translate-y-[2px]"
+              className="translate-y-0.5"
             />
           </div>
         ),
@@ -163,15 +184,9 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
   return (
     <div className="flex h-full w-full flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">Members</h3>
-            <p className="text-muted-foreground text-sm">Assign users to this group.</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">Members {memberIds.length}</Badge>
-            <Badge variant="outline">Users {membersPage?.meta.total ?? 0}</Badge>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">Members {memberIds.length}</Badge>
+          <Badge variant="outline">Users {membersPage?.meta.total ?? 0}</Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -205,7 +220,6 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           searchKey="username"
-          searchPlaceholder="Filter users..."
           searchValue={searchTerm}
           onSearch={handleSearch}
           onRowClick={(user) => navigate(`/users/${user.id}`)}
@@ -244,7 +258,7 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
               </>
             )
           }}
-          className="h-[calc(100vh-590px)]"
+          className="max-h-[calc(100vh-590px)]"
         />
       )}
     </div>
