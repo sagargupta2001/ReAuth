@@ -10,8 +10,8 @@ import { Layers, Network, Workflow } from 'lucide-react';
 import { Badge } from '@/components/badge';
 import { Switch } from '@/components/switch';
 import { type RoleCompositeRow, useManageRoleComposites, useRoleCompositeIds, useRoleCompositesList } from '@/features/roles/api/useRoleComposites';
-import { AssignmentAccessFilter } from '@/features/roles/components/AssignmentAccessFilter';
-import { RoleAssignmentStats } from '@/features/roles/components/RoleAssignmentStats';
+import { AssignmentAccessFilter } from '@/components/assignment-access-filter';
+import { AssignmentStats } from '@/components/assignment-stats';
 import { RoleCompositesBulkActions } from '@/features/roles/components/RoleCompositesBulkActions';
 import { type RoleCompositeFilter, roleCompositeFilterOptions } from '@/features/roles/model/roleCompositeFilters';
 import { Checkbox } from '@/shared/ui/checkbox';
@@ -208,7 +208,7 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
 
   return (
     <div className="flex h-full w-full flex-col gap-4">
-      <RoleAssignmentStats
+      <AssignmentStats
         metrics={[
           { label: 'Direct', value: directRoleIds.length, icon: Layers },
           { label: 'Effective', value: effectiveRoleIds.length, icon: Network },

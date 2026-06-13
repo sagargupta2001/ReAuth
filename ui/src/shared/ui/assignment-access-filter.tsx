@@ -28,9 +28,9 @@ interface AssignmentAccessFilterProps<T extends string> {
 }
 
 /**
- * Compact faceted filter for the data-table toolbar, used to scope role
- * member/composite lists by assignment (All / Direct / Effective / Unassigned).
- * Designed to be passed to `DataTable`'s `toolbarFilters` slot.
+ * Compact faceted filter for the data-table toolbar, used to scope assignment-style
+ * lists (role members/composites, group members/roles) by access. Designed to be
+ * passed to `DataTable`'s `toolbarFilters` slot.
  */
 export function AssignmentAccessFilter<T extends string>({
   options,

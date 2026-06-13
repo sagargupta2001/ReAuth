@@ -3,15 +3,17 @@ import { useMemo, useState } from 'react';
 
 
 import { type ColumnDef, type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table';
-import { UserCog } from 'lucide-react';
+import { UserCheck, UserCog, Users } from 'lucide-react';
 
 
 
-import { Badge } from '@/components/badge';
-import { Button } from '@/components/button';
+import { AssignmentAccessFilter } from '@/components/assignment-access-filter';
+import { AssignmentStats } from '@/components/assignment-stats';
 import { Switch } from '@/components/switch';
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic';
 import { type GroupMemberRow, useGroupMemberIds, useGroupMembersList, useManageGroupMembers } from '@/features/group/api/useGroupMembers';
+import { GroupMembersBulkActions } from '@/features/group/components/GroupMembersBulkActions';
+import { type GroupMemberFilter, groupMemberFilterOptions } from '@/features/group/model/groupMemberFilters';
 import { Checkbox } from '@/shared/ui/checkbox';
 import { DataTableColumnHeader } from '@/shared/ui/data-table';
 import { DataTable } from '@/shared/ui/data-table/data-table';
@@ -40,12 +42,10 @@ interface GroupMembersTabProps {
   groupId: string
 }
 
-type MemberFilter = 'all' | 'members' | 'non-members'
-
 export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
   const navigate = useRealmNavigate()
   const [searchTerm, setSearchTerm] = useState('')
-  const [memberFilter, setMemberFilter] = useState<MemberFilter>('all')
+  const [memberFilter, setMemberFilter] = useState<GroupMemberFilter>('all')
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -175,36 +175,19 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
   }
 
-  const filterOptions: { value: MemberFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'members', label: 'Members' },
-    { value: 'non-members', label: 'Not Members' },
-  ]
+  const handleFilterChange = (value: GroupMemberFilter) => {
+    setMemberFilter(value)
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+  }
 
   return (
     <div className="flex h-full w-full flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">Members {memberIds.length}</Badge>
-          <Badge variant="outline">Users {membersPage?.meta.total ?? 0}</Badge>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {filterOptions.map((option) => (
-            <Button
-              key={option.value}
-              size="sm"
-              variant={memberFilter === option.value ? 'secondary' : 'outline'}
-              onClick={() => {
-                setMemberFilter(option.value)
-                setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-              }}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <AssignmentStats
+        metrics={[
+          { label: 'Members', value: memberIds.length, icon: UserCheck },
+          { label: 'Users', value: membersPage?.meta.total ?? 0, icon: Users },
+        ]}
+      />
 
       {isMembersLoading ? (
         <div className="h-[calc(100vh-440px)]">
@@ -222,42 +205,28 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
           searchKey="username"
           searchValue={searchTerm}
           onSearch={handleSearch}
+          toolbarFilters={() => (
+            <AssignmentAccessFilter
+              options={groupMemberFilterOptions}
+              value={memberFilter}
+              onChange={handleFilterChange}
+              title="Membership"
+            />
+          )}
           onRowClick={(user) => navigate(`/users/${user.id}`)}
           bulkEntityName="user"
-          renderBulkActions={(table) => {
-            const selectedUsers = table.getFilteredSelectedRowModel().rows.map((row) => row.original)
-            const addIds = selectedUsers.filter((user) => !user.is_member).map((user) => user.id)
-            const removeIds = selectedUsers.filter((user) => user.is_member).map((user) => user.id)
-
-            return (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={addIds.length === 0 || isMutating}
-                  onClick={() =>
-                    bulkAddMutation.mutate(addIds, {
-                      onSuccess: () => table.resetRowSelection(),
-                    })
-                  }
-                >
-                  Add to Group
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={removeIds.length === 0 || isMutating}
-                  onClick={() =>
-                    bulkRemoveMutation.mutate(removeIds, {
-                      onSuccess: () => table.resetRowSelection(),
-                    })
-                  }
-                >
-                  Remove from Group
-                </Button>
-              </>
-            )
-          }}
+          renderBulkActions={(table) => (
+            <GroupMembersBulkActions
+              selectedMembers={table.getFilteredSelectedRowModel().rows.map((row) => row.original)}
+              isMutating={isMutating}
+              onAddToGroup={(userIds) =>
+                bulkAddMutation.mutate(userIds, { onSuccess: () => table.resetRowSelection() })
+              }
+              onRemoveFromGroup={(userIds) =>
+                bulkRemoveMutation.mutate(userIds, { onSuccess: () => table.resetRowSelection() })
+              }
+            />
+          )}
           className="max-h-[calc(100vh-590px)]"
         />
       )}

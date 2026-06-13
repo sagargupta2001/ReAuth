@@ -3,14 +3,17 @@ import { useMemo, useState } from 'react';
 
 
 import { type ColumnDef, type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table';
-import { Shield } from 'lucide-react';
+import { Network, Shield, Workflow } from 'lucide-react';
 
 
 
+import { AssignmentAccessFilter } from '@/components/assignment-access-filter';
+import { AssignmentStats } from '@/components/assignment-stats';
 import { Badge } from '@/components/badge';
-import { Button } from '@/components/button';
 import { Switch } from '@/components/switch';
 import { type GroupRoleRow, useGroupRoleIds, useGroupRolesList, useManageGroupRoles } from '@/features/group/api/useGroupRoles';
+import { GroupRolesBulkActions } from '@/features/group/components/GroupRolesBulkActions';
+import { type GroupRoleFilter, groupRoleFilterOptions } from '@/features/group/model/groupRoleFilters';
 import { Checkbox } from '@/shared/ui/checkbox';
 import { DataTableColumnHeader } from '@/shared/ui/data-table';
 import { DataTable } from '@/shared/ui/data-table/data-table';
@@ -60,11 +63,9 @@ interface GroupRolesTabProps {
   groupId: string
 }
 
-type RoleFilter = 'all' | 'direct' | 'effective' | 'unassigned'
-
 export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [roleFilter, setRoleFilter] = useState<GroupRoleFilter>('all')
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -219,38 +220,20 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
   }
 
-  const filterOptions: { value: RoleFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'direct', label: 'Direct' },
-    { value: 'effective', label: 'Composite' },
-    { value: 'unassigned', label: 'Unassigned' },
-  ]
+  const handleFilterChange = (value: GroupRoleFilter) => {
+    setRoleFilter(value)
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+  }
 
   return (
     <div className="flex h-full w-full flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">Direct {directRoleIds.length}</Badge>
-          <Badge variant="outline">Effective {effectiveRoleIds.length}</Badge>
-          <Badge variant="outline">Roles {rolesPage?.meta.total ?? 0}</Badge>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {filterOptions.map((option) => (
-            <Button
-              key={option.value}
-              size="sm"
-              variant={roleFilter === option.value ? 'secondary' : 'outline'}
-              onClick={() => {
-                setRoleFilter(option.value)
-                setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-              }}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <AssignmentStats
+        metrics={[
+          { label: 'Direct', value: directRoleIds.length, icon: Shield },
+          { label: 'Effective', value: effectiveRoleIds.length, icon: Network },
+          { label: 'Roles', value: rolesPage?.meta.total ?? 0, icon: Workflow },
+        ]}
+      />
 
       {isRolesLoading || isDirectRolesLoading || isEffectiveRolesLoading ? (
         <div className="h-[calc(100vh-440px)]">
@@ -268,41 +251,26 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
           searchKey="name"
           searchValue={searchTerm}
           onSearch={handleSearch}
+          toolbarFilters={() => (
+            <AssignmentAccessFilter
+              options={groupRoleFilterOptions}
+              value={roleFilter}
+              onChange={handleFilterChange}
+            />
+          )}
           bulkEntityName="role"
-          renderBulkActions={(table) => {
-            const selectedRoles = table.getFilteredSelectedRowModel().rows.map((row) => row.original)
-            const addIds = selectedRoles.filter((role) => !role.is_direct).map((role) => role.id)
-            const removeIds = selectedRoles.filter((role) => role.is_direct).map((role) => role.id)
-
-            return (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={addIds.length === 0 || isMutating}
-                  onClick={() =>
-                    bulkAddMutation.mutate(addIds, {
-                      onSuccess: () => table.resetRowSelection(),
-                    })
-                  }
-                >
-                  Assign Roles
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={removeIds.length === 0 || isMutating}
-                  onClick={() =>
-                    bulkRemoveMutation.mutate(removeIds, {
-                      onSuccess: () => table.resetRowSelection(),
-                    })
-                  }
-                >
-                  Remove Roles
-                </Button>
-              </>
-            )
-          }}
+          renderBulkActions={(table) => (
+            <GroupRolesBulkActions
+              selectedRoles={table.getFilteredSelectedRowModel().rows.map((row) => row.original)}
+              isMutating={isMutating}
+              onAssignRoles={(roleIds) =>
+                bulkAddMutation.mutate(roleIds, { onSuccess: () => table.resetRowSelection() })
+              }
+              onRemoveRoles={(roleIds) =>
+                bulkRemoveMutation.mutate(roleIds, { onSuccess: () => table.resetRowSelection() })
+              }
+            />
+          )}
           className="max-h-[calc(100vh-590px)]"
         />
       )}

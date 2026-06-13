@@ -65,7 +65,8 @@ export function useManageGroupRoles(groupId: string) {
   const queryClient = useQueryClient()
   const directQueryKey = queryKeys.groupRoles(realm, groupId, 'direct')
   const effectiveQueryKey = queryKeys.groupRoles(realm, groupId, 'effective')
-  const listQueryKey = queryKeys.groupRoleList(realm, groupId)
+  // Prefix key (no params) so invalidation matches every paged/filtered list variant.
+  const listQueryKey = ['group-role-list', realm, groupId] as const
 
   const addMutation = useMutation({
     mutationFn: async (roleId: string) => {
@@ -102,13 +103,10 @@ export function useManageGroupRoles(groupId: string) {
 
   const bulkAddMutation = useMutation({
     mutationFn: async (roleIds: string[]) => {
-      await Promise.all(
-        roleIds.map((roleId) =>
-          apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/roles`, {
-            role_id: roleId,
-          }),
-        ),
-      )
+      return apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/roles/bulk`, {
+        role_ids: roleIds,
+        action: 'add',
+      })
     },
     onSuccess: (_, roleIds) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) => {
@@ -124,11 +122,10 @@ export function useManageGroupRoles(groupId: string) {
 
   const bulkRemoveMutation = useMutation({
     mutationFn: async (roleIds: string[]) => {
-      await Promise.all(
-        roleIds.map((roleId) =>
-          apiClient.delete(`/api/realms/${realm}/rbac/groups/${groupId}/roles/${roleId}`),
-        ),
-      )
+      return apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/roles/bulk`, {
+        role_ids: roleIds,
+        action: 'remove',
+      })
     },
     onSuccess: (_, roleIds) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) =>

@@ -5554,3 +5554,149 @@ async fn bulk_update_role_composites_rejects_cycle() {
         other => panic!("expected validation error, got {other:?}"),
     }
 }
+
+fn insert_test_group(harness: &RbacTestHarness, realm_id: Uuid, group_id: Uuid) {
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+}
+
+#[tokio::test]
+async fn bulk_update_group_members_add_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let user_a = Uuid::new_v4();
+    let user_b = Uuid::new_v4();
+
+    insert_test_group(&harness, realm_id, group_id);
+
+    harness
+        .service
+        .bulk_update_group_members(realm_id, group_id, vec![user_a, user_b], "add".to_string())
+        .await
+        .expect("bulk add group members");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    for user_id in [user_a, user_b] {
+        let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
+        assert!(
+            has_event,
+            "expected UserAssignedToGroup event for {user_id}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn bulk_update_group_members_remove_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    insert_test_group(&harness, realm_id, group_id);
+
+    harness
+        .service
+        .bulk_update_group_members(realm_id, group_id, vec![user_id], "remove".to_string())
+        .await
+        .expect("bulk remove group members");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
+    assert!(has_event, "expected UserRemovedFromGroup event");
+}
+
+#[tokio::test]
+async fn bulk_update_group_members_rejects_invalid_action() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    insert_test_group(&harness, realm_id, group_id);
+
+    let result = harness
+        .service
+        .bulk_update_group_members(
+            realm_id,
+            group_id,
+            vec![Uuid::new_v4()],
+            "invalid".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_group_roles_add_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let role_a = Uuid::new_v4();
+    let role_b = Uuid::new_v4();
+
+    insert_test_group(&harness, realm_id, group_id);
+    for (id, name) in [(role_a, "role-a"), (role_b, "role-b")] {
+        harness.repo.insert_role(Role {
+            id,
+            realm_id,
+            client_id: None,
+            name: name.to_string(),
+            description: None,
+            created_at: None,
+            user_count: None,
+            permission_count: None,
+        });
+    }
+
+    harness
+        .service
+        .bulk_update_group_roles(realm_id, group_id, vec![role_a, role_b], "add".to_string())
+        .await
+        .expect("bulk add group roles");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    for role_id in [role_a, role_b] {
+        let has_event = events.iter().any(|event| matches!(event, DomainEvent::RoleAssignedToGroup(RoleGroupChanged { role_id: rid, group_id: gid }) if *rid == role_id && *gid == group_id));
+        assert!(
+            has_event,
+            "expected RoleAssignedToGroup event for {role_id}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn bulk_update_group_roles_rejects_invalid_action() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    insert_test_group(&harness, realm_id, group_id);
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "role".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_group_roles(realm_id, group_id, vec![role_id], "invalid".to_string())
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
