@@ -54,6 +54,9 @@ pub enum Error {
     #[error("The session has been revoked.")]
     SessionRevoked,
 
+    #[error("Re-authentication is required for this session.")]
+    ReauthRequired,
+
     #[error("A realm with this name already exists.")]
     RealmAlreadyExists,
 

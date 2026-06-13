@@ -17,6 +17,11 @@ use tracing::{field, instrument, Span};
 #[derive(Clone)]
 pub struct AuthUser(pub User);
 
+/// The caller's current session id (the `sid` claim / live refresh-token id),
+/// attached to the request for caller-scoped actions like "revoke other sessions".
+#[derive(Clone, Copy)]
+pub struct CurrentSessionId(pub uuid::Uuid);
+
 #[instrument(skip_all, fields(telemetry = "span"))]
 pub async fn auth_guard(
     State(state): State<AppState>,
@@ -53,14 +58,21 @@ pub async fn auth_guard(
     };
 
     // 3. Validate via Service
-    match state.auth_service.validate_token_and_get_user(&token).await {
-        Ok(user) => {
+    match state
+        .auth_service
+        .validate_token_and_get_session(&token)
+        .await
+    {
+        Ok((user, session_id)) => {
             let user_id = user.id;
             // [CRITICAL] Insert ONLY the UUID if your permission_guard expects Uuid
             req.extensions_mut().insert(user_id);
 
             // Optional: Insert the full User struct if other handlers need it
             req.extensions_mut().insert(AuthUser(user));
+
+            // The caller's current session id, for caller-scoped session actions.
+            req.extensions_mut().insert(CurrentSessionId(session_id));
 
             if let Some(context) = req.extensions().get::<RequestContext>() {
                 context.set_user_id(user_id);

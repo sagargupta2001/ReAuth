@@ -15,6 +15,7 @@ impl IntoResponse for Error {
             // 401 Unauthorized
             Error::InvalidCredentials
             | Error::SessionRevoked
+            | Error::ReauthRequired
             | Error::InvalidRefreshToken
             | Error::OidcInvalidCode => (StatusCode::UNAUTHORIZED, self.to_string(), None),
 
@@ -114,6 +115,7 @@ fn error_code(error: &Error) -> &'static str {
     match error {
         Error::InvalidCredentials => "auth.invalid_credentials",
         Error::SessionRevoked => "auth.session_revoked",
+        Error::ReauthRequired => "auth.reauth_required",
         Error::InvalidRefreshToken => "auth.invalid_refresh_token",
         Error::InvalidActionToken => "auth.invalid_action_token",
         Error::OidcInvalidCode => "oidc.invalid_code",

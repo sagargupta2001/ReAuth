@@ -29,3 +29,6 @@ mod user_metadata_http;
 
 #[path = "api/user_admin_actions_http.rs"]
 mod user_admin_actions_http;
+
+#[path = "api/session_management_http.rs"]
+mod session_management_http;

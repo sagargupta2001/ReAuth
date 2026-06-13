@@ -17,6 +17,24 @@ pub struct RefreshToken {
     pub last_used_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
     pub replaced_by: Option<Uuid>,
+    /// When set, the live token of this family must re-authenticate. Silent
+    /// refresh is rejected until a fresh interactive auth mints a new family.
+    pub step_up_at: Option<DateTime<Utc>>,
+}
+
+/// Optional filters for listing sessions in the admin console.
+#[derive(Debug, Clone, Default)]
+pub struct SessionListFilter {
+    /// Inclusive lower bound on `created_at` ("Started").
+    pub started_from: Option<DateTime<Utc>>,
+    /// Exclusive upper bound on `created_at` ("Started").
+    pub started_to_exclusive: Option<DateTime<Utc>>,
+}
+
+impl SessionListFilter {
+    pub fn is_empty(&self) -> bool {
+        self.started_from.is_none() && self.started_to_exclusive.is_none()
+    }
 }
 
 impl RefreshToken {
@@ -41,6 +59,7 @@ impl RefreshToken {
             last_used_at: now,
             revoked_at: None,
             replaced_by: None,
+            step_up_at: None,
         }
     }
 
@@ -82,6 +101,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::sqlite::SqliteRow> for RefreshToken {
             last_used_at: row.try_get("last_used_at")?,
             revoked_at: row.try_get("revoked_at")?,
             replaced_by,
+            step_up_at: row.try_get("step_up_at")?,
         })
     }
 }
@@ -105,7 +125,7 @@ mod tests {
         let now = Utc::now();
 
         let token: RefreshToken = sqlx::query_as(
-        "SELECT ? as id, ? as family_id, ? as user_id, ? as realm_id, ? as client_id, ? as expires_at, ? as ip_address, ? as user_agent, ? as created_at, ? as last_used_at, ? as revoked_at, ? as replaced_by",
+        "SELECT ? as id, ? as family_id, ? as user_id, ? as realm_id, ? as client_id, ? as expires_at, ? as ip_address, ? as user_agent, ? as created_at, ? as last_used_at, ? as revoked_at, ? as replaced_by, ? as step_up_at",
     )
     .bind(id.to_string())
     .bind(id.to_string())
@@ -119,6 +139,7 @@ mod tests {
     .bind(now)
     .bind::<Option<chrono::DateTime<Utc>>>(None)
     .bind::<Option<String>>(None)
+    .bind::<Option<chrono::DateTime<Utc>>>(None)
     .fetch_one(&pool)
     .await
     .expect("fetch token");
@@ -152,6 +173,7 @@ mod tests {
             last_used_at: now,
             revoked_at: None,
             replaced_by: None,
+            step_up_at: None,
         };
 
         let json = serde_json::to_string(&token).expect("serialize");

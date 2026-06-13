@@ -1,125 +1,160 @@
-/* eslint-disable react-refresh/only-export-components */
 import { type ColumnDef } from '@tanstack/react-table'
-import { Globe, Laptop, Smartphone, Trash2 } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import { Laptop, Smartphone } from 'lucide-react'
 
+import {
+  deriveSessionStatus,
+  isMobileUserAgent,
+  parseUserAgent,
+  sessionTypeLabel,
+  statusBadge,
+} from '@/entities/session/lib/session.logic'
+import type { Session } from '@/entities/session/model/types'
+import { SessionRowActions } from '@/features/session/components/SessionRowActions.tsx'
 import { Badge } from '@/shared/ui/badge.tsx'
-import { Button } from '@/shared/ui/button.tsx'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip.tsx'
-import type { Session } from '@/entities/session/model/types.ts'
+import { Checkbox } from '@/shared/ui/checkbox.tsx'
 import { DataTableColumnHeader } from '@/shared/ui/data-table/column-header.tsx'
-
-// Helper to identify device type
-const DeviceIcon = ({ ua }: { ua?: string }) => {
-  if (!ua) return <Globe className="text-muted-foreground h-4 w-4" />
-  const lower = ua.toLowerCase()
-  if (lower.includes('mobile') || lower.includes('android') || lower.includes('iphone')) {
-    return <Smartphone className="text-muted-foreground h-4 w-4" />
-  }
-  return <Laptop className="text-muted-foreground h-4 w-4" />
-}
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip.tsx'
 
 export const getSessionColumns = (
   currentSessionId: string | undefined,
-  onRevoke: (id: string) => void,
+  onViewDetails: (session: Session) => void,
 ): ColumnDef<Session>[] => [
   {
-    accessorKey: 'user_id',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="User ID" />,
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2 p-2">
-        <span className="text-muted-foreground font-mono text-xs">{row.getValue('user_id')}</span>
-        {/* Highlight Current Session */}
-        {row.original.id === currentSessionId && (
-          <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-            Current
-          </Badge>
-        )}
+    id: 'select',
+    header: ({ table }) => (
+      <div
+        className="p-2"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && 'indeterminate')
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-0.5"
+        />
       </div>
     ),
-    size: 300,
+    cell: ({ row }) => (
+      <div
+        className="p-2"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          className="translate-y-0.5"
+        />
+      </div>
+    ),
+    enableSorting: false,
+    enableHiding: false,
+    size: 48,
   },
   {
-    accessorKey: 'client_id',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Client" />,
+    accessorKey: 'user_id',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="User" />,
     cell: ({ row }) => {
-      const client = row.original.client_id
-      return client ? (
-        <Badge variant="outline" className="font-mono font-normal">
-          {client}
+      const { username, email, user_id } = row.original
+      const primary = username || user_id
+      const secondary = username ? email || user_id : email
+      return (
+        <div className="flex min-w-0 flex-col">
+          <span className="text-foreground truncate text-sm font-medium">{primary}</span>
+          {secondary && (
+            <span className="text-muted-foreground truncate font-mono text-[11px]">
+              {secondary}
+            </span>
+          )}
+        </div>
+      )
+    },
+    size: 260,
+  },
+  {
+    id: 'type',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Type" />,
+    cell: ({ row }) => {
+      const session = row.original
+      const isOauth = !!session.client_id
+      return (
+        <Badge variant={isOauth ? 'outline' : 'muted'} className="max-w-[140px] truncate font-normal">
+          {isOauth ? session.client_id : sessionTypeLabel(session)}
         </Badge>
-      ) : (
-        <span className="text-muted-foreground text-xs italic">Admin Console</span>
       )
     },
     size: 150,
   },
   {
-    accessorKey: 'ip_address',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="IP Address" />,
-    cell: ({ row }) => (
-      <div className="font-mono text-xs">{row.getValue('ip_address') || 'Unknown'}</div>
-    ),
-    size: 140,
-  },
-  {
-    accessorKey: 'user_agent',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Device / UA" />,
+    id: 'device',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Device / Location" />,
     cell: ({ row }) => {
-      const ua = row.original.user_agent || 'Unknown'
+      const ua = row.original.user_agent
+      const device = parseUserAgent(ua)
+      const Icon = isMobileUserAgent(ua) ? Smartphone : Laptop
       return (
         <div className="flex items-center gap-2">
-          <DeviceIcon ua={ua} />
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-muted-foreground max-w-[250px] cursor-help truncate text-xs">
-                  {ua}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs text-xs wrap-break-word">{ua}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Icon className="text-muted-foreground h-4 w-4 shrink-0" />
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-sm">{device.label}</span>
+            <span className="text-muted-foreground font-mono text-[11px]">
+              {row.original.ip_address || 'Unknown IP'}
+            </span>
+          </div>
         </div>
       )
     },
-    size: 300,
+    size: 240,
+  },
+  {
+    id: 'status',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+    cell: ({ row }) => {
+      const status = deriveSessionStatus(row.original, currentSessionId)
+      const badge = statusBadge(status)
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant={badge.variant} className="cursor-help">
+                {badge.label}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-xs text-xs">{badge.hint}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    },
+    size: 130,
   },
   {
     accessorKey: 'created_at',
     header: ({ column }) => <DataTableColumnHeader column={column} title="Started" />,
     cell: ({ row }) => {
-      return (
-        <span className="text-muted-foreground text-xs">
-          {new Date(row.getValue('created_at')).toLocaleString()}
-        </span>
-      )
+      const started = new Date(row.getValue('created_at'))
+      const label = Number.isNaN(started.getTime())
+        ? '—'
+        : formatDistanceToNow(started, { addSuffix: true })
+      return <span className="text-muted-foreground text-xs">{label}</span>
     },
-    size: 180,
+    size: 150,
   },
   {
     id: 'actions',
     cell: ({ row }) => (
-      <div className="flex justify-end">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 w-8"
-          onClick={(e) => {
-            e.stopPropagation()
-            onRevoke(row.original.id)
-          }}
-          disabled={row.original.id === currentSessionId} // Prevent revoking own session easily
-          title={
-            row.original.id === currentSessionId
-              ? 'Cannot revoke current session here'
-              : 'Revoke Session'
-          }
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+      <SessionRowActions
+        session={row.original}
+        currentSessionId={currentSessionId}
+        onViewDetails={onViewDetails}
+      />
     ),
     size: 50,
   },

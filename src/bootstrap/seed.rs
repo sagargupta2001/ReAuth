@@ -218,7 +218,7 @@ impl Seeder for SuperAdminPermissionsSeeder {
     }
 
     fn checksum(&self, _ctx: &SeedContext<'_>) -> String {
-        "user_delete_lock_ban_v1".to_string()
+        "user_delete_lock_ban_session_v2".to_string()
     }
 
     async fn run(
@@ -240,6 +240,8 @@ impl Seeder for SuperAdminPermissionsSeeder {
             permissions::USER_DELETE,
             permissions::USER_LOCK,
             permissions::USER_BAN,
+            permissions::SESSION_READ,
+            permissions::SESSION_REVOKE,
         ] {
             let _ = ctx
                 .rbac_service

@@ -745,10 +745,65 @@ impl SessionRepository for TestSessionRepo {
         Ok(())
     }
 
+    async fn revoke_many(&self, _realm_id: &Uuid, ids: &[Uuid]) -> Result<u64> {
+        let mut stored = self.stored.lock().unwrap();
+        let mut affected = 0;
+        for id in ids {
+            if let Some(token) = stored.get_mut(id) {
+                if token.revoked_at.is_none() {
+                    token.revoked_at = Some(Utc::now());
+                    affected += 1;
+                }
+            }
+        }
+        Ok(affected)
+    }
+
+    async fn revoke_others_for_user(
+        &self,
+        _realm_id: &Uuid,
+        user_id: &Uuid,
+        except_id: &Uuid,
+    ) -> Result<u64> {
+        let mut stored = self.stored.lock().unwrap();
+        let mut affected = 0;
+        for token in stored.values_mut() {
+            if &token.user_id == user_id && &token.id != except_id && token.revoked_at.is_none() {
+                token.revoked_at = Some(Utc::now());
+                affected += 1;
+            }
+        }
+        Ok(affected)
+    }
+
+    async fn revoke_user_sessions(&self, _realm_id: &Uuid, user_id: &Uuid) -> Result<u64> {
+        let mut stored = self.stored.lock().unwrap();
+        let mut affected = 0;
+        for token in stored.values_mut() {
+            if &token.user_id == user_id && token.revoked_at.is_none() {
+                token.revoked_at = Some(Utc::now());
+                affected += 1;
+            }
+        }
+        Ok(affected)
+    }
+
+    async fn request_step_up(&self, _realm_id: &Uuid, id: &Uuid) -> Result<bool> {
+        let mut stored = self.stored.lock().unwrap();
+        if let Some(token) = stored.get_mut(id) {
+            if token.revoked_at.is_none() && token.replaced_by.is_none() {
+                token.step_up_at = Some(Utc::now());
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     async fn list(
         &self,
         _realm_id: &Uuid,
         _req: &PageRequest,
+        _filter: &crate::domain::session::SessionListFilter,
     ) -> Result<PageResponse<RefreshToken>> {
         Ok(empty_page())
     }
@@ -805,6 +860,7 @@ impl TokenService for TestTokenService {
                 roles: claims.roles.clone(),
                 groups: claims.groups.clone(),
                 exp: claims.exp,
+                iat: claims.iat,
             })
         } else {
             Err(Error::InvalidCredentials)
@@ -862,6 +918,7 @@ fn build_service(
         token_service,
         rbac_service,
         settings,
+        crate::config::SecurityConfig::default(),
     )
 }
 
@@ -1039,6 +1096,7 @@ async fn validate_token_and_get_user_rejects_revoked_sessions() {
         roles: Vec::new(),
         groups: Vec::new(),
         exp: 0,
+        iat: 0,
     });
 
     let service = build_service(user_repo, realm_repo, session_repo, token_service);
@@ -1095,6 +1153,7 @@ async fn validate_token_and_get_user_returns_user() {
         last_used_at: Utc::now(),
         revoked_at: None,
         replaced_by: None,
+        step_up_at: None,
     });
 
     token_service.set_claims(AccessTokenClaims {
@@ -1104,6 +1163,7 @@ async fn validate_token_and_get_user_returns_user() {
         roles: Vec::new(),
         groups: Vec::new(),
         exp: 0,
+        iat: 0,
     });
 
     let service = build_service(user_repo, realm_repo, session_repo, token_service);
@@ -1148,6 +1208,7 @@ async fn refresh_session_errors_when_user_missing() {
         last_used_at: Utc::now(),
         revoked_at: None,
         replaced_by: None,
+        step_up_at: None,
     });
 
     let service = build_service(
@@ -1202,6 +1263,7 @@ async fn refresh_session_errors_when_realm_missing() {
         last_used_at: Utc::now(),
         revoked_at: None,
         replaced_by: None,
+        step_up_at: None,
     });
 
     let service = build_service(
@@ -1261,6 +1323,7 @@ async fn refresh_session_rotates_tokens_and_issues_id_token() {
         last_used_at: Utc::now(),
         revoked_at: None,
         replaced_by: None,
+        step_up_at: None,
     });
 
     let token_service = Arc::new(TestTokenService::default());

@@ -61,7 +61,8 @@ impl TokenService for JwtService {
         roles: &[String],
         groups: &[String],
     ) -> Result<String> {
-        let expiration = Utc::now()
+        let now = Utc::now();
+        let expiration = now
             .checked_add_signed(Duration::seconds(self.access_token_ttl_secs))
             .expect("Failed to create expiration")
             .timestamp() as usize;
@@ -73,6 +74,7 @@ impl TokenService for JwtService {
             roles: roles.to_vec(),
             groups: groups.to_vec(),
             exp: expiration,
+            iat: now.timestamp().max(0) as usize,
         };
 
         // Set the Key ID in the header

@@ -127,6 +127,16 @@ pub struct ThemeConfig {
     pub default_binding_name: String,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, Default)]
+pub struct SecurityConfig {
+    /// When true, forced re-authentication ("step-up") takes effect immediately:
+    /// `verify_session` rejects any access token issued before the session's
+    /// `step_up_at`. When false (default), step-up is enforced only at the next
+    /// silent refresh.
+    #[serde(default)]
+    pub immediate_step_up_invalidation: bool,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Settings {
     pub server: Server,
@@ -144,6 +154,8 @@ pub struct Settings {
     pub theme: ThemeConfig,
     #[serde(default)]
     pub harbor: HarborConfig,
+    #[serde(default)]
+    pub security: SecurityConfig,
 }
 
 impl Settings {

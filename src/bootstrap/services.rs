@@ -203,6 +203,7 @@ pub fn initialize_services(ctx: ServiceInitContext<'_>) -> Services {
         token_service.clone(),
         rbac_service.clone(),
         settings.auth.clone(),
+        settings.security.clone(),
     ));
 
     let secret_service = Arc::new(SecretService::from_settings(settings));

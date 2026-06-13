@@ -1,7 +1,7 @@
 use crate::adapters::persistence::connection::Database;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::{
-    domain::session::RefreshToken,
+    domain::session::{RefreshToken, SessionListFilter},
     error::{Error, Result},
     ports::session_repository::SessionRepository,
 };
@@ -146,6 +146,97 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn revoke_many(&self, realm_id: &Uuid, ids: &[Uuid]) -> Result<u64> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let now = Utc::now();
+        let mut affected: u64 = 0;
+        for id in ids {
+            let result = sqlx::query(
+                "UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND realm_id = ? AND revoked_at IS NULL",
+            )
+            .bind(now)
+            .bind(id.to_string())
+            .bind(realm_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+            affected += result.rows_affected();
+        }
+
+        tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(affected)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn revoke_others_for_user(
+        &self,
+        realm_id: &Uuid,
+        user_id: &Uuid,
+        except_id: &Uuid,
+    ) -> Result<u64> {
+        let result = sqlx::query(
+            "UPDATE refresh_tokens SET revoked_at = ? WHERE realm_id = ? AND user_id = ? AND id != ? AND revoked_at IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(realm_id.to_string())
+        .bind(user_id.to_string())
+        .bind(except_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(result.rows_affected())
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn revoke_user_sessions(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<u64> {
+        let result = sqlx::query(
+            "UPDATE refresh_tokens SET revoked_at = ? WHERE realm_id = ? AND user_id = ? AND revoked_at IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(realm_id.to_string())
+        .bind(user_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(result.rows_affected())
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn request_step_up(&self, realm_id: &Uuid, id: &Uuid) -> Result<bool> {
+        let result = sqlx::query(
+            "UPDATE refresh_tokens SET step_up_at = ? WHERE id = ? AND realm_id = ? AND revoked_at IS NULL AND replaced_by IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(id.to_string())
+        .bind(realm_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(result.rows_affected() > 0)
+    }
+
     async fn revoke_by_user_and_client(
         &self,
         realm_id: &Uuid,
@@ -182,7 +273,12 @@ impl SessionRepository for SqliteSessionRepository {
         skip_all,
         fields(telemetry = "span", db_table = "refresh_tokens", db_op = "select")
     )]
-    async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<RefreshToken>> {
+    async fn list(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+        filter: &SessionListFilter,
+    ) -> Result<PageResponse<RefreshToken>> {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;
 
@@ -190,18 +286,37 @@ impl SessionRepository for SqliteSessionRepository {
            1. COUNT QUERY
         ------------------------- */
 
-        let mut count_builder =
-            sqlx::QueryBuilder::new("SELECT COUNT(*) FROM refresh_tokens WHERE realm_id = ");
+        let mut count_builder = sqlx::QueryBuilder::new(
+            "SELECT COUNT(*) FROM refresh_tokens \
+             LEFT JOIN users ON users.id = refresh_tokens.user_id \
+             WHERE refresh_tokens.realm_id = ",
+        );
         count_builder.push_bind(realm_id.to_string());
-        count_builder.push(" AND revoked_at IS NULL AND replaced_by IS NULL AND expires_at > ");
+        count_builder.push(
+            " AND refresh_tokens.revoked_at IS NULL AND refresh_tokens.replaced_by IS NULL \
+             AND refresh_tokens.expires_at > ",
+        );
         count_builder.push_bind(Utc::now());
 
-        // match user repo behavior — simple search on user_id
+        // Search matches the user id or the owning user's username.
         if let Some(q) = &req.q {
             if !q.is_empty() {
-                count_builder.push(" AND user_id LIKE ");
-                count_builder.push_bind(format!("%{}%", q));
+                let pattern = format!("%{}%", q);
+                count_builder.push(" AND (refresh_tokens.user_id LIKE ");
+                count_builder.push_bind(pattern.clone());
+                count_builder.push(" OR users.username LIKE ");
+                count_builder.push_bind(pattern);
+                count_builder.push(")");
             }
+        }
+
+        if let Some(from) = filter.started_from {
+            count_builder.push(" AND refresh_tokens.created_at >= ");
+            count_builder.push_bind(from);
+        }
+        if let Some(to) = filter.started_to_exclusive {
+            count_builder.push(" AND refresh_tokens.created_at < ");
+            count_builder.push_bind(to);
         }
 
         let total: i64 = count_builder
@@ -214,20 +329,39 @@ impl SessionRepository for SqliteSessionRepository {
            2. SELECT QUERY
         ------------------------- */
 
-        let mut query_builder =
-            sqlx::QueryBuilder::new("SELECT * FROM refresh_tokens WHERE realm_id = ");
+        let mut query_builder = sqlx::QueryBuilder::new(
+            "SELECT refresh_tokens.* FROM refresh_tokens \
+             LEFT JOIN users ON users.id = refresh_tokens.user_id \
+             WHERE refresh_tokens.realm_id = ",
+        );
         query_builder.push_bind(realm_id.to_string());
-        query_builder.push(" AND revoked_at IS NULL AND replaced_by IS NULL AND expires_at > ");
+        query_builder.push(
+            " AND refresh_tokens.revoked_at IS NULL AND refresh_tokens.replaced_by IS NULL \
+             AND refresh_tokens.expires_at > ",
+        );
         query_builder.push_bind(Utc::now());
 
         if let Some(q) = &req.q {
             if !q.is_empty() {
-                query_builder.push(" AND user_id LIKE ");
-                query_builder.push_bind(format!("%{}%", q));
+                let pattern = format!("%{}%", q);
+                query_builder.push(" AND (refresh_tokens.user_id LIKE ");
+                query_builder.push_bind(pattern.clone());
+                query_builder.push(" OR users.username LIKE ");
+                query_builder.push_bind(pattern);
+                query_builder.push(")");
             }
         }
 
-        query_builder.push(" ORDER BY created_at DESC");
+        if let Some(from) = filter.started_from {
+            query_builder.push(" AND refresh_tokens.created_at >= ");
+            query_builder.push_bind(from);
+        }
+        if let Some(to) = filter.started_to_exclusive {
+            query_builder.push(" AND refresh_tokens.created_at < ");
+            query_builder.push_bind(to);
+        }
+
+        query_builder.push(" ORDER BY refresh_tokens.created_at DESC");
 
         query_builder.push(" LIMIT ");
         query_builder.push_bind(limit);
