@@ -1,30 +1,46 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react';
 
-import {
-  type ColumnDef,
-  type OnChangeFn,
-  type PaginationState,
-  type SortingState,
-} from '@tanstack/react-table'
-import { UserCheck, UserCog, Users } from 'lucide-react'
 
-import { Badge } from '@/components/badge'
-import { Switch } from '@/components/switch'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import {
-  useRoleMemberIds,
-  useRoleMembersList,
-  useManageRoleMembers,
-  type RoleMemberRow,
-} from '@/features/roles/api/useRoleMembers'
-import { AssignmentAccessFilter } from '@/features/roles/components/AssignmentAccessFilter'
-import { RoleAssignmentStats } from '@/features/roles/components/RoleAssignmentStats'
-import { RoleMembersBulkActions } from '@/features/roles/components/RoleMembersBulkActions'
-import { type RoleMemberFilter, roleMemberFilterOptions } from '@/features/roles/model/roleMemberFilters'
-import { DataTableColumnHeader } from '@/shared/ui/data-table'
-import { DataTable } from '@/shared/ui/data-table/data-table'
-import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
-import { Checkbox } from '@/shared/ui/checkbox'
+
+import { type ColumnDef, type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table';
+import { UserCheck, UserCog, Users } from 'lucide-react';
+
+
+
+import { Badge } from '@/components/badge';
+import { Switch } from '@/components/switch';
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic';
+import { type RoleMemberRow, useManageRoleMembers, useRoleMemberIds, useRoleMembersList } from '@/features/roles/api/useRoleMembers';
+import { AssignmentAccessFilter } from '@/features/roles/components/AssignmentAccessFilter';
+import { RoleAssignmentStats } from '@/features/roles/components/RoleAssignmentStats';
+import { RoleMembersBulkActions } from '@/features/roles/components/RoleMembersBulkActions';
+import { type RoleMemberFilter, roleMemberFilterOptions } from '@/features/roles/model/roleMemberFilters';
+import { Checkbox } from '@/shared/ui/checkbox';
+import { DataTableColumnHeader } from '@/shared/ui/data-table';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 interface RoleMembersTabProps {
   roleId: string
@@ -70,7 +86,11 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
       {
         id: 'select',
         header: ({ table }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={
                 table.getIsAllPageRowsSelected() ||
@@ -83,7 +103,11 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
           </div>
         ),
         cell: ({ row }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
@@ -207,7 +231,6 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           searchKey="username"
-          searchPlaceholder="Search members..."
           searchValue={searchTerm}
           onSearch={handleSearch}
           toolbarFilters={() => (

@@ -1,32 +1,44 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react';
 
-import {
-  type ColumnDef,
-  type OnChangeFn,
-  type PaginationState,
-  type SortingState,
-} from '@tanstack/react-table'
-import { Layers, Network, Workflow } from 'lucide-react'
 
-import { Badge } from '@/components/badge'
-import { Switch } from '@/components/switch'
-import {
-  type RoleCompositeRow,
-  useManageRoleComposites,
-  useRoleCompositeIds,
-  useRoleCompositesList,
-} from '@/features/roles/api/useRoleComposites'
-import { AssignmentAccessFilter } from '@/features/roles/components/AssignmentAccessFilter'
-import { RoleAssignmentStats } from '@/features/roles/components/RoleAssignmentStats'
-import { RoleCompositesBulkActions } from '@/features/roles/components/RoleCompositesBulkActions'
-import {
-  type RoleCompositeFilter,
-  roleCompositeFilterOptions,
-} from '@/features/roles/model/roleCompositeFilters'
-import { DataTableColumnHeader } from '@/shared/ui/data-table'
-import { DataTable } from '@/shared/ui/data-table/data-table'
-import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
-import { Checkbox } from '@/shared/ui/checkbox'
+
+import { type ColumnDef, type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table';
+import { Layers, Network, Workflow } from 'lucide-react';
+
+
+
+import { Badge } from '@/components/badge';
+import { Switch } from '@/components/switch';
+import { type RoleCompositeRow, useManageRoleComposites, useRoleCompositeIds, useRoleCompositesList } from '@/features/roles/api/useRoleComposites';
+import { AssignmentAccessFilter } from '@/features/roles/components/AssignmentAccessFilter';
+import { RoleAssignmentStats } from '@/features/roles/components/RoleAssignmentStats';
+import { RoleCompositesBulkActions } from '@/features/roles/components/RoleCompositesBulkActions';
+import { type RoleCompositeFilter, roleCompositeFilterOptions } from '@/features/roles/model/roleCompositeFilters';
+import { Checkbox } from '@/shared/ui/checkbox';
+import { DataTableColumnHeader } from '@/shared/ui/data-table';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 interface RoleCompositesTabProps {
   roleId: string
@@ -74,7 +86,11 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
       {
         id: 'select',
         header: ({ table }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={
                 table.getIsAllPageRowsSelected() ||
@@ -87,7 +103,11 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
           </div>
         ),
         cell: ({ row }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
@@ -210,7 +230,6 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           searchKey="name"
-          searchPlaceholder="Search roles..."
           searchValue={searchTerm}
           onSearch={handleSearch}
           toolbarFilters={() => (

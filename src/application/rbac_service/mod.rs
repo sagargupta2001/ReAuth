@@ -54,6 +54,9 @@ pub mod assignments;
 pub mod groups;
 pub mod roles;
 
+#[cfg(test)]
+mod tests;
+
 impl RbacService {
     pub fn new(
         rbac_repo: Arc<dyn RbacRepository>,
