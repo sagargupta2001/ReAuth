@@ -12,9 +12,9 @@ use crate::domain::group::Group;
 use crate::domain::oidc::{AuthCode, OidcClient, OidcContext, OidcRequest};
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::rbac::{
-    CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-    GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
-    UserRoleFilter, UserRoleRow,
+    CustomPermission, CustomPermissionRoleImpact, GroupMemberFilter, GroupMemberRow,
+    GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
+    RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
 };
 use crate::domain::role::{Permission, Role};
 use crate::domain::session::RefreshToken;
@@ -849,6 +849,14 @@ impl RbacRepository for TestRbacRepo {
         Ok(0)
     }
 
+    async fn count_group_ids_for_role(&self, _role_id: &Uuid) -> Result<i64> {
+        Ok(0)
+    }
+
+    async fn count_parent_role_ids_for_role(&self, _role_id: &Uuid) -> Result<i64> {
+        Ok(0)
+    }
+
     async fn find_direct_role_ids_for_user(&self, _user_id: &Uuid) -> Result<Vec<Uuid>> {
         Ok(Vec::new())
     }
@@ -1004,6 +1012,14 @@ impl RbacRepository for TestRbacRepo {
         _realm_id: &Uuid,
         _client_id: Option<&Uuid>,
     ) -> Result<Vec<CustomPermission>> {
+        Ok(Vec::new())
+    }
+
+    async fn list_roles_for_permission_key(
+        &self,
+        _realm_id: &Uuid,
+        _permission: &str,
+    ) -> Result<Vec<CustomPermissionRoleImpact>> {
         Ok(Vec::new())
     }
 

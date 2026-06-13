@@ -1,6 +1,6 @@
 # Spec-Driven Delivery
 
-Every meaningful feature should start from a spec in `docs/specs/`.
+Large feature slices and product-contract changes should start from a spec in `docs/specs/`.
 
 ## Why
 
@@ -19,22 +19,24 @@ They prevent implementation from drifting into undocumented product decisions.
 
 Create or update a spec when:
 
-- you are building a new feature
-- you are changing business rules
-- you are changing domain models or persistence
-- you are adding or modifying public HTTP endpoints
+- you are building a large feature slice
+- you are introducing a breaking change
+- you are changing business rules or product contracts
+- you are changing domain models or persistence in a way that affects behavior or data migration
+- you are adding or modifying public HTTP endpoints that become part of the product contract
 - you are adding new auth nodes, flow behavior, or protocol behavior
 
-A tiny refactor or a local bug fix may not need a new spec, but it should still align with an existing one where applicable.
+Small enhancements, local UI changes, tiny refactors, and local bug fixes do not need a new spec unless they change a product contract or are part of an existing active spec.
 
 ## Workflow
 
-1. Identify whether an existing spec already covers the work.
-2. If not, create a new spec from `docs/specs/spec-template.md`.
-3. Mark it `Draft` while the shape is still being clarified.
-4. Move it to `Ready` once scope, rules, and acceptance are stable enough to build.
-5. Implement against the spec.
-6. Mark it `Implemented` when the code and required tests are done.
+1. Decide whether the work crosses the spec-required boundary above.
+2. If a spec is needed, identify whether an existing spec already covers the work.
+3. If not, create a new spec from `docs/specs/spec-template.md`.
+4. Mark it `Draft` while the shape is still being clarified.
+5. Move it to `Ready` once scope, rules, and acceptance are stable enough to build.
+6. Implement against the spec.
+7. Mark it `Implemented` when the code and required tests are done.
 
 ## How to name specs
 

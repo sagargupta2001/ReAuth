@@ -2,9 +2,9 @@ use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::domain::rbac::{
-    CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-    GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
-    UserRoleFilter, UserRoleRow,
+    CustomPermission, CustomPermissionRoleImpact, GroupMemberFilter, GroupMemberRow,
+    GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
+    RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
 };
 use crate::domain::role::Permission;
 use crate::ports::transaction_manager::Transaction;
@@ -537,6 +537,27 @@ impl RbacRepository for SqliteRbacRepository {
         Ok(permissions)
     }
 
+    async fn list_roles_for_permission_key(
+        &self,
+        realm_id: &Uuid,
+        permission: &str,
+    ) -> Result<Vec<CustomPermissionRoleImpact>> {
+        let roles = sqlx::query_as(
+            "SELECT roles.id, roles.name \
+             FROM roles \
+             INNER JOIN role_permissions ON role_permissions.role_id = roles.id \
+             WHERE roles.realm_id = ? AND role_permissions.permission_name = ? \
+             ORDER BY roles.name ASC",
+        )
+        .bind(realm_id.to_string())
+        .bind(permission)
+        .fetch_all(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(roles)
+    }
+
     async fn remove_role_permissions_by_key(
         &self,
         permission: &str,
@@ -610,16 +631,24 @@ impl RbacRepository for SqliteRbacRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         // 2. Select Query
-        let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
+        let mut query_builder = QueryBuilder::new(
+            "SELECT roles.*, COUNT(DISTINCT user_roles.user_id) AS user_count, \
+             COUNT(DISTINCT role_permissions.permission_name) AS permission_count FROM roles \
+             LEFT JOIN user_roles ON user_roles.role_id = roles.id \
+             LEFT JOIN role_permissions ON role_permissions.role_id = roles.id",
+        );
         Self::apply_filters(&mut query_builder, realm_id, None, &req.q);
+        query_builder.push(" GROUP BY roles.id");
 
         // Sorting
         // Map API sort keys to Safe Database Columns
         let sort_col = match req.sort_by.as_deref() {
-            Some("name") => "name",
-            Some("description") => "description",
-            Some("created_at") => "created_at",
-            _ => "name", // Default sort
+            Some("name") => "roles.name",
+            Some("description") => "roles.description",
+            Some("created_at") => "roles.created_at",
+            Some("user_count") => "user_count",
+            Some("permission_count") => "permission_count",
+            _ => "roles.name", // Default sort
         };
 
         let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
@@ -665,13 +694,23 @@ impl RbacRepository for SqliteRbacRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
 
-        let mut query_builder = QueryBuilder::new("SELECT * FROM roles");
+        let mut query_builder = QueryBuilder::new(
+            "SELECT roles.*, COUNT(DISTINCT user_roles.user_id) AS user_count, \
+             COUNT(DISTINCT role_permissions.permission_name) AS permission_count FROM roles \
+             LEFT JOIN user_roles ON user_roles.role_id = roles.id \
+             LEFT JOIN role_permissions ON role_permissions.role_id = roles.id",
+        );
         Self::apply_filters(&mut query_builder, realm_id, Some(client_id), &req.q);
+        query_builder.push(" GROUP BY roles.id");
 
         // Sorting (Copy sorting logic from list_roles)
         let sort_col = match req.sort_by.as_deref() {
-            Some("name") => "name",
-            _ => "name",
+            Some("name") => "roles.name",
+            Some("description") => "roles.description",
+            Some("created_at") => "roles.created_at",
+            Some("user_count") => "user_count",
+            Some("permission_count") => "permission_count",
+            _ => "roles.name",
         };
         let sort_dir = match req.sort_dir.unwrap_or(SortDirection::Asc) {
             SortDirection::Asc => "ASC",
@@ -1732,6 +1771,30 @@ impl RbacRepository for SqliteRbacRepository {
             .fetch_one(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(count)
+    }
+
+    async fn count_group_ids_for_role(&self, role_id: &Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT group_id) FROM group_roles WHERE role_id = ?",
+        )
+        .bind(role_id.to_string())
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(count)
+    }
+
+    async fn count_parent_role_ids_for_role(&self, role_id: &Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT parent_role_id) FROM role_composite_roles WHERE child_role_id = ?",
+        )
+        .bind(role_id.to_string())
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(count)
     }

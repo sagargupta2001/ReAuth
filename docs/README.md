@@ -21,7 +21,7 @@ Use this file to navigate the documentation system. For active implementation wo
 - Update `AGENTS.md` when the repo-wide onboarding contract, command surface, or Graphify workflow changes.
 - Update `docs/agent/` when implementation workflow, testing expectations, or documentation governance changes.
 - Update `docs/memory/` when durable architecture, product behavior, or subsystem knowledge changes.
-- Update `docs/specs/` when feature scope, business rules, public interfaces, or acceptance criteria change.
+- Update `docs/specs/` when large feature scope, breaking behavior, product contracts, public interfaces, or acceptance criteria change.
 
 ## Supporting Indexes
 

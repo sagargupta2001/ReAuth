@@ -90,7 +90,7 @@ export function useOmniStaticItems() {
         group: 'Suggested Actions',
         kind: 'link',
         icon: ShieldPlus,
-        href: `/${realm}/roles/new`,
+        href: `/${realm}/roles`,
         suggested: true,
       },
     )

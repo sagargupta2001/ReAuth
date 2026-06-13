@@ -575,6 +575,167 @@ impl RbacService {
         Ok(())
     }
 
+    pub async fn bulk_update_role_members(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        user_ids: Vec<Uuid>,
+        action: String,
+    ) -> Result<()> {
+        // 1. Verify Role belongs to Realm (mirrors assign_role_to_user).
+        let role = self
+            .rbac_repo
+            .find_role_by_id(&role_id)
+            .await?
+            .ok_or(Error::NotFound("Role not found".into()))?;
+
+        if role.realm_id != realm_id {
+            return Err(Error::SecurityViolation("Cross-realm assignment".into()));
+        }
+
+        // 2. Validate Action
+        if action != "add" && action != "remove" {
+            return Err(Error::Validation(
+                "Invalid action. Use 'add' or 'remove'.".into(),
+            ));
+        }
+
+        let make_event = |user_id: Uuid| {
+            if action == "add" {
+                DomainEvent::UserRoleAssigned(UserRoleChanged { user_id, role_id })
+            } else {
+                DomainEvent::UserRoleRemoved(UserRoleChanged { user_id, role_id })
+            }
+        };
+
+        // 3. Apply every change in a single transaction (all-or-nothing).
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            for &user_id in &user_ids {
+                if action == "add" {
+                    self.rbac_repo
+                        .assign_role_to_user(&user_id, &role_id, Some(&mut *tx))
+                        .await?;
+                } else {
+                    self.rbac_repo
+                        .remove_role_from_user(&user_id, &role_id, Some(&mut *tx))
+                        .await?;
+                }
+                self.write_outbox(&make_event(user_id), Some(realm_id), &mut *tx)
+                    .await?;
+            }
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                for &user_id in &user_ids {
+                    self.event_bus.publish(make_event(user_id)).await;
+                }
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn bulk_update_role_composites(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+        child_role_ids: Vec<Uuid>,
+        action: String,
+    ) -> Result<()> {
+        let parent = self.get_role(realm_id, role_id).await?;
+
+        // 1. Validate Action
+        if action != "add" && action != "remove" {
+            return Err(Error::Validation(
+                "Invalid action. Use 'add' or 'remove'.".into(),
+            ));
+        }
+
+        // 2. Validate every child up-front so we fail before mutating anything
+        //    (mirrors the checks in assign_composite_role / remove_composite_role).
+        for &child_role_id in &child_role_ids {
+            if child_role_id == role_id {
+                return Err(Error::Validation(
+                    "Cannot add a role as its own composite".into(),
+                ));
+            }
+
+            let child = self.get_role(realm_id, child_role_id).await?;
+            if parent.client_id != child.client_id {
+                return Err(Error::Validation(
+                    "Composite roles must belong to the same client scope".into(),
+                ));
+            }
+
+            if action == "add"
+                && self
+                    .rbac_repo
+                    .is_role_descendant(&child_role_id, &role_id)
+                    .await?
+            {
+                return Err(Error::Validation(
+                    "Composite assignment would create a cycle".into(),
+                ));
+            }
+        }
+
+        let make_event = |child_role_id: Uuid| {
+            DomainEvent::RoleCompositeChanged(RoleCompositeChanged {
+                parent_role_id: role_id,
+                child_role_id,
+                action: if action == "add" {
+                    "assigned".to_string()
+                } else {
+                    "removed".to_string()
+                },
+            })
+        };
+
+        // 3. Apply every change in a single transaction (all-or-nothing).
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            for &child_role_id in &child_role_ids {
+                if action == "add" {
+                    self.rbac_repo
+                        .assign_composite_role(&role_id, &child_role_id, Some(&mut *tx))
+                        .await?;
+                } else {
+                    self.rbac_repo
+                        .remove_composite_role(&role_id, &child_role_id, Some(&mut *tx))
+                        .await?;
+                }
+                self.write_outbox(&make_event(child_role_id), Some(realm_id), &mut *tx)
+                    .await?;
+            }
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                for &child_role_id in &child_role_ids {
+                    self.event_bus.publish(make_event(child_role_id)).await;
+                }
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
+
+        Ok(())
+    }
+
     // --- User Query Operations ---
 
     pub async fn get_user_roles_and_groups(

@@ -557,6 +557,10 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             delete(rbac_handler::remove_composite_role_handler),
         )
         .route(
+            "/roles/{id}/composites/bulk",
+            post(rbac_handler::bulk_composites_handler),
+        )
+        .route(
             "/roles/{id}/members",
             get(rbac_handler::list_role_members_handler),
         )
@@ -565,8 +569,16 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             get(rbac_handler::list_role_members_page_handler),
         )
         .route(
+            "/roles/{id}/members/bulk",
+            post(rbac_handler::bulk_role_members_handler),
+        )
+        .route(
             "/roles/{id}/permissions/bulk",
             post(rbac_handler::bulk_permissions_handler), // [NEW] Bulk
+        )
+        .route(
+            "/roles/{id}/delete-summary",
+            get(rbac_handler::get_role_delete_summary_handler),
         )
         .route(
             "/groups",
@@ -624,6 +636,10 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         .route(
             "/permissions/custom",
             post(rbac_handler::create_custom_permission_handler),
+        )
+        .route(
+            "/permissions/custom/{id}/delete-summary",
+            get(rbac_handler::get_custom_permission_delete_summary_handler),
         )
         .route(
             "/permissions/custom/{id}",

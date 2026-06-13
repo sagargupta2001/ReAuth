@@ -1,8 +1,11 @@
 use super::*;
-use crate::domain::events::EventEnvelope;
-use crate::domain::rbac::{
-    GroupMemberRow, GroupRoleRow, GroupTreeRow, RoleCompositeRow, RoleMemberRow, UserRoleRow,
+use crate::domain::events::{
+    DomainEvent, EventEnvelope, RoleGroupChanged, UserGroupChanged, UserRoleChanged,
 };
+use crate::domain::group::Group;
+use crate::domain::pagination::{PageRequest, PageResponse};
+use crate::domain::rbac::*;
+use crate::domain::role::Permission;
 use crate::ports::outbox_repository::OutboxRepository;
 use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use async_trait::async_trait;
@@ -149,6 +152,8 @@ struct TestRbacRepo {
     next_group_sort_order: Mutex<i64>,
     count_user_ids_in_groups_result: Mutex<i64>,
     count_role_ids_in_groups_result: Mutex<i64>,
+    count_group_ids_for_role_result: Mutex<i64>,
+    count_parent_role_ids_for_role_result: Mutex<i64>,
     list_roles_result: Mutex<PageResponse<Role>>,
     list_client_roles_result: Mutex<PageResponse<Role>>,
     list_groups_result: Mutex<PageResponse<Group>>,
@@ -198,6 +203,8 @@ impl Default for TestRbacRepo {
             next_group_sort_order: Mutex::new(0),
             count_user_ids_in_groups_result: Mutex::new(0),
             count_role_ids_in_groups_result: Mutex::new(0),
+            count_group_ids_for_role_result: Mutex::new(0),
+            count_parent_role_ids_for_role_result: Mutex::new(0),
             list_roles_result: Mutex::new(Self::empty_page()),
             list_client_roles_result: Mutex::new(Self::empty_page()),
             list_groups_result: Mutex::new(Self::empty_page()),
@@ -261,6 +268,14 @@ impl TestRbacRepo {
 
     fn set_count_role_ids_in_groups_result(&self, value: i64) {
         *self.count_role_ids_in_groups_result.lock().unwrap() = value;
+    }
+
+    fn set_count_group_ids_for_role_result(&self, value: i64) {
+        *self.count_group_ids_for_role_result.lock().unwrap() = value;
+    }
+
+    fn set_count_parent_role_ids_for_role_result(&self, value: i64) {
+        *self.count_parent_role_ids_for_role_result.lock().unwrap() = value;
     }
 
     fn set_group_children(&self, parent_id: Option<Uuid>, children: Vec<Uuid>) {
@@ -832,6 +847,16 @@ impl RbacRepository for TestRbacRepo {
         Ok(*self.count_role_ids_in_groups_result.lock().unwrap())
     }
 
+    async fn count_group_ids_for_role(&self, _role_id: &Uuid) -> Result<i64> {
+        self.maybe_fail("count_group_ids_for_role")?;
+        Ok(*self.count_group_ids_for_role_result.lock().unwrap())
+    }
+
+    async fn count_parent_role_ids_for_role(&self, _role_id: &Uuid) -> Result<i64> {
+        self.maybe_fail("count_parent_role_ids_for_role")?;
+        Ok(*self.count_parent_role_ids_for_role_result.lock().unwrap())
+    }
+
     async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>> {
         self.maybe_fail("find_direct_role_ids_for_user")?;
         Ok(self
@@ -1128,6 +1153,15 @@ impl RbacRepository for TestRbacRepo {
         Ok(self.list_custom_permissions_result.lock().unwrap().clone())
     }
 
+    async fn list_roles_for_permission_key(
+        &self,
+        _realm_id: &Uuid,
+        _permission: &str,
+    ) -> Result<Vec<CustomPermissionRoleImpact>> {
+        self.maybe_fail("list_roles_for_permission_key")?;
+        Ok(Vec::new())
+    }
+
     async fn remove_role_permissions_by_key(
         &self,
         permission: &str,
@@ -1178,6 +1212,9 @@ fn build_role(realm_id: Uuid, role_id: Uuid, name: &str) -> Role {
         client_id: None,
         name: name.to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     }
 }
 
@@ -1427,6 +1464,9 @@ async fn assign_permission_to_client_role_rejects_system_permission() {
         client_id: Some(Uuid::new_v4()),
         name: "client-role".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness
@@ -1455,6 +1495,9 @@ async fn assign_composite_role_rejects_cycles() {
         client_id: None,
         name: "parent".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness.repo.insert_role(Role {
         id: child_id,
@@ -1462,6 +1505,9 @@ async fn assign_composite_role_rejects_cycles() {
         client_id: None,
         name: "child".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness.repo.set_role_descendant(true);
 
@@ -1616,6 +1662,9 @@ async fn create_role_rejects_duplicate_name() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     };
     harness.repo.insert_role(existing);
 
@@ -1705,6 +1754,9 @@ async fn delete_role_publishes_event_with_affected_users() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness
         .repo
@@ -1725,6 +1777,56 @@ async fn delete_role_publishes_event_with_affected_users() {
     });
 
     assert!(has_event, "expected RoleDeleted event");
+}
+
+#[tokio::test]
+async fn get_role_delete_summary_returns_assignment_impact() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let direct_users = vec![Uuid::new_v4(), Uuid::new_v4()];
+    let effective_users = vec![direct_users[0], direct_users[1], Uuid::new_v4()];
+    let child_roles = vec![Uuid::new_v4(), Uuid::new_v4()];
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+    harness
+        .repo
+        .set_find_direct_user_ids_for_role(role_id, direct_users);
+    harness
+        .repo
+        .set_find_user_ids_for_role(role_id, effective_users);
+    harness.repo.set_count_group_ids_for_role_result(4);
+    harness.repo.set_count_parent_role_ids_for_role_result(1);
+    harness
+        .repo
+        .set_list_role_composite_ids(role_id, child_roles);
+    harness
+        .repo
+        .set_get_permissions_for_role_result(vec!["users:read".into(), "users:write".into()]);
+
+    let summary = harness
+        .service
+        .get_role_delete_summary(realm_id, role_id)
+        .await
+        .expect("role delete summary");
+
+    assert_eq!(summary.role_id, role_id);
+    assert_eq!(summary.name, "admin");
+    assert_eq!(summary.direct_user_count, 2);
+    assert_eq!(summary.effective_user_count, 3);
+    assert_eq!(summary.group_count, 4);
+    assert_eq!(summary.parent_role_count, 1);
+    assert_eq!(summary.child_role_count, 2);
+    assert_eq!(summary.permission_count, 2);
 }
 
 #[tokio::test]
@@ -1829,6 +1931,9 @@ async fn assign_permission_to_role_requires_custom_permission() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness
@@ -2096,6 +2201,9 @@ async fn bulk_update_permissions_rejects_invalid_action() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness
@@ -2504,6 +2612,9 @@ async fn get_role_rejects_cross_realm_access() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness.service.get_role(other_realm, role_id).await;
@@ -2523,6 +2634,9 @@ async fn update_role_updates_repo_state() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let updated = harness
@@ -2571,6 +2685,9 @@ async fn delete_role_rejects_cross_realm() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness.service.delete_role(other_realm, role_id).await;
@@ -2802,6 +2919,9 @@ async fn assign_role_to_group_publishes_event() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness.repo.groups.lock().unwrap().insert(
         group_id,
@@ -2839,6 +2959,9 @@ async fn remove_role_from_group_publishes_event() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness.repo.groups.lock().unwrap().insert(
         group_id,
@@ -2936,6 +3059,9 @@ async fn assign_role_to_user_publishes_event() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     harness
@@ -2962,6 +3088,9 @@ async fn remove_role_from_user_publishes_event() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     harness
@@ -2989,6 +3118,9 @@ async fn remove_role_from_user_rejects_cross_realm() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness
@@ -3013,6 +3145,9 @@ async fn assign_role_to_user_rejects_cross_realm() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness
@@ -3036,6 +3171,9 @@ async fn assign_composite_role_publishes_event() {
         client_id: None,
         name: "parent".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness.repo.insert_role(Role {
         id: child_role_id,
@@ -3043,6 +3181,9 @@ async fn assign_composite_role_publishes_event() {
         client_id: None,
         name: "child".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     harness
@@ -3075,6 +3216,9 @@ async fn assign_composite_role_rejects_self_reference() {
         client_id: None,
         name: "role".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness
@@ -3104,6 +3248,9 @@ async fn assign_composite_role_rejects_mismatched_client_ids() {
         client_id: Some(client_id),
         name: "parent".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness.repo.insert_role(Role {
         id: child_role_id,
@@ -3111,6 +3258,9 @@ async fn assign_composite_role_rejects_mismatched_client_ids() {
         client_id: None,
         name: "child".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness
@@ -3139,6 +3289,9 @@ async fn remove_composite_role_publishes_event() {
         client_id: None,
         name: "parent".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness.repo.insert_role(Role {
         id: child_role_id,
@@ -3146,6 +3299,9 @@ async fn remove_composite_role_publishes_event() {
         client_id: None,
         name: "child".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     harness
@@ -3180,6 +3336,9 @@ async fn remove_composite_role_rejects_mismatched_client_ids() {
         client_id: Some(client_id),
         name: "parent".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness.repo.insert_role(Role {
         id: child_role_id,
@@ -3187,6 +3346,9 @@ async fn remove_composite_role_rejects_mismatched_client_ids() {
         client_id: None,
         name: "child".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let result = harness
@@ -3214,6 +3376,9 @@ async fn assign_permission_to_role_allows_system_permission_for_realm_role() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     harness
@@ -3255,6 +3420,9 @@ async fn revoke_permission_publishes_event_and_calls_repo() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     harness
@@ -3290,6 +3458,9 @@ async fn bulk_update_permissions_add_calls_repo_and_emits_events() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let perms = vec!["app:read".to_string(), "app:write".to_string()];
@@ -3353,6 +3524,9 @@ async fn bulk_update_permissions_remove_calls_repo_and_emits_events() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let perms = vec!["app:read".to_string(), "app:write".to_string()];
@@ -3402,6 +3576,9 @@ async fn get_direct_user_ids_for_role_returns_repo_data() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness
         .repo
@@ -3429,6 +3606,9 @@ async fn get_effective_user_ids_for_role_returns_repo_data() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness
         .repo
@@ -3587,6 +3767,9 @@ async fn get_role_composite_ids_returns_repo_data() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness
         .repo
@@ -3614,6 +3797,9 @@ async fn get_effective_role_composite_ids_returns_repo_data() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
     harness
         .repo
@@ -3664,6 +3850,9 @@ async fn find_role_by_name_returns_match() {
         client_id: None,
         name: "viewer".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let found = harness
@@ -3689,6 +3878,9 @@ async fn list_roles_returns_repo_page() {
         client_id: None,
         name: "viewer".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     };
     let page = PageResponse::new(vec![role.clone()], 1, 1, 20);
     harness.repo.set_list_roles_result(page);
@@ -3717,6 +3909,9 @@ async fn list_client_roles_returns_repo_page() {
         client_id: Some(client_id),
         name: "client-viewer".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     };
     let page = PageResponse::new(vec![role.clone()], 1, 1, 20);
     harness.repo.set_list_client_roles_result(page);
@@ -3744,6 +3939,9 @@ async fn list_role_members_returns_repo_page() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let row = RoleMemberRow {
@@ -3902,6 +4100,9 @@ async fn list_role_composites_returns_repo_page_and_client_scope() {
         client_id: Some(client_id),
         name: "parent".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let row = RoleCompositeRow {
@@ -4108,6 +4309,9 @@ async fn get_permissions_for_role_returns_repo_data() {
         client_id: None,
         name: "admin".to_string(),
         description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     });
 
     let permissions = vec!["app:read".to_string(), "app:write".to_string()];
@@ -5077,4 +5281,276 @@ async fn group_lookup_failures_propagate_in_group_scoped_methods() {
             .move_group(realm_id, group_id, None, None, None),
     )
     .await;
+}
+
+#[tokio::test]
+async fn bulk_update_role_members_add_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_a = Uuid::new_v4();
+    let user_b = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    harness
+        .service
+        .bulk_update_role_members(realm_id, role_id, vec![user_a, user_b], "add".to_string())
+        .await
+        .expect("bulk add members");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    for user_id in [user_a, user_b] {
+        let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRoleAssigned(UserRoleChanged { user_id: uid, role_id: rid }) if *uid == user_id && *rid == role_id));
+        assert!(has_event, "expected UserRoleAssigned event for {user_id}");
+    }
+}
+
+#[tokio::test]
+async fn bulk_update_role_members_remove_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let user_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    harness
+        .service
+        .bulk_update_role_members(realm_id, role_id, vec![user_id], "remove".to_string())
+        .await
+        .expect("bulk remove members");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRoleRemoved(UserRoleChanged { user_id: uid, role_id: rid }) if *uid == user_id && *rid == role_id));
+    assert!(has_event, "expected UserRoleRemoved event");
+}
+
+#[tokio::test]
+async fn bulk_update_role_members_rejects_invalid_action() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_role_members(
+            realm_id,
+            role_id,
+            vec![Uuid::new_v4()],
+            "invalid".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_role_members_rejects_cross_realm() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let other_realm = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: None,
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_role_members(
+            other_realm,
+            role_id,
+            vec![Uuid::new_v4()],
+            "add".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::SecurityViolation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_role_composites_add_publishes_events() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+    let child_a = Uuid::new_v4();
+    let child_b = Uuid::new_v4();
+
+    for (id, name) in [
+        (parent_role_id, "parent"),
+        (child_a, "child-a"),
+        (child_b, "child-b"),
+    ] {
+        harness.repo.insert_role(Role {
+            id,
+            realm_id,
+            client_id: None,
+            name: name.to_string(),
+            description: None,
+            created_at: None,
+            user_count: None,
+            permission_count: None,
+        });
+    }
+
+    harness
+        .service
+        .bulk_update_role_composites(
+            realm_id,
+            parent_role_id,
+            vec![child_a, child_b],
+            "add".to_string(),
+        )
+        .await
+        .expect("bulk add composites");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    for child_role_id in [child_a, child_b] {
+        let has_event = events.iter().any(|event| match event {
+            DomainEvent::RoleCompositeChanged(payload) => {
+                payload.parent_role_id == parent_role_id
+                    && payload.child_role_id == child_role_id
+                    && payload.action == "assigned"
+            }
+            _ => false,
+        });
+        assert!(
+            has_event,
+            "expected RoleCompositeChanged assigned event for {child_role_id}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn bulk_update_role_composites_rejects_invalid_action() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: parent_role_id,
+        realm_id,
+        client_id: None,
+        name: "parent".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_role_composites(
+            realm_id,
+            parent_role_id,
+            vec![Uuid::new_v4()],
+            "invalid".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_role_composites_rejects_self_reference() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: parent_role_id,
+        realm_id,
+        client_id: None,
+        name: "parent".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    let result = harness
+        .service
+        .bulk_update_role_composites(
+            realm_id,
+            parent_role_id,
+            vec![parent_role_id],
+            "add".to_string(),
+        )
+        .await;
+
+    assert!(matches!(result, Err(Error::Validation(_))));
+}
+
+#[tokio::test]
+async fn bulk_update_role_composites_rejects_cycle() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_role_id = Uuid::new_v4();
+    let child_role_id = Uuid::new_v4();
+
+    for (id, name) in [(parent_role_id, "parent"), (child_role_id, "child")] {
+        harness.repo.insert_role(Role {
+            id,
+            realm_id,
+            client_id: None,
+            name: name.to_string(),
+            description: None,
+            created_at: None,
+            user_count: None,
+            permission_count: None,
+        });
+    }
+    harness.repo.set_role_descendant(true);
+
+    let result = harness
+        .service
+        .bulk_update_role_composites(
+            realm_id,
+            parent_role_id,
+            vec![child_role_id],
+            "add".to_string(),
+        )
+        .await;
+
+    match result {
+        Err(Error::Validation(message)) => assert!(message.contains("create a cycle")),
+        other => panic!("expected validation error, got {other:?}"),
+    }
 }

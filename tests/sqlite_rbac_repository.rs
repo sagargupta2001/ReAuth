@@ -39,6 +39,9 @@ fn role(id: Uuid, realm_id: Uuid, client_id: Option<Uuid>, name: &str) -> Role {
         client_id,
         name: name.to_string(),
         description: Some(format!("{} role", name)),
+        created_at: None,
+        user_count: None,
+        permission_count: None,
     }
 }
 
@@ -129,6 +132,18 @@ async fn role_crud_and_listing() -> Result<()> {
 
     repo.create_role(&role_admin, None).await?;
     repo.create_role(&role_viewer, None).await?;
+    let user_one = Uuid::new_v4();
+    let user_two = Uuid::new_v4();
+    insert_user(&db.pool, user_one, realm_id, "role-user-one").await?;
+    insert_user(&db.pool, user_two, realm_id, "role-user-two").await?;
+    repo.assign_role_to_user(&user_one, &role_viewer.id, None)
+        .await?;
+    repo.assign_role_to_user(&user_two, &role_viewer.id, None)
+        .await?;
+    repo.assign_permission_to_role(&"perm.read".to_string(), &role_viewer.id, None)
+        .await?;
+    repo.assign_permission_to_role(&"perm.write".to_string(), &role_viewer.id, None)
+        .await?;
 
     let found = repo.find_role_by_id(&role_admin.id).await?;
     assert_eq!(found.unwrap().name, "admin");
@@ -140,6 +155,9 @@ async fn role_crud_and_listing() -> Result<()> {
     let page = repo.list_roles(&realm_id, &req).await?;
     assert_eq!(page.meta.total, 1);
     assert_eq!(page.data[0].id, role_viewer.id);
+    assert!(page.data[0].created_at.is_some());
+    assert_eq!(page.data[0].user_count, Some(2));
+    assert_eq!(page.data[0].permission_count, Some(2));
 
     let mut updated = role_viewer.clone();
     updated.name = "viewer-updated".to_string();
@@ -325,6 +343,13 @@ async fn custom_permissions_and_role_permissions() -> Result<()> {
         .await?;
     repo.assign_permission_to_role(&"perm.shared".to_string(), &role_two.id, None)
         .await?;
+    let impacted_roles = repo
+        .list_roles_for_permission_key(&realm_id, "perm.shared")
+        .await?;
+    assert_eq!(impacted_roles.len(), 2);
+    assert_eq!(impacted_roles[0].name, "alpha");
+    assert_eq!(impacted_roles[1].name, "beta");
+
     repo.remove_role_permissions_by_key("perm.shared", None)
         .await?;
     let perms_one = repo.get_permissions_for_role(&role_one.id).await?;
@@ -566,6 +591,12 @@ async fn membership_and_composites_queries() -> Result<()> {
 
     let role_count = repo.count_role_ids_in_groups(&[g1.id]).await?;
     assert_eq!(role_count, 1);
+
+    let group_count_for_role = repo.count_group_ids_for_role(&r2.id).await?;
+    assert_eq!(group_count_for_role, 1);
+
+    let parent_role_count = repo.count_parent_role_ids_for_role(&r3.id).await?;
+    assert_eq!(parent_role_count, 1);
 
     let direct_role_ids = repo.find_direct_role_ids_for_user(&u1).await?;
     assert_eq!(direct_role_ids, vec![r1.id]);

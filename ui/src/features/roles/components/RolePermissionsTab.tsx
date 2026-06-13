@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/dialog'
@@ -24,6 +25,7 @@ import { useScrollSpy } from '@/shared/hooks/useScrollSpy'
 // Import extracted API hooks (Solid/FSD)
 import {
   useCreateCustomPermission,
+  useCustomPermissionDeleteSummary,
   useDeleteCustomPermission,
   useUpdateCustomPermission,
 } from '@/features/roles/api/useCustomPermissions'
@@ -59,6 +61,10 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
   const createPermission = useCreateCustomPermission()
   const updatePermission = useUpdateCustomPermission()
   const deletePermission = useDeleteCustomPermission()
+  const {
+    data: deleteSummary,
+    isLoading: deleteSummaryLoading,
+  } = useCustomPermissionDeleteSummary(activePermission?.custom_id, deleteOpen)
 
   // 3. Scroll Spy
   // We map the IDs only when data exists.
@@ -167,32 +173,33 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
     !createPermission.isPending
   const canUpdate =
     editPermissionName.trim().length > 0 && !updatePermission.isPending && !!activePermission
+  const visibleDeleteSummaryRoles = deleteSummary?.roles.slice(0, 5) ?? []
+  const hiddenDeleteSummaryRoleCount = Math.max((deleteSummary?.role_count ?? 0) - 5, 0)
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background">
       {/* SIDEBAR */}
-      <aside className="bg-muted/10 flex w-64 flex-shrink-0 flex-col border-r">
+      <aside className="bg-muted/10 flex w-64 shrink-0 flex-col border-r">
         <div className="border-b p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <p className="text-foreground text-sm font-medium">Permissions</p>
-              <p className="text-muted-foreground text-xs">
-                {clientId ? 'Client scope' : 'Realm scope'}
-              </p>
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />
+              <Input
+                placeholder="Search..."
+                className="h-9 pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
             </div>
-            <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              New
+            <Button
+              size="icon"
+              className="grid h-9 w-9 shrink-0 place-items-center p-0"
+              variant="outline"
+              onClick={() => setCreateOpen(true)}
+              aria-label="Create custom permission"
+            >
+              <Plus className="h-4 w-4" />
             </Button>
-          </div>
-          <div className="relative">
-            <Search className="text-muted-foreground absolute left-2.5 top-2.5 h-4 w-4" />
-            <Input
-              placeholder="Filter..."
-              className="h-9 pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
           </div>
         </div>
         <ScrollArea className="flex-1">
@@ -271,7 +278,8 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             assignedPermissions.includes(id),
           ).length
           const isAllSelected = assignedCount === resourcePermIds.length && resourcePermIds.length > 0
-          const isIndeterminate = assignedCount > 0 && assignedCount < resourcePermIds.length
+          const isPartiallySelected = assignedCount > 0 && assignedCount < resourcePermIds.length
+          const nextBulkAction = isAllSelected ? 'remove' : 'add'
 
           return (
             <div
@@ -289,17 +297,44 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
                   </h3>
                   <p className="text-muted-foreground mt-1 text-sm">{resource.description}</p>
                 </div>
-                <div className="bg-muted/30 flex items-center space-x-2 rounded-md border px-3 py-1.5">
-                  <Checkbox
-                    id={`select-all-${resource.id}`}
-                    checked={isAllSelected ? true : isIndeterminate ? 'indeterminate' : false}
-                    onCheckedChange={(c) =>
-                      bulkMutation.mutate({ permissions: resourcePermIds, action: c ? 'add' : 'remove' })
+                <div className="bg-muted/30 flex items-center rounded-md border">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isAllSelected}
+                    aria-label={`${isAllSelected ? 'Clear' : 'Select'} all ${resource.label} permissions`}
+                    disabled={!resourcePermIds.length || bulkMutation.isPending}
+                    onClick={() =>
+                      bulkMutation.mutate({ permissions: resourcePermIds, action: nextBulkAction })
                     }
-                  />
-                  <label htmlFor={`select-all-${resource.id}`} className="cursor-pointer select-none text-sm font-medium">
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 text-sm font-medium transition-colors',
+                      'disabled:cursor-not-allowed disabled:opacity-50',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'border-primary grid h-4 w-4 place-items-center rounded-full border transition-colors',
+                        isAllSelected
+                          ? 'bg-primary text-primary-foreground'
+                          : isPartiallySelected
+                            ? 'bg-primary/20'
+                            : 'bg-background',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full transition-colors',
+                          isAllSelected
+                            ? 'bg-primary-foreground'
+                            : isPartiallySelected
+                              ? 'bg-primary'
+                              : 'bg-transparent',
+                        )}
+                      />
+                    </span>
                     Select All
-                  </label>
+                  </button>
                 </div>
               </div>
 
@@ -315,13 +350,6 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
                           </span>
                         </div>
                         <p className="text-muted-foreground mt-0.5 text-xs">{perm.description}</p>
-                        {resource.id === CUSTOM_GROUP_ID && perm.custom_id && (
-                          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1 text-[10px]">
-                            <span className="bg-muted/60 rounded px-1.5 py-0.5 font-mono">
-                              UUID: {perm.custom_id}
-                            </span>
-                          </div>
-                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {resource.id === CUSTOM_GROUP_ID && perm.custom_id && (
@@ -373,14 +401,14 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Create Custom Permission</DialogTitle>
             <DialogDescription>
               Define a permission ID and label, then optionally assign it to this role.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 px-6 pb-2">
             <div className="space-y-2">
               <Label htmlFor="permission-id">Permission ID</Label>
               <Input
@@ -426,37 +454,31 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="gap-1 py-3 pr-3">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleCreatePermission} disabled={!canCreate}>
               {createPermission.isPending ? 'Creating...' : 'Create Permission'}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Edit Custom Permission</DialogTitle>
             <DialogDescription>
               Update the name or description for this permission.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 px-6 pb-2">
             <div className="space-y-2">
               <Label>Permission ID</Label>
               <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-sm font-mono">
                 {activePermission?.id}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Permission UUID</Label>
-              <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-xs font-mono">
-                {activePermission?.custom_id}
               </div>
             </div>
             <div className="space-y-2">
@@ -477,47 +499,78 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
             </div>
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="gap-1 py-3 pr-3">
             <Button variant="outline" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleUpdatePermission} disabled={!canUpdate}>
               {updatePermission.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+          <DialogHeader className="px-6 pt-6">
             <DialogTitle>Delete Custom Permission</DialogTitle>
             <DialogDescription>
-              This will remove the permission from all roles. This action cannot be undone.
+              This will remove the permission from all assigned roles. This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-2">
+          <div className="space-y-3 px-6 pb-2">
             <div className="bg-muted/50 text-muted-foreground rounded-md border px-3 py-2 text-xs font-mono">
               {activePermission?.id}
             </div>
-            <div className="text-muted-foreground text-[10px] font-mono">
-              UUID: {activePermission?.custom_id}
-            </div>
+            {deleteSummaryLoading ? (
+              <div className="text-muted-foreground text-sm">Loading impact...</div>
+            ) : deleteSummary ? (
+              <div className="space-y-3 text-sm">
+                <div className="rounded-md border px-3 py-2">
+                  <div className="text-muted-foreground text-xs">Roles assigned</div>
+                  <div className="font-medium">{deleteSummary.role_count}</div>
+                </div>
+                {deleteSummary.role_count > 0 ? (
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground mb-2 text-xs">Affected roles</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {visibleDeleteSummaryRoles.map((role) => (
+                        <Badge key={role.id} variant="outline" className="font-normal">
+                          {role.name}
+                        </Badge>
+                      ))}
+                      {hiddenDeleteSummaryRoleCount > 0 ? (
+                        <Badge variant="secondary" className="font-normal">
+                          +{hiddenDeleteSummaryRoleCount} more
+                        </Badge>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-muted-foreground text-sm">
+                    This permission is not assigned to any roles.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-destructive text-sm">Unable to load delete impact.</div>
+            )}
           </div>
 
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter className="gap-1 py-3 pr-3">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleDeletePermission}
-              disabled={deletePermission.isPending}
+              disabled={deleteSummaryLoading || deletePermission.isPending || !deleteSummary}
             >
               {deletePermission.isPending ? 'Deleting...' : 'Delete Permission'}
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

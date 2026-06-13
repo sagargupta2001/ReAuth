@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 import { Form } from '@/components/form'
 import type { Role } from '@/features/roles/api/useRoles.ts'
 import { useUpdateRole } from '@/features/roles/api/useUpdateRole'
@@ -27,7 +27,6 @@ export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
     },
   })
 
-  // Sync form with data when role loads/changes
   useEffect(() => {
     form.reset({
       name: role.name,
@@ -38,7 +37,6 @@ export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
   const onSubmit = (values: RoleFormValues) => {
     mutation.mutate(values, {
       onSuccess: () => {
-        // Reset with new values to mark form as pristine (clean)
         form.reset(values)
       },
     })
@@ -48,18 +46,15 @@ export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
   useFormPersistence(form, onSubmit, mutation.isPending)
 
   return (
-    <div className="max-w-4xl space-y-6 p-6">
+    <div className="max-w-4xl space-y-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>
-                Manage the basic identification details for this role.
-              </CardDescription>
+              <CardTitle>Basic Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6">
+            <CardContent >
+              <div className='bg-primary-foreground p-4 rounded-2xl space-y-4'>
                 <FormInput
                   control={form.control}
                   name="name"

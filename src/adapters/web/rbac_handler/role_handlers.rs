@@ -385,6 +385,24 @@ pub async fn delete_role_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn get_role_delete_summary_handler(
+    State(state): State<AppState>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let summary = state
+        .rbac_service
+        .get_role_delete_summary(realm.id, role_id)
+        .await?;
+
+    Ok((StatusCode::OK, Json(summary)))
+}
+
 pub async fn get_role_handler(
     State(state): State<AppState>,
     Path((realm_name, role_id)): Path<(String, Uuid)>,
@@ -595,6 +613,24 @@ pub async fn delete_custom_permission_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn get_custom_permission_delete_summary_handler(
+    State(state): State<AppState>,
+    Path((realm_name, permission_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let summary = state
+        .rbac_service
+        .get_custom_permission_delete_summary(realm.id, permission_id)
+        .await?;
+
+    Ok((StatusCode::OK, Json(summary)))
+}
+
 // GET /roles/:id/permissions
 pub async fn list_role_permissions_handler(
     State(state): State<AppState>,
@@ -744,4 +780,78 @@ pub async fn bulk_permissions_handler(
     .await;
 
     Ok((StatusCode::OK, Json(json!({}))))
+}
+
+// POST /roles/:id/members/bulk
+pub async fn bulk_role_members_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+    Json(payload): Json<BulkRoleMembersPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let action = payload.action.clone();
+    let count = payload.user_ids.len();
+    state
+        .rbac_service
+        .bulk_update_role_members(realm.id, role_id, payload.user_ids, payload.action)
+        .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.member.bulk",
+        "role",
+        Some(role_id.to_string()),
+        json!({
+            "action": action,
+            "count": count,
+        }),
+    )
+    .await;
+
+    Ok((StatusCode::OK, Json(json!({ "count": count }))))
+}
+
+// POST /roles/:id/composites/bulk
+pub async fn bulk_composites_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
+    Path((realm_name, role_id)): Path<(String, Uuid)>,
+    Json(payload): Json<BulkCompositesPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let action = payload.action.clone();
+    let count = payload.role_ids.len();
+    state
+        .rbac_service
+        .bulk_update_role_composites(realm.id, role_id, payload.role_ids, payload.action)
+        .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.role.composite.bulk",
+        "role",
+        Some(role_id.to_string()),
+        json!({
+            "action": action,
+            "count": count,
+        }),
+    )
+    .await;
+
+    Ok((StatusCode::OK, Json(json!({ "count": count }))))
 }

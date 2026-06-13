@@ -3,7 +3,7 @@ use super::{CreateCustomPermissionPayload, CreateRolePayload, UpdateCustomPermis
 use crate::domain::events::DomainEvent;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::permissions;
-use crate::domain::rbac::CustomPermission;
+use crate::domain::rbac::{CustomPermission, CustomPermissionDeleteSummary, RoleDeleteSummary};
 use crate::domain::role::Role;
 use crate::error::{Error, Result};
 use uuid::Uuid;
@@ -26,6 +26,9 @@ impl RbacService {
             client_id: payload.client_id,
             name: payload.name,
             description: payload.description,
+            created_at: None,
+            user_count: None,
+            permission_count: None,
         };
         self.rbac_repo.create_role(&role, None).await?;
         Ok(role)
@@ -65,6 +68,47 @@ impl RbacService {
         }
 
         Ok(role)
+    }
+
+    pub async fn get_role_delete_summary(
+        &self,
+        realm_id: Uuid,
+        role_id: Uuid,
+    ) -> Result<RoleDeleteSummary> {
+        let role = self.get_role(realm_id, role_id).await?;
+        let direct_user_count = self
+            .rbac_repo
+            .find_direct_user_ids_for_role(&role_id)
+            .await?
+            .len() as i64;
+        let effective_user_count =
+            self.rbac_repo.find_user_ids_for_role(&role_id).await?.len() as i64;
+        let group_count = self.rbac_repo.count_group_ids_for_role(&role_id).await?;
+        let parent_role_count = self
+            .rbac_repo
+            .count_parent_role_ids_for_role(&role_id)
+            .await?;
+        let child_role_count = self
+            .rbac_repo
+            .list_role_composite_ids(&role_id)
+            .await?
+            .len() as i64;
+        let permission_count = self
+            .rbac_repo
+            .get_permissions_for_role(&role_id)
+            .await?
+            .len() as i64;
+
+        Ok(RoleDeleteSummary {
+            role_id,
+            name: role.name,
+            direct_user_count,
+            effective_user_count,
+            group_count,
+            parent_role_count,
+            child_role_count,
+            permission_count,
+        })
     }
 
     pub async fn update_role(
@@ -234,6 +278,30 @@ impl RbacService {
             .update_custom_permission(&updated, None)
             .await?;
         Ok(updated)
+    }
+
+    pub async fn get_custom_permission_delete_summary(
+        &self,
+        realm_id: Uuid,
+        permission_id: Uuid,
+    ) -> Result<CustomPermissionDeleteSummary> {
+        let permission = self
+            .rbac_repo
+            .find_custom_permission_by_id(&realm_id, &permission_id)
+            .await?
+            .ok_or(Error::NotFound("Custom permission not found".into()))?;
+        let roles = self
+            .rbac_repo
+            .list_roles_for_permission_key(&realm_id, &permission.permission)
+            .await?;
+
+        Ok(CustomPermissionDeleteSummary {
+            permission_id,
+            permission: permission.permission,
+            name: permission.name,
+            role_count: roles.len() as i64,
+            roles,
+        })
     }
 
     pub async fn delete_custom_permission(

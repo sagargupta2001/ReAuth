@@ -1,38 +1,55 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react';
 
-import {
-  type ColumnDef,
-  type OnChangeFn,
-  type PaginationState,
-  type SortingState,
-} from '@tanstack/react-table'
-import { UserCog } from 'lucide-react'
 
-import { Badge } from '@/components/badge'
-import { Button } from '@/components/button'
-import { Switch } from '@/components/switch'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import {
-  useRoleMemberIds,
-  useRoleMembersList,
-  useManageRoleMembers,
-  type RoleMemberRow,
-} from '@/features/roles/api/useRoleMembers'
-import { DataTableColumnHeader } from '@/shared/ui/data-table'
-import { DataTable } from '@/shared/ui/data-table/data-table'
-import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
-import { Checkbox } from '@/shared/ui/checkbox'
+
+import { type ColumnDef, type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table';
+import { UserCheck, UserCog, Users } from 'lucide-react';
+
+
+
+import { Badge } from '@/components/badge';
+import { Switch } from '@/components/switch';
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic';
+import { type RoleMemberRow, useManageRoleMembers, useRoleMemberIds, useRoleMembersList } from '@/features/roles/api/useRoleMembers';
+import { AssignmentAccessFilter } from '@/features/roles/components/AssignmentAccessFilter';
+import { RoleAssignmentStats } from '@/features/roles/components/RoleAssignmentStats';
+import { RoleMembersBulkActions } from '@/features/roles/components/RoleMembersBulkActions';
+import { type RoleMemberFilter, roleMemberFilterOptions } from '@/features/roles/model/roleMemberFilters';
+import { Checkbox } from '@/shared/ui/checkbox';
+import { DataTableColumnHeader } from '@/shared/ui/data-table';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 interface RoleMembersTabProps {
   roleId: string
 }
 
-type AssignmentFilter = 'all' | 'direct' | 'effective' | 'unassigned'
-
 export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
   const navigate = useRealmNavigate()
   const [searchTerm, setSearchTerm] = useState('')
-  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>('all')
+  const [assignmentFilter, setAssignmentFilter] = useState<RoleMemberFilter>('all')
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -69,7 +86,11 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
       {
         id: 'select',
         header: ({ table }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={
                 table.getIsAllPageRowsSelected() ||
@@ -82,7 +103,11 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
           </div>
         ),
         cell: ({ row }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
@@ -177,46 +202,20 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
   }
 
-  const filterOptions: { value: AssignmentFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'direct', label: 'Direct' },
-    { value: 'effective', label: 'Via Group' },
-    { value: 'unassigned', label: 'Unassigned' },
-  ]
+  const handleFilterChange = (value: RoleMemberFilter) => {
+    setAssignmentFilter(value)
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+  }
 
   return (
     <div className="flex h-full w-full flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">Members</h3>
-            <p className="text-muted-foreground text-sm">
-              Direct assignments are controlled here. Effective access can also come from groups.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className='p-2 pointer-events-none' variant="outline">Direct: {directMemberIds.length}</Badge>
-            <Badge className='p-2 pointer-events-none' variant="outline">Effective: {effectiveMemberIds.length}</Badge>
-            <Badge className='p-2 pointer-events-none' variant="outline">Users: {memberPage?.meta.total ?? 0}</Badge>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {filterOptions.map((option) => (
-            <Button
-              key={option.value}
-              size="sm"
-              variant={assignmentFilter === option.value ? 'secondary' : 'outline'}
-              onClick={() => {
-                setAssignmentFilter(option.value)
-                setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-              }}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <RoleAssignmentStats
+        metrics={[
+          { label: 'Direct', value: directMemberIds.length, icon: UserCheck },
+          { label: 'Effective', value: effectiveMemberIds.length, icon: Users },
+          { label: 'Total members', value: memberPage?.meta.total ?? 0, icon: UserCog },
+        ]}
+      />
 
       {isMembersLoading ? (
         <div className="h-[calc(100vh-440px)]">
@@ -232,46 +231,29 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           searchKey="username"
-          searchPlaceholder="Filter users..."
           searchValue={searchTerm}
           onSearch={handleSearch}
+          toolbarFilters={() => (
+            <AssignmentAccessFilter
+              options={roleMemberFilterOptions}
+              value={assignmentFilter}
+              onChange={handleFilterChange}
+            />
+          )}
           onRowClick={(user) => navigate(`/users/${user.id}`)}
           bulkEntityName="user"
-          renderBulkActions={(table) => {
-            const selectedUsers = table.getFilteredSelectedRowModel().rows.map((row) => row.original)
-            const assignableIds = selectedUsers.filter((user) => !user.is_direct).map((user) => user.id)
-            const removableIds = selectedUsers.filter((user) => user.is_direct).map((user) => user.id)
-
-            return (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={assignableIds.length === 0 || isMutating}
-                  onClick={() =>
-                    bulkAddMutation.mutate(assignableIds, {
-                      onSuccess: () => table.resetRowSelection(),
-                    })
-                  }
-                >
-                  Assign Direct
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={removableIds.length === 0 || isMutating}
-                  onClick={() =>
-                    bulkRemoveMutation.mutate(removableIds, {
-                      onSuccess: () => table.resetRowSelection(),
-                    })
-                  }
-                >
-                  Remove Direct
-                </Button>
-              </>
-            )
-          }}
-          className="h-[calc(100vh-450px)]"
+          renderBulkActions={(table) => (
+            <RoleMembersBulkActions
+              selectedMembers={table.getFilteredSelectedRowModel().rows.map((row) => row.original)}
+              isMutating={isMutating}
+              onAssignDirect={(userIds) =>
+                bulkAddMutation.mutate(userIds, { onSuccess: () => table.resetRowSelection() })
+              }
+              onRemoveDirect={(userIds) =>
+                bulkRemoveMutation.mutate(userIds, { onSuccess: () => table.resetRowSelection() })
+              }
+            />
+          )}
         />
       )}
     </div>

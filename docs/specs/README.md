@@ -45,4 +45,4 @@ Each spec should define:
 
 ## Rule
 
-If a change materially affects business rules, APIs, domain models, flows, or persistence, it should have a spec.
+Use specs for large feature slices, breaking changes, major domain/API/persistence changes, and new auth or protocol capabilities. Small enhancements, local UI changes, and bug fixes do not need a new spec unless they change product contracts or fit an existing active spec.

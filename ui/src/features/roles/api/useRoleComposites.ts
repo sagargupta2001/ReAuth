@@ -65,7 +65,8 @@ export function useManageRoleComposites(roleId: string) {
   const queryClient = useQueryClient()
   const directQueryKey = queryKeys.roleComposites(realm, roleId, 'direct')
   const effectiveQueryKey = queryKeys.roleComposites(realm, roleId, 'effective')
-  const listQueryKey = queryKeys.roleCompositeList(realm, roleId)
+  // Prefix key (no params) so invalidation matches every paged/filtered list variant.
+  const listQueryKey = ['role-composite-list', realm, roleId] as const
 
   const addMutation = useMutation({
     mutationFn: async (childRoleId: string) => {
@@ -104,13 +105,10 @@ export function useManageRoleComposites(roleId: string) {
 
   const bulkAddMutation = useMutation({
     mutationFn: async (childRoleIds: string[]) => {
-      await Promise.all(
-        childRoleIds.map((childRoleId) =>
-          apiClient.post(`/api/realms/${realm}/rbac/roles/${roleId}/composites`, {
-            role_id: childRoleId,
-          }),
-        ),
-      )
+      return apiClient.post(`/api/realms/${realm}/rbac/roles/${roleId}/composites/bulk`, {
+        role_ids: childRoleIds,
+        action: 'add',
+      })
     },
     onSuccess: (_, childRoleIds) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) => {
@@ -126,13 +124,10 @@ export function useManageRoleComposites(roleId: string) {
 
   const bulkRemoveMutation = useMutation({
     mutationFn: async (childRoleIds: string[]) => {
-      await Promise.all(
-        childRoleIds.map((childRoleId) =>
-          apiClient.delete(
-            `/api/realms/${realm}/rbac/roles/${roleId}/composites/${childRoleId}`,
-          ),
-        ),
-      )
+      return apiClient.post(`/api/realms/${realm}/rbac/roles/${roleId}/composites/bulk`, {
+        role_ids: childRoleIds,
+        action: 'remove',
+      })
     },
     onSuccess: (_, childRoleIds) => {
       queryClient.setQueryData(directQueryKey, (old: string[] = []) =>

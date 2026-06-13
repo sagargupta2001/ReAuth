@@ -3,9 +3,9 @@ use crate::domain::role::Permission;
 use crate::domain::{
     group::Group,
     rbac::{
-        CustomPermission, GroupMemberFilter, GroupMemberRow, GroupRoleFilter, GroupRoleRow,
-        GroupTreeRow, RoleCompositeFilter, RoleCompositeRow, RoleMemberFilter, RoleMemberRow,
-        UserRoleFilter, UserRoleRow,
+        CustomPermission, CustomPermissionRoleImpact, GroupMemberFilter, GroupMemberRow,
+        GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
+        RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
     },
     role::Role,
 };
@@ -159,6 +159,8 @@ pub trait RbacRepository: Send + Sync {
     async fn find_effective_role_ids_for_group(&self, group_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn count_user_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64>;
     async fn count_role_ids_in_groups(&self, group_ids: &[Uuid]) -> Result<i64>;
+    async fn count_group_ids_for_role(&self, role_id: &Uuid) -> Result<i64>;
+    async fn count_parent_role_ids_for_role(&self, role_id: &Uuid) -> Result<i64>;
     async fn find_direct_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn find_effective_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>>;
     async fn find_role_ids_for_user(&self, user_id: &Uuid) -> Result<Vec<Uuid>>;
@@ -238,6 +240,11 @@ pub trait RbacRepository: Send + Sync {
         realm_id: &Uuid,
         client_id: Option<&Uuid>,
     ) -> Result<Vec<CustomPermission>>;
+    async fn list_roles_for_permission_key(
+        &self,
+        realm_id: &Uuid,
+        permission: &str,
+    ) -> Result<Vec<CustomPermissionRoleImpact>>;
     async fn remove_role_permissions_by_key(
         &self,
         permission: &str,

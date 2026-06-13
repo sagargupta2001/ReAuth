@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
@@ -34,6 +34,28 @@ export interface UpdateCustomPermissionPayload {
   description?: string | null
 }
 
+export interface CustomPermissionDeleteSummary {
+  permission_id: string
+  permission: string
+  name: string
+  role_count: number
+  roles: Array<{ id: string; name: string }>
+}
+
+export function useCustomPermissionDeleteSummary(permissionId?: string, enabled = false) {
+  const realm = useActiveRealm()
+
+  return useQuery({
+    queryKey: queryKeys.customPermissionDeleteSummary(realm, permissionId ?? ''),
+    queryFn: async () => {
+      return apiClient.get<CustomPermissionDeleteSummary>(
+        `/api/realms/${realm}/rbac/permissions/custom/${permissionId}/delete-summary`,
+      )
+    },
+    enabled: enabled && !!permissionId,
+  })
+}
+
 export function useUpdateCustomPermission() {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
@@ -63,6 +85,11 @@ export function useDeleteCustomPermission() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.permissionsDefinitions(realm) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.rolePermissions(realm) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.roles(realm) })
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.customPermissionDeleteSummaries(realm),
+      })
       toast.success('Custom permission deleted')
     },
     onError: () => toast.error('Failed to delete permission'),

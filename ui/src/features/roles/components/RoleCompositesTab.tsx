@@ -1,36 +1,52 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react';
 
-import {
-  type ColumnDef,
-  type OnChangeFn,
-  type PaginationState,
-  type SortingState,
-} from '@tanstack/react-table'
-import { Layers } from 'lucide-react'
 
-import { Badge } from '@/components/badge'
-import { Button } from '@/components/button'
-import { Switch } from '@/components/switch'
-import {
-  type RoleCompositeRow,
-  useManageRoleComposites,
-  useRoleCompositeIds,
-  useRoleCompositesList,
-} from '@/features/roles/api/useRoleComposites'
-import { DataTableColumnHeader } from '@/shared/ui/data-table'
-import { DataTable } from '@/shared/ui/data-table/data-table'
-import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
-import { Checkbox } from '@/shared/ui/checkbox'
+
+import { type ColumnDef, type OnChangeFn, type PaginationState, type SortingState } from '@tanstack/react-table';
+import { Layers, Network, Workflow } from 'lucide-react';
+
+
+
+import { Badge } from '@/components/badge';
+import { Switch } from '@/components/switch';
+import { type RoleCompositeRow, useManageRoleComposites, useRoleCompositeIds, useRoleCompositesList } from '@/features/roles/api/useRoleComposites';
+import { AssignmentAccessFilter } from '@/features/roles/components/AssignmentAccessFilter';
+import { RoleAssignmentStats } from '@/features/roles/components/RoleAssignmentStats';
+import { RoleCompositesBulkActions } from '@/features/roles/components/RoleCompositesBulkActions';
+import { type RoleCompositeFilter, roleCompositeFilterOptions } from '@/features/roles/model/roleCompositeFilters';
+import { Checkbox } from '@/shared/ui/checkbox';
+import { DataTableColumnHeader } from '@/shared/ui/data-table';
+import { DataTable } from '@/shared/ui/data-table/data-table';
+import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton';
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 interface RoleCompositesTabProps {
   roleId: string
 }
 
-type RoleFilter = 'all' | 'direct' | 'effective' | 'unassigned'
-
 export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [roleFilter, setRoleFilter] = useState<RoleCompositeFilter>('all')
 
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -70,7 +86,11 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
       {
         id: 'select',
         header: ({ table }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={
                 table.getIsAllPageRowsSelected() ||
@@ -78,17 +98,21 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
               }
               onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
               aria-label="Select all"
-              className="translate-y-[2px]"
+              className="translate-y-0.5"
             />
           </div>
         ),
         cell: ({ row }) => (
-          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            className="p-2"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <Checkbox
               checked={row.getIsSelected()}
               onCheckedChange={(value) => row.toggleSelected(!!value)}
               aria-label="Select row"
-              className="translate-y-[2px]"
+              className="translate-y-0.5"
             />
           </div>
         ),
@@ -177,46 +201,20 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
   }
 
-  const filterOptions: { value: RoleFilter; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'direct', label: 'Direct' },
-    { value: 'effective', label: 'Inherited' },
-    { value: 'unassigned', label: 'Unassigned' },
-  ]
+  const handleFilterChange = (value: RoleCompositeFilter) => {
+    setRoleFilter(value)
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+  }
 
   return (
     <div className="flex h-full w-full flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">Composite Roles</h3>
-            <p className="text-muted-foreground text-sm">
-              Build composite roles by combining existing roles.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">Direct {directRoleIds.length}</Badge>
-            <Badge variant="outline">Effective {effectiveRoleIds.length}</Badge>
-            <Badge variant="outline">Roles {rolesPage?.meta.total ?? 0}</Badge>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          {filterOptions.map((option) => (
-            <Button
-              key={option.value}
-              size="sm"
-              variant={roleFilter === option.value ? 'secondary' : 'outline'}
-              onClick={() => {
-                setRoleFilter(option.value)
-                setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-              }}
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <RoleAssignmentStats
+        metrics={[
+          { label: 'Direct', value: directRoleIds.length, icon: Layers },
+          { label: 'Effective', value: effectiveRoleIds.length, icon: Network },
+          { label: 'Total roles', value: rolesPage?.meta.total ?? 0, icon: Workflow },
+        ]}
+      />
 
       {isRolesLoading || isDirectRolesLoading || isEffectiveRolesLoading ? (
         <div className="h-[calc(100vh-440px)]">
@@ -232,45 +230,28 @@ export function RoleCompositesTab({ roleId }: RoleCompositesTabProps) {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           searchKey="name"
-          searchPlaceholder="Filter roles..."
           searchValue={searchTerm}
           onSearch={handleSearch}
+          toolbarFilters={() => (
+            <AssignmentAccessFilter
+              options={roleCompositeFilterOptions}
+              value={roleFilter}
+              onChange={handleFilterChange}
+            />
+          )}
           bulkEntityName="role"
-          renderBulkActions={(table) => {
-            const selectedRoles = table.getFilteredSelectedRowModel().rows.map((row) => row.original)
-            const addIds = selectedRoles.filter((role) => !role.is_direct).map((role) => role.id)
-            const removeIds = selectedRoles.filter((role) => role.is_direct).map((role) => role.id)
-
-            return (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={addIds.length === 0 || isMutating}
-                  onClick={() =>
-                    bulkAddMutation.mutate(addIds, {
-                      onSuccess: () => table.resetRowSelection(),
-                    })
-                  }
-                >
-                  Add Composites
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={removeIds.length === 0 || isMutating}
-                  onClick={() =>
-                    bulkRemoveMutation.mutate(removeIds, {
-                      onSuccess: () => table.resetRowSelection(),
-                    })
-                  }
-                >
-                  Remove Composites
-                </Button>
-              </>
-            )
-          }}
-          className="h-[calc(100vh-450px)]"
+          renderBulkActions={(table) => (
+            <RoleCompositesBulkActions
+              selectedRoles={table.getFilteredSelectedRowModel().rows.map((row) => row.original)}
+              isMutating={isMutating}
+              onAddComposites={(roleIds) =>
+                bulkAddMutation.mutate(roleIds, { onSuccess: () => table.resetRowSelection() })
+              }
+              onRemoveComposites={(roleIds) =>
+                bulkRemoveMutation.mutate(roleIds, { onSuccess: () => table.resetRowSelection() })
+              }
+            />
+          )}
         />
       )}
     </div>

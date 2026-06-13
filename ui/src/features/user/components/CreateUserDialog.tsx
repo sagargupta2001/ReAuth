@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
+
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Plus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { Plus } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import {
@@ -14,23 +15,22 @@ import {
   DialogTrigger,
 } from '@/components/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
+import { useCreateInvitation } from '@/features/invitation/api/useInvitations'
+import { useCreateUser } from '@/features/user/api/useCreateUser'
+import { ApiError } from '@/shared/api/client'
+import { ButtonGroup } from '@/shared/ui/button-group'
+import { Checkbox } from '@/shared/ui/checkbox'
 import { Form } from '@/shared/ui/form'
 import { FormInput } from '@/shared/ui/form-input'
-import { Checkbox } from '@/shared/ui/checkbox'
 import { Separator } from '@/shared/ui/separator'
-import { ButtonGroup } from '@/shared/ui/button-group'
-import { ApiError } from '@/shared/api/client'
-import { useCreateUser } from '@/features/user/api/useCreateUser'
-import { useCreateInvitation } from '@/features/invitation/api/useInvitations'
 
 const emailSchema = z
   .string()
   .trim()
   .optional()
-  .refine(
-    (val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
-    { message: 'Invalid email address' }
-  )
+  .refine((val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
+    message: 'Invalid email address',
+  })
 
 const createFormSchema = z
   .object({
@@ -50,7 +50,11 @@ const createFormSchema = z
   })
 
 const inviteFormSchema = z.object({
-  email: z.string().trim().min(1, { message: 'Email is required' }).email({ message: 'Invalid email address' }),
+  email: z
+    .string()
+    .trim()
+    .min(1, { message: 'Email is required' })
+    .email({ message: 'Invalid email address' }),
   expiry_days: z.number().min(1),
 })
 
@@ -60,10 +64,10 @@ type InviteFormValues = z.infer<typeof inviteFormSchema>
 export function CreateUserDialog() {
   const [open, setOpen] = useState(false)
   const [activeTab, setActiveTab] = useState('create')
-  
+
   const mutation = useCreateUser()
   const inviteMutation = useCreateInvitation()
-  
+
   const createForm = useForm<CreateFormValues>({
     resolver: zodResolver(createFormSchema),
     defaultValues: { username: '', email: '', password: '', ignore_password_policies: false },
@@ -87,15 +91,17 @@ export function CreateUserDialog() {
     const email = values.email?.trim() || undefined
     mutation.mutate(
       { ...values, email },
-      { 
+      {
         onSuccess: () => handleOpenChange(false),
         onError: (error) => {
-          if (error instanceof ApiError && 
-              error.body && 
-              typeof error.body === 'object' && 
-              'fields' in error.body && 
-              error.body.fields && 
-              typeof error.body.fields === 'object') {
+          if (
+            error instanceof ApiError &&
+            error.body &&
+            typeof error.body === 'object' &&
+            'fields' in error.body &&
+            error.body.fields &&
+            typeof error.body.fields === 'object'
+          ) {
             const fields = error.body.fields as Record<string, string>
             Object.entries(fields).forEach(([field, message]) => {
               createForm.setError(field as keyof CreateFormValues, {
@@ -105,7 +111,7 @@ export function CreateUserDialog() {
             })
           }
         },
-      }
+      },
     )
   }
 
@@ -138,18 +144,24 @@ export function CreateUserDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader className='pl-6 pt-6'>
-          <DialogTitle>{activeTab === 'create' ? 'Create new user' : 'Invite new user'}</DialogTitle>
+        <DialogHeader className="pt-6 pl-6">
+          <DialogTitle>
+            {activeTab === 'create' ? 'Create new user' : 'Invite new user'}
+          </DialogTitle>
         </DialogHeader>
-        
+
         <Separator className="my-1" />
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2 w-full">
           <TabsList variant="line" className="mb-4 px-6">
-            <TabsTrigger variant="line" value="create">Create user</TabsTrigger>
-            <TabsTrigger variant="line" value="invite">Invite User</TabsTrigger>
+            <TabsTrigger variant="line" value="create">
+              Create user
+            </TabsTrigger>
+            <TabsTrigger variant="line" value="invite">
+              Invite User
+            </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="create">
             <Form {...createForm}>
               <div className="grid gap-4 px-6 pb-6">
@@ -173,31 +185,37 @@ export function CreateUserDialog() {
                   type="password"
                   placeholder="Enter password"
                 />
-                
-                <div className="flex items-start space-x-3 mt-2">
-                  <Checkbox 
-                    id="ignore_policies" 
+
+                <div className="mt-2 flex items-start space-x-3">
+                  <Checkbox
+                    id="ignore_policies"
                     checked={createForm.watch('ignore_password_policies')}
-                    onCheckedChange={(checked) => createForm.setValue('ignore_password_policies', checked as boolean)}
+                    onCheckedChange={(checked) =>
+                      createForm.setValue('ignore_password_policies', checked as boolean)
+                    }
                   />
-                  <div className="grid gap-1.5 leading-none -mt-0.5">
+                  <div className="-mt-0.5 grid gap-1.5 leading-none">
                     <label
                       htmlFor="ignore_policies"
-                      className="text-[14px] font-medium leading-none cursor-pointer"
+                      className="cursor-pointer text-[14px] leading-none font-medium"
                     >
                       Ignore Password Policies
                     </label>
-                    <p className="text-[13px] text-muted-foreground mt-1">
+                    <p className="text-muted-foreground mt-1 text-[13px]">
                       If checked, password policies will not be enforced on this password.
                     </p>
                   </div>
                 </div>
               </div>
-              <DialogFooter className='py-3 pr-3 gap-1'>
+              <DialogFooter className="gap-1 py-3 pr-3">
                 <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button size='sm' onClick={createForm.handleSubmit(onCreateSubmit)} disabled={mutation.isPending}>
+                <Button
+                  size="sm"
+                  onClick={createForm.handleSubmit(onCreateSubmit)}
+                  disabled={mutation.isPending}
+                >
                   {mutation.isPending ? 'Creating...' : 'Create User'}
                 </Button>
               </DialogFooter>
@@ -214,7 +232,7 @@ export function CreateUserDialog() {
                   type="email"
                   placeholder="name@example.com"
                 />
-                
+
                 <FormInput
                   control={inviteForm.control}
                   name="expiry_days"
@@ -223,25 +241,29 @@ export function CreateUserDialog() {
                   type="number"
                   min={1}
                   placeholder="7"
-                  className="w-24 no-number-arrows"
-                  onChange={(e) => inviteForm.setValue('expiry_days', parseInt(e.target.value) || 0)}
+                  className="no-number-arrows w-24"
+                  onChange={(e) =>
+                    inviteForm.setValue('expiry_days', parseInt(e.target.value) || 0)
+                  }
                   render={(input: React.ReactNode) => (
                     <ButtonGroup>
                       {input}
-                      <Button variant="outline" className="pointer-events-none bg-muted px-4">
+                      <Button variant="outline" className="bg-muted pointer-events-none px-4">
                         Days
                       </Button>
                     </ButtonGroup>
                   )}
                 />
-
-
               </div>
-              <DialogFooter className='py-3 pr-3 gap-1'>
+              <DialogFooter className="gap-1 py-3 pr-3">
                 <Button variant="outline" onClick={() => handleOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button size='sm' onClick={inviteForm.handleSubmit(onInviteSubmit)} disabled={inviteMutation.isPending}>
+                <Button
+                  size="sm"
+                  onClick={inviteForm.handleSubmit(onInviteSubmit)}
+                  disabled={inviteMutation.isPending}
+                >
                   {inviteMutation.isPending ? 'Sending...' : 'Send Invite'}
                 </Button>
               </DialogFooter>

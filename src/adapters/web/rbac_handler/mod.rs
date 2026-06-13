@@ -209,6 +209,18 @@ pub struct BulkPermissionPayload {
 }
 
 #[derive(Deserialize)]
+pub struct BulkRoleMembersPayload {
+    pub user_ids: Vec<Uuid>,
+    pub action: String, // "add" or "remove"
+}
+
+#[derive(Deserialize)]
+pub struct BulkCompositesPayload {
+    pub role_ids: Vec<Uuid>,
+    pub action: String, // "add" or "remove"
+}
+
+#[derive(Deserialize)]
 pub struct RoleMembersQuery {
     pub scope: Option<String>,
 }

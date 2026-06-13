@@ -21,7 +21,7 @@
 ### Frontend experience
 - [x] Global Roles management page.
 - [x] Client Roles tab in Client Details page.
-- [x] Polymorphic CreateRoleForm (page + dialog).
+- [x] Create role dialog shared by realm and client role surfaces.
 - [x] Tab-to-route mapping for client details.
 - [x] Sticky header + tabs layout.
 - [x] Permission picker UI for system permissions (RolePermissionsTab).
