@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import { Group as GroupIcon, MoreVertical, Trash2 } from 'lucide-react'
+import { ChevronDown, Copy, Group as GroupIcon, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/button'
@@ -36,6 +36,11 @@ interface GroupHeaderProps {
 
 const EMPTY_IDS: string[] = []
 
+function truncateMiddle(value: string, start = 8, end = 4) {
+  if (value.length <= start + end + 3) return value
+  return `${value.slice(0, start)}...${value.slice(-end)}`
+}
+
 export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
   const navigate = useRealmNavigate()
   const realm = useActiveRealm()
@@ -60,8 +65,10 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
   }, [summary])
 
   const copyId = () => {
-    void navigator.clipboard.writeText(group.id)
-    toast.success('Group ID copied')
+    void navigator.clipboard
+      .writeText(group.id)
+      .then(() => toast.success('Group ID copied.'))
+      .catch(() => toast.error('Failed to copy group ID.'))
   }
 
   const handleConfirmDelete = () => {
@@ -91,24 +98,33 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
 
   return (
     <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between px-6 backdrop-blur">
-      <div className="flex flex-col gap-1">
-
-        <div className="flex items-center gap-4">
+      <div className="flex min-w-0 items-center gap-4">
         <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
           <GroupIcon className="text-primary h-5 w-5" />
         </div>
 
-        <div className="flex flex-col">
+        <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-2">
-            <h1 className="text-foreground text-lg font-bold tracking-tight">{group.name}</h1>
+            <h1 className="text-foreground truncate text-lg font-bold tracking-tight">
+              {group.name}
+            </h1>
           </div>
-          <div className="text-muted-foreground flex items-center gap-1 text-xs">
+          <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
             <span>ID:</span>
-            <button onClick={copyId} className="hover:text-foreground font-mono hover:underline">
-              {group.id}
-            </button>
+            <span className="font-mono" title={group.id}>
+              {truncateMiddle(group.id)}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={copyId}
+              aria-label="Copy group ID"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
           </div>
-        </div>
         </div>
       </div>
 
@@ -120,13 +136,19 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
+            <Button variant="soft">
+              Actions
+              <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="mr-2 h-4 w-4" /> Delete Group
+            <DropdownMenuItem
+              variant="destructive"
+              className="cursor-pointer"
+              onSelect={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete group
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

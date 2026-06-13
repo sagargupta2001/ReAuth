@@ -11,9 +11,10 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Search } from 'lucide-react'
+import { Loader2, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/button'
 import { Input } from '@/components/input'
 import type { Group } from '@/entities/group/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
@@ -502,6 +503,18 @@ export function GroupTreePanel({
             </DragOverlay>
           </DndContext>
         )}
+      </div>
+
+      <div className="bg-surface-elevated/95 sticky bottom-0 shrink-0 border-t p-3">
+        <Button
+          type="button"
+          size="sm"
+          className="flex w-full items-center justify-center gap-2"
+          onClick={() => onCreateGroup(null)}
+        >
+          <Plus className="h-4 w-4" />
+          Create Group
+        </Button>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import {
@@ -118,13 +118,10 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
             Organize users and roles into hierarchical groups.
           </p>
         </div>
-        <Button onClick={() => handleCreateGroup(null)} className="space-x-1">
-          <span>Create Group</span> <Plus size={18} />
-        </Button>
       </div>
 
-      <div className="flex overflow-hidden gap-2  bg-muted/5 h-[calc(100vh-225px)]">
-        <div className="w-[320px] bg-surface-elevated rounded-2xl">
+      <div className="flex h-[calc(100vh-225px)] gap-2 overflow-hidden bg-muted/5">
+        <div className="w-[320px] rounded-2xl bg-surface-elevated">
           <GroupTreePanel
             selectedId={groupId}
             onSelect={handleSelectGroup}
