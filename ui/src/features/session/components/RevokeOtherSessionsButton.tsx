@@ -25,7 +25,7 @@ export function RevokeOtherSessionsButton() {
           Revoke all other sessions
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent overlayClassName="bg-background/80 dot-grid text-muted-foreground/20">
         <AlertDialogHeader>
           <AlertDialogTitle>Revoke all other sessions</AlertDialogTitle>
           <AlertDialogDescription>

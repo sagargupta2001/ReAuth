@@ -119,7 +119,7 @@ export function SessionRowActions({
       </DropdownMenu>
 
       <AlertDialog open={confirm !== null} onOpenChange={(open) => !open && setConfirm(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent overlayClassName="bg-background/80 dot-grid text-muted-foreground/20">
           <AlertDialogHeader>
             <AlertDialogTitle>{active?.title}</AlertDialogTitle>
             <AlertDialogDescription>{active?.description}</AlertDialogDescription>

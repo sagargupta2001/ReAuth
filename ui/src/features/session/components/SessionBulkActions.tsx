@@ -38,7 +38,7 @@ export function SessionBulkActions({ table, currentSessionId }: SessionBulkActio
           Revoke {ids.length} session{ids.length === 1 ? '' : 's'}
         </Button>
       </AlertDialogTrigger>
-      <AlertDialogContent>
+      <AlertDialogContent overlayClassName="bg-background/80 dot-grid text-muted-foreground/20">
         <AlertDialogHeader>
           <AlertDialogTitle>Revoke sessions</AlertDialogTitle>
           <AlertDialogDescription>

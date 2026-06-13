@@ -59,7 +59,11 @@ export function SessionDetailsDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 sm:max-w-md">
+      <SheetContent
+        side="right"
+        overlayClassName="bg-background/80 dot-grid text-muted-foreground/20"
+        className="flex w-full flex-col gap-0 sm:max-w-md"
+      >
         <SheetHeader>
           <SheetTitle>Session details</SheetTitle>
         </SheetHeader>
