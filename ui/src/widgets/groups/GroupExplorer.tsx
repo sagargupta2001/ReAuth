@@ -123,8 +123,8 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
         </Button>
       </div>
 
-      <div className="flex overflow-hidden rounded-xl border bg-muted/5 h-[calc(100vh-225px)]">
-        <div className="w-[320px] shrink-0 border-r bg-background/60">
+      <div className="flex overflow-hidden gap-2  bg-muted/5 h-[calc(100vh-225px)]">
+        <div className="w-[320px] bg-surface-elevated rounded-2xl">
           <GroupTreePanel
             selectedId={groupId}
             onSelect={handleSelectGroup}

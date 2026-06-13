@@ -90,7 +90,7 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
   }
 
   return (
-    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b px-6 backdrop-blur">
+    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between px-6 backdrop-blur">
       <div className="flex flex-col gap-1">
 
         <div className="flex items-center gap-4">

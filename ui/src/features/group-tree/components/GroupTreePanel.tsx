@@ -441,14 +441,14 @@ export function GroupTreePanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b px-4 py-3">
+      <div className="px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="text-muted-foreground absolute left-2 top-2.5 h-4 w-4" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search groups"
+              placeholder="Search..."
               className="h-9 pl-8"
             />
           </div>
