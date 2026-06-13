@@ -11,8 +11,8 @@ import { Badge } from '@/components/badge';
 import { Switch } from '@/components/switch';
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic';
 import { type RoleMemberRow, useManageRoleMembers, useRoleMemberIds, useRoleMembersList } from '@/features/roles/api/useRoleMembers';
-import { AssignmentAccessFilter } from '@/features/roles/components/AssignmentAccessFilter';
-import { RoleAssignmentStats } from '@/features/roles/components/RoleAssignmentStats';
+import { AssignmentAccessFilter } from '@/components/assignment-access-filter';
+import { AssignmentStats } from '@/components/assignment-stats';
 import { RoleMembersBulkActions } from '@/features/roles/components/RoleMembersBulkActions';
 import { type RoleMemberFilter, roleMemberFilterOptions } from '@/features/roles/model/roleMemberFilters';
 import { Checkbox } from '@/shared/ui/checkbox';
@@ -209,7 +209,7 @@ export function RoleMembersTab({ roleId }: RoleMembersTabProps) {
 
   return (
     <div className="flex h-full w-full flex-col gap-4">
-      <RoleAssignmentStats
+      <AssignmentStats
         metrics={[
           { label: 'Direct', value: directMemberIds.length, icon: UserCheck },
           { label: 'Effective', value: effectiveMemberIds.length, icon: Users },

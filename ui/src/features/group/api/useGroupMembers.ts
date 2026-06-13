@@ -58,7 +58,8 @@ export function useManageGroupMembers(groupId: string) {
   const realm = useActiveRealm()
   const queryClient = useQueryClient()
   const queryKey = queryKeys.groupMembers(realm, groupId)
-  const listQueryKey = queryKeys.groupMemberList(realm, groupId)
+  // Prefix key (no params) so invalidation matches every paged/filtered list variant.
+  const listQueryKey = ['group-member-list', realm, groupId] as const
 
   const addMutation = useMutation({
     mutationFn: async (userId: string) => {
@@ -95,13 +96,10 @@ export function useManageGroupMembers(groupId: string) {
 
   const bulkAddMutation = useMutation({
     mutationFn: async (userIds: string[]) => {
-      await Promise.all(
-        userIds.map((userId) =>
-          apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/members`, {
-            user_id: userId,
-          }),
-        ),
-      )
+      return apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/members/bulk`, {
+        user_ids: userIds,
+        action: 'add',
+      })
     },
     onSuccess: (_, userIds) => {
       queryClient.setQueryData(queryKey, (old: string[] = []) => {
@@ -116,11 +114,10 @@ export function useManageGroupMembers(groupId: string) {
 
   const bulkRemoveMutation = useMutation({
     mutationFn: async (userIds: string[]) => {
-      await Promise.all(
-        userIds.map((userId) =>
-          apiClient.delete(`/api/realms/${realm}/rbac/groups/${groupId}/members/${userId}`),
-        ),
-      )
+      return apiClient.post(`/api/realms/${realm}/rbac/groups/${groupId}/members/bulk`, {
+        user_ids: userIds,
+        action: 'remove',
+      })
     },
     onSuccess: (_, userIds) => {
       queryClient.setQueryData(queryKey, (old: string[] = []) =>

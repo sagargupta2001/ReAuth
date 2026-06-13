@@ -610,6 +610,10 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
             get(rbac_handler::list_group_members_page_handler),
         )
         .route(
+            "/groups/{id}/members/bulk",
+            post(rbac_handler::bulk_group_members_handler),
+        )
+        .route(
             "/groups/{id}/members/{user_id}",
             delete(rbac_handler::remove_user_from_group_handler),
         )
@@ -621,6 +625,10 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
         .route(
             "/groups/{id}/roles/list",
             get(rbac_handler::list_group_roles_page_handler),
+        )
+        .route(
+            "/groups/{id}/roles/bulk",
+            post(rbac_handler::bulk_group_roles_handler),
         )
         .route(
             "/groups/{id}/roles/{role_id}",

@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 import { Form } from '@/components/form'
 import type { Group } from '@/entities/group/model/types'
 import { useUpdateGroup } from '@/features/group/api/useUpdateGroup'
@@ -46,15 +46,14 @@ export function GroupSettingsTab({ group }: GroupSettingsTabProps) {
 
   return (
     <div className="max-w-4xl space-y-6 p-6">
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Settings</CardTitle>
-              <CardDescription>Manage the basic identification details for this group.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Basic Information</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-primary-foreground rounded-2xl p-4">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormInput
                   control={form.control}
                   name="name"
@@ -70,11 +69,11 @@ export function GroupSettingsTab({ group }: GroupSettingsTabProps) {
                   placeholder="Describe who should belong to this group..."
                   className="min-h-[120px]"
                 />
-              </div>
-            </CardContent>
-          </Card>
-        </form>
-      </Form>
+              </form>
+            </Form>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

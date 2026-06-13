@@ -221,6 +221,18 @@ pub struct BulkCompositesPayload {
 }
 
 #[derive(Deserialize)]
+pub struct BulkGroupMembersPayload {
+    pub user_ids: Vec<Uuid>,
+    pub action: String, // "add" or "remove"
+}
+
+#[derive(Deserialize)]
+pub struct BulkGroupRolesPayload {
+    pub role_ids: Vec<Uuid>,
+    pub action: String, // "add" or "remove"
+}
+
+#[derive(Deserialize)]
 pub struct RoleMembersQuery {
     pub scope: Option<String>,
 }

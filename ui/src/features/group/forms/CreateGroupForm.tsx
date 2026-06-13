@@ -66,7 +66,7 @@ export function CreateGroupForm({
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          <div className="grid gap-4">
+          <div className={isDialog ? 'grid gap-4 px-6 pb-6' : 'grid gap-4'}>
             <FormInput
               control={form.control}
               name="name"
@@ -83,11 +83,11 @@ export function CreateGroupForm({
           </div>
 
           {isDialog && (
-            <DialogFooter className="mt-6">
+            <DialogFooter className="gap-1 py-3 pr-3">
               <Button type="button" variant="outline" onClick={onCancel}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={mutation.isPending}>
+              <Button size="sm" type="submit" disabled={mutation.isPending}>
                 {mutation.isPending ? 'Creating...' : 'Create Group'}
               </Button>
             </DialogFooter>

@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-table'
 import { Folder } from 'lucide-react'
 
+import { AssignmentStats } from '@/components/assignment-stats'
 import { Badge } from '@/components/badge'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useGroupChildrenList } from '@/features/group/api/useGroupChildren'
@@ -89,29 +90,33 @@ export function GroupChildrenTab({ groupId }: GroupChildrenTabProps) {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
   }
 
-  if (isLoading) {
-    return (
-      <div className="h-[calc(100vh-440px)]">
-        <DataTableSkeleton columnCount={3} rowCount={8} />
-      </div>
-    )
-  }
-
   return (
-    <DataTable
-      columns={columns}
-      data={data?.data || []}
-      pageCount={data?.meta.total_pages || 0}
-      pagination={pagination}
-      onPaginationChange={handlePaginationChange}
-      sorting={sorting}
-      onSortingChange={handleSortingChange}
-      searchKey="name"
-      searchPlaceholder="Filter sub-groups..."
-      searchValue={searchTerm}
-      onSearch={handleSearch}
-      onRowClick={(group) => navigate(`/groups/${group.id}/settings`)}
-      className="h-[calc(100vh-482px)]"
-    />
+    <div className="flex h-full w-full flex-col gap-4">
+      <AssignmentStats
+        metrics={[{ label: 'Subgroups', value: data?.meta.total ?? 0, icon: Folder }]}
+      />
+
+      {isLoading ? (
+        <div className="h-[calc(100vh-440px)]">
+          <DataTableSkeleton columnCount={3} rowCount={8} />
+        </div>
+      ) : (
+        <DataTable
+          columns={columns}
+          data={data?.data || []}
+          pageCount={data?.meta.total_pages || 0}
+          pagination={pagination}
+          onPaginationChange={handlePaginationChange}
+          sorting={sorting}
+          onSortingChange={handleSortingChange}
+          searchKey="name"
+          searchPlaceholder="Search..."
+          searchValue={searchTerm}
+          onSearch={handleSearch}
+          onRowClick={(group) => navigate(`/groups/${group.id}/settings`)}
+          className="max-h-[calc(100vh-482px)]"
+        />
+      )}
+    </div>
   )
 }

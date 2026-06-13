@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { Loader2, Plus } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import {
@@ -30,6 +30,7 @@ import {
   updateNode,
 } from '@/features/group-tree/lib/tree-utils'
 import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
+import { Separator } from '@/shared/ui/separator'
 
 interface GroupExplorerProps {
   groupId?: string
@@ -117,13 +118,10 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
             Organize users and roles into hierarchical groups.
           </p>
         </div>
-        <Button onClick={() => handleCreateGroup(null)} className="space-x-1">
-          <span>Create Group</span> <Plus size={18} />
-        </Button>
       </div>
 
-      <div className="flex overflow-hidden rounded-xl border bg-muted/5 h-[calc(100vh-225px)]">
-        <div className="w-[320px] shrink-0 border-r bg-background/60">
+      <div className="flex h-[calc(100vh-225px)] gap-2 overflow-hidden bg-muted/5">
+        <div className="w-[320px] rounded-2xl bg-surface-elevated">
           <GroupTreePanel
             selectedId={groupId}
             onSelect={handleSelectGroup}
@@ -158,17 +156,17 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
                 className="flex flex-1 flex-col overflow-hidden"
               >
                 <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">
-                  <TabsList className="gap-6 bg-transparent p-0">
-                    <TabsTrigger value="settings" className="tab-trigger-styles">
+                  <TabsList variant="line" className="gap-6 bg-transparent p-0">
+                    <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
                       Settings
                     </TabsTrigger>
-                    <TabsTrigger value="members" className="tab-trigger-styles">
+                    <TabsTrigger variant="line" value="members" className="tab-trigger-styles">
                       Members
                     </TabsTrigger>
-                    <TabsTrigger value="roles" className="tab-trigger-styles">
+                    <TabsTrigger variant="line" value="roles" className="tab-trigger-styles">
                       Roles
                     </TabsTrigger>
-                    <TabsTrigger value="children" className="tab-trigger-styles">
+                    <TabsTrigger variant="line" value="children" className="tab-trigger-styles">
                       Child Groups
                     </TabsTrigger>
                   </TabsList>
@@ -207,8 +205,8 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
           }
         }}
       >
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader className="pt-6 pl-6">
             <DialogTitle>{createParentId ? 'Create Sub-group' : 'Create Group'}</DialogTitle>
             <DialogDescription>
               {createParentId
@@ -216,6 +214,8 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
                 : 'Create a new top-level group in this realm.'}
             </DialogDescription>
           </DialogHeader>
+
+          <Separator className="my-1" />
 
           <CreateGroupForm
             isDialog

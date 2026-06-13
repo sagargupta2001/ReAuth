@@ -11,9 +11,10 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, Search } from 'lucide-react'
+import { Loader2, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Button } from '@/components/button'
 import { Input } from '@/components/input'
 import type { Group } from '@/entities/group/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
@@ -61,6 +62,7 @@ export function GroupTreePanel({
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [hoveredId, setHoveredId] = useState<string | null>(null)
   const loadingIdsRef = useRef<Set<string>>(new Set())
   const hydratedIdsRef = useRef<Set<string>>(new Set())
   const expandedByRealm = useGroupTreeStore((state) => state.expandedByRealm)
@@ -244,7 +246,12 @@ export function GroupTreePanel({
 
   const handleDragStart = ({ active }: DragStartEvent) => {
     setActiveId(active.id as string)
+    setHoveredId(null)
   }
+
+  const handleHoverEnd = useCallback((id: string) => {
+    setHoveredId((prev) => (prev === id ? null : prev))
+  }, [])
 
   const handleDragEnd = async ({ active, over }: DragEndEvent) => {
     if (!over) {
@@ -441,14 +448,14 @@ export function GroupTreePanel({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b px-4 py-3">
+      <div className="px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="text-muted-foreground absolute left-2 top-2.5 h-4 w-4" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search groups"
+              placeholder="Search..."
               className="h-9 pl-8"
             />
           </div>
@@ -473,13 +480,16 @@ export function GroupTreePanel({
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
           >
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-1" onPointerLeave={() => setHoveredId(null)}>
               {visibleItems.map((item) => (
                 <GroupTreeItem
                   key={item.id}
                   item={item}
                   isExpanded={expandedIds.has(item.id)}
                   isSelected={selectedId === item.id}
+                  isActive={hoveredId === item.id}
+                  onHoverStart={setHoveredId}
+                  onHoverEnd={handleHoverEnd}
                   onToggle={toggleExpand}
                   onSelect={onSelect}
                   onCreateChild={(parentId) => onCreateGroup(parentId)}
@@ -502,6 +512,18 @@ export function GroupTreePanel({
             </DragOverlay>
           </DndContext>
         )}
+      </div>
+
+      <div className="bg-surface-elevated/95 sticky bottom-0 shrink-0 border-t p-3 rounded-b-2xl">
+        <Button
+          type="button"
+          size="sm"
+          className="flex w-full items-center justify-center gap-2"
+          onClick={() => onCreateGroup(null)}
+        >
+          <Plus className="h-4 w-4" />
+          Create Group
+        </Button>
       </div>
     </div>
   )

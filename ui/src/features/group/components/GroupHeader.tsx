@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import { Group as GroupIcon, MoreVertical, Trash2 } from 'lucide-react'
+import { ChevronDown, Copy, Group as GroupIcon, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/button'
@@ -27,6 +27,7 @@ import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
 import type { GroupTreeNode } from '@/features/group-tree/model/types'
 import { findNode, removeNode } from '@/features/group-tree/lib/tree-utils'
 import { Checkbox } from '@/shared/ui/checkbox'
+import { Separator } from '@/shared/ui/separator'
 
 interface GroupHeaderProps {
   group: Group
@@ -34,6 +35,11 @@ interface GroupHeaderProps {
 }
 
 const EMPTY_IDS: string[] = []
+
+function truncateMiddle(value: string, start = 8, end = 4) {
+  if (value.length <= start + end + 3) return value
+  return `${value.slice(0, start)}...${value.slice(-end)}`
+}
 
 export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
   const navigate = useRealmNavigate()
@@ -59,8 +65,10 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
   }, [summary])
 
   const copyId = () => {
-    void navigator.clipboard.writeText(group.id)
-    toast.success('Group ID copied')
+    void navigator.clipboard
+      .writeText(group.id)
+      .then(() => toast.success('Group ID copied.'))
+      .catch(() => toast.error('Failed to copy group ID.'))
   }
 
   const handleConfirmDelete = () => {
@@ -89,25 +97,34 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
   }
 
   return (
-    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b px-6 backdrop-blur">
-      <div className="flex flex-col gap-1">
-
-        <div className="flex items-center gap-4">
+    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between px-6 backdrop-blur">
+      <div className="flex min-w-0 items-center gap-4">
         <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
           <GroupIcon className="text-primary h-5 w-5" />
         </div>
 
-        <div className="flex flex-col">
+        <div className="flex min-w-0 flex-col">
           <div className="flex items-center gap-2">
-            <h1 className="text-foreground text-lg font-bold tracking-tight">{group.name}</h1>
+            <h1 className="text-foreground truncate text-lg font-bold tracking-tight">
+              {group.name}
+            </h1>
           </div>
-          <div className="text-muted-foreground flex items-center gap-1 text-xs">
+          <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
             <span>ID:</span>
-            <button onClick={copyId} className="hover:text-foreground font-mono hover:underline">
-              {group.id}
-            </button>
+            <span className="font-mono" title={group.id}>
+              {truncateMiddle(group.id)}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={copyId}
+              aria-label="Copy group ID"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
           </div>
-        </div>
         </div>
       </div>
 
@@ -119,13 +136,19 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
+            <Button variant="soft">
+              Actions
+              <ChevronDown className="ml-2 h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="mr-2 h-4 w-4" /> Delete Group
+            <DropdownMenuItem
+              variant="destructive"
+              className="cursor-pointer"
+              onSelect={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete group
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -140,60 +163,64 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
           }
         }}
       >
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader className="pt-6 pl-6">
             <DialogTitle>Delete group</DialogTitle>
             <DialogDescription>
               This permanently removes the group and unassigns any roles or members linked to it.
             </DialogDescription>
           </DialogHeader>
 
-          {summaryLoading ? (
-            <div className="text-muted-foreground text-sm">Loading impact...</div>
-          ) : summary ? (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Groups affected</div>
-                  <div className="font-medium">{impactLabel}</div>
-                </div>
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Sub-groups</div>
-                  <div className="font-medium">{summary.descendant_count}</div>
-                </div>
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Members affected</div>
-                  <div className="font-medium">{summary.member_count}</div>
-                </div>
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Roles affected</div>
-                  <div className="font-medium">{summary.role_count}</div>
-                </div>
-              </div>
+          <Separator className="my-1" />
 
-              {hasDescendants ? (
-                <label className="flex items-start gap-3 rounded-md border p-3">
-                  <Checkbox
-                    checked={cascade}
-                    onCheckedChange={(value) => setCascade(Boolean(value))}
-                  />
-                  <div className="space-y-1">
-                    <div className="font-medium">
-                      Also delete {summary.descendant_count} sub-group
-                      {summary.descendant_count === 1 ? '' : 's'}
-                    </div>
-                    <div className="text-muted-foreground text-xs">
-                      Required to remove nested groups inside this hierarchy.
-                    </div>
+          <div className="px-6 pb-6">
+            {summaryLoading ? (
+              <div className="text-muted-foreground text-sm">Loading impact...</div>
+            ) : summary ? (
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Groups affected</div>
+                    <div className="font-medium">{impactLabel}</div>
                   </div>
-                </label>
-              ) : null}
-            </div>
-          ) : (
-            <div className="text-destructive text-sm">Unable to load delete impact.</div>
-          )}
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Sub-groups</div>
+                    <div className="font-medium">{summary.descendant_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Members affected</div>
+                    <div className="font-medium">{summary.member_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Roles affected</div>
+                    <div className="font-medium">{summary.role_count}</div>
+                  </div>
+                </div>
 
-          <DialogFooter>
+                {hasDescendants ? (
+                  <label className="flex items-start gap-3 rounded-md border p-3">
+                    <Checkbox
+                      checked={cascade}
+                      onCheckedChange={(value) => setCascade(Boolean(value))}
+                    />
+                    <div className="space-y-1">
+                      <div className="font-medium">
+                        Also delete {summary.descendant_count} sub-group
+                        {summary.descendant_count === 1 ? '' : 's'}
+                      </div>
+                      <div className="text-muted-foreground text-xs">
+                        Required to remove nested groups inside this hierarchy.
+                      </div>
+                    </div>
+                  </label>
+                ) : null}
+              </div>
+            ) : (
+              <div className="text-destructive text-sm">Unable to load delete impact.</div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-1 py-3 pr-3">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               Cancel
             </Button>

@@ -736,6 +736,133 @@ impl RbacService {
         Ok(())
     }
 
+    pub async fn bulk_update_group_members(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+        user_ids: Vec<Uuid>,
+        action: String,
+    ) -> Result<()> {
+        // 1. Verify the group belongs to the realm.
+        let _ = self.get_group(realm_id, group_id).await?;
+
+        // 2. Validate Action
+        if action != "add" && action != "remove" {
+            return Err(Error::Validation(
+                "Invalid action. Use 'add' or 'remove'.".into(),
+            ));
+        }
+
+        let make_event = |user_id: Uuid| {
+            if action == "add" {
+                DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id, group_id })
+            } else {
+                DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id, group_id })
+            }
+        };
+
+        // 3. Apply every change in a single transaction (all-or-nothing).
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            for &user_id in &user_ids {
+                if action == "add" {
+                    self.rbac_repo
+                        .assign_user_to_group(&user_id, &group_id, Some(&mut *tx))
+                        .await?;
+                } else {
+                    self.rbac_repo
+                        .remove_user_from_group(&user_id, &group_id, Some(&mut *tx))
+                        .await?;
+                }
+                self.write_outbox(&make_event(user_id), Some(realm_id), &mut *tx)
+                    .await?;
+            }
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                for &user_id in &user_ids {
+                    self.event_bus.publish(make_event(user_id)).await;
+                }
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn bulk_update_group_roles(
+        &self,
+        realm_id: Uuid,
+        group_id: Uuid,
+        role_ids: Vec<Uuid>,
+        action: String,
+    ) -> Result<()> {
+        // 1. Verify the group belongs to the realm.
+        let _ = self.get_group(realm_id, group_id).await?;
+
+        // 2. Validate Action
+        if action != "add" && action != "remove" {
+            return Err(Error::Validation(
+                "Invalid action. Use 'add' or 'remove'.".into(),
+            ));
+        }
+
+        // 3. Verify every role exists / belongs to the realm before mutating anything.
+        for &role_id in &role_ids {
+            let _ = self.get_role(realm_id, role_id).await?;
+        }
+
+        let make_event = |role_id: Uuid| {
+            if action == "add" {
+                DomainEvent::RoleAssignedToGroup(RoleGroupChanged { role_id, group_id })
+            } else {
+                DomainEvent::RoleRemovedFromGroup(RoleGroupChanged { role_id, group_id })
+            }
+        };
+
+        // 4. Apply every change in a single transaction (all-or-nothing).
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            for &role_id in &role_ids {
+                if action == "add" {
+                    self.rbac_repo
+                        .assign_role_to_group(&role_id, &group_id, Some(&mut *tx))
+                        .await?;
+                } else {
+                    self.rbac_repo
+                        .remove_role_from_group(&role_id, &group_id, Some(&mut *tx))
+                        .await?;
+                }
+                self.write_outbox(&make_event(role_id), Some(realm_id), &mut *tx)
+                    .await?;
+            }
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                for &role_id in &role_ids {
+                    self.event_bus.publish(make_event(role_id)).await;
+                }
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
+
+        Ok(())
+    }
+
     // --- User Query Operations ---
 
     pub async fn get_user_roles_and_groups(

@@ -388,6 +388,80 @@ pub async fn remove_role_from_group_handler(
 
     Ok(StatusCode::NO_CONTENT)
 }
+
+// POST /groups/:id/members/bulk
+pub async fn bulk_group_members_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
+    Path((realm_name, group_id)): Path<(String, Uuid)>,
+    Json(payload): Json<BulkGroupMembersPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let action = payload.action.clone();
+    let count = payload.user_ids.len();
+    state
+        .rbac_service
+        .bulk_update_group_members(realm.id, group_id, payload.user_ids, payload.action)
+        .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.group.member.bulk",
+        "group",
+        Some(group_id.to_string()),
+        json!({
+            "action": action,
+            "count": count,
+        }),
+    )
+    .await;
+
+    Ok((StatusCode::OK, Json(json!({ "count": count }))))
+}
+
+// POST /groups/:id/roles/bulk
+pub async fn bulk_group_roles_handler(
+    State(state): State<AppState>,
+    Extension(AuthUser(actor)): Extension<AuthUser>,
+    Path((realm_name, group_id)): Path<(String, Uuid)>,
+    Json(payload): Json<BulkGroupRolesPayload>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let action = payload.action.clone();
+    let count = payload.role_ids.len();
+    state
+        .rbac_service
+        .bulk_update_group_roles(realm.id, group_id, payload.role_ids, payload.action)
+        .await?;
+
+    record_audit(
+        &state,
+        realm.id,
+        actor.id,
+        "rbac.group.role.bulk",
+        "group",
+        Some(group_id.to_string()),
+        json!({
+            "action": action,
+            "count": count,
+        }),
+    )
+    .await;
+
+    Ok((StatusCode::OK, Json(json!({ "count": count }))))
+}
 pub async fn list_group_roles_handler(
     State(state): State<AppState>,
     Path((realm_name, group_id)): Path<(String, Uuid)>,

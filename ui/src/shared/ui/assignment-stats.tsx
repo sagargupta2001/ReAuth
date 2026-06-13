@@ -2,19 +2,23 @@ import type { LucideIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
-export interface RoleAssignmentMetric {
+export interface AssignmentMetric {
   label: string
   value: number
   icon: LucideIcon
   hint?: string
 }
 
-interface RoleAssignmentStatsProps {
-  metrics: RoleAssignmentMetric[]
+interface AssignmentStatsProps {
+  metrics: AssignmentMetric[]
   className?: string
 }
 
-export function RoleAssignmentStats({ metrics, className }: RoleAssignmentStatsProps) {
+/**
+ * Row of compact metric cards (label + count + icon) shown above assignment-style
+ * data tables — role members/composites, group members/roles, etc.
+ */
+export function AssignmentStats({ metrics, className }: AssignmentStatsProps) {
   return (
     <div className={cn('grid grid-cols-1 gap-3 sm:grid-cols-3', className)}>
       {metrics.map(({ label, value, icon: Icon, hint }) => (
