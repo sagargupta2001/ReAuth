@@ -552,6 +552,60 @@ impl SessionRepository for TestSessionRepo {
         Ok(())
     }
 
+    async fn revoke_many(&self, _realm_id: &Uuid, ids: &[Uuid]) -> Result<u64> {
+        let mut stored = self.stored.lock().unwrap();
+        let mut affected = 0;
+        for id in ids {
+            if let Some(token) = stored.get_mut(id) {
+                if token.revoked_at.is_none() {
+                    token.revoked_at = Some(Utc::now());
+                    affected += 1;
+                }
+            }
+        }
+        Ok(affected)
+    }
+
+    async fn revoke_others_for_user(
+        &self,
+        _realm_id: &Uuid,
+        user_id: &Uuid,
+        except_id: &Uuid,
+    ) -> Result<u64> {
+        let mut stored = self.stored.lock().unwrap();
+        let mut affected = 0;
+        for token in stored.values_mut() {
+            if &token.user_id == user_id && &token.id != except_id && token.revoked_at.is_none() {
+                token.revoked_at = Some(Utc::now());
+                affected += 1;
+            }
+        }
+        Ok(affected)
+    }
+
+    async fn revoke_user_sessions(&self, _realm_id: &Uuid, user_id: &Uuid) -> Result<u64> {
+        let mut stored = self.stored.lock().unwrap();
+        let mut affected = 0;
+        for token in stored.values_mut() {
+            if &token.user_id == user_id && token.revoked_at.is_none() {
+                token.revoked_at = Some(Utc::now());
+                affected += 1;
+            }
+        }
+        Ok(affected)
+    }
+
+    async fn request_step_up(&self, _realm_id: &Uuid, id: &Uuid) -> Result<bool> {
+        let mut stored = self.stored.lock().unwrap();
+        if let Some(token) = stored.get_mut(id) {
+            if token.revoked_at.is_none() && token.replaced_by.is_none() {
+                token.step_up_at = Some(Utc::now());
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     async fn list(
         &self,
         _realm_id: &Uuid,
@@ -1118,6 +1172,7 @@ fn build_auth_service(
         token_service,
         rbac_service,
         settings,
+        crate::config::SecurityConfig::default(),
     ))
 }
 

@@ -28,6 +28,16 @@ pub struct LoginResponse {
     pub id_token: Option<String>,
 }
 
+/// A session row enriched with the owning user's display fields, for the admin
+/// Sessions console. Flattens the full refresh token so the raw-JSON view and
+/// existing fields (id, client_id, step_up_at, …) stay intact.
+#[derive(Serialize)]
+pub struct SessionView {
+    #[serde(flatten)]
+    pub token: RefreshToken,
+    pub username: Option<String>,
+}
+
 pub struct AuthService {
     user_repo: Arc<dyn UserRepository>,
     realm_repo: Arc<dyn RealmRepository>,
@@ -35,6 +45,7 @@ pub struct AuthService {
     token_service: Arc<dyn TokenService>,
     rbac_service: Arc<RbacService>,
     settings: crate::config::AuthConfig,
+    security: crate::config::SecurityConfig,
 }
 
 impl AuthService {
@@ -45,6 +56,7 @@ impl AuthService {
         token_service: Arc<dyn TokenService>,
         rbac_service: Arc<RbacService>,
         settings: crate::config::AuthConfig,
+        security: crate::config::SecurityConfig,
     ) -> Self {
         Self {
             user_repo,
@@ -53,6 +65,7 @@ impl AuthService {
             token_service,
             rbac_service,
             settings,
+            security,
         }
     }
 
@@ -113,6 +126,7 @@ impl AuthService {
             last_used_at: now,
             revoked_at: None,
             replaced_by: None,
+            step_up_at: None,
         };
         self.session_repo.save(&refresh_token).await?;
 
@@ -154,14 +168,33 @@ impl AuthService {
     /// This is the core "use case" for the auth middleware.
     #[instrument(skip_all, fields(telemetry = "span"))]
     pub async fn validate_token_and_get_user(&self, token: &str) -> Result<User> {
+        Ok(self.validate_token_and_get_session(token).await?.0)
+    }
+
+    /// Validates an access token and returns the User together with the current
+    /// session id (the `sid` claim / live refresh-token id). The session id is
+    /// the trusted source for caller-scoped actions like "revoke other sessions".
+    #[instrument(skip_all, fields(telemetry = "span"))]
+    pub async fn validate_token_and_get_session(&self, token: &str) -> Result<(User, Uuid)> {
         // 1. Validate the JWT
         let claims: AccessTokenClaims = self.token_service.validate_access_token(token).await?;
 
         // 2. Check if the session is still valid in the DB
-        let session_is_valid = self.session_repo.find_by_id(&claims.sid).await?.is_some();
+        let session = self.session_repo.find_by_id(&claims.sid).await?;
+        let session = match session {
+            Some(session) => session,
+            None => return Err(Error::SessionRevoked),
+        };
 
-        if !session_is_valid {
-            return Err(Error::SessionRevoked);
+        // 2b. Forced re-authentication (step-up). When immediate invalidation is
+        // enabled, reject any access token issued before the step-up timestamp so
+        // the user is challenged on their next request rather than at next refresh.
+        if self.security.immediate_step_up_invalidation {
+            if let Some(step_up_at) = session.step_up_at {
+                if (claims.iat as i64) < step_up_at.timestamp() {
+                    return Err(Error::ReauthRequired);
+                }
+            }
         }
 
         // 3. Fetch the user from the database
@@ -171,7 +204,7 @@ impl AuthService {
             .await?
             .ok_or(Error::UserNotFound)?;
 
-        Ok(user)
+        Ok((user, claims.sid))
     }
 
     #[instrument(skip_all, fields(telemetry = "span"))]
@@ -199,6 +232,13 @@ impl AuthService {
             return Err(Error::SecurityViolation(
                 "Refresh token reuse detected".to_string(),
             ));
+        }
+
+        // Forced re-authentication (step-up): a session marked for step-up must
+        // not silently refresh. The client is forced into an interactive login
+        // flow, which mints a fresh family with step_up_at cleared.
+        if old_token.step_up_at.is_some() {
+            return Err(Error::ReauthRequired);
         }
 
         // 2. Get the associated user and realm
@@ -230,6 +270,7 @@ impl AuthService {
             last_used_at: now,
             revoked_at: None,
             replaced_by: None,
+            step_up_at: None,
         };
         // Mark the old token as replaced (rotation).
         self.session_repo
@@ -295,8 +336,83 @@ impl AuthService {
         &self,
         realm_id: Uuid,
         req: PageRequest,
-    ) -> Result<PageResponse<RefreshToken>> {
-        self.session_repo.list(&realm_id, &req).await
+    ) -> Result<PageResponse<SessionView>> {
+        let page = self.session_repo.list(&realm_id, &req).await?;
+
+        // Enrich each session with its owner's display fields. The page is
+        // bounded (per_page <= 100) and users repeat across rows, so we look up
+        // each distinct user at most once.
+        use std::collections::hash_map::Entry;
+        let mut users: std::collections::HashMap<Uuid, User> = std::collections::HashMap::new();
+        for token in &page.data {
+            if let Entry::Vacant(slot) = users.entry(token.user_id) {
+                if let Some(user) = self.user_repo.find_by_id(&token.user_id).await? {
+                    slot.insert(user);
+                }
+            }
+        }
+
+        let data = page
+            .data
+            .into_iter()
+            .map(|token| {
+                let user = users.get(&token.user_id);
+                SessionView {
+                    username: user.map(|u| u.username.clone()),
+                    token,
+                }
+            })
+            .collect();
+
+        Ok(PageResponse {
+            data,
+            meta: page.meta,
+        })
+    }
+
+    /// Revoke an explicit set of sessions within a realm. Any id matching
+    /// `exclude` (the caller's current session) is dropped so a bulk action
+    /// never logs out the caller. Returns the number of sessions revoked.
+    pub async fn revoke_sessions(
+        &self,
+        realm_id: Uuid,
+        ids: &[Uuid],
+        exclude: Option<Uuid>,
+    ) -> Result<u64> {
+        let targets: Vec<Uuid> = ids
+            .iter()
+            .copied()
+            .filter(|id| Some(*id) != exclude)
+            .collect();
+        if targets.is_empty() {
+            return Ok(0);
+        }
+        self.session_repo.revoke_many(&realm_id, &targets).await
+    }
+
+    /// Revoke all of a user's active sessions except their current one.
+    pub async fn revoke_other_sessions(
+        &self,
+        realm_id: Uuid,
+        user_id: Uuid,
+        current_sid: Uuid,
+    ) -> Result<u64> {
+        self.session_repo
+            .revoke_others_for_user(&realm_id, &user_id, &current_sid)
+            .await
+    }
+
+    /// Revoke every active session for a user in a realm (admin-wide eviction).
+    pub async fn revoke_user_sessions(&self, realm_id: Uuid, user_id: Uuid) -> Result<u64> {
+        self.session_repo
+            .revoke_user_sessions(&realm_id, &user_id)
+            .await
+    }
+
+    /// Mark a session for forced re-authentication. Returns true if a matching
+    /// active session in the realm was updated.
+    pub async fn request_step_up(&self, realm_id: Uuid, id: Uuid) -> Result<bool> {
+        self.session_repo.request_step_up(&realm_id, &id).await
     }
 }
 

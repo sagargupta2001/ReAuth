@@ -58,7 +58,8 @@ Source of truth: `migrations/20251214045651_initial_schema.sql` and subsequent m
 - Authorization codes for OIDC, with PKCE fields and expiry.
 
 ### refresh_tokens
-- Persistent refresh tokens for SSO/session management.
+- Persistent refresh tokens for SSO/session management. Each row is what the admin Sessions console treats as a "session"; the JWT `sid` claim is the live refresh-token id, and tokens rotate on each refresh (old row gets `replaced_by`).
+- `step_up_at`: when set, the session is marked for forced re-authentication. Silent refresh is rejected (`Error::ReauthRequired`); with `[security] immediate_step_up_invalidation = true`, access tokens issued before `step_up_at` are also rejected at `verify_session` (uses the access-token `iat` claim). See `docs/specs/session-management-console.md`.
 
 ### seed_history
 - Tracks applied seeders: `name`, `version`, `checksum`, `applied_at`.

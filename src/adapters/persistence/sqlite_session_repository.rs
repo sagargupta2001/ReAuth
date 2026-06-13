@@ -146,6 +146,97 @@ impl SessionRepository for SqliteSessionRepository {
         Ok(())
     }
 
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn revoke_many(&self, realm_id: &Uuid, ids: &[Uuid]) -> Result<u64> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let now = Utc::now();
+        let mut affected: u64 = 0;
+        for id in ids {
+            let result = sqlx::query(
+                "UPDATE refresh_tokens SET revoked_at = ? WHERE id = ? AND realm_id = ? AND revoked_at IS NULL",
+            )
+            .bind(now)
+            .bind(id.to_string())
+            .bind(realm_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+            affected += result.rows_affected();
+        }
+
+        tx.commit().await.map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(affected)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn revoke_others_for_user(
+        &self,
+        realm_id: &Uuid,
+        user_id: &Uuid,
+        except_id: &Uuid,
+    ) -> Result<u64> {
+        let result = sqlx::query(
+            "UPDATE refresh_tokens SET revoked_at = ? WHERE realm_id = ? AND user_id = ? AND id != ? AND revoked_at IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(realm_id.to_string())
+        .bind(user_id.to_string())
+        .bind(except_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(result.rows_affected())
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn revoke_user_sessions(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<u64> {
+        let result = sqlx::query(
+            "UPDATE refresh_tokens SET revoked_at = ? WHERE realm_id = ? AND user_id = ? AND revoked_at IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(realm_id.to_string())
+        .bind(user_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(result.rows_affected())
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "refresh_tokens", db_op = "update")
+    )]
+    async fn request_step_up(&self, realm_id: &Uuid, id: &Uuid) -> Result<bool> {
+        let result = sqlx::query(
+            "UPDATE refresh_tokens SET step_up_at = ? WHERE id = ? AND realm_id = ? AND revoked_at IS NULL AND replaced_by IS NULL",
+        )
+        .bind(Utc::now())
+        .bind(id.to_string())
+        .bind(realm_id.to_string())
+        .execute(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(result.rows_affected() > 0)
+    }
+
     async fn revoke_by_user_and_client(
         &self,
         realm_id: &Uuid,

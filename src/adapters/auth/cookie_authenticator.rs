@@ -139,6 +139,10 @@ mod tests {
             async fn mark_replaced(&self, old_id: &Uuid, new_id: &Uuid) -> Result<()>;
             async fn revoke_family(&self, family_id: &Uuid) -> Result<()>;
             async fn revoke_all_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()>;
+            async fn revoke_many(&self, realm_id: &Uuid, ids: &[Uuid]) -> Result<u64>;
+            async fn revoke_others_for_user(&self, realm_id: &Uuid, user_id: &Uuid, except_id: &Uuid) -> Result<u64>;
+            async fn revoke_user_sessions(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<u64>;
+            async fn request_step_up(&self, realm_id: &Uuid, id: &Uuid) -> Result<bool>;
             async fn revoke_by_user_and_client(&self, realm_id: &Uuid, user_id: &Uuid, client_id: &str) -> Result<()>;
             async fn revoke_root_tokens_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()>;
             async fn list(&self, realm_id: &Uuid, req: &crate::domain::pagination::PageRequest) -> Result<crate::domain::pagination::PageResponse<RefreshToken>>;
@@ -195,6 +199,7 @@ mod tests {
             last_used_at: Utc::now(),
             revoked_at: None,
             replaced_by: None,
+            step_up_at: None,
         };
 
         let mut repo = MockSessionRepo::new();
@@ -231,6 +236,7 @@ mod tests {
             last_used_at: Utc::now(),
             revoked_at: None,
             replaced_by: None,
+            step_up_at: None,
         };
 
         let mut repo = MockSessionRepo::new();

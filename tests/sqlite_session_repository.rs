@@ -39,6 +39,7 @@ fn token(
         last_used_at: created_at,
         revoked_at: None,
         replaced_by: None,
+        step_up_at: None,
     }
 }
 
@@ -112,6 +113,7 @@ async fn find_by_id_skips_expired_tokens() -> Result<()> {
         last_used_at: Utc::now() - Duration::days(2),
         revoked_at: None,
         replaced_by: None,
+        step_up_at: None,
     };
     repo.save(&expired).await?;
 

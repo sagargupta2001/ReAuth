@@ -507,24 +507,45 @@ fn realm_routes(state: AppState) -> Router<AppState> {
             },
         ));
 
-    // Session management needs USER_WRITE (or a specific permission)
-    let session_routes = Router::new()
+    // Listing sessions requires session:read.
+    let session_read_routes = Router::new()
         .route(
             "/{realm}/sessions",
             get(session_handler::list_sessions_handler),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::SESSION_READ)
+            },
+        ));
+
+    // Revoking / step-up requires session:revoke. (scope:user revocation
+    // additionally checks user:write inside the handler.)
+    let session_write_routes = Router::new()
+        .route(
+            "/{realm}/sessions/revoke",
+            post(session_handler::revoke_sessions_handler),
         )
         .route(
             "/{realm}/sessions/{id}",
             delete(session_handler::revoke_session_handler),
         )
+        .route(
+            "/{realm}/sessions/{id}/step-up",
+            post(session_handler::step_up_session_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
-                permission_guard::require_permission(state, req, next, permissions::USER_WRITE)
+                permission_guard::require_permission(state, req, next, permissions::SESSION_REVOKE)
             },
         ));
 
-    read_routes.merge(write_routes).merge(session_routes)
+    read_routes
+        .merge(write_routes)
+        .merge(session_read_routes)
+        .merge(session_write_routes)
 }
 
 fn rbac_routes(state: AppState) -> Router<AppState> {

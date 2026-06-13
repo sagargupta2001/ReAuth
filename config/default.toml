@@ -63,6 +63,12 @@ web_origins = [] # Leave empty to derive from server.public_url + ui.dev_url
 default_theme_name = "ReAuth Default"
 default_binding_name = "" # Optional: activate a different theme by name after seed import
 
+[security]
+# When true, forced re-authentication ("step-up") of a session takes effect
+# immediately: access tokens issued before the step-up are rejected on their
+# next request. When false, step-up is enforced only at the next silent refresh.
+immediate_step_up_invalidation = false
+
 [harbor]
 async_import_threshold_resources = 25
 async_export_threshold_resources = 50

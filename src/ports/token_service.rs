@@ -26,6 +26,8 @@ pub struct AccessTokenClaims {
     pub roles: Vec<String>,
     pub groups: Vec<String>,
     pub exp: usize, // Expiration
+    #[serde(default)]
+    pub iat: usize, // Issued At (seconds since epoch)
 }
 
 #[async_trait::async_trait]

@@ -1,10 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { type OnChangeFn, type PaginationState } from '@tanstack/react-table'
 import { useSearchParams } from 'react-router-dom'
 
 import { useSessionStore } from '@/entities/session/model/sessionStore.ts'
-import { useRevokeSession, useSessions } from '@/features/session/api/useSessions.ts'
+import type { Session } from '@/entities/session/model/types.ts'
+import { useSessions } from '@/features/session/api/useSessions.ts'
+import { RevokeOtherSessionsButton } from '@/features/session/components/RevokeOtherSessionsButton.tsx'
+import { SessionBulkActions } from '@/features/session/components/SessionBulkActions.tsx'
+import { SessionDetailsDrawer } from '@/features/session/components/SessionDetailsDrawer.tsx'
 import { getSessionColumns } from '@/features/session/components/SessionColumns.tsx'
 import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
@@ -12,11 +16,9 @@ import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.ts
 export function SessionsTable() {
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // 1. Get Current Session ID from Store
   const { user } = useSessionStore()
   const currentSessionId = user?.sid
 
-  // 2. State
   const page = Number(searchParams.get('page')) || 1
   const perPage = Number(searchParams.get('per_page')) || 10
   const searchTerm = searchParams.get('q') || ''
@@ -26,16 +28,25 @@ export function SessionsTable() {
     pageSize: perPage,
   })
 
-  // 3. API Hooks
+  const [detailsSession, setDetailsSession] = useState<Session | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+
   const { data, isLoading } = useSessions({
     page: pagination.pageIndex + 1,
     per_page: pagination.pageSize,
     q: searchTerm,
   })
 
-  const revokeMutation = useRevokeSession()
+  const openDetails = (session: Session) => {
+    setDetailsSession(session)
+    setDetailsOpen(true)
+  }
 
-  // 4. Handlers
+  const columns = useMemo(
+    () => getSessionColumns(currentSessionId, openDetails),
+    [currentSessionId],
+  )
+
   const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
     const nextState = typeof updater === 'function' ? updater(pagination) : updater
     setPagination(nextState)
@@ -60,23 +71,36 @@ export function SessionsTable() {
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-200px)]">
-        <DataTableSkeleton columnCount={6} rowCount={10} />
+        <DataTableSkeleton columnCount={7} rowCount={10} />
       </div>
     )
   }
 
   return (
-    <DataTable
-      columns={getSessionColumns(currentSessionId, (id) => revokeMutation.mutate(id))}
-      data={data?.data || []}
-      pageCount={data?.meta.total_pages || 0}
-      pagination={pagination}
-      onPaginationChange={handlePaginationChange}
-      searchKey="user_id"
-      searchPlaceholder="Search..."
-      searchValue={searchTerm}
-      onSearch={handleSearch}
-      className="max-h-[calc(100vh-328px)]"
-    />
+    <>
+      <DataTable
+        columns={columns}
+        data={data?.data || []}
+        pageCount={data?.meta.total_pages || 0}
+        pagination={pagination}
+        onPaginationChange={handlePaginationChange}
+        searchKey="user_id"
+        searchValue={searchTerm}
+        onSearch={handleSearch}
+        onRowClick={openDetails}
+        customToolbarButtons={<RevokeOtherSessionsButton />}
+        bulkEntityName="session"
+        renderBulkActions={(table) => (
+          <SessionBulkActions table={table} currentSessionId={currentSessionId} />
+        )}
+        className="max-h-[calc(100vh-328px)]"
+      />
+      <SessionDetailsDrawer
+        session={detailsSession}
+        currentSessionId={currentSessionId}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+      />
+    </>
   )
 }

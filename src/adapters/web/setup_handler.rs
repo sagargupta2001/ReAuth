@@ -118,6 +118,8 @@ pub async fn setup_handler(
         permissions::USER_DELETE,
         permissions::USER_LOCK,
         permissions::USER_BAN,
+        permissions::SESSION_READ,
+        permissions::SESSION_REVOKE,
         "*",
     ];
 

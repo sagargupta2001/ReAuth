@@ -36,6 +36,7 @@ Each spec should define:
 - `magic-link-builtins.md`
 - `oauth-inbound-identity-brokering.md`
 - `passkey-first-auth.md`
+- `session-management-console.md`
 - `spec-template.md`
 - `user-admin-actions.md`
 - `user-invitations.md`
