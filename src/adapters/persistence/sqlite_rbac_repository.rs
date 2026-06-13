@@ -23,6 +23,17 @@ pub struct SqliteRbacRepository {
     pool: Database,
 }
 
+/// Which slice of the group tree a query targets.
+#[derive(Clone, Copy)]
+enum GroupTreeScope<'a> {
+    /// Top-level groups only (`parent_id IS NULL`).
+    Roots,
+    /// Direct children of a specific group.
+    Children(&'a Uuid),
+    /// Every group in the realm regardless of depth — used when searching.
+    AllDepths,
+}
+
 impl SqliteRbacRepository {
     pub fn new(pool: Database) -> Self {
         Self { pool }
@@ -31,20 +42,22 @@ impl SqliteRbacRepository {
     fn apply_group_tree_filters<'a>(
         builder: &mut QueryBuilder<'a, Sqlite>,
         realm_id: &Uuid,
-        parent_id: Option<&Uuid>,
+        scope: GroupTreeScope<'_>,
         q: &Option<String>,
     ) {
         builder.push(" WHERE g.realm_id = ");
         builder.push_bind(realm_id.to_string());
 
-        match parent_id {
-            Some(pid) => {
+        match scope {
+            GroupTreeScope::Children(pid) => {
                 builder.push(" AND g.parent_id = ");
                 builder.push_bind(pid.to_string());
             }
-            None => {
+            GroupTreeScope::Roots => {
                 builder.push(" AND g.parent_id IS NULL");
             }
+            // Search matches groups at any depth, so no parent filter is applied.
+            GroupTreeScope::AllDepths => {}
         }
 
         if let Some(query) = q {
@@ -788,8 +801,21 @@ impl RbacRepository for SqliteRbacRepository {
         let limit = req.per_page.clamp(1, 100);
         let offset = (req.page - 1) * limit;
 
+        // When the user is searching, match groups at any depth instead of only roots,
+        // so nested subgroups surface in results too.
+        let has_query = req
+            .q
+            .as_deref()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false);
+        let scope = if has_query {
+            GroupTreeScope::AllDepths
+        } else {
+            GroupTreeScope::Roots
+        };
+
         let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM groups g");
-        Self::apply_group_tree_filters(&mut count_builder, realm_id, None, &req.q);
+        Self::apply_group_tree_filters(&mut count_builder, realm_id, scope, &req.q);
         let total: i64 = count_builder
             .build_query_scalar()
             .fetch_one(&*self.pool)
@@ -801,7 +827,7 @@ impl RbacRepository for SqliteRbacRepository {
              EXISTS (SELECT 1 FROM groups c WHERE c.parent_id = g.id) AS has_children \
              FROM groups g",
         );
-        Self::apply_group_tree_filters(&mut query_builder, realm_id, None, &req.q);
+        Self::apply_group_tree_filters(&mut query_builder, realm_id, scope, &req.q);
 
         let sort_col = match req.sort_by.as_deref() {
             Some("name") => "g.name",
@@ -843,7 +869,12 @@ impl RbacRepository for SqliteRbacRepository {
         let offset = (req.page - 1) * limit;
 
         let mut count_builder = QueryBuilder::new("SELECT COUNT(*) FROM groups g");
-        Self::apply_group_tree_filters(&mut count_builder, realm_id, Some(parent_id), &req.q);
+        Self::apply_group_tree_filters(
+            &mut count_builder,
+            realm_id,
+            GroupTreeScope::Children(parent_id),
+            &req.q,
+        );
         let total: i64 = count_builder
             .build_query_scalar()
             .fetch_one(&*self.pool)
@@ -855,7 +886,12 @@ impl RbacRepository for SqliteRbacRepository {
              EXISTS (SELECT 1 FROM groups c WHERE c.parent_id = g.id) AS has_children \
              FROM groups g",
         );
-        Self::apply_group_tree_filters(&mut query_builder, realm_id, Some(parent_id), &req.q);
+        Self::apply_group_tree_filters(
+            &mut query_builder,
+            realm_id,
+            GroupTreeScope::Children(parent_id),
+            &req.q,
+        );
 
         let sort_col = match req.sort_by.as_deref() {
             Some("name") => "g.name",
@@ -1517,8 +1553,12 @@ impl RbacRepository for SqliteRbacRepository {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
     ) -> Result<Vec<Uuid>> {
+        let scope = match parent_id {
+            Some(pid) => GroupTreeScope::Children(pid),
+            None => GroupTreeScope::Roots,
+        };
         let mut query_builder = QueryBuilder::new("SELECT id FROM groups g");
-        Self::apply_group_tree_filters(&mut query_builder, realm_id, parent_id, &None);
+        Self::apply_group_tree_filters(&mut query_builder, realm_id, scope, &None);
         query_builder.push(" ORDER BY g.sort_order ASC, g.name ASC");
 
         let rows: Vec<(String,)> = query_builder
@@ -1635,9 +1675,13 @@ impl RbacRepository for SqliteRbacRepository {
         realm_id: &Uuid,
         parent_id: Option<&Uuid>,
     ) -> Result<i64> {
+        let scope = match parent_id {
+            Some(pid) => GroupTreeScope::Children(pid),
+            None => GroupTreeScope::Roots,
+        };
         let mut query_builder =
             QueryBuilder::new("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM groups g");
-        Self::apply_group_tree_filters(&mut query_builder, realm_id, parent_id, &None);
+        Self::apply_group_tree_filters(&mut query_builder, realm_id, scope, &None);
 
         let next: i64 = query_builder
             .build_query_scalar()

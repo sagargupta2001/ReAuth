@@ -230,6 +230,19 @@ async fn group_hierarchy_and_ordering() -> Result<()> {
     let roots_filtered = repo.list_group_roots(&realm_id, &search_req).await?;
     assert_eq!(roots_filtered.meta.total, 2);
 
+    // Searching the roots/tree endpoint spans all depths, so a nested subgroup
+    // ("child-a", which is not a root) surfaces in the results.
+    let nested_search_req =
+        page_request(1, 10, Some("name"), Some(SortDirection::Asc), Some("child"));
+    let nested_in_roots = repo.list_group_roots(&realm_id, &nested_search_req).await?;
+    assert_eq!(nested_in_roots.meta.total, 1);
+    assert_eq!(nested_in_roots.data[0].id, child_a.id);
+
+    // Without a query the endpoint still returns only top-level groups.
+    let roots_only_req = page_request(1, 10, Some("name"), Some(SortDirection::Asc), None);
+    let roots_only = repo.list_group_roots(&realm_id, &roots_only_req).await?;
+    assert_eq!(roots_only.meta.total, 2);
+
     let roots = repo.list_group_roots(&realm_id, &req).await?;
     let root_ids: HashSet<Uuid> = roots.data.iter().map(|row| row.id).collect();
     assert!(root_ids.contains(&root_a.id));
