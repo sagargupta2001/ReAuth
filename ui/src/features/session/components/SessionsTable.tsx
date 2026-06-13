@@ -73,10 +73,10 @@ export function SessionsTable() {
       pagination={pagination}
       onPaginationChange={handlePaginationChange}
       searchKey="user_id"
-      searchPlaceholder="Search by User ID..."
+      searchPlaceholder="Search..."
       searchValue={searchTerm}
       onSearch={handleSearch}
-      className="h-[calc(100vh-328px)]"
+      className="max-h-[calc(100vh-328px)]"
     />
   )
 }

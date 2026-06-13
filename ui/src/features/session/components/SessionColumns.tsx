@@ -26,7 +26,7 @@ export const getSessionColumns = (
     accessorKey: 'user_id',
     header: ({ column }) => <DataTableColumnHeader column={column} title="User ID" />,
     cell: ({ row }) => (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 p-2">
         <span className="text-muted-foreground font-mono text-xs">{row.getValue('user_id')}</span>
         {/* Highlight Current Session */}
         {row.original.id === currentSessionId && (
@@ -77,7 +77,7 @@ export const getSessionColumns = (
                 </span>
               </TooltipTrigger>
               <TooltipContent>
-                <p className="max-w-xs text-xs break-words">{ua}</p>
+                <p className="max-w-xs text-xs wrap-break-word">{ua}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
