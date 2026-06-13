@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
+
 import type { OnChangeFn, PaginationState, SortingState } from '@tanstack/react-table'
+import { Plus } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 
+import { Button } from '@/components/button'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useWebhooks } from '@/features/events/api/useWebhooks'
-import { webhookColumns, type WebhookRow } from '@/features/events/components/WebhookColumns'
+import { type WebhookRow, webhookColumns } from '@/features/events/components/WebhookColumns'
+import { WebhookEndpointForm } from '@/features/events/components/WebhookEndpointForm'
 import { DataTable } from '@/shared/ui/data-table/data-table'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
 
@@ -20,7 +24,11 @@ export function WebhooksTable() {
 
   const [webhookSearch, setWebhookSearch] = useState(webhookQuery)
 
-  const { data: webhookData, isLoading, isError } = useWebhooks({
+  const {
+    data: webhookData,
+    isLoading,
+    isError,
+  } = useWebhooks({
     page: webhookPage,
     per_page: webhookPerPage,
     sort_by: webhookSortBy,
@@ -60,10 +68,13 @@ export function WebhooksTable() {
 
       return {
         id: details.endpoint.id,
+        name: details.endpoint.name,
         url: details.endpoint.url,
+        description: details.endpoint.description ?? null,
         http_method: details.endpoint.http_method || 'POST',
         status: isFailing ? 'failing' : 'active',
         subscriptions: subscriptionSummary,
+        consecutive_failures: details.endpoint.consecutive_failures,
         last_fired_at: details.endpoint.last_fired_at || null,
         updated_at: details.endpoint.updated_at,
       }
@@ -102,12 +113,16 @@ export function WebhooksTable() {
   }
 
   if (isLoading && !webhookData) {
-    return <DataTableSkeleton columnCount={5} rowCount={8} />
+    return (
+      <div className="h-[calc(100vh-328px)]">
+        <DataTableSkeleton columnCount={5} rowCount={8} />
+      </div>
+    )
   }
 
   if (isError) {
     return (
-      <div className="py-6 text-center text-sm text-muted-foreground">
+      <div className="text-muted-foreground py-6 text-center text-sm">
         Failed to load webhook endpoints.
       </div>
     )
@@ -122,11 +137,21 @@ export function WebhooksTable() {
       onPaginationChange={handlePaginationChange}
       sorting={sorting}
       onSortingChange={handleSortingChange}
-      searchPlaceholder="Search endpoints..."
+      searchPlaceholder="Search..."
       searchValue={webhookSearch}
       onSearch={setWebhookSearch}
+      customToolbarButtons={
+        <WebhookEndpointForm
+          trigger={
+            <Button id="create-webhook" size="sm" className="h-9 gap-2">
+              <Plus className="h-4 w-4" />
+              Add Webhook
+            </Button>
+          }
+        />
+      }
       rootClassName="min-h-0 flex-1"
-      className="min-h-0 flex-1"
+      className="max-h-[calc(100vh-328px)]"
       onRowClick={(row) => navigate(`/events/webhooks/${row.id}`)}
     />
   )

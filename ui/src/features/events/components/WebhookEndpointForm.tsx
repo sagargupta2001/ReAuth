@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import type { CheckedState } from '@radix-ui/react-checkbox'
+
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import { Card, CardContent } from '@/components/card'
+import { Checkbox } from '@/components/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -13,20 +15,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/dialog'
-import { Checkbox } from '@/components/checkbox'
 import { Input } from '@/components/input'
 import { Label } from '@/components/label'
 import { ScrollArea } from '@/components/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
+import { Separator } from '@/components/separator'
 import { Switch } from '@/components/switch'
 import { Textarea } from '@/components/textarea'
-import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { useCreateWebhook } from '@/features/events/api/useCreateWebhook'
 import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useUpdateWebhook } from '@/features/events/api/useUpdateWebhook'
 import { useUpdateWebhookSubscriptions } from '@/features/events/api/useUpdateWebhookSubscriptions'
 import { cn } from '@/lib/utils'
-import type { CheckedState } from '@radix-ui/react-checkbox'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 
 const EVENT_GROUPS = [
   {
@@ -159,25 +160,25 @@ export function WebhookEndpointForm({
     try {
       if (!trimmedUrl || selectedEvents.size === 0) return
 
-        if (mode === 'create') {
-          const name = deriveEndpointName(trimmedUrl)
-          await createWebhook.mutateAsync({
-            name,
+      if (mode === 'create') {
+        const name = deriveEndpointName(trimmedUrl)
+        await createWebhook.mutateAsync({
+          name,
+          url: trimmedUrl,
+          description: description.trim() || undefined,
+          http_method: method,
+          subscriptions: Array.from(selectedEvents),
+        })
+      } else {
+        if (!endpointId) return
+        await updateWebhook.mutateAsync({
+          endpointId,
+          payload: {
             url: trimmedUrl,
             description: description.trim() || undefined,
             http_method: method,
-            subscriptions: Array.from(selectedEvents),
-          })
-        } else {
-          if (!endpointId) return
-          await updateWebhook.mutateAsync({
-            endpointId,
-            payload: {
-              url: trimmedUrl,
-              description: description.trim() || undefined,
-              http_method: method,
-            },
-          })
+          },
+        })
 
         const toggles = allEvents.map((event) => ({
           event_type: event,
@@ -216,36 +217,42 @@ export function WebhookEndpointForm({
       }}
     >
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Configure Webhook Endpoint</DialogTitle>
+      <DialogContent className="sm:max-w-[640px]">
+        <DialogHeader className="px-6 pt-6">
+          <DialogTitle>
+            {mode === 'create' ? 'Create webhook endpoint' : 'Edit webhook endpoint'}
+          </DialogTitle>
           <DialogDescription>
             Configure a destination URL and choose which ReAuth events should be delivered.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="webhook-url">Destination URL</Label>
-            <Input
-              id="webhook-url"
-              placeholder="https://example.com/reauth/webhooks"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-            />
-          </div>
+        <Separator className="my-1" />
 
-          <div className="grid gap-2">
-            <Label>HTTP Method</Label>
-            <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select method" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="POST">POST</SelectItem>
-                <SelectItem value="PUT">PUT</SelectItem>
-              </SelectContent>
-            </Select>
+        <div className="grid gap-5 px-6 pb-6">
+          <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+            <div className="grid gap-2">
+              <Label htmlFor="webhook-url">Destination URL</Label>
+              <Input
+                id="webhook-url"
+                placeholder="https://example.com/reauth/webhooks"
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label>HTTP Method</Label>
+              <Select value={method} onValueChange={setMethod}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="POST">POST</SelectItem>
+                  <SelectItem value="PUT">PUT</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid gap-2">
@@ -259,19 +266,19 @@ export function WebhookEndpointForm({
             />
           </div>
 
-          <Card className="border-dashed">
-            <CardContent className="flex flex-col gap-4 p-4">
-              <div className="flex items-center justify-between gap-4">
+          <div className="bg-surface-elevated/40 overflow-hidden rounded-lg border border-dashed">
+            <div className="flex flex-col gap-4 p-4">
+              <div className="bg-background/60 flex items-center justify-between gap-4 rounded-md p-3">
                 <div>
                   <p className="text-sm font-medium">Send me everything</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     Override granular selections and forward every event.
                   </p>
                 </div>
                 <Switch checked={sendEverything} onCheckedChange={setSendEverything} />
               </div>
 
-              <ScrollArea className="h-[280px] rounded-md border">
+              <ScrollArea className="bg-background h-[260px] rounded-md border">
                 <div className="space-y-4 p-4">
                   {EVENT_GROUPS.map((group) => {
                     const state = groupState(group.events)
@@ -287,7 +294,7 @@ export function WebhookEndpointForm({
                               />
                               <span className="text-sm font-semibold">{group.label}</span>
                             </div>
-                            <p className="text-xs text-muted-foreground">{group.description}</p>
+                            <p className="text-muted-foreground text-xs">{group.description}</p>
                           </div>
                           <Badge variant="outline" className="text-xs">
                             {group.events.length} events
@@ -299,7 +306,7 @@ export function WebhookEndpointForm({
                             <label
                               key={event}
                               className={cn(
-                                'flex items-center gap-2 text-sm text-muted-foreground',
+                                'text-muted-foreground flex items-center gap-2 text-sm',
                                 sendEverything && 'opacity-60',
                               )}
                             >
@@ -308,7 +315,7 @@ export function WebhookEndpointForm({
                                 onCheckedChange={(checked) => toggleEvent(event, checked)}
                                 disabled={sendEverything}
                               />
-                              <span className="font-mono text-xs text-foreground">{event}</span>
+                              <span className="text-foreground font-mono text-xs">{event}</span>
                             </label>
                           ))}
                         </div>
@@ -317,11 +324,11 @@ export function WebhookEndpointForm({
                   })}
                 </div>
               </ScrollArea>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-1 py-3 pr-3">
           <DialogClose asChild>
             <Button variant="outline">Cancel</Button>
           </DialogClose>
@@ -335,7 +342,7 @@ export function WebhookEndpointForm({
               updateSubscriptions.isPending
             }
           >
-            {mode === 'create' ? 'Save Endpoint' : 'Update Endpoint'}
+            {mode === 'create' ? 'Create Webhook' : 'Update Endpoint'}
           </Button>
         </DialogFooter>
       </DialogContent>
