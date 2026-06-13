@@ -30,6 +30,7 @@ import {
   updateNode,
 } from '@/features/group-tree/lib/tree-utils'
 import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
+import { Separator } from '@/shared/ui/separator'
 
 interface GroupExplorerProps {
   groupId?: string
@@ -158,17 +159,17 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
                 className="flex flex-1 flex-col overflow-hidden"
               >
                 <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">
-                  <TabsList className="gap-6 bg-transparent p-0">
-                    <TabsTrigger value="settings" className="tab-trigger-styles">
+                  <TabsList variant="line" className="gap-6 bg-transparent p-0">
+                    <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
                       Settings
                     </TabsTrigger>
-                    <TabsTrigger value="members" className="tab-trigger-styles">
+                    <TabsTrigger variant="line" value="members" className="tab-trigger-styles">
                       Members
                     </TabsTrigger>
-                    <TabsTrigger value="roles" className="tab-trigger-styles">
+                    <TabsTrigger variant="line" value="roles" className="tab-trigger-styles">
                       Roles
                     </TabsTrigger>
-                    <TabsTrigger value="children" className="tab-trigger-styles">
+                    <TabsTrigger variant="line" value="children" className="tab-trigger-styles">
                       Child Groups
                     </TabsTrigger>
                   </TabsList>
@@ -207,8 +208,8 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
           }
         }}
       >
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader className="pt-6 pl-6">
             <DialogTitle>{createParentId ? 'Create Sub-group' : 'Create Group'}</DialogTitle>
             <DialogDescription>
               {createParentId
@@ -216,6 +217,8 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
                 : 'Create a new top-level group in this realm.'}
             </DialogDescription>
           </DialogHeader>
+
+          <Separator className="my-1" />
 
           <CreateGroupForm
             isDialog

@@ -180,7 +180,7 @@ export function RolePermissionsTab({ roleId, clientId }: RolePermissionsTabProps
     <div className="flex h-full w-full overflow-hidden bg-background">
       {/* SIDEBAR */}
       <aside className="bg-muted/10 flex w-64 shrink-0 flex-col border-r">
-        <div className="border-b p-4">
+        <div className="p-4">
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
               <Search className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />

@@ -27,6 +27,7 @@ import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
 import type { GroupTreeNode } from '@/features/group-tree/model/types'
 import { findNode, removeNode } from '@/features/group-tree/lib/tree-utils'
 import { Checkbox } from '@/shared/ui/checkbox'
+import { Separator } from '@/shared/ui/separator'
 
 interface GroupHeaderProps {
   group: Group
@@ -140,60 +141,64 @@ export function GroupHeader({ group, showBack = true }: GroupHeaderProps) {
           }
         }}
       >
-        <DialogContent>
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader className="pt-6 pl-6">
             <DialogTitle>Delete group</DialogTitle>
             <DialogDescription>
               This permanently removes the group and unassigns any roles or members linked to it.
             </DialogDescription>
           </DialogHeader>
 
-          {summaryLoading ? (
-            <div className="text-muted-foreground text-sm">Loading impact...</div>
-          ) : summary ? (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Groups affected</div>
-                  <div className="font-medium">{impactLabel}</div>
-                </div>
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Sub-groups</div>
-                  <div className="font-medium">{summary.descendant_count}</div>
-                </div>
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Members affected</div>
-                  <div className="font-medium">{summary.member_count}</div>
-                </div>
-                <div className="rounded-md border px-3 py-2">
-                  <div className="text-muted-foreground text-xs">Roles affected</div>
-                  <div className="font-medium">{summary.role_count}</div>
-                </div>
-              </div>
+          <Separator className="my-1" />
 
-              {hasDescendants ? (
-                <label className="flex items-start gap-3 rounded-md border p-3">
-                  <Checkbox
-                    checked={cascade}
-                    onCheckedChange={(value) => setCascade(Boolean(value))}
-                  />
-                  <div className="space-y-1">
-                    <div className="font-medium">
-                      Also delete {summary.descendant_count} sub-group
-                      {summary.descendant_count === 1 ? '' : 's'}
-                    </div>
-                    <div className="text-muted-foreground text-xs">
-                      Required to remove nested groups inside this hierarchy.
-                    </div>
+          <div className="px-6 pb-6">
+            {summaryLoading ? (
+              <div className="text-muted-foreground text-sm">Loading impact...</div>
+            ) : summary ? (
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Groups affected</div>
+                    <div className="font-medium">{impactLabel}</div>
                   </div>
-                </label>
-              ) : null}
-            </div>
-          ) : (
-            <div className="text-destructive text-sm">Unable to load delete impact.</div>
-          )}
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Sub-groups</div>
+                    <div className="font-medium">{summary.descendant_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Members affected</div>
+                    <div className="font-medium">{summary.member_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Roles affected</div>
+                    <div className="font-medium">{summary.role_count}</div>
+                  </div>
+                </div>
 
-          <DialogFooter>
+                {hasDescendants ? (
+                  <label className="flex items-start gap-3 rounded-md border p-3">
+                    <Checkbox
+                      checked={cascade}
+                      onCheckedChange={(value) => setCascade(Boolean(value))}
+                    />
+                    <div className="space-y-1">
+                      <div className="font-medium">
+                        Also delete {summary.descendant_count} sub-group
+                        {summary.descendant_count === 1 ? '' : 's'}
+                      </div>
+                      <div className="text-muted-foreground text-xs">
+                        Required to remove nested groups inside this hierarchy.
+                      </div>
+                    </div>
+                  </label>
+                ) : null}
+              </div>
+            ) : (
+              <div className="text-destructive text-sm">Unable to load delete impact.</div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-1 py-3 pr-3">
             <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               Cancel
             </Button>
