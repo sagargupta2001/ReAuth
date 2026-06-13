@@ -22,6 +22,21 @@ pub struct RefreshToken {
     pub step_up_at: Option<DateTime<Utc>>,
 }
 
+/// Optional filters for listing sessions in the admin console.
+#[derive(Debug, Clone, Default)]
+pub struct SessionListFilter {
+    /// Inclusive lower bound on `created_at` ("Started").
+    pub started_from: Option<DateTime<Utc>>,
+    /// Exclusive upper bound on `created_at` ("Started").
+    pub started_to_exclusive: Option<DateTime<Utc>>,
+}
+
+impl SessionListFilter {
+    pub fn is_empty(&self) -> bool {
+        self.started_from.is_none() && self.started_to_exclusive.is_none()
+    }
+}
+
 impl RefreshToken {
     pub fn new(
         user_id: Uuid,

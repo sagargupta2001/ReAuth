@@ -180,6 +180,40 @@ async fn list_requires_session_read_permission() {
 
 #[tokio::test]
 #[serial(test_db)]
+async fn list_filters_by_started_date_range() {
+    let ctx = TestContext::new().await;
+    let realm = setup_realm(&ctx, DEFAULT_REALM_NAME).await;
+    // The admin creates one session of their own.
+    let (reader, _) =
+        admin_with_permissions(&ctx, realm.id, "reader", &[permissions::SESSION_READ]).await;
+    // Plus two for a target user => 3 active sessions in the realm, all "now".
+    user_with_sessions(&ctx, realm.id, "target", 2).await;
+
+    // filter_started={"from":"2000-01-01"} (percent-encoded) — includes all.
+    let from_past = format!(
+        "/api/realms/{}/sessions?filter_started=%7B%22from%22%3A%222000-01-01%22%7D",
+        DEFAULT_REALM_NAME
+    );
+    let res = ctx.request(empty_request("GET", from_past, &reader)).await;
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = json_body(res).await;
+    assert_eq!(body["meta"]["total"].as_i64(), Some(3));
+
+    // filter_started={"from":"2999-01-01"} — excludes everything created today.
+    let from_future = format!(
+        "/api/realms/{}/sessions?filter_started=%7B%22from%22%3A%222999-01-01%22%7D",
+        DEFAULT_REALM_NAME
+    );
+    let res = ctx
+        .request(empty_request("GET", from_future, &reader))
+        .await;
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = json_body(res).await;
+    assert_eq!(body["meta"]["total"].as_i64(), Some(0));
+}
+
+#[tokio::test]
+#[serial(test_db)]
 async fn bulk_revoke_selected_revokes_targets_and_excludes_caller() {
     let ctx = TestContext::new().await;
     let realm = setup_realm(&ctx, DEFAULT_REALM_NAME).await;

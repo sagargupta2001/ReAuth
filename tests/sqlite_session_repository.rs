@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use reauth::adapters::persistence::connection::Database;
 use reauth::adapters::persistence::sqlite_session_repository::SqliteSessionRepository;
 use reauth::domain::pagination::PageRequest;
-use reauth::domain::session::RefreshToken;
+use reauth::domain::session::{RefreshToken, SessionListFilter};
 use reauth::ports::session_repository::SessionRepository;
 use support::TestDb;
 use uuid::Uuid;
@@ -166,21 +166,73 @@ async fn list_refresh_tokens_with_filters_and_pagination() -> Result<()> {
         repo.save(t).await?;
     }
 
-    let page1 = repo.list(&realm_id, &page_request(1, 2, None)).await?;
+    let page1 = repo
+        .list(
+            &realm_id,
+            &page_request(1, 2, None),
+            &SessionListFilter::default(),
+        )
+        .await?;
     assert_eq!(page1.meta.total, 3);
     assert_eq!(page1.data.len(), 2);
     assert_eq!(page1.data[0].id, token_c.id);
     assert_eq!(page1.data[1].id, token_b.id);
 
-    let page2 = repo.list(&realm_id, &page_request(2, 2, None)).await?;
+    let page2 = repo
+        .list(
+            &realm_id,
+            &page_request(2, 2, None),
+            &SessionListFilter::default(),
+        )
+        .await?;
     assert_eq!(page2.data.len(), 1);
     assert_eq!(page2.data[0].id, token_a.id);
 
     let user_id_str = user_id.to_string();
     let filter = &user_id_str[user_id_str.len() - 6..];
     let filtered = repo
-        .list(&realm_id, &page_request(1, 10, Some(filter)))
+        .list(
+            &realm_id,
+            &page_request(1, 10, Some(filter)),
+            &SessionListFilter::default(),
+        )
         .await?;
     assert_eq!(filtered.meta.total, 3);
+
+    // Search also matches the owning user's username.
+    let by_username = repo
+        .list(
+            &realm_id,
+            &page_request(1, 10, Some("car")),
+            &SessionListFilter::default(),
+        )
+        .await?;
+    assert_eq!(by_username.meta.total, 3);
+    assert_eq!(by_username.data.len(), 3);
+
+    // A non-matching term returns nothing.
+    let no_match = repo
+        .list(
+            &realm_id,
+            &page_request(1, 10, Some("zzz-nobody")),
+            &SessionListFilter::default(),
+        )
+        .await?;
+    assert_eq!(no_match.meta.total, 0);
+
+    // Started date-range filter: token_a is 10m old, token_b 5m, token_c now.
+    // A window covering only the last ~7 minutes excludes token_a.
+    let recent = repo
+        .list(
+            &realm_id,
+            &page_request(1, 10, None),
+            &SessionListFilter {
+                started_from: Some(now - Duration::minutes(7)),
+                started_to_exclusive: None,
+            },
+        )
+        .await?;
+    assert_eq!(recent.meta.total, 2);
+    assert!(recent.data.iter().all(|t| t.id != token_a.id));
     Ok(())
 }

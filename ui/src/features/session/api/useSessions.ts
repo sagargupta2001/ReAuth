@@ -6,15 +6,29 @@ import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { Session } from '@/entities/session/model/types'
 import { apiClient } from '@/shared/api/client'
 import { queryKeys } from '@/shared/lib/queryKeys'
+import { serializeFilterValue, type DataTableFilterValue } from '@/shared/ui/data-table/types'
+
+const supportedSessionFilterKeys = new Set(['started'])
 
 export interface SessionSearchParams {
   page?: number
   per_page?: number
-  q?: string // Search by User ID
+  q?: string // Search by username or user ID
+  filters?: DataTableFilterValue[]
 }
 
 interface RevokeCountResponse {
   count: number
+}
+
+function hasMeaningfulFilterValue(value: unknown): boolean {
+  if (value == null) return false
+  if (typeof value === 'string') return value.trim().length > 0
+  if (typeof value === 'object') {
+    const range = value as { from?: unknown; to?: unknown }
+    return range.from != null || range.to != null
+  }
+  return true
 }
 
 export function useSessions(params: SessionSearchParams) {
@@ -27,6 +41,14 @@ export function useSessions(params: SessionSearchParams) {
       query.set('page', String(params.page || 1))
       query.set('per_page', String(params.per_page || 10))
       if (params.q) query.set('q', params.q)
+
+      params.filters?.forEach((f) => {
+        if (!supportedSessionFilterKeys.has(f.key)) return
+        if (!hasMeaningfulFilterValue(f.value)) return
+        const value = serializeFilterValue(f.value)
+        if (!value) return
+        query.set(`filter_${f.key}`, value)
+      })
 
       return apiClient.get<PaginatedResponse<Session>>(
         `/api/realms/${realm}/sessions?${query.toString()}`,

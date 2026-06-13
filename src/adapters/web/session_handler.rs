@@ -1,6 +1,9 @@
 use crate::{
     adapters::web::auth_middleware::{AuthUser, CurrentSessionId},
-    domain::{audit::NewAuditEvent, pagination::PageRequest, permissions, user::User},
+    domain::{
+        audit::NewAuditEvent, pagination::PageRequest, permissions, session::SessionListFilter,
+        user::User,
+    },
     error::{Error, Result},
     AppState,
 };
@@ -10,15 +13,25 @@ use axum::{
     response::{IntoResponse, Json},
     Extension,
 };
-use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Days, NaiveDate, TimeZone, Utc};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::{json, Value};
 use tracing::error;
 use uuid::Uuid;
 
+#[derive(Deserialize)]
+pub struct ListSessionsQuery {
+    #[serde(flatten)]
+    pub page: PageRequest,
+    /// `filter_started={"from":"YYYY-MM-DD","to":"YYYY-MM-DD"}` — range on `created_at`.
+    #[serde(default, deserialize_with = "deserialize_optional_date_range_filter")]
+    pub filter_started: Option<SessionListFilter>,
+}
+
 pub async fn list_sessions_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
-    Query(req): Query<PageRequest>,
+    Query(query): Query<ListSessionsQuery>,
 ) -> Result<impl IntoResponse> {
     let realm = state
         .realm_service
@@ -26,9 +39,70 @@ pub async fn list_sessions_handler(
         .await?
         .ok_or(Error::RealmNotFound(realm_name))?;
 
-    let response = state.auth_service.list_sessions(realm.id, req).await?;
+    let filter = query.filter_started.unwrap_or_default();
+    let response = state
+        .auth_service
+        .list_sessions(realm.id, query.page, filter)
+        .await?;
 
     Ok((StatusCode::OK, Json(response)))
+}
+
+#[derive(Deserialize)]
+struct DateRangeQueryParam {
+    from: Option<String>,
+    to: Option<String>,
+}
+
+fn deserialize_optional_date_range_filter<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<SessionListFilter>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    let Some(value) = value
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(None);
+    };
+
+    let Ok(range) = serde_json::from_str::<DateRangeQueryParam>(&value) else {
+        return Ok(None);
+    };
+
+    let filter = SessionListFilter {
+        started_from: range.from.as_deref().and_then(parse_filter_start),
+        started_to_exclusive: range.to.as_deref().and_then(parse_filter_end_exclusive),
+    };
+
+    Ok((!filter.is_empty()).then_some(filter))
+}
+
+fn parse_filter_start(value: &str) -> Option<DateTime<Utc>> {
+    parse_date_only(value)
+        .and_then(|date| date.and_hms_opt(0, 0, 0))
+        .map(|datetime| Utc.from_utc_datetime(&datetime))
+        .or_else(|| parse_rfc3339(value))
+}
+
+fn parse_filter_end_exclusive(value: &str) -> Option<DateTime<Utc>> {
+    parse_date_only(value)
+        .and_then(|date| date.checked_add_days(Days::new(1)))
+        .and_then(|date| date.and_hms_opt(0, 0, 0))
+        .map(|datetime| Utc.from_utc_datetime(&datetime))
+        .or_else(|| parse_rfc3339(value))
+}
+
+fn parse_date_only(value: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d").ok()
+}
+
+fn parse_rfc3339(value: &str) -> Option<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value.trim())
+        .ok()
+        .map(|dt| dt.with_timezone(&Utc))
 }
 
 pub async fn revoke_session_handler(

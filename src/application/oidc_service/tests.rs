@@ -610,6 +610,7 @@ impl SessionRepository for TestSessionRepo {
         &self,
         _realm_id: &Uuid,
         _req: &PageRequest,
+        _filter: &crate::domain::session::SessionListFilter,
     ) -> Result<PageResponse<RefreshToken>> {
         Ok(empty_page())
     }

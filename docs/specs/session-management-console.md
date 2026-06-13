@@ -47,8 +47,8 @@ Decisions taken for this slice:
 Numbered, independently testable.
 
 **Listing & context**
-1. `GET .../sessions` returns only active sessions for the realm, paginated, newest first — unchanged filter semantics.
-2. The serialized session includes `step_up_at` so the UI can show a "Re-auth pending" state.
+1. `GET .../sessions` returns only active sessions for the realm, paginated, newest first. The `?q=` search matches either the user id or the owning user's username.
+2. The serialized session includes `step_up_at` (for the "Re-auth pending" state) and `username` (the owning user, enriched server-side per page) so the table shows a human name rather than only the user id.
 3. The current session (row id == caller's `sid`) is labelled `Current` and cannot be revoked or step-up'd from this surface.
 4. Session **type** is derived (client-side) from `client_id`: null ⇒ `Browser` (Admin Console / SSO root); non-null ⇒ `OAuth Client` (show the client id).
 5. Device/OS/browser is derived (client-side) by parsing `user_agent`; unparseable or missing UA renders as `Unknown device`.
@@ -144,7 +144,9 @@ YYYYMMDDHHMMSS_refresh_tokens_step_up.sql — ALTER TABLE refresh_tokens ADD COL
 ```text
 GET /api/realms/{realm}/sessions
   Auth:     changed: session:read  (was user:write)
-  Response: adds step_up_at: string|null to each session object  (otherwise unchanged)
+  Response: adds step_up_at: string|null and username: string|null (owning user, enriched server-side) to each session object
+  Search:   the ?q= filter matches the user id OR the owning user's username (LEFT JOIN users)
+  Filter:   filter_started={"from":"YYYY-MM-DD","to":"YYYY-MM-DD"} ranges on created_at ("Started"); `to` is treated as exclusive end-of-day (mirrors the users table date-range filters)
 
 DELETE /api/realms/{realm}/sessions/{id}
   Auth:     changed: session:revoke  (was user:write)

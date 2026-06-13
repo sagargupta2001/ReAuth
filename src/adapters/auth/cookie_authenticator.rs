@@ -145,7 +145,7 @@ mod tests {
             async fn request_step_up(&self, realm_id: &Uuid, id: &Uuid) -> Result<bool>;
             async fn revoke_by_user_and_client(&self, realm_id: &Uuid, user_id: &Uuid, client_id: &str) -> Result<()>;
             async fn revoke_root_tokens_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()>;
-            async fn list(&self, realm_id: &Uuid, req: &crate::domain::pagination::PageRequest) -> Result<crate::domain::pagination::PageResponse<RefreshToken>>;
+            async fn list(&self, realm_id: &Uuid, req: &crate::domain::pagination::PageRequest, filter: &crate::domain::session::SessionListFilter) -> Result<crate::domain::pagination::PageResponse<RefreshToken>>;
         }
     }
 

@@ -1,6 +1,6 @@
 use crate::application::rbac_service::RbacService;
 use crate::domain::pagination::{PageRequest, PageResponse};
-use crate::domain::session::RefreshToken;
+use crate::domain::session::{RefreshToken, SessionListFilter};
 use crate::domain::user::User;
 use crate::ports::realm_repository::RealmRepository;
 use crate::ports::session_repository::SessionRepository;
@@ -336,8 +336,9 @@ impl AuthService {
         &self,
         realm_id: Uuid,
         req: PageRequest,
+        filter: SessionListFilter,
     ) -> Result<PageResponse<SessionView>> {
-        let page = self.session_repo.list(&realm_id, &req).await?;
+        let page = self.session_repo.list(&realm_id, &req, &filter).await?;
 
         // Enrich each session with its owner's display fields. The page is
         // bounded (per_page <= 100) and users repeat across rows, so we look up

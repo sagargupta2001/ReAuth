@@ -1,4 +1,5 @@
 use crate::domain::pagination::{PageRequest, PageResponse};
+use crate::domain::session::SessionListFilter;
 use crate::{domain::session::RefreshToken, error::Result};
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -36,5 +37,10 @@ pub trait SessionRepository: Send + Sync {
     ) -> Result<()>;
     /// Revoke root SSO tokens (where client_id IS NULL) for a user in a realm.
     async fn revoke_root_tokens_for_user(&self, realm_id: &Uuid, user_id: &Uuid) -> Result<()>;
-    async fn list(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<RefreshToken>>;
+    async fn list(
+        &self,
+        realm_id: &Uuid,
+        req: &PageRequest,
+        filter: &SessionListFilter,
+    ) -> Result<PageResponse<RefreshToken>>;
 }

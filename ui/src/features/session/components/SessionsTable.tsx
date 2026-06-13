@@ -1,8 +1,5 @@
 import { useMemo, useState } from 'react'
 
-import { type OnChangeFn, type PaginationState } from '@tanstack/react-table'
-import { useSearchParams } from 'react-router-dom'
-
 import { useSessionStore } from '@/entities/session/model/sessionStore.ts'
 import type { Session } from '@/entities/session/model/types.ts'
 import { useSessions } from '@/features/session/api/useSessions.ts'
@@ -10,23 +7,25 @@ import { RevokeOtherSessionsButton } from '@/features/session/components/RevokeO
 import { SessionBulkActions } from '@/features/session/components/SessionBulkActions.tsx'
 import { SessionDetailsDrawer } from '@/features/session/components/SessionDetailsDrawer.tsx'
 import { getSessionColumns } from '@/features/session/components/SessionColumns.tsx'
+import { useDataTableUrlState } from '@/shared/lib/hooks/useDataTableUrlState'
 import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
+import { type DataTableFilterField } from '@/shared/ui/data-table/types'
+
+const sessionFilters: DataTableFilterField[] = [
+  {
+    key: 'started',
+    label: 'Started',
+    type: 'date-range',
+  },
+]
 
 export function SessionsTable() {
-  const [searchParams, setSearchParams] = useSearchParams()
-
   const { user } = useSessionStore()
   const currentSessionId = user?.sid
 
-  const page = Number(searchParams.get('page')) || 1
-  const perPage = Number(searchParams.get('per_page')) || 10
-  const searchTerm = searchParams.get('q') || ''
-
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: page - 1,
-    pageSize: perPage,
-  })
+  const { pagination, setPagination, searchTerm, setSearchTerm, activeFilters, setActiveFilters } =
+    useDataTableUrlState('created_at', 'desc')
 
   const [detailsSession, setDetailsSession] = useState<Session | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -35,6 +34,7 @@ export function SessionsTable() {
     page: pagination.pageIndex + 1,
     per_page: pagination.pageSize,
     q: searchTerm,
+    filters: activeFilters,
   })
 
   const openDetails = (session: Session) => {
@@ -46,27 +46,6 @@ export function SessionsTable() {
     () => getSessionColumns(currentSessionId, openDetails),
     [currentSessionId],
   )
-
-  const handlePaginationChange: OnChangeFn<PaginationState> = (updater) => {
-    const nextState = typeof updater === 'function' ? updater(pagination) : updater
-    setPagination(nextState)
-    const params = new URLSearchParams(searchParams)
-    params.set('page', String(nextState.pageIndex + 1))
-    params.set('per_page', String(nextState.pageSize))
-    setSearchParams(params)
-  }
-
-  const handleSearch = (value: string) => {
-    const params = new URLSearchParams(searchParams)
-    if (value) {
-      params.set('q', value)
-      params.set('page', '1')
-      setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-    } else {
-      params.delete('q')
-    }
-    setSearchParams(params)
-  }
 
   if (isLoading) {
     return (
@@ -83,16 +62,20 @@ export function SessionsTable() {
         data={data?.data || []}
         pageCount={data?.meta.total_pages || 0}
         pagination={pagination}
-        onPaginationChange={handlePaginationChange}
+        onPaginationChange={setPagination}
         searchKey="user_id"
+        searchPlaceholder="Search by username or user ID..."
         searchValue={searchTerm}
-        onSearch={handleSearch}
+        onSearch={setSearchTerm}
         onRowClick={openDetails}
         customToolbarButtons={<RevokeOtherSessionsButton />}
         bulkEntityName="session"
         renderBulkActions={(table) => (
           <SessionBulkActions table={table} currentSessionId={currentSessionId} />
         )}
+        filters={sessionFilters}
+        activeFilters={activeFilters}
+        onFilterChange={setActiveFilters}
         className="max-h-[calc(100vh-328px)]"
       />
       <SessionDetailsDrawer

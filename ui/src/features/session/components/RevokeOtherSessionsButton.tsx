@@ -20,8 +20,8 @@ export function RevokeOtherSessionsButton() {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9">
-          <ShieldX className="mr-2 h-4 w-4" />
+        <Button size="sm" className="h-9">
+          <ShieldX className="h-4 w-4" />
           Revoke all other sessions
         </Button>
       </AlertDialogTrigger>
