@@ -92,6 +92,16 @@ These logs power:
 - Replay endpoint
 - Routing metrics
 
+## Event Catalog
+The backend owns the webhook subscription catalog and exposes it to the UI through the realm webhook API.
+Catalog entries are grouped by domain and include event type, label, description, and default subscriptions.
+Webhook create/update paths validate subscription event types against this catalog before persisting them.
+
+Current catalog groups:
+- Users: `user.created`, `user.updated`, `user.disabled`, `user.deleted`, `user.assigned`, `user.removed`
+- Roles: `role.created`, `role.updated`, `role.assigned`, `role.removed`, `role.deleted`
+- Groups: `group.created`, `group.updated`, `group.assigned`, `group.removed`, `group.deleted`
+
 ## Mermaid Diagrams
 
 ### 1) End-to-End Flow
@@ -153,5 +163,4 @@ flowchart LR
 
 ## Current Gaps / Next Steps
 - Expand event emission across more backend domains (clients, flows, sessions, tokens, audits).
-- Publish a full event catalog for UI subscriptions.
 - Add optional payload compression for large events.

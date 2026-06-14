@@ -1,10 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import type { CheckedState } from '@radix-ui/react-checkbox'
-
-import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import { Checkbox } from '@/components/checkbox'
 import {
   Dialog,
   DialogClose,
@@ -17,20 +13,16 @@ import {
 } from '@/components/dialog'
 import { Input } from '@/components/input'
 import { Label } from '@/components/label'
-import { ScrollArea } from '@/components/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import { Separator } from '@/components/separator'
-import { Switch } from '@/components/switch'
 import { Textarea } from '@/components/textarea'
+import type { WebhookEventGroup } from '@/entities/events/model/types'
 import { useCreateWebhook } from '@/features/events/api/useCreateWebhook'
 import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useUpdateWebhook } from '@/features/events/api/useUpdateWebhook'
 import { useUpdateWebhookSubscriptions } from '@/features/events/api/useUpdateWebhookSubscriptions'
-import {
-  DEFAULT_WEBHOOK_EVENTS,
-  WEBHOOK_EVENT_GROUPS,
-} from '@/features/events/model/webhook-events'
-import { cn } from '@/lib/utils'
+import { useWebhookEventCatalog } from '@/features/events/api/useWebhookEventCatalog'
+import { WebhookEventSubscriptionPicker } from '@/features/events/components/WebhookEventSubscriptionPicker'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 
 interface WebhookEndpointFormProps {
@@ -44,6 +36,9 @@ interface WebhookEndpointFormProps {
   initialSubscriptions?: string[]
   onSaved?: () => void
 }
+
+const EMPTY_EVENT_GROUPS: WebhookEventGroup[] = []
+const EMPTY_DEFAULT_EVENTS: string[] = []
 
 export function WebhookEndpointForm({
   trigger,
@@ -60,12 +55,16 @@ export function WebhookEndpointForm({
   const deleteWebhook = useDeleteWebhook()
   const updateWebhook = useUpdateWebhook()
   const updateSubscriptions = useUpdateWebhookSubscriptions()
-  const allEvents = useMemo(() => WEBHOOK_EVENT_GROUPS.flatMap((group) => group.events), [])
+  const eventCatalog = useWebhookEventCatalog()
+  const eventGroups = eventCatalog.data?.groups ?? EMPTY_EVENT_GROUPS
+  const defaultEvents = eventCatalog.data?.default_events ?? EMPTY_DEFAULT_EVENTS
+  const allEvents = useMemo(
+    () => eventGroups.flatMap((group) => group.events.map((event) => event.event_type)),
+    [eventGroups],
+  )
   const [open, setOpen] = useState(defaultOpen)
   const [sendEverything, setSendEverything] = useState(false)
-  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(
-    () => new Set(DEFAULT_WEBHOOK_EVENTS),
-  )
+  const [selectedEvents, setSelectedEvents] = useState<Set<string>>(() => new Set())
   const [url, setUrl] = useState('')
   const [method, setMethod] = useState('POST')
   const [description, setDescription] = useState('')
@@ -82,48 +81,25 @@ export function WebhookEndpointForm({
     const initialSet =
       initialSubscriptions && initialSubscriptions.length > 0
         ? new Set(initialSubscriptions)
-        : new Set(DEFAULT_WEBHOOK_EVENTS)
+        : new Set(defaultEvents)
     setSelectedEvents(initialSet)
-    setSendEverything(initialSubscriptions?.length === allEvents.length)
+    setSendEverything(allEvents.length > 0 && initialSubscriptions?.length === allEvents.length)
     setUrl(initialUrl ?? '')
     setMethod(initialMethod?.toUpperCase() ?? 'POST')
     setDescription(initialDescription ?? '')
-  }, [open, initialSubscriptions, initialUrl, initialMethod, initialDescription, allEvents])
-
-  const toggleEvent = (eventName: string, checked: CheckedState) => {
-    setSelectedEvents((prev) => {
-      const next = new Set(prev)
-      if (checked === true) {
-        next.add(eventName)
-      } else {
-        next.delete(eventName)
-      }
-      return next
-    })
-  }
-
-  const toggleGroup = (events: readonly string[], checked: CheckedState) => {
-    setSelectedEvents((prev) => {
-      const next = new Set(prev)
-      if (checked === true) {
-        events.forEach((event) => next.add(event))
-      } else {
-        events.forEach((event) => next.delete(event))
-      }
-      return next
-    })
-  }
-
-  const groupState = (events: readonly string[]): CheckedState => {
-    const selectedCount = events.filter((event) => selectedEvents.has(event)).length
-    if (selectedCount === 0) return false
-    if (selectedCount === events.length) return true
-    return 'indeterminate'
-  }
+  }, [
+    open,
+    initialSubscriptions,
+    initialUrl,
+    initialMethod,
+    initialDescription,
+    allEvents,
+    defaultEvents,
+  ])
 
   const resetForm = () => {
     setSendEverything(false)
-    setSelectedEvents(new Set(DEFAULT_WEBHOOK_EVENTS))
+    setSelectedEvents(new Set(defaultEvents))
     setUrl('')
     setMethod('POST')
     setDescription('')
@@ -240,66 +216,22 @@ export function WebhookEndpointForm({
             />
           </div>
 
-          <div className="bg-surface-elevated/40 overflow-hidden rounded-lg border border-dashed">
-            <div className="flex flex-col gap-4 p-4">
-              <div className="bg-background/60 flex items-center justify-between gap-4 rounded-md p-3">
-                <div>
-                  <p className="text-sm font-medium">Send me everything</p>
-                  <p className="text-muted-foreground text-xs">
-                    Override granular selections and forward every event.
-                  </p>
-                </div>
-                <Switch checked={sendEverything} onCheckedChange={setSendEverything} />
-              </div>
-
-              <ScrollArea className="bg-background h-[260px] rounded-md border">
-                <div className="space-y-4 p-4">
-                  {WEBHOOK_EVENT_GROUPS.map((group) => {
-                    const state = groupState(group.events)
-                    return (
-                      <div key={group.id} className="space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                checked={state}
-                                onCheckedChange={(checked) => toggleGroup(group.events, checked)}
-                                disabled={sendEverything}
-                              />
-                              <span className="text-sm font-semibold">{group.label}</span>
-                            </div>
-                            <p className="text-muted-foreground text-xs">{group.description}</p>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {group.events.length} events
-                          </Badge>
-                        </div>
-
-                        <div className="grid gap-2 pl-6">
-                          {group.events.map((event) => (
-                            <label
-                              key={event}
-                              className={cn(
-                                'text-muted-foreground flex items-center gap-2 text-sm',
-                                sendEverything && 'opacity-60',
-                              )}
-                            >
-                              <Checkbox
-                                checked={selectedEvents.has(event)}
-                                onCheckedChange={(checked) => toggleEvent(event, checked)}
-                                disabled={sendEverything}
-                              />
-                              <span className="text-foreground font-mono text-xs">{event}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </ScrollArea>
-            </div>
-          </div>
+          <WebhookEventSubscriptionPicker
+            groups={eventGroups}
+            selectedEvents={Array.from(selectedEvents)}
+            onSelectedEventsChange={(events) => setSelectedEvents(new Set(events))}
+            sendEverything={sendEverything}
+            onSendEverythingChange={setSendEverything}
+            disabled={
+              eventCatalog.isLoading ||
+              createWebhook.isPending ||
+              updateWebhook.isPending ||
+              updateSubscriptions.isPending
+            }
+          />
+          {eventCatalog.isError ? (
+            <p className="text-destructive text-xs">Failed to load webhook event catalog.</p>
+          ) : null}
         </div>
 
         <DialogFooter className="gap-1 py-3 pr-3">
@@ -311,6 +243,8 @@ export function WebhookEndpointForm({
             disabled={
               !url.trim() ||
               selectedEvents.size === 0 ||
+              eventCatalog.isLoading ||
+              allEvents.length === 0 ||
               createWebhook.isPending ||
               updateWebhook.isPending ||
               updateSubscriptions.isPending

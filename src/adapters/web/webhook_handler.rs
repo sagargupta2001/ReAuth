@@ -3,6 +3,7 @@ use crate::application::webhook_service::{
     CreateWebhookPayload, TestWebhookPayload, UpdateWebhookPayload,
     UpdateWebhookSubscriptionsPayload,
 };
+use crate::domain::events::{DEFAULT_WEBHOOK_EVENT_TYPES, WEBHOOK_EVENT_CATALOG};
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::domain::telemetry::{DeliveryLogQuery, EventRoutingMetrics};
 use crate::error::{Error, Result};
@@ -37,6 +38,12 @@ pub struct WebhookListQuery {
 #[derive(Deserialize)]
 pub struct EventRoutingMetricsQuery {
     pub window_hours: Option<i64>,
+}
+
+#[derive(serde::Serialize)]
+pub struct WebhookEventCatalogResponse {
+    pub groups: &'static [crate::domain::events::WebhookEventGroup],
+    pub default_events: &'static [&'static str],
 }
 
 pub async fn list_webhooks_handler(
@@ -128,6 +135,25 @@ pub async fn event_routing_metrics_handler(
     };
 
     Ok((StatusCode::OK, Json(response)))
+}
+
+pub async fn list_webhook_events_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+) -> Result<impl IntoResponse> {
+    let _ = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    Ok((
+        StatusCode::OK,
+        Json(WebhookEventCatalogResponse {
+            groups: WEBHOOK_EVENT_CATALOG,
+            default_events: DEFAULT_WEBHOOK_EVENT_TYPES,
+        }),
+    ))
 }
 
 pub async fn get_webhook_handler(

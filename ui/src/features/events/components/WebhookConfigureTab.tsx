@@ -1,13 +1,10 @@
 import { useEffect, useMemo } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import type { CheckedState } from '@radix-ui/react-checkbox'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
-import { Badge } from '@/components/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
-import { Checkbox } from '@/components/checkbox'
 import {
   Form,
   FormControl,
@@ -19,14 +16,11 @@ import {
 } from '@/components/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import { Textarea } from '@/components/textarea'
-import type { WebhookEndpointDetails } from '@/entities/events/model/types'
+import type { WebhookEndpointDetails, WebhookEventGroup } from '@/entities/events/model/types'
 import { useUpdateWebhook } from '@/features/events/api/useUpdateWebhook'
 import { useUpdateWebhookSubscriptions } from '@/features/events/api/useUpdateWebhookSubscriptions'
-import {
-  DEFAULT_WEBHOOK_EVENTS,
-  WEBHOOK_EVENT_GROUPS,
-} from '@/features/events/model/webhook-events'
-import { cn } from '@/lib/utils'
+import { useWebhookEventCatalog } from '@/features/events/api/useWebhookEventCatalog'
+import { WebhookEventSubscriptionPicker } from '@/features/events/components/WebhookEventSubscriptionPicker'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence'
 import { FormInput } from '@/shared/ui/form-input'
 
@@ -39,6 +33,9 @@ const webhookConfigureSchema = z.object({
 
 type WebhookConfigureFormValues = z.infer<typeof webhookConfigureSchema>
 
+const EMPTY_EVENT_GROUPS: WebhookEventGroup[] = []
+const EMPTY_DEFAULT_EVENTS: string[] = []
+
 interface WebhookConfigureTabProps {
   details: WebhookEndpointDetails
   onSaved?: () => void
@@ -47,19 +44,25 @@ interface WebhookConfigureTabProps {
 export function WebhookConfigureTab({ details, onSaved }: WebhookConfigureTabProps) {
   const updateWebhook = useUpdateWebhook()
   const updateSubscriptions = useUpdateWebhookSubscriptions()
-  const allEvents = useMemo(() => WEBHOOK_EVENT_GROUPS.flatMap((group) => group.events), [])
+  const eventCatalog = useWebhookEventCatalog()
+  const eventGroups = eventCatalog.data?.groups ?? EMPTY_EVENT_GROUPS
+  const defaultEvents = eventCatalog.data?.default_events ?? EMPTY_DEFAULT_EVENTS
+  const allEvents = useMemo(
+    () => eventGroups.flatMap((group) => group.events.map((event) => event.event_type)),
+    [eventGroups],
+  )
 
   const form = useForm<WebhookConfigureFormValues>({
     resolver: zodResolver(webhookConfigureSchema),
-    defaultValues: buildDefaults(details),
+    defaultValues: buildDefaults(details, defaultEvents),
   })
 
   const selectedEvents = form.watch('subscriptions')
-  const sendEverything = selectedEvents.length === allEvents.length
+  const sendEverything = allEvents.length > 0 && selectedEvents.length === allEvents.length
 
   useEffect(() => {
-    form.reset(buildDefaults(details))
-  }, [details, form])
+    form.reset(buildDefaults(details, defaultEvents))
+  }, [defaultEvents, details, form])
 
   const setSubscriptions = (subscriptions: string[]) => {
     form.setValue('subscriptions', subscriptions, {
@@ -69,35 +72,8 @@ export function WebhookConfigureTab({ details, onSaved }: WebhookConfigureTabPro
     })
   }
 
-  const toggleEvent = (eventName: string, checked: CheckedState) => {
-    const next = new Set(form.getValues('subscriptions'))
-    if (checked === true) {
-      next.add(eventName)
-    } else {
-      next.delete(eventName)
-    }
-    setSubscriptions(Array.from(next))
-  }
-
-  const toggleGroup = (events: readonly string[], checked: CheckedState) => {
-    const next = new Set(form.getValues('subscriptions'))
-    if (checked === true) {
-      events.forEach((event) => next.add(event))
-    } else {
-      events.forEach((event) => next.delete(event))
-    }
-    setSubscriptions(Array.from(next))
-  }
-
-  const groupState = (events: readonly string[]): CheckedState => {
-    const selectedCount = events.filter((event) => selectedEvents.includes(event)).length
-    if (selectedCount === 0) return false
-    if (selectedCount === events.length) return true
-    return 'indeterminate'
-  }
-
   const handleSendEverything = (checked: boolean) => {
-    setSubscriptions(checked ? allEvents : DEFAULT_WEBHOOK_EVENTS)
+    setSubscriptions(checked ? allEvents : defaultEvents)
   }
 
   const onSubmit = (values: WebhookConfigureFormValues) => {
@@ -216,70 +192,27 @@ export function WebhookConfigureTab({ details, onSaved }: WebhookConfigureTabPro
                   name="subscriptions"
                   render={() => (
                     <FormItem>
-                      <div className="bg-background/60 overflow-hidden rounded-lg border border-dashed">
-                        <div className="flex items-center justify-between gap-4 border-b p-4">
-                          <div>
-                            <FormLabel>Subscribed events</FormLabel>
-                            <FormDescription>
-                              Select granular event groups or forward every event.
-                            </FormDescription>
-                          </div>
-                          <label className="flex cursor-pointer items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={sendEverything}
-                              onCheckedChange={(checked) => handleSendEverything(checked === true)}
-                            />
-                            Send everything
-                          </label>
-                        </div>
-
-                        <div className="space-y-4 p-4">
-                          {WEBHOOK_EVENT_GROUPS.map((group) => {
-                            const state = groupState(group.events)
-                            return (
-                              <div key={group.id} className="space-y-3">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <Checkbox
-                                        checked={state}
-                                        onCheckedChange={(checked) =>
-                                          toggleGroup(group.events, checked)
-                                        }
-                                      />
-                                      <span className="text-sm font-semibold">{group.label}</span>
-                                    </div>
-                                    <p className="text-muted-foreground text-xs">
-                                      {group.description}
-                                    </p>
-                                  </div>
-                                  <Badge variant="outline" className="text-xs">
-                                    {group.events.length} events
-                                  </Badge>
-                                </div>
-
-                                <div className="grid gap-2 pl-6 sm:grid-cols-2">
-                                  {group.events.map((event) => (
-                                    <label
-                                      key={event}
-                                      className={cn(
-                                        'text-muted-foreground flex items-center gap-2 text-sm',
-                                        selectedEvents.includes(event) && 'text-foreground',
-                                      )}
-                                    >
-                                      <Checkbox
-                                        checked={selectedEvents.includes(event)}
-                                        onCheckedChange={(checked) => toggleEvent(event, checked)}
-                                      />
-                                      <span className="font-mono text-xs">{event}</span>
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
+                      <FormLabel className="sr-only">Subscribed events</FormLabel>
+                      <FormDescription className="sr-only">
+                        Select granular event groups or forward every event.
+                      </FormDescription>
+                      <WebhookEventSubscriptionPicker
+                        groups={eventGroups}
+                        selectedEvents={selectedEvents}
+                        onSelectedEventsChange={setSubscriptions}
+                        sendEverything={sendEverything}
+                        onSendEverythingChange={handleSendEverything}
+                        disabled={
+                          eventCatalog.isLoading ||
+                          updateWebhook.isPending ||
+                          updateSubscriptions.isPending
+                        }
+                      />
+                      {eventCatalog.isError ? (
+                        <p className="text-destructive text-xs">
+                          Failed to load webhook event catalog.
+                        </p>
+                      ) : null}
                       <FormMessage />
                     </FormItem>
                   )}
@@ -293,7 +226,10 @@ export function WebhookConfigureTab({ details, onSaved }: WebhookConfigureTabPro
   )
 }
 
-function buildDefaults(details: WebhookEndpointDetails): WebhookConfigureFormValues {
+function buildDefaults(
+  details: WebhookEndpointDetails,
+  defaultEvents: string[],
+): WebhookConfigureFormValues {
   const enabledSubscriptions = details.subscriptions
     .filter((subscription) => subscription.enabled)
     .map((subscription) => subscription.event_type)
@@ -302,6 +238,6 @@ function buildDefaults(details: WebhookEndpointDetails): WebhookConfigureFormVal
     url: details.endpoint.url,
     http_method: details.endpoint.http_method?.toUpperCase() === 'PUT' ? 'PUT' : 'POST',
     description: details.endpoint.description ?? '',
-    subscriptions: enabledSubscriptions,
+    subscriptions: enabledSubscriptions.length > 0 ? enabledSubscriptions : defaultEvents,
   }
 }
