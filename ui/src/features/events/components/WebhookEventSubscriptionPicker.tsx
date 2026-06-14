@@ -10,7 +10,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Input } from '@/components/input'
 import { ScrollArea } from '@/components/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
-import { Switch } from '@/components/switch'
 import type { WebhookEventGroup } from '@/entities/events/model/types'
 import { cn } from '@/lib/utils'
 
@@ -41,10 +40,6 @@ export function WebhookEventSubscriptionPicker({
     () => new Set(groups.map((group) => group.id)),
   )
 
-  const allEventTypes = useMemo(
-    () => groups.flatMap((group) => group.events.map((event) => event.event_type)),
-    [groups],
-  )
   const selectedSet = useMemo(() => new Set(selectedEvents), [selectedEvents])
 
   const filteredGroups = useMemo(() => {
@@ -107,37 +102,15 @@ export function WebhookEventSubscriptionPicker({
     })
   }
 
-  const handleSendEverything = (checked: boolean) => {
-    onSendEverythingChange(checked)
-    if (checked) setSelected(allEventTypes)
-  }
-
   return (
-    <div className={cn('overflow-hidden rounded-lg border', className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-        <div>
-          <p className="text-sm font-semibold">Event Subscriptions</p>
-          <p className="text-muted-foreground text-xs">
-            {selectedSet.size} of {allEventTypes.length} events selected
-          </p>
-        </div>
-        <label className="flex items-center gap-2 text-xs">
-          <span className="text-muted-foreground">Send all events</span>
-          <Switch
-            checked={sendEverything}
-            onCheckedChange={handleSendEverything}
-            disabled={disabled}
-          />
-        </label>
-      </div>
-
-      <div className="bg-muted/20 grid gap-3 border-b p-3 lg:grid-cols-[1fr_210px_auto]">
+    <div className={cn('overflow-hidden rounded-lg', className)}>
+      <div className="bg-muted/20 grid gap-3 p-2 lg:grid-cols-[1fr_210px_auto]">
         <div className="relative">
           <Search className="text-muted-foreground/60 absolute top-2.5 left-3 h-4 w-4" />
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search events..."
+            placeholder="Search..."
             className="h-9 border pl-9 text-sm"
           />
         </div>
@@ -159,7 +132,7 @@ export function WebhookEventSubscriptionPicker({
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          size="default"
           onClick={() => {
             onSendEverythingChange(false)
             onSelectedEventsChange([])
@@ -170,8 +143,8 @@ export function WebhookEventSubscriptionPicker({
         </Button>
       </div>
 
-      <ScrollArea className="h-[360px]">
-        <div className="space-y-2 p-3">
+      <ScrollArea className="max-h-[360px]" viewportClassName="max-h-[360px]">
+        <div className="space-y-2 p-2">
           {filteredGroups.length === 0 ? (
             <div className="text-muted-foreground rounded-md border border-dashed px-3 py-8 text-center text-xs">
               No events match this view.

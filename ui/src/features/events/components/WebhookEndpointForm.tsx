@@ -15,6 +15,7 @@ import { Input } from '@/components/input'
 import { Label } from '@/components/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import { Separator } from '@/components/separator'
+import { Switch } from '@/components/switch'
 import { Textarea } from '@/components/textarea'
 import type { WebhookEventGroup } from '@/entities/events/model/types'
 import { useCreateWebhook } from '@/features/events/api/useCreateWebhook'
@@ -103,6 +104,11 @@ export function WebhookEndpointForm({
     setUrl('')
     setMethod('POST')
     setDescription('')
+  }
+
+  const handleSendEverythingChange = (checked: boolean) => {
+    setSendEverything(checked)
+    setSelectedEvents(new Set(checked ? allEvents : defaultEvents))
   }
 
   const handleSave = async () => {
@@ -216,19 +222,44 @@ export function WebhookEndpointForm({
             />
           </div>
 
-          <WebhookEventSubscriptionPicker
-            groups={eventGroups}
-            selectedEvents={Array.from(selectedEvents)}
-            onSelectedEventsChange={(events) => setSelectedEvents(new Set(events))}
-            sendEverything={sendEverything}
-            onSendEverythingChange={setSendEverything}
-            disabled={
-              eventCatalog.isLoading ||
-              createWebhook.isPending ||
-              updateWebhook.isPending ||
-              updateSubscriptions.isPending
-            }
-          />
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-1">
+                <Label>Event Subscriptions</Label>
+                <p className="text-muted-foreground text-xs">
+                  {selectedEvents.size} of {allEvents.length} events selected
+                </p>
+              </div>
+              <label className="flex items-center gap-2 pt-1 text-xs">
+                <span className="text-muted-foreground">Send all events</span>
+                <Switch
+                  checked={sendEverything}
+                  onCheckedChange={handleSendEverythingChange}
+                  disabled={
+                    eventCatalog.isLoading ||
+                    allEvents.length === 0 ||
+                    createWebhook.isPending ||
+                    updateWebhook.isPending ||
+                    updateSubscriptions.isPending
+                  }
+                />
+              </label>
+            </div>
+
+            <WebhookEventSubscriptionPicker
+              groups={eventGroups}
+              selectedEvents={Array.from(selectedEvents)}
+              onSelectedEventsChange={(events) => setSelectedEvents(new Set(events))}
+              sendEverything={sendEverything}
+              onSendEverythingChange={handleSendEverythingChange}
+              disabled={
+                eventCatalog.isLoading ||
+                createWebhook.isPending ||
+                updateWebhook.isPending ||
+                updateSubscriptions.isPending
+              }
+            />
+          </div>
           {eventCatalog.isError ? (
             <p className="text-destructive text-xs">Failed to load webhook event catalog.</p>
           ) : null}

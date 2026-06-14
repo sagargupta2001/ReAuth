@@ -15,6 +15,7 @@ import {
   FormMessage,
 } from '@/components/form'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
+import { Switch } from '@/components/switch'
 import { Textarea } from '@/components/textarea'
 import type { WebhookEndpointDetails, WebhookEventGroup } from '@/entities/events/model/types'
 import { useUpdateWebhook } from '@/features/events/api/useUpdateWebhook'
@@ -180,10 +181,28 @@ export function WebhookConfigureTab({ details, onSaved }: WebhookConfigureTabPro
 
           <Card>
             <CardHeader>
-              <CardTitle>Event Subscriptions</CardTitle>
-              <CardDescription>
-                Select which event types should be routed to this webhook.
-              </CardDescription>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <CardTitle>Event Subscriptions</CardTitle>
+                  <CardDescription>
+                    Select which event types should be routed to this webhook.{' '}
+                    {selectedEvents.length} of {allEvents.length} events selected.
+                  </CardDescription>
+                </div>
+                <label className="flex items-center gap-2 pt-1 text-xs">
+                  <span className="text-muted-foreground">Send all events</span>
+                  <Switch
+                    checked={sendEverything}
+                    onCheckedChange={handleSendEverything}
+                    disabled={
+                      eventCatalog.isLoading ||
+                      allEvents.length === 0 ||
+                      updateWebhook.isPending ||
+                      updateSubscriptions.isPending
+                    }
+                  />
+                </label>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="bg-primary-foreground rounded-2xl p-4">
