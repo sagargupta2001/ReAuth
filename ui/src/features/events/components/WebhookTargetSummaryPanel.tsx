@@ -75,7 +75,7 @@ export function WebhookTargetSummaryPanel({ details }: WebhookTargetSummaryPanel
   const enabledSubscriptions = subscriptions.filter((subscription) => subscription.enabled)
 
   return (
-    <div className="flex flex-col self-start xl:sticky xl:top-6">
+    <div className="flex flex-col">
       <SummaryRow icon={Fingerprint} label="Webhook ID" value={endpoint.id} copyable />
       <SummaryRow icon={Link} label="Destination URL" value={endpoint.url} copyable />
       <SummaryRow icon={RadioTower} label="HTTP method" value={endpoint.http_method || 'POST'} />

@@ -148,10 +148,12 @@ export function TargetDetailsPage() {
   }
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
-      <BackToWebhooksLink />
+    <div className="bg-background flex h-full w-full flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-6">
+        <BackToWebhooksLink />
 
-      <WebhookTargetHeader endpoint={endpoint} />
+        <WebhookTargetHeader endpoint={endpoint} />
+      </div>
 
       <Tabs
         value={activeTab}
@@ -172,8 +174,8 @@ export function TargetDetailsPage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto xl:overflow-hidden">
-          <TabsContent value="configure" className="mt-0 h-full w-full p-6">
+        <div className="bg-muted/5 flex-1 overflow-y-auto">
+          <TabsContent value="configure" className="mt-0 min-h-full w-full p-6">
             <WebhookTargetTabLayout details={webhookDetails}>
               <WebhookConfigureTab
                 details={webhookDetails}
@@ -185,7 +187,7 @@ export function TargetDetailsPage() {
             </WebhookTargetTabLayout>
           </TabsContent>
 
-          <TabsContent value="deliveries" className="mt-0 h-full w-full p-6">
+          <TabsContent value="deliveries" className="mt-0 min-h-full w-full p-6">
             <DeliveriesInspector
               deliveries={deliveries}
               isLoading={webhookDeliveriesLoading}
@@ -196,7 +198,7 @@ export function TargetDetailsPage() {
             />
           </TabsContent>
 
-          <TabsContent value="settings" className="mt-0 h-full w-full p-6">
+          <TabsContent value="settings" className="mt-0 min-h-full w-full p-6">
             <WebhookTargetTabLayout details={webhookDetails}>
               <WebhookSettingsTab
                 endpoint={endpoint}
@@ -252,9 +254,9 @@ function WebhookTargetTabLayout({
   children: ReactNode
 }) {
   return (
-    <div className="grid min-h-full w-full items-start gap-6 xl:h-full xl:grid-cols-[minmax(0,1fr)_20rem] xl:overflow-hidden">
-      <div className="min-w-0 xl:h-full xl:overflow-y-auto xl:pr-1">{children}</div>
-      <aside className="xl:h-full xl:overflow-hidden">
+    <div className="grid min-h-full w-full items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="min-w-0">{children}</div>
+      <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
         <WebhookTargetSummaryPanel details={details} />
       </aside>
     </div>
