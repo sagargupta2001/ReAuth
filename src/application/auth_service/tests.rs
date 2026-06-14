@@ -909,6 +909,7 @@ fn build_service(
         passkey_challenge_cleanup_batch_size: 500,
         oauth_broker_state_cleanup_interval_secs: 300,
         oauth_broker_state_cleanup_batch_size: 500,
+        single_session_per_client: false,
     };
 
     AuthService::new(

@@ -102,6 +102,11 @@ pub struct AuthConfig {
     pub oauth_broker_state_cleanup_interval_secs: u64,
     #[serde(default = "default_oauth_broker_state_cleanup_batch_size")]
     pub oauth_broker_state_cleanup_batch_size: i64,
+    /// When true, logging in revokes the user's existing sessions for the same
+    /// client, enforcing a single active session per (user, client). When false
+    /// (default), concurrent sessions are allowed (e.g. multiple browsers).
+    #[serde(default)]
+    pub single_session_per_client: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
