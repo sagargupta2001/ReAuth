@@ -1,39 +1,50 @@
-import { useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
+
+import { Activity, ArrowLeft, Loader2, Settings, SlidersHorizontal } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
-import { Badge } from '@/components/badge'
-import { Button } from '@/components/button'
-import { Card, CardContent } from '@/components/card'
-import { Switch } from '@/components/switch'
-import type { DeliveryInspectorItem } from '@/features/events/components/DeliveriesInspector'
-import { DeliveriesInspector } from '@/features/events/components/DeliveriesInspector'
-import { useWebhookDeliveries } from '@/features/events/api/useWebhookDeliveries'
+import { Button, buttonVariants } from '@/components/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
+import type { WebhookEndpointDetails } from '@/entities/events/model/types'
+import { RealmLink } from '@/entities/realm/lib/navigation'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
+import { useReplayDelivery } from '@/features/events/api/useReplayDelivery'
+import { useWebhookDeliveries } from '@/features/events/api/useWebhookDeliveries'
 import { useWebhookMutations } from '@/features/events/api/useWebhookMutations'
 import { useWebhook } from '@/features/events/api/useWebhooks'
-import { WebhookEndpointForm } from '@/features/events/components/WebhookEndpointForm'
-import { useRollWebhookSecret } from '@/features/events/api/useRollWebhookSecret'
-import { useReplayDelivery } from '@/features/events/api/useReplayDelivery'
-import { formatClockTime } from '@/lib/utils'
+import {
+  DeliveriesInspector,
+  type DeliveryInspectorItem,
+} from '@/features/events/components/DeliveriesInspector'
+import { WebhookConfigureTab } from '@/features/events/components/WebhookConfigureTab'
+import { WebhookSettingsTab } from '@/features/events/components/WebhookSettingsTab'
+import { WebhookTargetHeader } from '@/features/events/components/WebhookTargetHeader'
+import { WebhookTargetSummaryPanel } from '@/features/events/components/WebhookTargetSummaryPanel'
+import { cn, formatClockTime } from '@/lib/utils'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
-import { Main } from '@/widgets/Layout/Main'
-import { ArrowLeft, Copy, Eye, EyeOff, RefreshCcw, RotateCcw, Trash2 } from 'lucide-react'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+
+const VALID_TABS = ['configure', 'deliveries', 'settings'] as const
+type TargetDetailsTab = (typeof VALID_TABS)[number]
 
 export function TargetDetailsPage() {
-  const { targetId } = useParams<{ targetId: string }>()
-  const [showSecret, setShowSecret] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
+  const { targetId, tab } = useParams<{ targetId: string; tab?: string }>()
   const navigate = useRealmNavigate()
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const webhookId = targetId
+  const activeTab = VALID_TABS.includes((tab ?? '') as TargetDetailsTab)
+    ? (tab as TargetDetailsTab)
+    : 'configure'
 
-  const { data: webhookDetails, isLoading: webhookLoading, refetch: refetchWebhook } = useWebhook(
-    webhookId,
-  )
+  const {
+    data: webhookDetails,
+    isLoading: webhookLoading,
+    isError: webhookError,
+    refetch: refetchWebhook,
+  } = useWebhook(webhookId)
   const { enableWebhook, disableWebhook } = useWebhookMutations()
   const deleteWebhook = useDeleteWebhook()
-  const rollSecret = useRollWebhookSecret()
   const replayDelivery = useReplayDelivery()
 
   const {
@@ -43,23 +54,12 @@ export function TargetDetailsPage() {
     refetch: refetchWebhookDeliveries,
   } = useWebhookDeliveries(webhookId, { per_page: 50, page: 1 })
 
-  const endpoint = webhookDetails?.endpoint
-  const isActive = endpoint?.status === 'active'
-  const toggleDisabled =
-    !endpoint || enableWebhook.isPending || disableWebhook.isPending || webhookLoading
-
-  const profileName = endpoint?.url || endpoint?.name || 'Webhook endpoint'
-
-  const statusLabel = !endpoint ? 'Loading' : isActive ? 'Active' : 'Disabled'
-  const statusVariant = !endpoint ? 'muted' : isActive ? 'success' : 'destructive'
-
-  const maskedSecret = useMemo(() => {
-    const secret = endpoint?.signing_secret
-    if (!secret) return '—'
-    if (showSecret) return secret
-    if (secret.length <= 10) return `${secret.slice(0, 4)}****`
-    return `${secret.slice(0, 6)}****${secret.slice(-4)}`
-  }, [endpoint?.signing_secret, showSecret])
+  useEffect(() => {
+    if (!webhookId) return
+    if (!tab || !VALID_TABS.includes(tab as TargetDetailsTab)) {
+      navigate(`/events/webhooks/${webhookId}/configure`, { replace: true })
+    }
+  }, [navigate, tab, webhookId])
 
   const deliveries = useMemo<DeliveryInspectorItem[]>(() => {
     const logs = webhookDeliveries?.data ?? []
@@ -81,7 +81,7 @@ export function TargetDetailsPage() {
         eventType: log.event_type,
         status: isSuccess ? 'success' : 'failed',
         timestamp: formatClockTime(log.delivered_at),
-        latency: log.latency_ms ? `${log.latency_ms}ms` : '—',
+        latency: log.latency_ms ? `${log.latency_ms}ms` : '-',
         signature: null,
         payload,
         failureReason,
@@ -94,14 +94,42 @@ export function TargetDetailsPage() {
     })
   }, [webhookDeliveries?.data])
 
-  const deliveriesLoading = webhookDeliveriesLoading
-  const deliveriesRefreshing = webhookDeliveriesFetching
-  const refreshDeliveries = () => {
-    void refetchWebhookDeliveries()
+  if (!webhookId) return null
+
+  if (webhookLoading) {
+    return (
+      <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
+        <BackToWebhooksLink />
+        <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-4">
+          <Loader2 className="text-primary h-8 w-8 animate-spin" />
+          <p>Loading webhook...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (webhookError || !webhookDetails) {
+    return (
+      <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
+        <BackToWebhooksLink />
+        <div className="text-destructive flex flex-1 flex-col items-center justify-center gap-2">
+          <p>Webhook endpoint not found.</p>
+          <Button variant="outline" onClick={() => navigate('/events')}>
+            Back to Webhooks
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  const endpoint = webhookDetails.endpoint
+  const statusPending = enableWebhook.isPending || disableWebhook.isPending
+
+  const handleTabChange = (newTab: string) => {
+    navigate(`/events/webhooks/${webhookId}/${newTab}`)
   }
 
   const handleStatusChange = (checked: boolean) => {
-    if (!endpoint) return
     if (checked) {
       enableWebhook.mutate(endpoint.id)
     } else {
@@ -109,27 +137,7 @@ export function TargetDetailsPage() {
     }
   }
 
-  const handleCopySecret = async () => {
-    const secret = endpoint?.signing_secret
-    if (!secret) return
-    try {
-      await navigator.clipboard.writeText(secret)
-    } catch (err) {
-      console.error('Failed to copy signing secret', err)
-    }
-  }
-
-  const handleRollSecret = () => {
-    if (!endpoint) return
-    rollSecret.mutate(endpoint.id, {
-      onSuccess: () => {
-        setShowSecret(false)
-      },
-    })
-  }
-
   const handleDelete = async () => {
-    if (!endpoint) return
     try {
       await deleteWebhook.mutateAsync(endpoint.id)
       setDeleteOpen(false)
@@ -140,112 +148,67 @@ export function TargetDetailsPage() {
   }
 
   return (
-    <Main className="flex flex-1 flex-col gap-6 p-12" fixed>
-      <Button variant="ghost" className="w-fit gap-2" onClick={() => navigate('/events')}>
-        <ArrowLeft className="h-4 w-4" />
-        Back to Webhooks
-      </Button>
+    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
+      <BackToWebhooksLink />
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight">{profileName}</h1>
-            <Badge variant={statusVariant}>{statusLabel}</Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Securely deliver events to this endpoint with signed payloads.
-          </p>
+      <WebhookTargetHeader endpoint={endpoint} />
+
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange}
+        className="flex flex-1 flex-col overflow-hidden"
+      >
+        <div className="bg-muted/5 shrink-0 px-6 pt-2">
+          <TabsList variant="line" className="gap-6 bg-transparent p-0">
+            <TabsTrigger variant="line" value="configure" className="tab-trigger-styles">
+              <SlidersHorizontal className="mr-2 h-4 w-4" /> Configure
+            </TabsTrigger>
+            <TabsTrigger variant="line" value="deliveries" className="tab-trigger-styles">
+              <Activity className="mr-2 h-4 w-4" /> Deliveries
+            </TabsTrigger>
+            <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
+              <Settings className="mr-2 h-4 w-4" /> Settings
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            onClick={refreshDeliveries}
-            disabled={deliveriesRefreshing || deliveriesLoading}
-          >
-            <RefreshCcw className="h-4 w-4" />
-          </Button>
-          {endpoint && (
-            <>
-              <WebhookEndpointForm
-                mode="edit"
-                endpointId={endpoint.id}
-                initialUrl={endpoint.url}
-                initialMethod={endpoint.http_method}
-                initialDescription={endpoint.description}
-                initialSubscriptions={(webhookDetails?.subscriptions ?? [])
-                  .filter((sub) => sub.enabled)
-                  .map((sub) => sub.event_type)}
+
+        <div className="bg-muted/5 flex-1 overflow-y-auto xl:overflow-hidden">
+          <TabsContent value="configure" className="mt-0 h-full w-full p-6">
+            <WebhookTargetTabLayout details={webhookDetails}>
+              <WebhookConfigureTab
+                details={webhookDetails}
                 onSaved={() => {
                   void refetchWebhook()
                   void refetchWebhookDeliveries()
                 }}
-                trigger={<Button variant="secondary">Edit</Button>}
               />
-              <Button
-                variant="destructive"
-                onClick={() => setDeleteOpen(true)}
-                disabled={deleteWebhook.isPending}
-              >
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </Button>
-            </>
-          )}
-          <div className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs text-muted-foreground">
-            <span>Status</span>
-            <Switch checked={!!isActive} onCheckedChange={handleStatusChange} disabled={toggleDisabled} />
-          </div>
+            </WebhookTargetTabLayout>
+          </TabsContent>
+
+          <TabsContent value="deliveries" className="mt-0 h-full w-full p-6">
+            <DeliveriesInspector
+              deliveries={deliveries}
+              isLoading={webhookDeliveriesLoading}
+              isRefreshing={webhookDeliveriesFetching}
+              replayPending={replayDelivery.isPending}
+              onRefresh={() => void refetchWebhookDeliveries()}
+              onReplay={(deliveryId) => replayDelivery.mutate(deliveryId)}
+            />
+          </TabsContent>
+
+          <TabsContent value="settings" className="mt-0 h-full w-full p-6">
+            <WebhookTargetTabLayout details={webhookDetails}>
+              <WebhookSettingsTab
+                endpoint={endpoint}
+                statusPending={statusPending}
+                deletePending={deleteWebhook.isPending}
+                onStatusChange={handleStatusChange}
+                onDeleteClick={() => setDeleteOpen(true)}
+              />
+            </WebhookTargetTabLayout>
+          </TabsContent>
         </div>
-      </div>
-
-      {endpoint && (
-        <Card>
-          <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
-            <div>
-              <p className="text-sm font-semibold">Signing Secret</p>
-              <p className="text-xs text-muted-foreground">
-                Used to verify the integrity of webhook payloads.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="rounded-md border bg-muted/40 px-3 py-2 font-mono text-xs">
-                {maskedSecret}
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowSecret((prev) => !prev)}
-                disabled={!endpoint.signing_secret}
-              >
-                {showSecret ? <EyeOff /> : <Eye />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleCopySecret}
-                disabled={!endpoint.signing_secret}
-              >
-                <Copy />
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={handleRollSecret}
-                disabled={!endpoint.signing_secret || rollSecret.isPending}
-              >
-                <RotateCcw className="h-4 w-4" />
-                Roll Secret
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <DeliveriesInspector
-        deliveries={deliveries}
-        isLoading={deliveriesLoading}
-        replayPending={replayDelivery.isPending}
-        onReplay={(deliveryId) => replayDelivery.mutate(deliveryId)}
-      />
+      </Tabs>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -253,15 +216,50 @@ export function TargetDetailsPage() {
         title="Delete webhook endpoint"
         desc="This will permanently delete the webhook and its delivery history."
         destructive
+        overlayClassName="bg-background/80 dot-grid text-muted-foreground/20"
         isLoading={deleteWebhook.isPending}
         handleConfirm={handleDelete}
         confirmText={deleteWebhook.isPending ? 'Deleting...' : 'Delete'}
       />
-    </Main>
+    </div>
   )
 }
 
 export default TargetDetailsPage
+
+function BackToWebhooksLink() {
+  return (
+    <div className="mb-2 shrink-0">
+      <RealmLink
+        to="/events"
+        className={cn(
+          buttonVariants({ variant: 'link', size: 'sm' }),
+          'text-muted-foreground hover:text-foreground gap-2 pl-0',
+        )}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Webhooks
+      </RealmLink>
+    </div>
+  )
+}
+
+function WebhookTargetTabLayout({
+  details,
+  children,
+}: {
+  details: WebhookEndpointDetails
+  children: ReactNode
+}) {
+  return (
+    <div className="grid min-h-full w-full items-start gap-6 xl:h-full xl:grid-cols-[minmax(0,1fr)_20rem] xl:overflow-hidden">
+      <div className="min-w-0 xl:h-full xl:overflow-y-auto xl:pr-1">{children}</div>
+      <aside className="xl:h-full xl:overflow-hidden">
+        <WebhookTargetSummaryPanel details={details} />
+      </aside>
+    </div>
+  )
+}
 
 function parseJsonPayload(value?: string) {
   if (!value) return {}

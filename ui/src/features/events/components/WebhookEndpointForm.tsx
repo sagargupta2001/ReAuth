@@ -26,38 +26,12 @@ import { useCreateWebhook } from '@/features/events/api/useCreateWebhook'
 import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useUpdateWebhook } from '@/features/events/api/useUpdateWebhook'
 import { useUpdateWebhookSubscriptions } from '@/features/events/api/useUpdateWebhookSubscriptions'
+import {
+  DEFAULT_WEBHOOK_EVENTS,
+  WEBHOOK_EVENT_GROUPS,
+} from '@/features/events/model/webhook-events'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
-
-const EVENT_GROUPS = [
-  {
-    id: 'users',
-    label: 'Users',
-    description: 'Authentication and lifecycle changes',
-    events: [
-      'user.created',
-      'user.updated',
-      'user.disabled',
-      'user.deleted',
-      'user.assigned',
-      'user.removed',
-    ],
-  },
-  {
-    id: 'roles',
-    label: 'Roles',
-    description: 'Role assignments and permission changes',
-    events: ['role.created', 'role.updated', 'role.assigned', 'role.removed', 'role.deleted'],
-  },
-  {
-    id: 'groups',
-    label: 'Groups',
-    description: 'Group membership changes',
-    events: ['group.created', 'group.updated', 'group.assigned', 'group.removed', 'group.deleted'],
-  },
-]
-
-const DEFAULT_SELECTED_EVENTS = ['user.created', 'user.updated']
 
 interface WebhookEndpointFormProps {
   trigger?: React.ReactNode
@@ -86,11 +60,11 @@ export function WebhookEndpointForm({
   const deleteWebhook = useDeleteWebhook()
   const updateWebhook = useUpdateWebhook()
   const updateSubscriptions = useUpdateWebhookSubscriptions()
-  const allEvents = useMemo(() => EVENT_GROUPS.flatMap((group) => group.events), [])
+  const allEvents = useMemo(() => WEBHOOK_EVENT_GROUPS.flatMap((group) => group.events), [])
   const [open, setOpen] = useState(defaultOpen)
   const [sendEverything, setSendEverything] = useState(false)
   const [selectedEvents, setSelectedEvents] = useState<Set<string>>(
-    () => new Set(DEFAULT_SELECTED_EVENTS),
+    () => new Set(DEFAULT_WEBHOOK_EVENTS),
   )
   const [url, setUrl] = useState('')
   const [method, setMethod] = useState('POST')
@@ -108,7 +82,7 @@ export function WebhookEndpointForm({
     const initialSet =
       initialSubscriptions && initialSubscriptions.length > 0
         ? new Set(initialSubscriptions)
-        : new Set(DEFAULT_SELECTED_EVENTS)
+        : new Set(DEFAULT_WEBHOOK_EVENTS)
     setSelectedEvents(initialSet)
     setSendEverything(initialSubscriptions?.length === allEvents.length)
     setUrl(initialUrl ?? '')
@@ -128,7 +102,7 @@ export function WebhookEndpointForm({
     })
   }
 
-  const toggleGroup = (events: string[], checked: CheckedState) => {
+  const toggleGroup = (events: readonly string[], checked: CheckedState) => {
     setSelectedEvents((prev) => {
       const next = new Set(prev)
       if (checked === true) {
@@ -140,7 +114,7 @@ export function WebhookEndpointForm({
     })
   }
 
-  const groupState = (events: string[]): CheckedState => {
+  const groupState = (events: readonly string[]): CheckedState => {
     const selectedCount = events.filter((event) => selectedEvents.has(event)).length
     if (selectedCount === 0) return false
     if (selectedCount === events.length) return true
@@ -149,7 +123,7 @@ export function WebhookEndpointForm({
 
   const resetForm = () => {
     setSendEverything(false)
-    setSelectedEvents(new Set(DEFAULT_SELECTED_EVENTS))
+    setSelectedEvents(new Set(DEFAULT_WEBHOOK_EVENTS))
     setUrl('')
     setMethod('POST')
     setDescription('')
@@ -280,7 +254,7 @@ export function WebhookEndpointForm({
 
               <ScrollArea className="bg-background h-[260px] rounded-md border">
                 <div className="space-y-4 p-4">
-                  {EVENT_GROUPS.map((group) => {
+                  {WEBHOOK_EVENT_GROUPS.map((group) => {
                     const state = groupState(group.events)
                     return (
                       <div key={group.id} className="space-y-3">

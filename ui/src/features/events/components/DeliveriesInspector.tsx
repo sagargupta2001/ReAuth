@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 
+import { CirclePlay, RefreshCcw } from 'lucide-react'
+
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Card } from '@/components/card'
 import { ScrollArea } from '@/components/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { cn } from '@/lib/utils'
-import { CirclePlay } from 'lucide-react'
 
 export interface DeliveryInspectorItem {
   id: string
@@ -29,6 +30,8 @@ interface DeliveriesInspectorProps {
   isLoading?: boolean
   onReplay?: (deliveryId: string) => void
   replayPending?: boolean
+  onRefresh?: () => void
+  isRefreshing?: boolean
 }
 
 export function DeliveriesInspector({
@@ -36,6 +39,8 @@ export function DeliveriesInspector({
   isLoading = false,
   onReplay,
   replayPending = false,
+  onRefresh,
+  isRefreshing = false,
 }: DeliveriesInspectorProps) {
   const [selectedId, setSelectedId] = useState<string | undefined>(deliveries[0]?.id)
 
@@ -57,18 +62,30 @@ export function DeliveriesInspector({
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(260px,30%)_1fr]">
       <Card className="border">
-        <div className="border-b px-4 py-3">
-          <p className="text-sm font-semibold">Delivery History</p>
-          <p className="text-xs text-muted-foreground">Recent attempts and outcomes</p>
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold">Delivery History</p>
+            <p className="text-muted-foreground text-xs">Recent attempts and outcomes</p>
+          </div>
+          {onRefresh ? (
+            <Button
+              size="sm"
+              onClick={onRefresh}
+              disabled={isRefreshing || isLoading}
+              className="shrink-0"
+            >
+              <RefreshCcw className="h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
-        <ScrollArea className="h-[520px]">
+        <ScrollArea className="h-[580px]">
           <div className="flex flex-col gap-2 p-3">
             {isLoading ? (
-              <div className="rounded-md border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
+              <div className="text-muted-foreground rounded-md border border-dashed px-3 py-6 text-center text-xs">
                 Loading deliveries...
               </div>
             ) : deliveries.length === 0 ? (
-              <div className="rounded-md border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">
+              <div className="text-muted-foreground rounded-md border border-dashed px-3 py-6 text-center text-xs">
                 No deliveries yet.
               </div>
             ) : (
@@ -80,7 +97,7 @@ export function DeliveriesInspector({
                     'flex w-full items-center justify-between gap-3 rounded-md border px-3 py-3 text-left transition',
                     selectedId === delivery.id
                       ? 'border-primary/30 bg-primary/10'
-                      : 'border-transparent hover:bg-muted/50',
+                      : 'hover:bg-muted/50 border-transparent',
                   )}
                 >
                   <div className="flex items-center gap-3">
@@ -92,7 +109,7 @@ export function DeliveriesInspector({
                     />
                     <div>
                       <p className="text-sm font-semibold">{delivery.eventType}</p>
-                      <p className="text-xs text-muted-foreground">{delivery.timestamp}</p>
+                      <p className="text-muted-foreground text-xs">{delivery.timestamp}</p>
                     </div>
                   </div>
                   <Badge variant={delivery.status === 'success' ? 'success' : 'destructive'}>
@@ -109,12 +126,10 @@ export function DeliveriesInspector({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
           <div>
             <p className="text-sm font-semibold">Delivery ID</p>
-            <p className="text-xs text-muted-foreground">
-              {selected?.id ?? 'Select a delivery'}
-            </p>
+            <p className="text-muted-foreground text-xs">{selected?.id ?? 'Select a delivery'}</p>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="outline" className="bg-muted/40">
+            <Badge variant="outline">
               Latency {selected?.latency ?? '—'}
             </Badge>
             <Button
@@ -122,7 +137,7 @@ export function DeliveriesInspector({
               disabled={!selected || !onReplay || replayPending}
               onClick={() => selected && onReplay?.(selected.id)}
             >
-              <CirclePlay color="green"/>
+              <CirclePlay color="green" />
               Replay Event
             </Button>
           </div>
@@ -130,66 +145,70 @@ export function DeliveriesInspector({
 
         <div className="p-4">
           {!selected ? (
-            <div className="rounded-md border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+            <div className="text-muted-foreground rounded-md border border-dashed px-4 py-10 text-center text-sm">
               Select a delivery to inspect the request and response payloads.
             </div>
           ) : (
-          <Tabs defaultValue="request" className="flex flex-col gap-4">
-            <TabsList className="w-fit rounded-full border bg-muted/40 p-1">
-              <TabsTrigger value="request" className="tab-trigger-styles">
-                Request
-              </TabsTrigger>
-              <TabsTrigger value="response" className="tab-trigger-styles">
-                Response
-              </TabsTrigger>
-            </TabsList>
+            <Tabs defaultValue="request" className="flex flex-col gap-4">
+              <TabsList className="bg-muted/40 w-fit">
+                <TabsTrigger value="request" className="tab-trigger-styles">
+                  Request
+                </TabsTrigger>
+                <TabsTrigger value="response" className="tab-trigger-styles">
+                  Response
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="request" className="mt-0 space-y-4">
-              <div className="rounded-md border bg-muted/40 p-3">
-                <p className="text-xs font-semibold text-muted-foreground">Headers</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                  <Badge variant="outline">Reauth-Signature</Badge>
-                  <span className="font-mono text-xs text-foreground">
-                    {selected?.signature ?? 'Not stored'}
-                  </span>
+              <TabsContent value="request" className="mt-0 space-y-4">
+                <div className="bg-muted/40 rounded-md border p-3">
+                  <p className="text-muted-foreground text-xs font-semibold">Headers</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                    <Badge variant="outline">Reauth-Signature</Badge>
+                    <span className="text-foreground font-mono text-xs">
+                      {selected?.signature ?? 'Not stored'}
+                    </span>
+                  </div>
                 </div>
-              </div>
 
-              <HighlightedJsonBlock value={selected?.payload} />
-            </TabsContent>
+                <HighlightedJsonBlock value={selected?.payload} />
+              </TabsContent>
 
-            <TabsContent value="response" className="mt-0 space-y-4">
-              <div className="flex items-center gap-2">
-                <Badge
-                  variant={selected?.status === 'success' ? 'success' : 'destructive'}
-                  className="uppercase"
-                >
-                  {selected?.response.status}
-                </Badge>
-              </div>
-              {selected?.status === 'failed' && (selected.failureReason || selected.errorChain?.length) ? (
-                <div className="rounded-md border border-rose-200/70 bg-rose-50/60 p-3">
-                  <p className="text-xs font-semibold text-rose-800">Failure reason</p>
-                  <p className="mt-1 break-words font-mono text-xs text-rose-900">
-                    {selected.failureReason ?? 'Unknown failure'}
-                  </p>
-                  {selected.errorChain && selected.errorChain.length > 0 ? (
-                    <div className="mt-3">
-                      <p className="text-xs font-semibold text-rose-800">Error chain</p>
-                      <div className="mt-2 flex flex-col gap-1 text-xs text-rose-900">
-                        {selected.errorChain.map((item, index) => (
-                          <span key={`${selected.id}-chain-${index}`} className="break-words font-mono">
-                            {item}
-                          </span>
-                        ))}
+              <TabsContent value="response" className="mt-0 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={selected?.status === 'success' ? 'success' : 'destructive'}
+                    className="uppercase"
+                  >
+                    {selected?.response.status}
+                  </Badge>
+                </div>
+                {selected?.status === 'failed' &&
+                (selected.failureReason || selected.errorChain?.length) ? (
+                  <div className="rounded-md border border-rose-200/70 bg-rose-50/60 p-3">
+                    <p className="text-xs font-semibold text-rose-800">Failure reason</p>
+                    <p className="mt-1 font-mono text-xs wrap-break-word text-rose-900">
+                      {selected.failureReason ?? 'Unknown failure'}
+                    </p>
+                    {selected.errorChain && selected.errorChain.length > 0 ? (
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold text-rose-800">Error chain</p>
+                        <div className="mt-2 flex flex-col gap-1 text-xs text-rose-900">
+                          {selected.errorChain.map((item, index) => (
+                            <span
+                              key={`${selected.id}-chain-${index}`}
+                              className="font-mono wrap-break-word"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-              <HighlightedJsonBlock value={selected?.response.body} />
-            </TabsContent>
-          </Tabs>
+                    ) : null}
+                  </div>
+                ) : null}
+                <HighlightedJsonBlock value={selected?.response.body} />
+              </TabsContent>
+            </Tabs>
           )}
         </div>
       </Card>
