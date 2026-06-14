@@ -44,7 +44,7 @@ This summarizes domain structs/enums in `/src/domain`.
 - Legacy step-based flow tables were removed in migration `20260215120000_remove_step_based_flows.sql`.
 
 ## Events
-- DomainEvent: `UserCreated`, `UserAssignedToGroup`, `RoleAssignedToGroup`, `RolePermissionChanged`, `UserRoleAssigned`, `RoleDeleted`.
+- DomainEvent: `UserCreated`, `UserAssignedToGroup`, `RoleCreated`, `RoleAssignedToGroup`, `RolePermissionChanged`, `UserRoleAssigned`, `RoleDeleted`.
 
 ## Security primitives
 - HashedPassword: Argon2id hashed password wrapper with `new`, `from_hash`, and `verify`.

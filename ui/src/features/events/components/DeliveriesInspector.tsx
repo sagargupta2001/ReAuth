@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { CirclePlay, RefreshCcw } from 'lucide-react'
 
-import { Badge } from '@/components/badge'
+import { Badge, type BadgeProps } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Card } from '@/components/card'
 import { ScrollArea } from '@/components/scroll-area'
@@ -32,6 +32,17 @@ interface DeliveriesInspectorProps {
   replayPending?: boolean
   onRefresh?: () => void
   isRefreshing?: boolean
+}
+
+const deliveryStatusBadgeVariants: Record<DeliveryInspectorItem['status'], BadgeProps['variant']> =
+  {
+    success: 'successMuted',
+    failed: 'dangerMuted',
+  }
+
+const deliveryStatusDotClasses: Record<DeliveryInspectorItem['status'], string> = {
+  success: 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.35)]',
+  failed: 'bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.35)]',
 }
 
 export function DeliveriesInspector({
@@ -73,6 +84,7 @@ export function DeliveriesInspector({
               onClick={onRefresh}
               disabled={isRefreshing || isLoading}
               className="shrink-0"
+              aria-label="Refresh deliveries"
             >
               <RefreshCcw className="h-4 w-4" />
             </Button>
@@ -102,9 +114,10 @@ export function DeliveriesInspector({
                 >
                   <div className="flex items-center gap-3">
                     <span
+                      aria-hidden="true"
                       className={cn(
                         'h-2.5 w-2.5 rounded-full',
-                        delivery.status === 'success' ? 'bg-emerald-500' : 'bg-rose-500',
+                        deliveryStatusDotClasses[delivery.status],
                       )}
                     />
                     <div>
@@ -112,7 +125,7 @@ export function DeliveriesInspector({
                       <p className="text-muted-foreground text-xs">{delivery.timestamp}</p>
                     </div>
                   </div>
-                  <Badge variant={delivery.status === 'success' ? 'success' : 'destructive'}>
+                  <Badge variant={deliveryStatusBadgeVariants[delivery.status]}>
                     {delivery.status === 'success' ? 'Success' : 'Failed'}
                   </Badge>
                 </button>
@@ -129,15 +142,13 @@ export function DeliveriesInspector({
             <p className="text-muted-foreground text-xs">{selected?.id ?? 'Select a delivery'}</p>
           </div>
           <div className="flex items-center gap-3">
-            <Badge variant="outline">
-              Latency {selected?.latency ?? '—'}
-            </Badge>
+            <Badge variant="neutralMuted">Latency {selected?.latency ?? '—'}</Badge>
             <Button
               variant="secondary"
               disabled={!selected || !onReplay || replayPending}
               onClick={() => selected && onReplay?.(selected.id)}
             >
-              <CirclePlay color="green" />
+              <CirclePlay className="h-4 w-4 text-emerald-400" />
               Replay Event
             </Button>
           </div>
@@ -163,7 +174,7 @@ export function DeliveriesInspector({
                 <div className="bg-muted/40 rounded-md border p-3">
                   <p className="text-muted-foreground text-xs font-semibold">Headers</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                    <Badge variant="outline">Reauth-Signature</Badge>
+                    <Badge variant="neutralMuted">Reauth-Signature</Badge>
                     <span className="text-foreground font-mono text-xs">
                       {selected?.signature ?? 'Not stored'}
                     </span>
@@ -176,7 +187,11 @@ export function DeliveriesInspector({
               <TabsContent value="response" className="mt-0 space-y-4">
                 <div className="flex items-center gap-2">
                   <Badge
-                    variant={selected?.status === 'success' ? 'success' : 'destructive'}
+                    variant={
+                      selected?.status
+                        ? deliveryStatusBadgeVariants[selected.status]
+                        : 'neutralMuted'
+                    }
                     className="uppercase"
                   >
                     {selected?.response.status}
@@ -184,15 +199,15 @@ export function DeliveriesInspector({
                 </div>
                 {selected?.status === 'failed' &&
                 (selected.failureReason || selected.errorChain?.length) ? (
-                  <div className="rounded-md border border-rose-200/70 bg-rose-50/60 p-3">
-                    <p className="text-xs font-semibold text-rose-800">Failure reason</p>
-                    <p className="mt-1 font-mono text-xs wrap-break-word text-rose-900">
+                  <section className="rounded-md border border-rose-500/20 bg-rose-950/25 p-3">
+                    <Badge variant="dangerMuted">Failure reason</Badge>
+                    <p className="mt-2 font-mono text-xs wrap-break-word text-rose-200">
                       {selected.failureReason ?? 'Unknown failure'}
                     </p>
                     {selected.errorChain && selected.errorChain.length > 0 ? (
                       <div className="mt-3">
-                        <p className="text-xs font-semibold text-rose-800">Error chain</p>
-                        <div className="mt-2 flex flex-col gap-1 text-xs text-rose-900">
+                        <Badge variant="dangerMuted">Error chain</Badge>
+                        <div className="mt-2 flex flex-col gap-1 text-xs text-rose-200">
                           {selected.errorChain.map((item, index) => (
                             <span
                               key={`${selected.id}-chain-${index}`}
@@ -204,7 +219,7 @@ export function DeliveriesInspector({
                         </div>
                       </div>
                     ) : null}
-                  </div>
+                  </section>
                 ) : null}
                 <HighlightedJsonBlock value={selected?.response.body} />
               </TabsContent>

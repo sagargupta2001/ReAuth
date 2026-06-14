@@ -12,6 +12,7 @@ pub enum DomainEvent {
     UserCreated(UserCreated),
     UserAssignedToGroup(UserGroupChanged),
     UserRemovedFromGroup(UserGroupChanged),
+    RoleCreated(RoleCreated),
     RoleAssignedToGroup(RoleGroupChanged),
     RoleRemovedFromGroup(RoleGroupChanged),
     RolePermissionChanged(RolePermissionChanged),
@@ -60,6 +61,13 @@ pub struct RoleGroupChanged {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct RoleCreated {
+    pub role_id: Uuid,
+    pub name: String,
+    pub client_id: Option<Uuid>,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct RolePermissionChanged {
     pub role_id: Uuid,
     pub permission: String,
@@ -97,6 +105,7 @@ impl DomainEvent {
             DomainEvent::UserCreated(_) => "user.created",
             DomainEvent::UserAssignedToGroup(_) => "user.assigned",
             DomainEvent::UserRemovedFromGroup(_) => "user.removed",
+            DomainEvent::RoleCreated(_) => "role.created",
             DomainEvent::RoleAssignedToGroup(_) => "role.assigned",
             DomainEvent::RoleRemovedFromGroup(_) => "role.removed",
             DomainEvent::RolePermissionChanged(_) => "role.updated",
@@ -113,6 +122,7 @@ impl DomainEvent {
             DomainEvent::UserCreated(e) => serde_json::to_value(e),
             DomainEvent::UserAssignedToGroup(e) => serde_json::to_value(e),
             DomainEvent::UserRemovedFromGroup(e) => serde_json::to_value(e),
+            DomainEvent::RoleCreated(e) => serde_json::to_value(e),
             DomainEvent::RoleAssignedToGroup(e) => serde_json::to_value(e),
             DomainEvent::RoleRemovedFromGroup(e) => serde_json::to_value(e),
             DomainEvent::RolePermissionChanged(e) => serde_json::to_value(e),
@@ -190,6 +200,16 @@ mod tests {
         assert_eq!(value["role_id"], json!(role_id));
         assert_eq!(value["group_id"], json!(group_id));
 
+        let role_created = RoleCreated {
+            role_id,
+            name: "admin".to_string(),
+            client_id: Some(group_id),
+        };
+        let value = serde_json::to_value(&role_created).expect("serialize");
+        assert_eq!(value["role_id"], json!(role_id));
+        assert_eq!(value["name"], json!("admin"));
+        assert_eq!(value["client_id"], json!(group_id));
+
         let role_permission = RolePermissionChanged {
             role_id,
             permission: "perm.read".to_string(),
@@ -257,6 +277,18 @@ mod tests {
             assert_eq!(payload.role_id, role_id);
         } else {
             panic!("expected RoleAssignedToGroup");
+        }
+
+        let event = DomainEvent::RoleCreated(RoleCreated {
+            role_id,
+            name: "admin".to_string(),
+            client_id: None,
+        });
+        if let DomainEvent::RoleCreated(payload) = event {
+            assert_eq!(payload.role_id, role_id);
+            assert_eq!(payload.name, "admin");
+        } else {
+            panic!("expected RoleCreated");
         }
 
         let event = DomainEvent::RolePermissionChanged(RolePermissionChanged {

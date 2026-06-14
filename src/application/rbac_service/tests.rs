@@ -1181,6 +1181,8 @@ struct RbacTestHarness {
     cache: Arc<TestCache>,
     repo: Arc<TestRbacRepo>,
     events: Arc<TestEventBus>,
+    outbox: Arc<TestOutboxRepo>,
+    tx_manager: Arc<TestTxManager>,
 }
 
 fn harness() -> RbacTestHarness {
@@ -1202,6 +1204,8 @@ fn harness() -> RbacTestHarness {
         cache,
         repo,
         events,
+        outbox: outbox_repo,
+        tx_manager,
     }
 }
 
@@ -2597,6 +2601,50 @@ async fn create_role_persists_in_repo() {
     let stored = stored.expect("stored role");
     assert_eq!(stored.name, "admin");
     assert_eq!(stored.description.as_deref(), Some("Admin role"));
+}
+
+#[tokio::test]
+async fn create_role_publishes_role_created_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let client_id = Uuid::new_v4();
+
+    let role = harness
+        .service
+        .create_role(
+            realm_id,
+            CreateRolePayload {
+                client_id: Some(client_id),
+                name: "admin".to_string(),
+                description: Some("Admin role".to_string()),
+            },
+        )
+        .await
+        .expect("create role");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::RoleCreated(payload) => {
+            payload.role_id == role.id
+                && payload.name == "admin"
+                && payload.client_id == Some(client_id)
+        }
+        _ => false,
+    });
+
+    assert!(has_event, "expected RoleCreated event");
+
+    let envelopes = harness.outbox.envelopes.lock().unwrap().clone();
+    assert_eq!(envelopes.len(), 1);
+    assert_eq!(envelopes[0].event_type, "role.created");
+    assert_eq!(envelopes[0].realm_id, Some(realm_id));
+    assert_eq!(envelopes[0].data["role_id"], serde_json::json!(role.id));
+    assert_eq!(envelopes[0].data["name"], serde_json::json!("admin"));
+    assert_eq!(envelopes[0].data["client_id"], serde_json::json!(client_id));
+
+    assert_eq!(*harness.tx_manager.begin_calls.lock().unwrap(), 1);
+    assert_eq!(*harness.tx_manager.commit_calls.lock().unwrap(), 1);
+    assert_eq!(*harness.tx_manager.rollback_calls.lock().unwrap(), 0);
 }
 
 #[tokio::test]

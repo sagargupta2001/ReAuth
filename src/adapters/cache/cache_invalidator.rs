@@ -76,6 +76,12 @@ impl EventHandler for CacheInvalidator {
             DomainEvent::UserCreated(e) => {
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
+            DomainEvent::RoleCreated(e) => {
+                debug!(
+                    "Role {} created. No permission cache entries to invalidate.",
+                    e.role_id
+                );
+            }
             DomainEvent::RolePermissionChanged(e) => {
                 debug!(
                     "Event: RolePermissionChanged. Invalidating cache for users with role: {}",
