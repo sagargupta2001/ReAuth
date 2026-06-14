@@ -46,6 +46,8 @@ passkey_challenge_cleanup_batch_size = 500
 # OAuth broker state cleanup
 oauth_broker_state_cleanup_interval_secs = 300 # 0 disables cleanup
 oauth_broker_state_cleanup_batch_size = 500
+# Single active session per (user, client). false = allow concurrent sessions.
+single_session_per_client = false
 # A unique signing ID for the JWKS endpoint
 jwt_key_id = "reauth-rs-v1"
 issuer = "" # Leave empty to derive from server.public_url

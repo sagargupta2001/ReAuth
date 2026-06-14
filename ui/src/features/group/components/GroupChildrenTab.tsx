@@ -114,7 +114,7 @@ export function GroupChildrenTab({ groupId }: GroupChildrenTabProps) {
           searchValue={searchTerm}
           onSearch={handleSearch}
           onRowClick={(group) => navigate(`/groups/${group.id}/settings`)}
-          className="max-h-[calc(100vh-482px)]"
+          className="max-h-[calc(100vh-550px)]"
         />
       )}
     </div>

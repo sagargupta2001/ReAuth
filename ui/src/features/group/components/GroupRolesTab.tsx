@@ -271,7 +271,7 @@ export function GroupRolesTab({ groupId }: GroupRolesTabProps) {
               }
             />
           )}
-          className="max-h-[calc(100vh-590px)]"
+          className="max-h-[calc(100vh-550px)]"
         />
       )}
     </div>

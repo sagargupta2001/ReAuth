@@ -81,7 +81,7 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/events/webhooks/:targetId',
+    path: '/:realm/events/webhooks/:targetId/:tab?',
     element: TargetDetailsPage,
     layout: AuthenticatedLayout,
     isProtected: true,

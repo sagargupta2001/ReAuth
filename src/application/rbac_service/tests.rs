@@ -1181,6 +1181,8 @@ struct RbacTestHarness {
     cache: Arc<TestCache>,
     repo: Arc<TestRbacRepo>,
     events: Arc<TestEventBus>,
+    outbox: Arc<TestOutboxRepo>,
+    tx_manager: Arc<TestTxManager>,
 }
 
 fn harness() -> RbacTestHarness {
@@ -1202,6 +1204,8 @@ fn harness() -> RbacTestHarness {
         cache,
         repo,
         events,
+        outbox: outbox_repo,
+        tx_manager,
     }
 }
 
@@ -1739,6 +1743,55 @@ async fn create_group_uses_next_sort_order() {
         .expect("create group");
 
     assert_eq!(group.sort_order, 42);
+}
+
+#[tokio::test]
+async fn create_group_publishes_group_created_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        parent_id,
+        Group {
+            id: parent_id,
+            realm_id,
+            parent_id: None,
+            name: "parent".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    let group = harness
+        .service
+        .create_group(
+            realm_id,
+            CreateGroupPayload {
+                parent_id: Some(parent_id),
+                name: "engineering".to_string(),
+                description: Some("Engineering".to_string()),
+            },
+        )
+        .await
+        .expect("create group");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::GroupCreated(payload) => {
+            payload.group_id == group.id
+                && payload.name == "engineering"
+                && payload.parent_id == Some(parent_id)
+        }
+        _ => false,
+    });
+
+    assert!(has_event, "expected GroupCreated event");
+
+    let envelopes = harness.outbox.envelopes.lock().unwrap().clone();
+    assert_eq!(envelopes.len(), 1);
+    assert_eq!(envelopes[0].event_type, "group.created");
+    assert_eq!(envelopes[0].realm_id, Some(realm_id));
 }
 
 #[tokio::test]
@@ -2575,6 +2628,59 @@ async fn move_group_inserts_after_sibling() {
 }
 
 #[tokio::test]
+async fn move_group_publishes_group_updated_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let parent_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        parent_id,
+        Group {
+            id: parent_id,
+            realm_id,
+            parent_id: None,
+            name: "parent".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 1,
+        },
+    );
+    harness
+        .repo
+        .set_group_children(None, vec![parent_id, group_id]);
+    harness.repo.set_group_children(Some(parent_id), vec![]);
+
+    harness
+        .service
+        .move_group(realm_id, group_id, Some(parent_id), None, None)
+        .await
+        .expect("move group");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::GroupUpdated(payload) => {
+            payload.group_id == group_id
+                && payload.name == "group"
+                && payload.parent_id == Some(parent_id)
+        }
+        _ => false,
+    });
+
+    assert!(has_event, "expected GroupUpdated event");
+}
+
+#[tokio::test]
 async fn create_role_persists_in_repo() {
     let harness = harness();
     let realm_id = Uuid::new_v4();
@@ -2597,6 +2703,50 @@ async fn create_role_persists_in_repo() {
     let stored = stored.expect("stored role");
     assert_eq!(stored.name, "admin");
     assert_eq!(stored.description.as_deref(), Some("Admin role"));
+}
+
+#[tokio::test]
+async fn create_role_publishes_role_created_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let client_id = Uuid::new_v4();
+
+    let role = harness
+        .service
+        .create_role(
+            realm_id,
+            CreateRolePayload {
+                client_id: Some(client_id),
+                name: "admin".to_string(),
+                description: Some("Admin role".to_string()),
+            },
+        )
+        .await
+        .expect("create role");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::RoleCreated(payload) => {
+            payload.role_id == role.id
+                && payload.name == "admin"
+                && payload.client_id == Some(client_id)
+        }
+        _ => false,
+    });
+
+    assert!(has_event, "expected RoleCreated event");
+
+    let envelopes = harness.outbox.envelopes.lock().unwrap().clone();
+    assert_eq!(envelopes.len(), 1);
+    assert_eq!(envelopes[0].event_type, "role.created");
+    assert_eq!(envelopes[0].realm_id, Some(realm_id));
+    assert_eq!(envelopes[0].data["role_id"], serde_json::json!(role.id));
+    assert_eq!(envelopes[0].data["name"], serde_json::json!("admin"));
+    assert_eq!(envelopes[0].data["client_id"], serde_json::json!(client_id));
+
+    assert_eq!(*harness.tx_manager.begin_calls.lock().unwrap(), 1);
+    assert_eq!(*harness.tx_manager.commit_calls.lock().unwrap(), 1);
+    assert_eq!(*harness.tx_manager.rollback_calls.lock().unwrap(), 0);
 }
 
 #[tokio::test]
@@ -2659,6 +2809,55 @@ async fn update_role_updates_repo_state() {
     let stored = stored.expect("stored role");
     assert_eq!(stored.name, "super-admin");
     assert_eq!(stored.description.as_deref(), Some("Updated"));
+}
+
+#[tokio::test]
+async fn update_role_publishes_role_updated_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let role_id = Uuid::new_v4();
+    let client_id = Uuid::new_v4();
+
+    harness.repo.insert_role(Role {
+        id: role_id,
+        realm_id,
+        client_id: Some(client_id),
+        name: "admin".to_string(),
+        description: None,
+        created_at: None,
+        user_count: None,
+        permission_count: None,
+    });
+
+    harness
+        .service
+        .update_role(
+            realm_id,
+            role_id,
+            CreateRolePayload {
+                client_id: Some(client_id),
+                name: "super-admin".to_string(),
+                description: Some("Updated".to_string()),
+            },
+        )
+        .await
+        .expect("update role");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::RoleUpdated(payload) => {
+            payload.role_id == role_id
+                && payload.name == "super-admin"
+                && payload.client_id == Some(client_id)
+        }
+        _ => false,
+    });
+
+    assert!(has_event, "expected RoleUpdated event");
+
+    let envelopes = harness.outbox.envelopes.lock().unwrap().clone();
+    assert_eq!(envelopes.len(), 1);
+    assert_eq!(envelopes[0].event_type, "role.updated");
 }
 
 #[tokio::test]
@@ -3014,6 +3213,8 @@ async fn assign_user_to_group_publishes_event() {
     let events = harness.events.events.lock().unwrap().clone();
     let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
     assert!(has_event, "expected UserAssignedToGroup event");
+    let has_group_event = events.iter().any(|event| matches!(event, DomainEvent::GroupAssigned(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
+    assert!(has_group_event, "expected GroupAssigned event");
 }
 
 #[tokio::test]
@@ -3044,6 +3245,8 @@ async fn remove_user_from_group_publishes_event() {
     let events = harness.events.events.lock().unwrap().clone();
     let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
     assert!(has_event, "expected UserRemovedFromGroup event");
+    let has_group_event = events.iter().any(|event| matches!(event, DomainEvent::GroupRemoved(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
+    assert!(has_group_event, "expected GroupRemoved event");
 }
 
 #[tokio::test]
@@ -4295,6 +4498,53 @@ async fn update_group_updates_repo_state() {
     let stored = stored.expect("stored group");
     assert_eq!(stored.name, "updated");
     assert_eq!(stored.description.as_deref(), Some("Updated"));
+}
+
+#[tokio::test]
+async fn update_group_publishes_group_updated_event() {
+    let harness = harness();
+    let realm_id = Uuid::new_v4();
+    let group_id = Uuid::new_v4();
+
+    harness.repo.groups.lock().unwrap().insert(
+        group_id,
+        Group {
+            id: group_id,
+            realm_id,
+            parent_id: None,
+            name: "group".to_string(),
+            description: None,
+            sort_order: 0,
+        },
+    );
+
+    harness
+        .service
+        .update_group(
+            realm_id,
+            group_id,
+            CreateGroupPayload {
+                parent_id: None,
+                name: "updated".to_string(),
+                description: Some("Updated".to_string()),
+            },
+        )
+        .await
+        .expect("update group");
+
+    let events = harness.events.events.lock().unwrap().clone();
+    let has_event = events.iter().any(|event| match event {
+        DomainEvent::GroupUpdated(payload) => {
+            payload.group_id == group_id && payload.name == "updated" && payload.parent_id.is_none()
+        }
+        _ => false,
+    });
+
+    assert!(has_event, "expected GroupUpdated event");
+
+    let envelopes = harness.outbox.envelopes.lock().unwrap().clone();
+    assert_eq!(envelopes.len(), 1);
+    assert_eq!(envelopes[0].event_type, "group.updated");
 }
 
 #[tokio::test]
@@ -5592,6 +5842,11 @@ async fn bulk_update_group_members_add_publishes_events() {
             has_event,
             "expected UserAssignedToGroup event for {user_id}"
         );
+        let has_group_event = events.iter().any(|event| matches!(event, DomainEvent::GroupAssigned(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
+        assert!(
+            has_group_event,
+            "expected GroupAssigned event for {user_id}"
+        );
     }
 }
 
@@ -5613,6 +5868,8 @@ async fn bulk_update_group_members_remove_publishes_events() {
     let events = harness.events.events.lock().unwrap().clone();
     let has_event = events.iter().any(|event| matches!(event, DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
     assert!(has_event, "expected UserRemovedFromGroup event");
+    let has_group_event = events.iter().any(|event| matches!(event, DomainEvent::GroupRemoved(UserGroupChanged { user_id: uid, group_id: gid }) if *uid == user_id && *gid == group_id));
+    assert!(has_group_event, "expected GroupRemoved event");
 }
 
 #[tokio::test]

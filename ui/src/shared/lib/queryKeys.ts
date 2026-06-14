@@ -21,7 +21,9 @@ export const queryKeys = {
   identityProviders: (realm?: string) =>
     realm ? (['identity-providers', realm] as const) : (['identity-providers'] as const),
   identityProviderPresets: (realm?: string) =>
-    realm ? (['identity-provider-presets', realm] as const) : (['identity-provider-presets'] as const),
+    realm
+      ? (['identity-provider-presets', realm] as const)
+      : (['identity-provider-presets'] as const),
   role: (realm: string, roleId: string) => ['role', realm, roleId] as const,
   roleDeleteSummary: (realm: string, roleId: string) =>
     ['role-delete-summary', realm, roleId] as const,
@@ -78,8 +80,7 @@ export const queryKeys = {
   flowNodes: (realm?: string) =>
     realm ? (['flow-nodes', realm] as const) : (['flow-nodes'] as const),
   harborJobs: (realm: string, limit?: number) => ['harbor-jobs', realm, limit] as const,
-  harborJobDetails: (realm: string, jobId: string) =>
-    ['harbor-job-details', realm, jobId] as const,
+  harborJobDetails: (realm: string, jobId: string) => ['harbor-job-details', realm, jobId] as const,
   observabilityLogs: (params?: unknown) => ['observability-logs', params] as const,
   observabilityTraces: (params?: unknown) => ['observability-traces', params] as const,
   observabilityTraceSpans: (traceId: string) => ['observability-trace-spans', traceId] as const,
@@ -89,6 +90,8 @@ export const queryKeys = {
   observabilityLogTargets: (params?: unknown) => ['observability-log-targets', params] as const,
   eventRoutingMetrics: (realm: string, windowHours: number) =>
     ['event-routing-metrics', realm, windowHours] as const,
+  webhookEventCatalog: (realm?: string) =>
+    realm ? (['webhook-event-catalog', realm] as const) : (['webhook-event-catalog'] as const),
   webhookDeliveries: (realm?: string, endpointId?: string, params?: unknown) =>
     realm && endpointId
       ? (['webhook-deliveries', realm, endpointId, params] as const)
@@ -100,8 +103,7 @@ export const queryKeys = {
     ['themes', realm, themeId, 'versions'] as const,
   themeVersionSnapshot: (realm: string, themeId: string, versionId: string) =>
     ['themes', realm, themeId, 'versions', versionId, 'snapshot'] as const,
-  themeAssets: (realm: string, themeId: string) =>
-    ['themes', realm, themeId, 'assets'] as const,
+  themeAssets: (realm: string, themeId: string) => ['themes', realm, themeId, 'assets'] as const,
   themeDraft: (realm: string, themeId: string) => ['themes', realm, themeId, 'draft'] as const,
   themePreview: (realm: string, themeId: string, pageKey?: string, nodeKey?: string) =>
     ['theme-preview', realm, themeId, pageKey, nodeKey] as const,
@@ -110,15 +112,15 @@ export const queryKeys = {
     params?: { pageKey?: string; nodeKey?: string; clientId?: string | null },
   ) => ['theme-snapshot', realm, params?.pageKey, params?.nodeKey, params?.clientId] as const,
   themePages: (realm: string, themeId: string) => ['theme-pages', realm, themeId] as const,
-  themeBindings: (realm: string, themeId: string) =>
-    ['theme-bindings', realm, themeId] as const,
+  themeBindings: (realm: string, themeId: string) => ['theme-bindings', realm, themeId] as const,
   themeBindingClient: (realm: string, clientId: string) =>
     ['theme-bindings', 'client', realm, clientId] as const,
   themeTemplateGaps: (realm: string, themeId: string) =>
     ['theme-template-gaps', realm, themeId] as const,
   activeTheme: (realm: string) => ['active-theme', realm] as const,
   realms: () => ['realms'] as const,
-  realm: (realmName?: string) => (realmName ? (['realm', realmName] as const) : (['realm'] as const)),
+  realm: (realmName?: string) =>
+    realmName ? (['realm', realmName] as const) : (['realm'] as const),
   realmEmailSettings: (realmId?: string) =>
     realmId ? (['realm-email-settings', realmId] as const) : (['realm-email-settings'] as const),
   realmRecoverySettings: (realmId?: string) =>

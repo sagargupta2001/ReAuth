@@ -95,19 +95,23 @@ impl AuthService {
             );
         }
 
-        // 1.6 Revoke any existing active tokens for the same user+client combo
-        // This prevents stale sessions from accumulating on repeated logins.
-        if let Some(ref cid) = client_id {
-            let _ = self
-                .session_repo
-                .revoke_by_user_and_client(&user.realm_id, &user.id, cid)
-                .await;
-        } else {
-            // Root SSO token — revoke previous root tokens (client_id IS NULL)
-            let _ = self
-                .session_repo
-                .revoke_root_tokens_for_user(&user.realm_id, &user.id)
-                .await;
+        // 1.6 Optionally revoke existing active tokens for the same user+client
+        // combo. Enforces a single active session per (user, client) when
+        // `single_session_per_client` is enabled; otherwise concurrent sessions
+        // (e.g. multiple browsers) are allowed and stale tokens expire via TTL.
+        if self.settings.single_session_per_client {
+            if let Some(ref cid) = client_id {
+                let _ = self
+                    .session_repo
+                    .revoke_by_user_and_client(&user.realm_id, &user.id, cid)
+                    .await;
+            } else {
+                // Root SSO token — revoke previous root tokens (client_id IS NULL)
+                let _ = self
+                    .session_repo
+                    .revoke_root_tokens_for_user(&user.realm_id, &user.id)
+                    .await;
+            }
         }
 
         // 2. Create the Stateful Refresh Token

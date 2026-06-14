@@ -29,6 +29,24 @@ export interface WebhookEndpointDetails {
   subscriptions: WebhookSubscription[]
 }
 
+export interface WebhookEventDefinition {
+  event_type: string
+  label: string
+  description: string
+}
+
+export interface WebhookEventGroup {
+  id: string
+  label: string
+  description: string
+  events: WebhookEventDefinition[]
+}
+
+export interface WebhookEventCatalog {
+  groups: WebhookEventGroup[]
+  default_events: string[]
+}
+
 export interface DeliveryLog {
   id: string
   event_id: string

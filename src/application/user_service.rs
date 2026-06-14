@@ -2,12 +2,12 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::crypto::HashedPassword;
-use crate::domain::events::{DomainEvent, UserCreated};
+use crate::domain::events::{DomainEvent, UserChanged, UserCreated, UserDeleted};
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::user_email::UserEmail;
 use crate::ports::event_bus::EventPublisher;
 use crate::ports::outbox_repository::OutboxRepository;
-use crate::ports::transaction_manager::TransactionManager;
+use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use crate::ports::user_email_repository::UserEmailRepository;
 use crate::{
     domain::user::{User, UserListFilters, EMPTY_METADATA_JSON},
@@ -72,6 +72,38 @@ impl UserService {
             event_bus,
             outbox_repo,
             tx_manager,
+        }
+    }
+
+    async fn write_outbox(
+        &self,
+        event: &DomainEvent,
+        realm_id: Uuid,
+        tx: &mut dyn Transaction,
+    ) -> Result<()> {
+        let envelope = event.to_envelope(Uuid::new_v4(), Utc::now(), Some(realm_id), None);
+        self.outbox_repo.insert(&envelope, Some(tx)).await
+    }
+
+    async fn update_user_with_event(&self, user: &User, event: DomainEvent) -> Result<()> {
+        let mut tx = self.tx_manager.begin().await?;
+        let result: Result<()> = async {
+            self.user_repo.update(user, Some(&mut *tx)).await?;
+            self.write_outbox(&event, user.realm_id, &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+                Ok(())
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                Err(err)
+            }
         }
     }
 
@@ -144,8 +176,7 @@ impl UserService {
                     .await?;
             }
 
-            let envelope = event.to_envelope(Uuid::new_v4(), Utc::now(), Some(realm_id), None);
-            self.outbox_repo.insert(&envelope, Some(&mut *tx)).await?;
+            self.write_outbox(&event, realm_id, &mut *tx).await?;
             Ok(())
         }
         .await;
@@ -269,7 +300,11 @@ impl UserService {
 
         if changed {
             user.updated_at = Some(Utc::now());
-            self.user_repo.update(&user, None).await?;
+            let event = DomainEvent::UserUpdated(UserChanged {
+                user_id: user.id,
+                username: user.username.clone(),
+            });
+            self.update_user_with_event(&user, event).await?;
         }
         Ok(user)
     }
@@ -328,7 +363,11 @@ impl UserService {
         }
 
         user.updated_at = Some(Utc::now());
-        self.user_repo.update(&user, None).await?;
+        let event = DomainEvent::UserUpdated(UserChanged {
+            user_id: user.id,
+            username: user.username.clone(),
+        });
+        self.update_user_with_event(&user, event).await?;
 
         Ok(UserMetadataUpdateResponse {
             public_metadata: parse_metadata_json(&user.public_metadata_json),
@@ -348,7 +387,12 @@ impl UserService {
         let hashed_password = HashedPassword::new(new_password)?;
         user.hashed_password = hashed_password.as_str().to_string();
         user.force_password_reset = false;
-        self.user_repo.update(&user, None).await?;
+        user.updated_at = Some(Utc::now());
+        let event = DomainEvent::UserUpdated(UserChanged {
+            user_id: user.id,
+            username: user.username.clone(),
+        });
+        self.update_user_with_event(&user, event).await?;
         Ok(user)
     }
 
@@ -377,7 +421,19 @@ impl UserService {
         }
 
         if changed {
-            self.user_repo.update(&user, None).await?;
+            user.updated_at = Some(Utc::now());
+            let event = if password_login_disabled == Some(true) {
+                DomainEvent::UserDisabled(UserChanged {
+                    user_id: user.id,
+                    username: user.username.clone(),
+                })
+            } else {
+                DomainEvent::UserUpdated(UserChanged {
+                    user_id: user.id,
+                    username: user.username.clone(),
+                })
+            };
+            self.update_user_with_event(&user, event).await?;
         }
 
         Ok(user)
@@ -393,7 +449,11 @@ impl UserService {
         let duration_secs = duration_secs.max(1);
         user.locked_until = Some(Utc::now() + chrono::Duration::seconds(duration_secs));
         user.updated_at = Some(Utc::now());
-        self.user_repo.update(&user, None).await?;
+        let event = DomainEvent::UserUpdated(UserChanged {
+            user_id: user.id,
+            username: user.username.clone(),
+        });
+        self.update_user_with_event(&user, event).await?;
         Ok(user)
     }
 
@@ -401,7 +461,11 @@ impl UserService {
         let mut user = self.get_user_in_realm(realm_id, user_id).await?;
         user.banned_at = Some(Utc::now());
         user.updated_at = Some(Utc::now());
-        self.user_repo.update(&user, None).await?;
+        let event = DomainEvent::UserDisabled(UserChanged {
+            user_id: user.id,
+            username: user.username.clone(),
+        });
+        self.update_user_with_event(&user, event).await?;
         Ok(user)
     }
 
@@ -417,7 +481,41 @@ impl UserService {
         if user_ids.is_empty() {
             return Ok(0);
         }
-        let count = self.user_repo.delete_users(realm_id, user_ids).await?;
+
+        let mut existing_user_ids = Vec::new();
+        for user_id in user_ids {
+            if let Some(user) = self.user_repo.find_by_id(user_id).await? {
+                if user.realm_id == *realm_id {
+                    existing_user_ids.push(*user_id);
+                }
+            }
+        }
+
+        if existing_user_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let count = self
+            .user_repo
+            .delete_users(realm_id, &existing_user_ids)
+            .await?;
+        if count > 0 {
+            let event = DomainEvent::UserDeleted(UserDeleted {
+                user_ids: existing_user_ids,
+            });
+            let mut tx = self.tx_manager.begin().await?;
+            let result = self.write_outbox(&event, *realm_id, &mut *tx).await;
+            match result {
+                Ok(()) => {
+                    self.tx_manager.commit(tx).await?;
+                    self.event_bus.publish(event).await;
+                }
+                Err(err) => {
+                    self.tx_manager.rollback(tx).await?;
+                    return Err(err);
+                }
+            }
+        }
         Ok(count)
     }
 }

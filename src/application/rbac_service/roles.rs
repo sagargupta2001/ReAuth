@@ -1,6 +1,6 @@
 use super::RbacService;
 use super::{CreateCustomPermissionPayload, CreateRolePayload, UpdateCustomPermissionPayload};
-use crate::domain::events::DomainEvent;
+use crate::domain::events::{DomainEvent, RoleCreated, RoleUpdated};
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::permissions;
 use crate::domain::rbac::{CustomPermission, CustomPermissionDeleteSummary, RoleDeleteSummary};
@@ -30,7 +30,32 @@ impl RbacService {
             user_count: None,
             permission_count: None,
         };
-        self.rbac_repo.create_role(&role, None).await?;
+
+        let event = DomainEvent::RoleCreated(RoleCreated {
+            role_id: role.id,
+            name: role.name.clone(),
+            client_id: role.client_id,
+        });
+
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo.create_role(&role, Some(&mut *tx)).await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
+
         Ok(role)
     }
 
@@ -123,11 +148,30 @@ impl RbacService {
         role.name = payload.name;
         role.description = payload.description;
 
-        // Persist
-        self.rbac_repo.update_role(&role, None).await?;
+        let event = DomainEvent::RoleUpdated(RoleUpdated {
+            role_id: role.id,
+            name: role.name.clone(),
+            client_id: role.client_id,
+        });
 
-        // Invalidate caches (Logic depends on your cache strategy, e.g. simply clearing user permissions cache)
-        // self.event_bus.publish(...)
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo.update_role(&role, Some(&mut *tx)).await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(role)
     }

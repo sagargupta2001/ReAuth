@@ -1,6 +1,6 @@
 use super::CreateGroupPayload;
 use super::RbacService;
-use crate::domain::events::DomainEvent;
+use crate::domain::events::{DomainEvent, GroupChanged};
 use crate::domain::group::Group;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::rbac::{GroupDeleteSummary, GroupTreeRow};
@@ -36,7 +36,32 @@ impl RbacService {
             description: payload.description,
             sort_order,
         };
-        self.rbac_repo.create_group(&group, None).await?;
+
+        let event = DomainEvent::GroupCreated(GroupChanged {
+            group_id: group.id,
+            name: group.name.clone(),
+            parent_id: group.parent_id,
+        });
+
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo.create_group(&group, Some(&mut *tx)).await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
+
         Ok(group)
     }
 
@@ -144,19 +169,54 @@ impl RbacService {
 
         siblings.insert(insert_index, group_id);
 
-        self.rbac_repo
-            .set_group_orders(&realm_id, parent_id.as_ref(), &siblings, None)
-            .await?;
-
-        if group.parent_id != parent_id {
+        let old_siblings = if group.parent_id != parent_id {
             let mut old_siblings = self
                 .rbac_repo
                 .list_group_ids_by_parent(&realm_id, group.parent_id.as_ref())
                 .await?;
             old_siblings.retain(|id| id != &group_id);
+            Some(old_siblings)
+        } else {
+            None
+        };
+
+        let event = DomainEvent::GroupUpdated(GroupChanged {
+            group_id: group.id,
+            name: group.name.clone(),
+            parent_id,
+        });
+
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
             self.rbac_repo
-                .set_group_orders(&realm_id, group.parent_id.as_ref(), &old_siblings, None)
+                .set_group_orders(&realm_id, parent_id.as_ref(), &siblings, Some(&mut *tx))
                 .await?;
+
+            if let Some(old_siblings) = old_siblings.as_ref() {
+                self.rbac_repo
+                    .set_group_orders(
+                        &realm_id,
+                        group.parent_id.as_ref(),
+                        old_siblings,
+                        Some(&mut *tx),
+                    )
+                    .await?;
+            }
+
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
         }
 
         Ok(())
@@ -189,7 +249,30 @@ impl RbacService {
         group.name = payload.name;
         group.description = payload.description;
 
-        self.rbac_repo.update_group(&group, None).await?;
+        let event = DomainEvent::GroupUpdated(GroupChanged {
+            group_id: group.id,
+            name: group.name.clone(),
+            parent_id: group.parent_id,
+        });
+
+        let mut tx = self.tx_manager.begin().await?;
+        let result = async {
+            self.rbac_repo.update_group(&group, Some(&mut *tx)).await?;
+            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            Ok(())
+        }
+        .await;
+
+        match result {
+            Ok(()) => {
+                self.tx_manager.commit(tx).await?;
+                self.event_bus.publish(event).await;
+            }
+            Err(err) => {
+                self.tx_manager.rollback(tx).await?;
+                return Err(err);
+            }
+        }
 
         Ok(group)
     }

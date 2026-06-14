@@ -227,7 +227,7 @@ export function GroupMembersTab({ groupId }: GroupMembersTabProps) {
               }
             />
           )}
-          className="max-h-[calc(100vh-590px)]"
+          className="max-h-[calc(100vh-550px)]"
         />
       )}
     </div>

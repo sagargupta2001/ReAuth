@@ -1,4 +1,4 @@
-use crate::domain::events::{EventEnvelope, EVENT_VERSION_V1};
+use crate::domain::events::{is_supported_webhook_event_type, EventEnvelope, EVENT_VERSION_V1};
 use crate::domain::telemetry::DeliveryLog;
 use crate::domain::webhook::{WebhookEndpoint, WebhookSubscription};
 use crate::error::{Error, Result};
@@ -169,6 +169,7 @@ impl WebhookService {
                 "At least one event subscription is required".to_string(),
             ));
         }
+        validate_subscription_event_types(&payload.subscriptions)?;
 
         let signing_secret = payload
             .signing_secret
@@ -261,6 +262,7 @@ impl WebhookService {
         let result = async {
             self.repo.update_endpoint(&endpoint, Some(&mut *tx)).await?;
             if let Some(subscriptions) = payload.subscriptions {
+                validate_subscription_event_types(&subscriptions)?;
                 self.repo
                     .upsert_subscriptions(&endpoint.id, &subscriptions, Some(&mut *tx))
                     .await?;
@@ -396,6 +398,12 @@ impl WebhookService {
         let mut tx = self.tx_manager.begin().await?;
         let result = async {
             for subscription in &payload.subscriptions {
+                if !is_supported_webhook_event_type(&subscription.event_type) {
+                    return Err(Error::Validation(format!(
+                        "Unsupported webhook event type: {}",
+                        subscription.event_type
+                    )));
+                }
                 self.repo
                     .set_subscription_enabled(
                         &endpoint_id,
@@ -567,6 +575,18 @@ fn normalize_http_method(method: Option<&str>) -> Result<String> {
             "Unsupported webhook HTTP method. Use POST or PUT.".to_string(),
         )),
     }
+}
+
+fn validate_subscription_event_types(event_types: &[String]) -> Result<()> {
+    for event_type in event_types {
+        if !is_supported_webhook_event_type(event_type) {
+            return Err(Error::Validation(format!(
+                "Unsupported webhook event type: {}",
+                event_type
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn should_update_name_from_url(name: &str, url: &str) -> bool {

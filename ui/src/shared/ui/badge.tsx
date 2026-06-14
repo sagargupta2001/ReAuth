@@ -11,34 +11,22 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default: 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/80',
-        secondary:
-          'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
-        destructive:
-          'bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
+        secondary: 'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
+        destructive: 'bg-destructive text-destructive-foreground shadow hover:bg-destructive/80',
         outline: 'shadow-sm text-foreground hover:bg-accent hover:text-accent-foreground',
-
-        // 🟢 Success / Approved
         success: 'bg-green-500 text-white shadow hover:bg-green-600',
-
-        // 🔵 Info / Neutral
+        successMuted:
+          'border border-emerald-500/25 bg-emerald-950/60 text-emerald-300 hover:bg-emerald-950/80',
+        dangerMuted: 'border border-rose-500/25 bg-rose-950/60 text-rose-300 hover:bg-rose-950/80',
+        warningMuted:
+          'border border-amber-500/25 bg-amber-950/60 text-amber-300 hover:bg-amber-950/80',
+        neutralMuted: 'border border-border/70 bg-muted/60 text-muted-foreground hover:bg-muted/80',
         info: 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20',
-
-        // 🟡 Warning / Pending
         warning: 'bg-yellow-400/10 text-yellow-500 hover:bg-yellow-400/20',
-
-        // ⚫ Muted / Subtle
         muted: 'bg-muted text-muted-foreground hover:bg-muted/80',
-
-        // 🟣 Purple for creative / special states
         purple: 'bg-purple-500 text-white shadow hover:bg-purple-600',
-
-        // 🌸 Pink for fun / playful tone
         pink: 'bg-pink-500/10 text-pink-500 hover:bg-pink-500/20',
-
-        // 🧊 Cool blue outline style
         cool: 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20',
-
-        // 🧡 Orange variant (for important notices)
         orange: 'bg-orange-500/10 text-orange-500 hover:bg-orange-500/20',
       },
     },
@@ -49,11 +37,11 @@ const badgeVariants = cva(
 )
 
 export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends React.HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />
+  return <span className={cn(badgeVariants({ variant }), className)} {...props} />
 }
 
 export { Badge, badgeVariants }

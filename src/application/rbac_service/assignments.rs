@@ -182,14 +182,19 @@ impl RbacService {
     ) -> Result<()> {
         let _ = self.get_group(realm_id, group_id).await?;
 
-        let event = DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id, group_id });
+        let events = vec![
+            DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id, group_id }),
+            DomainEvent::GroupAssigned(UserGroupChanged { user_id, group_id }),
+        ];
 
         let mut tx = self.tx_manager.begin().await?;
         let result = async {
             self.rbac_repo
                 .assign_user_to_group(&user_id, &group_id, Some(&mut *tx))
                 .await?;
-            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            for event in &events {
+                self.write_outbox(event, Some(realm_id), &mut *tx).await?;
+            }
             Ok(())
         }
         .await;
@@ -197,7 +202,9 @@ impl RbacService {
         match result {
             Ok(()) => {
                 self.tx_manager.commit(tx).await?;
-                self.event_bus.publish(event).await;
+                for event in events {
+                    self.event_bus.publish(event).await;
+                }
             }
             Err(err) => {
                 self.tx_manager.rollback(tx).await?;
@@ -296,14 +303,19 @@ impl RbacService {
     ) -> Result<()> {
         let _ = self.get_group(realm_id, group_id).await?;
 
-        let event = DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id, group_id });
+        let events = vec![
+            DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id, group_id }),
+            DomainEvent::GroupRemoved(UserGroupChanged { user_id, group_id }),
+        ];
 
         let mut tx = self.tx_manager.begin().await?;
         let result = async {
             self.rbac_repo
                 .remove_user_from_group(&user_id, &group_id, Some(&mut *tx))
                 .await?;
-            self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+            for event in &events {
+                self.write_outbox(event, Some(realm_id), &mut *tx).await?;
+            }
             Ok(())
         }
         .await;
@@ -311,7 +323,9 @@ impl RbacService {
         match result {
             Ok(()) => {
                 self.tx_manager.commit(tx).await?;
-                self.event_bus.publish(event).await;
+                for event in events {
+                    self.event_bus.publish(event).await;
+                }
             }
             Err(err) => {
                 self.tx_manager.rollback(tx).await?;
@@ -753,11 +767,17 @@ impl RbacService {
             ));
         }
 
-        let make_event = |user_id: Uuid| {
+        let make_events = |user_id: Uuid| {
             if action == "add" {
-                DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id, group_id })
+                vec![
+                    DomainEvent::UserAssignedToGroup(UserGroupChanged { user_id, group_id }),
+                    DomainEvent::GroupAssigned(UserGroupChanged { user_id, group_id }),
+                ]
             } else {
-                DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id, group_id })
+                vec![
+                    DomainEvent::UserRemovedFromGroup(UserGroupChanged { user_id, group_id }),
+                    DomainEvent::GroupRemoved(UserGroupChanged { user_id, group_id }),
+                ]
             }
         };
 
@@ -774,8 +794,9 @@ impl RbacService {
                         .remove_user_from_group(&user_id, &group_id, Some(&mut *tx))
                         .await?;
                 }
-                self.write_outbox(&make_event(user_id), Some(realm_id), &mut *tx)
-                    .await?;
+                for event in make_events(user_id) {
+                    self.write_outbox(&event, Some(realm_id), &mut *tx).await?;
+                }
             }
             Ok(())
         }
@@ -785,7 +806,9 @@ impl RbacService {
             Ok(()) => {
                 self.tx_manager.commit(tx).await?;
                 for &user_id in &user_ids {
-                    self.event_bus.publish(make_event(user_id)).await;
+                    for event in make_events(user_id) {
+                        self.event_bus.publish(event).await;
+                    }
                 }
             }
             Err(err) => {

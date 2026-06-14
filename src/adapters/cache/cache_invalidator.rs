@@ -76,6 +76,29 @@ impl EventHandler for CacheInvalidator {
             DomainEvent::UserCreated(e) => {
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
+            DomainEvent::UserUpdated(e) => {
+                self.cache.clear_user_permissions(&e.user_id).await;
+            }
+            DomainEvent::UserDisabled(e) => {
+                self.cache.clear_user_permissions(&e.user_id).await;
+            }
+            DomainEvent::UserDeleted(e) => {
+                for user_id in &e.user_ids {
+                    self.cache.clear_user_permissions(user_id).await;
+                }
+            }
+            DomainEvent::RoleCreated(e) => {
+                debug!(
+                    "Role {} created. No permission cache entries to invalidate.",
+                    e.role_id
+                );
+            }
+            DomainEvent::RoleUpdated(e) => {
+                debug!(
+                    "Role {} updated. No permission cache entries to invalidate.",
+                    e.role_id
+                );
+            }
             DomainEvent::RolePermissionChanged(e) => {
                 debug!(
                     "Event: RolePermissionChanged. Invalidating cache for users with role: {}",
@@ -122,6 +145,29 @@ impl EventHandler for CacheInvalidator {
             }
             DomainEvent::UserRoleRemoved(e) => {
                 debug!("Invalidating cache for user: {} (Role Removed)", e.user_id);
+                self.cache.clear_user_permissions(&e.user_id).await;
+            }
+            DomainEvent::GroupCreated(e) => {
+                debug!(
+                    "Group {} created. No permission cache entries to invalidate.",
+                    e.group_id
+                );
+            }
+            DomainEvent::GroupUpdated(e) => {
+                debug!(
+                    "Group {} updated. No permission cache entries to invalidate.",
+                    e.group_id
+                );
+            }
+            DomainEvent::GroupAssigned(e) => {
+                debug!(
+                    "Invalidating cache for user: {} (Group Assigned)",
+                    e.user_id
+                );
+                self.cache.clear_user_permissions(&e.user_id).await;
+            }
+            DomainEvent::GroupRemoved(e) => {
+                debug!("Invalidating cache for user: {} (Group Removed)", e.user_id);
                 self.cache.clear_user_permissions(&e.user_id).await;
             }
 
