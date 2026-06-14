@@ -45,13 +45,6 @@ export function ObservabilitySettingsPage() {
 
   return (
     <div className="max-w-4xl space-y-6 p-12">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Observability Settings</h1>
-        <p className="text-muted-foreground text-sm">
-          Manage log retention actions and trace cleanup for this realm.
-        </p>
-      </div>
-
       <RealmSettingsCard
         id="telemetry-settings"
         title="Telemetry"
