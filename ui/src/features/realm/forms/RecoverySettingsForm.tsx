@@ -6,26 +6,19 @@ import { type Resolver, useForm } from 'react-hook-form'
 import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
 import { useRealmRecoverySettings } from '@/features/realm/api/useRealmRecoverySettings.ts'
 import { useUpdateRealmRecoverySettings } from '@/features/realm/api/useUpdateRealmRecoverySettings.ts'
+import { RealmSettingsCard } from '@/features/realm/components/RealmSettingsCard'
 import {
   type RecoverySettingsSchema,
   recoverySettingsSchema,
 } from '@/features/realm/schema/recovery-settings.schema.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-} from '@/shared/ui/form.tsx'
 import { FormInput } from '@/shared/ui/form-input.tsx'
+import { FormTextarea } from '@/shared/ui/form-textarea'
+import { FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/shared/ui/form.tsx'
 import { Form } from '@/shared/ui/form.tsx'
 import { Switch } from '@/shared/ui/switch'
-import { FormTextarea } from '@/shared/ui/form-textarea'
 
-const templateHint =
-  'Supported tokens: {realm}, {identifier}, {token}, {resume_url}, {expires_at}'
+const templateHint = 'Supported tokens: {realm}, {identifier}, {token}, {resume_url}, {expires_at}'
 
 export function RecoverySettingsForm() {
   const { data: realm } = useCurrentRealm()
@@ -88,96 +81,90 @@ export function RecoverySettingsForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recovery Tokens</CardTitle>
-            <CardDescription>Control token lifetime and throttling.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              <div id="recovery-token-ttl" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="token_ttl_minutes"
-                  label="Token TTL (Minutes)"
-                  description="How long recovery tokens remain valid."
-                  type="number"
-                />
-              </div>
-              <div id="recovery-rate-limit-max" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="rate_limit_max"
-                  label="Rate Limit Max"
-                  description="Requests per window. Use 0 to disable."
-                  type="number"
-                />
-              </div>
-              <div id="recovery-rate-limit-window" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="rate_limit_window_minutes"
-                  label="Rate Limit Window (Minutes)"
-                  description="Window for rate limiting."
-                  type="number"
-                />
-              </div>
-            </div>
-            <div id="recovery-revoke-sessions" className="scroll-mt-24 rounded-md -m-2 p-2">
-              <FormField
-                control={form.control}
-                name="revoke_sessions_on_reset"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-6">
-                    <div className="space-y-1">
-                      <FormLabel>Revoke Sessions on Reset</FormLabel>
-                      <FormDescription>
-                        End all active sessions after a successful password reset.
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        aria-label="Revoke sessions on reset"
-                        disabled={updateMutation.isPending}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recovery Email Template</CardTitle>
-            <CardDescription>
-              Customize the subject/body sent via SMTP. {templateHint}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div id="recovery-email-subject" className="scroll-mt-24 rounded-md -m-2 p-2">
+        <RealmSettingsCard
+          title="Recovery Tokens"
+          description="Control token lifetime and throttling."
+          bodyClassName="space-y-6"
+        >
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div id="recovery-token-ttl" className="-m-2 scroll-mt-24 rounded-md p-2">
               <FormInput
                 control={form.control}
-                name="email_subject"
-                label="Email Subject"
-                description={templateHint}
+                name="token_ttl_minutes"
+                label="Token TTL (Minutes)"
+                description="How long recovery tokens remain valid."
+                type="number"
               />
             </div>
-            <div id="recovery-email-body" className="scroll-mt-24 rounded-md -m-2 p-2">
-              <FormTextarea
+            <div id="recovery-rate-limit-max" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
                 control={form.control}
-                name="email_body"
-                label="Email Body"
-                placeholder="Include {resume_url} so users can continue."
-                description={templateHint}
-                rows={8}
+                name="rate_limit_max"
+                label="Rate Limit Max"
+                description="Requests per window. Use 0 to disable."
+                type="number"
               />
             </div>
-          </CardContent>
-        </Card>
+            <div id="recovery-rate-limit-window" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="rate_limit_window_minutes"
+                label="Rate Limit Window (Minutes)"
+                description="Window for rate limiting."
+                type="number"
+              />
+            </div>
+          </div>
+          <div id="recovery-revoke-sessions" className="-m-2 scroll-mt-24 rounded-md p-2">
+            <FormField
+              control={form.control}
+              name="revoke_sessions_on_reset"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between gap-6">
+                  <div className="space-y-1">
+                    <FormLabel>Revoke Sessions on Reset</FormLabel>
+                    <FormDescription>
+                      End all active sessions after a successful password reset.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      aria-label="Revoke sessions on reset"
+                      disabled={updateMutation.isPending}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+        </RealmSettingsCard>
+
+        <RealmSettingsCard
+          title="Recovery Email Template"
+          description={<>Customize the subject/body sent via SMTP. {templateHint}</>}
+          bodyClassName="space-y-4"
+        >
+          <div id="recovery-email-subject" className="-m-2 scroll-mt-24 rounded-md p-2">
+            <FormInput
+              control={form.control}
+              name="email_subject"
+              label="Email Subject"
+              description={templateHint}
+            />
+          </div>
+          <div id="recovery-email-body" className="-m-2 scroll-mt-24 rounded-md p-2">
+            <FormTextarea
+              control={form.control}
+              name="email_body"
+              label="Email Body"
+              placeholder="Include {resume_url} so users can continue."
+              description={templateHint}
+              rows={8}
+            />
+          </div>
+        </RealmSettingsCard>
       </form>
     </Form>
   )

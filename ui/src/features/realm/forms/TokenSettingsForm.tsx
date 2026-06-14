@@ -5,17 +5,14 @@ import { type Resolver, useForm } from 'react-hook-form'
 
 import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
 import { useUpdateRealm } from '@/features/realm/api/useUpdateRealm.ts'
-import { type TokenSettingsSchema, tokenSettingsSchema } from '@/features/realm/schema/setting.schema.ts'
-import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
+import { RealmSettingsCard } from '@/features/realm/components/RealmSettingsCard'
 import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-} from '@/shared/ui/form.tsx'
+  type TokenSettingsSchema,
+  tokenSettingsSchema,
+} from '@/features/realm/schema/setting.schema.ts'
+import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
 import { FormInput } from '@/shared/ui/form-input.tsx'
+import { FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/shared/ui/form.tsx'
 import { Form } from '@/shared/ui/form.tsx'
 import { Switch } from '@/shared/ui/switch'
 
@@ -65,92 +62,86 @@ export function TokenSettingsForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tokens</CardTitle>
-            <CardDescription>
-              Manage how long sessions and access tokens remain valid.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div id="token-access-ttl" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="access_token_ttl_secs"
-                  label="Access Token Lifespan (Seconds)"
-                  description="Usually short-lived (e.g., 900s = 15m)."
-                  type="number" // Critical: tells browser to show number controls
-                />
-              </div>
-
-              <div id="token-refresh-ttl" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="refresh_token_ttl_secs"
-                  label="SSO Session Idle (Seconds)"
-                  description="How long a user stays logged in (e.g., 604800s = 7d)."
-                  type="number" // Critical
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Login Protection</CardTitle>
-            <CardDescription>Harden public client auth and slow brute-force attempts.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div id="token-pkce-required" className="scroll-mt-24 rounded-md -m-2 p-2">
-              <FormField
+        <RealmSettingsCard
+          title="Tokens"
+          description="Manage how long sessions and access tokens remain valid."
+          bodyClassName="space-y-4"
+        >
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div id="token-access-ttl" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
                 control={form.control}
-                name="pkce_required_public_clients"
-                render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-6">
-                    <div className="space-y-1">
-                      <FormLabel>Require PKCE for Public Clients</FormLabel>
-                      <FormDescription>
-                        Enforce PKCE for SPAs and mobile apps without client secrets.
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        aria-label="Require PKCE for public clients"
-                        disabled={updateMutation.isPending}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
+                name="access_token_ttl_secs"
+                label="Access Token Lifespan (Seconds)"
+                description="Usually short-lived (e.g., 900s = 15m)."
+                type="number" // Critical: tells browser to show number controls
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div id="token-lockout-threshold" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="lockout_threshold"
-                  label="Lockout Threshold (Failed Attempts)"
-                  description="Use 0 to disable lockout protection."
-                  type="number"
-                />
-              </div>
-
-              <div id="token-lockout-duration" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="lockout_duration_secs"
-                  label="Lockout Duration (Seconds)"
-                  description="Length of lockout after reaching the threshold."
-                  type="number"
-                />
-              </div>
+            <div id="token-refresh-ttl" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="refresh_token_ttl_secs"
+                label="SSO Session Idle (Seconds)"
+                description="How long a user stays logged in (e.g., 604800s = 7d)."
+                type="number" // Critical
+              />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </RealmSettingsCard>
+
+        <RealmSettingsCard
+          title="Login Protection"
+          description="Harden public client auth and slow brute-force attempts."
+          bodyClassName="space-y-6"
+        >
+          <div id="token-pkce-required" className="-m-2 scroll-mt-24 rounded-md p-2">
+            <FormField
+              control={form.control}
+              name="pkce_required_public_clients"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between gap-6">
+                  <div className="space-y-1">
+                    <FormLabel>Require PKCE for Public Clients</FormLabel>
+                    <FormDescription>
+                      Enforce PKCE for SPAs and mobile apps without client secrets.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      aria-label="Require PKCE for public clients"
+                      disabled={updateMutation.isPending}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div id="token-lockout-threshold" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="lockout_threshold"
+                label="Lockout Threshold (Failed Attempts)"
+                description="Use 0 to disable lockout protection."
+                type="number"
+              />
+            </div>
+
+            <div id="token-lockout-duration" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="lockout_duration_secs"
+                label="Lockout Duration (Seconds)"
+                description="Length of lockout after reaching the threshold."
+                type="number"
+              />
+            </div>
+          </div>
+        </RealmSettingsCard>
       </form>
     </Form>
   )
