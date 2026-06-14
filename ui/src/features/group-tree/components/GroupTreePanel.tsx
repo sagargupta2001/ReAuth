@@ -514,7 +514,7 @@ export function GroupTreePanel({
         )}
       </div>
 
-      <div className="bg-surface-elevated/95 sticky bottom-0 shrink-0 border-t p-3 rounded-b-2xl">
+      <div className="bg-background sticky bottom-0 shrink-0 border-t p-3">
         <Button
           type="button"
           size="sm"

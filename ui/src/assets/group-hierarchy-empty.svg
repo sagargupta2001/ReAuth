@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <defs>
+    <filter id="line-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <filter id="node-glow-active" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur1" />
+      <feGaussianBlur stdDeviation="2" result="blur2" />
+      <feMerge>
+        <feMergeNode in="blur1" />
+        <feMergeNode in="blur2" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <g id="group-icon-active">
+      <circle cx="0" cy="0" r="38" fill="#1e293b" stroke="#3b82f6" stroke-width="3" filter="url(#node-glow-active)" />
+      <circle cx="0" cy="0" r="38" fill="none" stroke="#60a5fa" stroke-width="1.5" opacity="0.5" />
+
+      <g stroke="#60a5fa" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <circle cx="-4" cy="-8" r="8" />
+        <path d="M -18 16 C -18 8 -10 4 -4 4 C 2 4 10 8 10 16" />
+      </g>
+
+      <g stroke="#3b82f6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.6">
+        <path d="M 12 -4 C 15 -4 18 -1 18 3 C 18 6.5 15.5 9 12 9" />
+        <path d="M 10 16 C 16 16 22 12 22 6" />
+      </g>
+    </g>
+
+    <g id="single-user-inactive">
+      <circle cx="0" cy="0" r="32" fill="#111827" stroke="#475569" stroke-width="2.5" />
+
+      <g stroke="#64748b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <circle cx="0" cy="-6" r="7" />
+        <path d="M -14 14 C -14 7 -7 3 0 3 C 7 3 14 7 14 14" />
+      </g>
+    </g>
+  </defs>
+
+  <g stroke="#3a4556" stroke-width="3" fill="none" stroke-linejoin="round" stroke-linecap="round" filter="url(#line-glow)">
+    <line x1="200" y1="110" x2="200" y2="150" />
+
+    <path d="M 100 150 L 300 150" />
+
+    <line x1="100" y1="150" x2="100" y2="180" />
+    <line x1="300" y1="150" x2="300" y2="180" />
+
+    <line x1="100" y1="260" x2="100" y2="300" />
+    <line x1="300" y1="260" x2="300" y2="300" />
+
+    <path d="M 50 300 L 150 300" />
+    <path d="M 250 300 L 350 300" />
+
+    <line x1="50" y1="300" x2="50" y2="320" />
+    <line x1="150" y1="300" x2="150" y2="320" />
+    <line x1="250" y1="300" x2="250" y2="320" />
+    <line x1="350" y1="300" x2="350" y2="320" />
+  </g>
+
+  <use href="#group-icon-active" x="200" y="70" />
+
+  <use href="#group-icon-active" x="100" y="220" />
+  <use href="#group-icon-active" x="300" y="220" />
+
+  <use href="#single-user-inactive" x="50" y="350" />
+  <use href="#single-user-inactive" x="150" y="350" />
+  <use href="#single-user-inactive" x="250" y="350" />
+  <use href="#single-user-inactive" x="350" y="350" />
+
+</svg>

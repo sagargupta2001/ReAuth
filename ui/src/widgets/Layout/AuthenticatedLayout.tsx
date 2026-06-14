@@ -28,6 +28,7 @@ function LayoutContent({ children }: { children: ReactNode }) {
     !!activeItem && (!!activeItem.items || !!activeItem.segment) && state !== 'collapsed'
 
   const primaryWidth = state === 'collapsed' ? 'var(--sidebar-width-icon)' : 'var(--sidebar-width)'
+  const secondaryWidth = activeItem?.secondaryWidth ?? 'var(--sidebar-width-secondary)'
 
   return (
     <div className="bg-background flex h-screen w-full overflow-hidden pt-14">
@@ -37,7 +38,7 @@ function LayoutContent({ children }: { children: ReactNode }) {
         className="flex min-h-0 flex-1 flex-col transition-[padding] duration-200 ease-linear"
         style={{
           paddingLeft: showSecondary
-            ? `calc(${primaryWidth} + var(--sidebar-width-secondary))`
+            ? `calc(${primaryWidth} + ${secondaryWidth})`
             : primaryWidth,
         }}
       >

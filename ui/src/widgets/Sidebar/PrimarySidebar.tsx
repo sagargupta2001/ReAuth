@@ -1,7 +1,6 @@
 import { useLocation } from 'react-router-dom'
 
 import { Button } from '@/components/button'
-import { Separator } from '@/components/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/tooltip'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
@@ -95,8 +94,7 @@ export function PrimarySidebar({ activeItem }: Props) {
       </div>
 
       {/* Trigger Area */}
-      <div className="mt-auto flex w-full flex-col items-center gap-2">
-        <Separator className="bg-sidebar-border w-full" />
+      <div className="border-sidebar-border mt-auto flex w-full flex-col items-center border-t pt-3">
         <SidebarTrigger className={state === 'collapsed' ? 'ml-0' : 'ml-2 self-start'} />
       </div>
     </div>

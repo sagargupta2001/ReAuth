@@ -44,6 +44,8 @@ export const sidebarData: SidebarData = {
       title: 'Groups',
       url: '/groups',
       icon: Group,
+      segment: 'groups',
+      secondaryWidth: '20rem',
     },
     {
       title: 'Sessions',

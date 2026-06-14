@@ -1,4 +1,5 @@
 import { FlowsSidebar } from '@/features/flow/components/FlowSidebar.tsx'
+import { GroupsSidebar } from '@/features/group/components/GroupsSidebar'
 import { ThemesSidebar } from '@/features/theme/components/ThemesSidebar.tsx'
 import { StaticMenuSidebar } from '@/widgets/Sidebar/components/StaticMenuSidebar.tsx'
 
@@ -13,6 +14,8 @@ export function SecondarySidebar({ activeItem }: SecondarySidebarProps) {
 
   // --- THE REGISTRY PATTERN ---
   switch (activeItem.segment) {
+    case 'groups':
+      return <GroupsSidebar />
     case 'flows':
       return <FlowsSidebar />
     case 'themes':

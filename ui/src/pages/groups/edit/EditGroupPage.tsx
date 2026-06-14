@@ -7,7 +7,7 @@ export function EditGroupPage() {
   const { groupId, tab } = useParams<{ groupId: string; tab?: string }>()
 
   return (
-    <Main fixed className="flex flex-1 flex-col gap-4 p-12 sm:gap-6">
+    <Main fixed className="flex flex-1 flex-col p-0">
       <GroupExplorer groupId={groupId} tab={tab} />
     </Main>
   )

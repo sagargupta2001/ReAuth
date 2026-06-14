@@ -15,6 +15,7 @@ export interface PrimaryNavItem {
   // This matches the URL path segment (e.g. "flows", "settings")
   // If present, it implies this item owns a Secondary Sidebar view.
   segment?: string
+  secondaryWidth?: string
 }
 
 export interface SidebarData {
