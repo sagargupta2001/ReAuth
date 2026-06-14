@@ -26,6 +26,7 @@ export function AppSidebar() {
   // Calculate Primary Sidebar Width based on state
   // (Assumes CSS vars: --sidebar-width-icon = 3rem, --sidebar-width = 16rem)
   const primaryWidth = state === 'collapsed' ? 'var(--sidebar-width-icon)' : 'var(--sidebar-width)'
+  const secondaryWidth = activeItem?.secondaryWidth ?? 'var(--sidebar-width-secondary)'
 
   useEffect(() => {
     // 1. Get the current path (e.g. "/master/settings/profile")
@@ -64,9 +65,7 @@ export function AppSidebar() {
         // This relies on calc() to mix CSS vars and dynamic logic
       )}
       style={{
-        width: showSecondary
-          ? `calc(${primaryWidth} + var(--sidebar-width-secondary))`
-          : primaryWidth,
+        width: showSecondary ? `calc(${primaryWidth} + ${secondaryWidth})` : primaryWidth,
       }}
     >
       {/* Primary is always rendered */}
@@ -76,8 +75,9 @@ export function AppSidebar() {
       <div
         className={cn(
           'overflow-hidden border-l transition-[width,opacity] duration-200 ease-linear',
-          showSecondary ? 'w-[var(--sidebar-width-secondary)] opacity-100' : 'w-0 opacity-0',
+          showSecondary ? 'opacity-100' : 'opacity-0',
         )}
+        style={{ width: showSecondary ? secondaryWidth : '0px' }}
       >
         <SecondarySidebar activeItem={activeItem} />
       </div>
