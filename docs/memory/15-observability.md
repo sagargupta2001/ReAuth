@@ -40,7 +40,7 @@ sequenceDiagram
   participant DB
   participant WS
 
-  Client->>UI: Open Logs tab
+  Client->>UI: Open Observability page
   UI->>API: GET /api/system/observability/logs
   API->>DB: Query logs (filters, pagination)
   DB-->>API: Log page
@@ -56,10 +56,10 @@ Purpose
 - Support waterfall-style trace inspection (parent/child relationships).
 
 Functionality
-- Request list shows top-level traces (method, route, status, duration).
+- Trace IDs in the logs table open a full-screen trace detail dialog.
 - Trace detail view displays spans ordered by start time with durations.
-- Time range filter, search, pagination, sorting (server-side).
-- Trace IDs link from logs to trace detail.
+- The dialog is URL-backed by the `trace` query parameter so links can deep-open a trace.
+- The backend still exposes server-side trace list filtering for API/tooling use.
 - Manual cleanup: clear stored traces from telemetry storage.
 
 ```mermaid

@@ -323,7 +323,7 @@ export function LogsExplorer({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
       <div className="flex flex-wrap items-center gap-3">
-        <Command className="min-w-[240px] flex-1 border bg-background/60">
+        <Command className="min-w-60 flex-1 border bg-background/60">
           <CommandInput
             value={searchInput}
             onValueChange={setSearchInput}
@@ -337,7 +337,7 @@ export function LogsExplorer({
             setUrlState({ log_level: value as LogLevelFilter, log_page: 1 })
           }
         >
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-40">
             <SelectValue placeholder={t('LOGS_EXPLORER.LEVEL_FILTER')} />
           </SelectTrigger>
           <SelectContent>
@@ -353,7 +353,7 @@ export function LogsExplorer({
             value={moduleFilter}
             onValueChange={(value) => setUrlState({ log_source: value, log_page: 1 })}
           >
-            <SelectTrigger className="w-[240px]">
+            <SelectTrigger className="w-60">
               <SelectValue placeholder={t('LOGS_EXPLORER.SOURCE_FILTER')} />
             </SelectTrigger>
             <SelectContent>
@@ -411,7 +411,7 @@ export function LogsExplorer({
           onSortingChange={handleSortingChange}
           showToolbar={false}
           rootClassName="min-h-0 flex-1"
-          className="h-[calc(100vh-540px)]"
+          className="max-h-[calc(100vh-328px)]"
           pageSizeOptions={[50, 100, 200]}
           onRowClick={(log) =>
             setExpandedLogId((current) => (current === log.id ? null : log.id))

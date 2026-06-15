@@ -2,6 +2,7 @@ import { Activity, Gauge, ShieldAlert } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
+import { cn } from '@/lib/utils'
 
 import { useMetricsSnapshot } from '../api/useMetricsSnapshot'
 
@@ -30,50 +31,74 @@ export function MetricsOverview() {
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <Card className="border-sky-500/30 bg-sky-500/5">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm text-muted-foreground">
-            {t('METRICS.REQUESTS')}
-          </CardTitle>
-          <Activity className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-semibold">{requestCount}</div>
-          {since && (
-            <p className="text-xs text-muted-foreground">
-              {t('METRICS.SINCE', { since: new Date(since).toLocaleString() })}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-      <Card className="border-emerald-500/30 bg-emerald-500/5">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm text-muted-foreground">
-            {t('METRICS.AVG_LATENCY')}
-          </CardTitle>
-          <Gauge className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-semibold">{formatDuration(avgLatency)}</div>
-          <p className="text-xs text-muted-foreground">
-            {t('METRICS.HISTOGRAM')}
-          </p>
-        </CardContent>
-      </Card>
-      <Card className="border-amber-500/30 bg-amber-500/5">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm text-muted-foreground">
-            {t('METRICS.ERROR_RATE')}
-          </CardTitle>
-          <ShieldAlert className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-semibold">{formatPercent(errorRate)}</div>
-          <p className="text-xs text-muted-foreground">
-            {t('METRICS.SERVER_ERRORS', { count: serverErrors })}
-          </p>
-        </CardContent>
-      </Card>
+      <MetricCard
+        title={t('METRICS.REQUESTS')}
+        value={requestCount.toLocaleString()}
+        description={
+          since ? t('METRICS.SINCE', { since: new Date(since).toLocaleString() }) : undefined
+        }
+        icon={Activity}
+        accentClassName="from-sky-500/20 via-sky-500/10 to-transparent"
+        iconClassName="bg-sky-500/15 text-sky-500 ring-sky-500/20"
+        barClassName="bg-sky-500"
+      />
+      <MetricCard
+        title={t('METRICS.AVG_LATENCY')}
+        value={formatDuration(avgLatency)}
+        description={t('METRICS.HISTOGRAM')}
+        icon={Gauge}
+        accentClassName="from-amber-500/20 via-amber-500/10 to-transparent"
+        iconClassName="bg-amber-500/15 text-amber-500 ring-amber-500/20"
+        barClassName="bg-amber-500"
+      />
+      <MetricCard
+        title={t('METRICS.ERROR_RATE')}
+        value={formatPercent(errorRate)}
+        description={t('METRICS.SERVER_ERRORS', { count: serverErrors })}
+        icon={ShieldAlert}
+        accentClassName="from-rose-500/20 via-rose-500/10 to-transparent"
+        iconClassName="bg-rose-500/15 text-rose-500 ring-rose-500/20"
+        barClassName="bg-rose-500"
+      />
     </div>
+  )
+}
+
+type MetricCardProps = {
+  title: string
+  value: string
+  description?: string
+  icon: typeof Activity
+  accentClassName: string
+  iconClassName: string
+  barClassName: string
+}
+
+function MetricCard({
+  title,
+  value,
+  description,
+  icon: Icon,
+  accentClassName,
+  iconClassName,
+  barClassName,
+}: MetricCardProps) {
+  return (
+    <Card className="border-border/70 bg-surface-elevated relative overflow-hidden border">
+      <div className={cn('absolute inset-x-0 top-0 h-20 bg-linear-to-b', accentClassName)} />
+      <div className={cn('absolute inset-x-0 top-0 h-1', barClassName)} />
+      <CardHeader className="relative flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-muted-foreground text-sm font-medium tracking-normal">
+          {title}
+        </CardTitle>
+        <div className={cn('rounded-full p-2 ring-1', iconClassName)}>
+          <Icon className="h-4 w-4" />
+        </div>
+      </CardHeader>
+      <CardContent className="relative px-6">
+        <div className="text-foreground text-3xl font-semibold tracking-tight">{value}</div>
+        {description ? <p className="text-muted-foreground mt-1 text-xs">{description}</p> : null}
+      </CardContent>
+    </Card>
   )
 }

@@ -82,7 +82,6 @@ export const queryKeys = {
   harborJobs: (realm: string, limit?: number) => ['harbor-jobs', realm, limit] as const,
   harborJobDetails: (realm: string, jobId: string) => ['harbor-job-details', realm, jobId] as const,
   observabilityLogs: (params?: unknown) => ['observability-logs', params] as const,
-  observabilityTraces: (params?: unknown) => ['observability-traces', params] as const,
   observabilityTraceSpans: (traceId: string) => ['observability-trace-spans', traceId] as const,
   observabilityMetrics: () => ['observability-metrics'] as const,
   observabilityCacheStats: (namespace?: string) =>

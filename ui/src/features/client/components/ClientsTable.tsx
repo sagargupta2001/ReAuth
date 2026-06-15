@@ -91,7 +91,7 @@ export function ClientsTable() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="h-[calc(100vh-200px)]">
         <DataTableSkeleton columnCount={4} rowCount={10} />
       </div>
     )
@@ -113,7 +113,7 @@ export function ClientsTable() {
       searchPlaceholder="Filter by Client ID..."
       searchValue={searchTerm}
       onSearch={setSearchTerm}
-      className="h-[calc(100vh-328px)]"
+      className="max-h-[calc(100vh-328px)]"
     />
   )
 }

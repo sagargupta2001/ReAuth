@@ -51,7 +51,7 @@ export function UsersTable() {
 
   if (isLoading)
     return (
-      <div className="h-[calc(100vh-240px)]">
+      <div className="h-[calc(100vh-200px)]">
         <DataTableSkeleton columnCount={5} rowCount={10} />
       </div>
     )
@@ -75,6 +75,7 @@ export function UsersTable() {
       filters={userFilters}
       activeFilters={activeFilters}
       onFilterChange={setActiveFilters}
+      className="max-h-[calc(100vh-328px)]"
     />
   )
 }
