@@ -9,6 +9,7 @@ import { RegisterPage } from '@/pages/RegisterPage.tsx'
 import { InvitationAcceptPage } from '@/pages/InvitationAcceptPage.tsx'
 import { SetupPage } from '@/pages/SetupPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
+import { TraceDetailsPage } from '@/pages/observability/TraceDetailsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { CachePage } from '@/pages/CachePage.tsx'
 import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
@@ -90,6 +91,12 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/logs',
     element: LogsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
+    path: '/:realm/logs/:traceId',
+    element: TraceDetailsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

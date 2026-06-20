@@ -1,28 +1,27 @@
 import { useCallback, useMemo, useState } from 'react'
 
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { LogsExplorer } from '@/features/observability/components/LogsExplorer'
 import { MetricsOverview } from '@/features/observability/components/MetricsOverview'
-import { TraceWaterfallDialog } from '@/features/observability/components/TraceWaterfallDialog'
 import type { CustomTimeRange, TimeRangeKey } from '@/features/observability/lib/timeRange'
 import { TIME_RANGE_OPTIONS, resolveTimeRange } from '@/features/observability/lib/timeRange'
 import { enumParam, stringParam, useUrlState } from '@/shared/lib/hooks/useUrlState'
 import { Main } from '@/widgets/Layout/Main'
 
 export function LogsPage() {
+  const navigate = useRealmNavigate()
   const timeRangeKeys = useMemo(
     () => TIME_RANGE_OPTIONS.map((option) => option.key) as TimeRangeKey[],
     [],
   )
-  const [urlState, setUrlState] = useUrlState<{
+  const [urlState] = useUrlState<{
     range: TimeRangeKey
     start: string
     end: string
-    trace: string
   }>({
     range: enumParam(timeRangeKeys, '15m'),
     start: stringParam(''),
     end: stringParam(''),
-    trace: stringParam(''),
   })
 
   const timeRangeKey = urlState.range
@@ -33,7 +32,6 @@ export function LogsPage() {
     }),
     [urlState.end, urlState.start],
   )
-  const selectedTraceId = urlState.trace ? urlState.trace : null
 
   const [now, setNow] = useState(() => new Date())
 
@@ -49,9 +47,9 @@ export function LogsPage() {
 
   const handleTraceSelect = useCallback(
     (traceId: string) => {
-      setUrlState({ trace: traceId })
+      navigate(`/logs/${traceId}`)
     },
-    [setUrlState],
+    [navigate],
   )
 
   return (
@@ -64,13 +62,6 @@ export function LogsPage() {
           onRefreshTimeRange={refreshTimeRange}
         />
       </div>
-      <TraceWaterfallDialog
-        traceId={selectedTraceId}
-        open={!!selectedTraceId}
-        onOpenChange={(open) => {
-          if (!open) setUrlState({ trace: '' })
-        }}
-      />
     </Main>
   )
 }
