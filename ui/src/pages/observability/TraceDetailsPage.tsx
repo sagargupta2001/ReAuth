@@ -1,10 +1,12 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
-import { ArrowRight, Clock3, Fingerprint, Route, Timer, UserRound } from 'lucide-react'
+import { ArrowRight, Check, Clock3, Copy, Fingerprint, Timer, UserRound } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/badge'
+import { Button } from '@/components/button'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useTelemetryTraceSpans } from '@/features/observability/api/useTelemetryTraceSpans'
 import type { TelemetryTrace } from '@/features/observability/model/types'
@@ -129,9 +131,8 @@ export function TraceDetailsPage() {
     eyebrow: t('TRACE_DIALOG.EYEBROW', { defaultValue: 'Trace detail' }),
     duration: t('TRACE_DIALOG.DURATION', { defaultValue: 'Duration' }),
     started: t('TRACE_DIALOG.STARTED', { defaultValue: 'Started' }),
-    route: t('TRACE_DIALOG.ROUTE', { defaultValue: 'Route' }),
     requestId: t('TRACE_DIALOG.REQUEST_ID', { defaultValue: 'Request ID' }),
-    user: t('TRACE_DIALOG.USER', { defaultValue: 'User / Realm' }),
+    user: t('TRACE_DIALOG.USER', { defaultValue: 'User' }),
     spanCount: t('TRACE_DIALOG.SPAN_COUNT', { count: spans.length, defaultValue: '{{count}} spans' }),
     loading: t('TRACE_DIALOG.LOADING', { defaultValue: 'Loading trace spans...' }),
     error: t('TRACE_DIALOG.ERROR', { defaultValue: 'Unable to load trace spans.' }),
@@ -153,11 +154,16 @@ export function TraceDetailsPage() {
             </Badge>
           ) : null}
         </div>
-        <div className="text-muted-foreground mt-1 font-mono text-xs break-all">{traceId}</div>
+        {traceId ? (
+          <div className="mt-1 flex items-center gap-1.5">
+            <span className="text-muted-foreground font-mono text-xs break-all">{traceId}</span>
+            <CopyButton value={traceId} label="Trace ID" />
+          </div>
+        ) : null}
       </div>
 
       <div className="bg-background grid min-h-0 flex-1 grid-rows-[auto_1fr] overflow-hidden">
-        <div className="grid gap-3 p-4 md:grid-cols-5">
+        <div className="grid gap-3 p-4 md:grid-cols-4">
           <TraceSummaryItem
             icon={Timer}
             label={text.duration}
@@ -169,21 +175,18 @@ export function TraceDetailsPage() {
             value={formatTime(primaryTrace?.start_time)}
           />
           <TraceSummaryItem
-            icon={Route}
-            label={text.route}
-            value={primaryTrace?.route || primaryTrace?.path || '—'}
-          />
-          <TraceSummaryItem
             icon={Fingerprint}
             label={text.requestId}
             value={primaryTrace?.request_id ?? '—'}
             mono
+            copyable
           />
           <TraceSummaryItem
             icon={UserRound}
             label={text.user}
-            value={primaryTrace?.user_id ?? primaryTrace?.realm ?? '—'}
+            value={primaryTrace?.user_id ?? '—'}
             mono
+            copyable
           />
         </div>
 
@@ -263,24 +266,76 @@ type TraceSummaryItemProps = {
   label: string
   value: string
   mono?: boolean
+  copyable?: boolean
 }
 
-function TraceSummaryItem({ icon: Icon, label, value, mono }: TraceSummaryItemProps) {
+function TraceSummaryItem({ icon: Icon, label, value, mono, copyable }: TraceSummaryItemProps) {
+  const canCopy = !!copyable && value !== '—'
+
   return (
-    <div className="bg-surface-elevated min-w-0 rounded-xl border px-3 py-2">
+    <div className="bg-surface-elevated group min-w-0 rounded-xl border px-3 py-2">
       <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] tracking-wide uppercase">
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <div
-        className={cn(
-          'mt-1 truncate text-sm font-medium',
-          mono && 'text-muted-foreground font-mono text-xs',
-        )}
-        title={value}
-      >
-        {value}
+      <div className="mt-1 flex items-center justify-between gap-1.5">
+        <span
+          className={cn(
+            'truncate text-sm font-medium',
+            mono && 'text-muted-foreground font-mono text-xs',
+          )}
+          title={value}
+        >
+          {value}
+        </span>
+        {canCopy ? (
+          <CopyButton
+            value={value}
+            label={label}
+            className="opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          />
+        ) : null}
       </div>
     </div>
+  )
+}
+
+function CopyButton({
+  value,
+  label,
+  className,
+}: {
+  value: string
+  label: string
+  className?: string
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const onCopy = () => {
+    void navigator.clipboard
+      .writeText(value)
+      .then(() => {
+        setCopied(true)
+        toast.success(`${label} copied.`)
+        setTimeout(() => setCopied(false), 1500)
+      })
+      .catch(() => toast.error(`Failed to copy ${label.toLowerCase()}.`))
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={onCopy}
+      aria-label={`Copy ${label}`}
+      className={cn('text-muted-foreground hover:text-foreground h-6 w-6 shrink-0', className)}
+    >
+      {copied ? (
+        <Check className="h-3.5 w-3.5 text-emerald-500" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </Button>
   )
 }

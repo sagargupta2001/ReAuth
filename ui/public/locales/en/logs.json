@@ -85,7 +85,7 @@
     "STARTED": "Started",
     "ROUTE": "Route",
     "REQUEST_ID": "Request ID",
-    "USER": "User / Realm",
+    "USER": "User",
     "SPAN_COUNT": "{{count}} spans",
     "LOADING": "Loading trace spans...",
     "ERROR": "Unable to load trace spans."
