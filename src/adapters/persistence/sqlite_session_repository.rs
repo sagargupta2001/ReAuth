@@ -386,8 +386,7 @@ impl SessionRepository for SqliteSessionRepository {
         let realm = realm_id.to_string();
         let now = Utc::now();
         // Active session predicate, identical to `list`.
-        const ACTIVE: &str =
-            "FROM refresh_tokens WHERE realm_id = ? AND revoked_at IS NULL \
+        const ACTIVE: &str = "FROM refresh_tokens WHERE realm_id = ? AND revoked_at IS NULL \
              AND replaced_by IS NULL AND expires_at > ?";
 
         let total_active: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) {ACTIVE}"))

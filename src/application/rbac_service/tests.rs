@@ -462,10 +462,7 @@ impl TestRbacRepo {
 #[async_trait]
 #[allow(unused_variables)]
 impl RbacRepository for TestRbacRepo {
-    async fn count_role_stats(
-        &self,
-        _realm_id: &Uuid,
-    ) -> Result<crate::domain::rbac::RoleStats> {
+    async fn count_role_stats(&self, _realm_id: &Uuid) -> Result<crate::domain::rbac::RoleStats> {
         Ok(crate::domain::rbac::RoleStats {
             total: 0,
             composite: 0,
