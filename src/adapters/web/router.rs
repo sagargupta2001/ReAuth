@@ -518,6 +518,10 @@ fn realm_routes(state: AppState) -> Router<AppState> {
             "/{realm}/sessions",
             get(session_handler::list_sessions_handler),
         )
+        .route(
+            "/{realm}/sessions/stats",
+            get(session_handler::get_session_stats_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -559,6 +563,7 @@ fn rbac_routes(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/roles", post(rbac_handler::create_role_handler))
         .route("/roles", get(rbac_handler::list_roles_handler))
+        .route("/roles/stats", get(rbac_handler::get_role_stats_handler))
         .route(
             "/clients/{client_id}/roles",
             get(rbac_handler::list_client_roles_handler),

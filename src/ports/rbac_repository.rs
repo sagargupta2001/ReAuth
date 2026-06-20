@@ -5,7 +5,7 @@ use crate::domain::{
     rbac::{
         CustomPermission, CustomPermissionRoleImpact, GroupMemberFilter, GroupMemberRow,
         GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
-        RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
+        RoleMemberFilter, RoleMemberRow, RoleStats, UserRoleFilter, UserRoleRow,
     },
     role::Role,
 };
@@ -70,6 +70,7 @@ pub trait RbacRepository: Send + Sync {
     async fn find_group_by_name(&self, realm_id: &Uuid, name: &str) -> Result<Option<Group>>;
     async fn find_group_by_id(&self, group_id: &Uuid) -> Result<Option<Group>>;
 
+    async fn count_role_stats(&self, realm_id: &Uuid) -> Result<RoleStats>;
     async fn list_roles(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Role>>;
     async fn list_client_roles(
         &self,

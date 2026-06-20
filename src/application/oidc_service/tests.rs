@@ -472,6 +472,16 @@ impl TestSessionRepo {
 #[allow(clippy::unused_async)]
 #[async_trait]
 impl SessionRepository for TestSessionRepo {
+    async fn get_stats(
+        &self,
+        _realm_id: &Uuid,
+    ) -> Result<crate::domain::session::SessionStats> {
+        Ok(crate::domain::session::SessionStats {
+            total_active: 0,
+            unique_users: 0,
+            active_last_24h: 0,
+        })
+    }
     async fn save(&self, token: &RefreshToken) -> Result<()> {
         self.saved.lock().unwrap().push(token.clone());
         self.stored.lock().unwrap().insert(token.id, token.clone());
@@ -673,6 +683,16 @@ struct TestRbacRepo;
 #[allow(clippy::unused_async)]
 #[async_trait]
 impl RbacRepository for TestRbacRepo {
+    async fn count_role_stats(
+        &self,
+        _realm_id: &Uuid,
+    ) -> Result<crate::domain::rbac::RoleStats> {
+        Ok(crate::domain::rbac::RoleStats {
+            total: 0,
+            composite: 0,
+            client: 0,
+        })
+    }
     async fn create_role(&self, _role: &Role, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         Ok(())
     }

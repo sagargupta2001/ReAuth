@@ -462,6 +462,16 @@ impl TestRbacRepo {
 #[async_trait]
 #[allow(unused_variables)]
 impl RbacRepository for TestRbacRepo {
+    async fn count_role_stats(
+        &self,
+        _realm_id: &Uuid,
+    ) -> Result<crate::domain::rbac::RoleStats> {
+        Ok(crate::domain::rbac::RoleStats {
+            total: 0,
+            composite: 0,
+            client: 0,
+        })
+    }
     async fn create_role(&self, role: &Role, _tx: Option<&mut dyn Transaction>) -> Result<()> {
         self.maybe_fail("create_role")?;
         self.roles.lock().unwrap().insert(role.id, role.clone());

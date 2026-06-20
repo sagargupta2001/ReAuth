@@ -3,7 +3,9 @@ use super::{CreateCustomPermissionPayload, CreateRolePayload, UpdateCustomPermis
 use crate::domain::events::{DomainEvent, RoleCreated, RoleUpdated};
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::domain::permissions;
-use crate::domain::rbac::{CustomPermission, CustomPermissionDeleteSummary, RoleDeleteSummary};
+use crate::domain::rbac::{
+    CustomPermission, CustomPermissionDeleteSummary, RoleDeleteSummary, RoleStats,
+};
 use crate::domain::role::Role;
 use crate::error::{Error, Result};
 use uuid::Uuid;
@@ -65,6 +67,10 @@ impl RbacService {
 
     pub async fn list_roles(&self, realm_id: Uuid, req: PageRequest) -> Result<PageResponse<Role>> {
         self.rbac_repo.list_roles(&realm_id, &req).await
+    }
+
+    pub async fn get_role_stats(&self, realm_id: Uuid) -> Result<RoleStats> {
+        self.rbac_repo.count_role_stats(&realm_id).await
     }
 
     pub async fn list_client_roles(

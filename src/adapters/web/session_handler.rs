@@ -48,6 +48,21 @@ pub async fn list_sessions_handler(
     Ok((StatusCode::OK, Json(response)))
 }
 
+pub async fn get_session_stats_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let stats = state.auth_service.get_session_stats(realm.id).await?;
+
+    Ok((StatusCode::OK, Json(stats)))
+}
+
 #[derive(Deserialize)]
 struct DateRangeQueryParam {
     from: Option<String>,

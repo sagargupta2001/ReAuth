@@ -37,7 +37,6 @@ export function EmailSection({ userId }: EmailSectionProps) {
           <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-10 text-center">
             <Mail className="text-muted-foreground h-8 w-8" />
             <p className="text-muted-foreground text-sm">No email addresses on this account.</p>
-            <AddEmailDialog userId={userId} />
           </div>
         ) : (
           <div>

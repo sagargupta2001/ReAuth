@@ -1,6 +1,6 @@
 use crate::application::rbac_service::RbacService;
 use crate::domain::pagination::{PageRequest, PageResponse};
-use crate::domain::session::{RefreshToken, SessionListFilter};
+use crate::domain::session::{RefreshToken, SessionListFilter, SessionStats};
 use crate::domain::user::User;
 use crate::ports::realm_repository::RealmRepository;
 use crate::ports::session_repository::SessionRepository;
@@ -334,6 +334,10 @@ impl AuthService {
             let _ = self.session_repo.delete_by_id(&refresh_token_id).await;
         }
         Ok(())
+    }
+
+    pub async fn get_session_stats(&self, realm_id: Uuid) -> Result<SessionStats> {
+        self.session_repo.get_stats(&realm_id).await
     }
 
     pub async fn list_sessions(

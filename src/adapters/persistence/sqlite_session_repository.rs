@@ -1,7 +1,7 @@
 use crate::adapters::persistence::connection::Database;
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::{
-    domain::session::{RefreshToken, SessionListFilter},
+    domain::session::{RefreshToken, SessionListFilter, SessionStats},
     error::{Error, Result},
     ports::session_repository::SessionRepository,
 };
@@ -380,5 +380,44 @@ impl SessionRepository for SqliteSessionRepository {
         ------------------------- */
 
         Ok(PageResponse::new(sessions, total, req.page, limit))
+    }
+
+    async fn get_stats(&self, realm_id: &Uuid) -> Result<SessionStats> {
+        let realm = realm_id.to_string();
+        let now = Utc::now();
+        // Active session predicate, identical to `list`.
+        const ACTIVE: &str =
+            "FROM refresh_tokens WHERE realm_id = ? AND revoked_at IS NULL \
+             AND replaced_by IS NULL AND expires_at > ?";
+
+        let total_active: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) {ACTIVE}"))
+            .bind(&realm)
+            .bind(now)
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let unique_users: i64 =
+            sqlx::query_scalar(&format!("SELECT COUNT(DISTINCT user_id) {ACTIVE}"))
+                .bind(&realm)
+                .bind(now)
+                .fetch_one(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let active_last_24h: i64 =
+            sqlx::query_scalar(&format!("SELECT COUNT(*) {ACTIVE} AND last_used_at >= ?"))
+                .bind(&realm)
+                .bind(now)
+                .bind(now - chrono::Duration::hours(24))
+                .fetch_one(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(SessionStats {
+            total_active,
+            unique_users,
+            active_last_24h,
+        })
     }
 }

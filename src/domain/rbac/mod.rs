@@ -2,6 +2,14 @@ use serde::Serialize;
 use sqlx::Row;
 use uuid::Uuid;
 
+/// Aggregate counts for the Roles analytics cards.
+#[derive(Debug, Serialize, Clone)]
+pub struct RoleStats {
+    pub total: i64,
+    pub composite: i64,
+    pub client: i64,
+}
+
 #[derive(Debug, Serialize, Clone, sqlx::FromRow)]
 pub struct RoleMemberRow {
     #[sqlx(try_from = "String")]

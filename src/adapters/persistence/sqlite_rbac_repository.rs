@@ -4,7 +4,7 @@ use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::domain::rbac::{
     CustomPermission, CustomPermissionRoleImpact, GroupMemberFilter, GroupMemberRow,
     GroupRoleFilter, GroupRoleRow, GroupTreeRow, RoleCompositeFilter, RoleCompositeRow,
-    RoleMemberFilter, RoleMemberRow, UserRoleFilter, UserRoleRow,
+    RoleMemberFilter, RoleMemberRow, RoleStats, UserRoleFilter, UserRoleRow,
 };
 use crate::domain::role::Permission;
 use crate::ports::transaction_manager::Transaction;
@@ -627,6 +627,39 @@ impl RbacRepository for SqliteRbacRepository {
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(group)
+    }
+
+    async fn count_role_stats(&self, realm_id: &Uuid) -> Result<RoleStats> {
+        let realm = realm_id.to_string();
+
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM roles WHERE realm_id = ?")
+            .bind(&realm)
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let client: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM roles WHERE realm_id = ? AND client_id IS NOT NULL",
+        )
+        .bind(&realm)
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let composite: i64 = sqlx::query_scalar(
+            "SELECT COUNT(DISTINCT rcr.parent_role_id) FROM role_composite_roles rcr \
+             JOIN roles r ON r.id = rcr.parent_role_id WHERE r.realm_id = ?",
+        )
+        .bind(&realm)
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(RoleStats {
+            total,
+            composite,
+            client,
+        })
     }
 
     async fn list_roles(&self, realm_id: &Uuid, req: &PageRequest) -> Result<PageResponse<Role>> {
