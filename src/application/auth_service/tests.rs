@@ -23,7 +23,7 @@ use crate::ports::token_service::{AccessTokenClaims, TokenService};
 use crate::ports::transaction_manager::{Transaction, TransactionManager};
 use crate::ports::user_repository::UserRepository;
 use async_trait::async_trait;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
@@ -559,6 +559,14 @@ impl UserRepository for TestUserRepo {
             .filter(|user| &user.realm_id == realm_id)
             .count();
         Ok(count as i64)
+    }
+
+    async fn count_active_since(&self, _realm_id: &Uuid, _since: DateTime<Utc>) -> Result<i64> {
+        Ok(0)
+    }
+
+    async fn count_created_since(&self, _realm_id: &Uuid, _since: DateTime<Utc>) -> Result<i64> {
+        Ok(0)
     }
 
     async fn delete_users(&self, _realm_id: &Uuid, _user_ids: &[Uuid]) -> Result<u64> {

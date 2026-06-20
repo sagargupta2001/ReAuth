@@ -33,7 +33,7 @@ use crate::ports::user_repository::UserRepository;
 use async_trait::async_trait;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::any::Any;
@@ -442,6 +442,14 @@ impl UserRepository for TestUserRepo {
             .filter(|user| &user.realm_id == realm_id)
             .count();
         Ok(count as i64)
+    }
+
+    async fn count_active_since(&self, _realm_id: &Uuid, _since: DateTime<Utc>) -> Result<i64> {
+        Ok(0)
+    }
+
+    async fn count_created_since(&self, _realm_id: &Uuid, _since: DateTime<Utc>) -> Result<i64> {
+        Ok(0)
     }
 
     async fn delete_users(&self, _realm_id: &Uuid, _user_ids: &[Uuid]) -> Result<u64> {
