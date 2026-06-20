@@ -1,7 +1,9 @@
+import { useState } from 'react'
+
 import { ChevronsUpDown, GalleryVerticalEnd, Plus } from 'lucide-react'
 import { BoxesIcon, Check } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 import {
   DropdownMenu,
@@ -14,6 +16,7 @@ import {
 } from '@/components/dropdown-menu'
 import { Skeleton } from '@/components/skeleton'
 import { useRealms } from '@/features/realm/api/useRealms.ts'
+import { CreateRealmDialog } from '@/features/realm/forms/CreateRealmDialog.tsx'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm.ts'
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/widgets/Sidebar/components'
 import { useSidebar } from '@/widgets/Sidebar/components/content.tsx'
@@ -24,6 +27,7 @@ export function RealmSwitcher() {
   const currentRealm = useActiveRealm()
   const { data: realms, isLoading } = useRealms()
   const { t } = useTranslation('realm')
+  const [createOpen, setCreateOpen] = useState(false)
 
   const handleSwitch = (newRealm: string) => navigate(`/${newRealm}`)
 
@@ -109,18 +113,20 @@ export function RealmSwitcher() {
               )
             })}
             <DropdownMenuSeparator />
-            <Link to="/create-realm">
-              <DropdownMenuItem className="cursor-pointer gap-2 p-2">
-                <div className="bg-background flex size-6 items-center justify-center rounded-md border">
-                  <Plus className="size-4" />
-                </div>
-                <div className="text-muted-foreground font-medium">
-                  {t('REALM_SWITCHER.CREATE_REALM_BTN')}
-                </div>
-              </DropdownMenuItem>
-            </Link>
+            <DropdownMenuItem
+              className="cursor-pointer gap-2 p-2"
+              onSelect={() => setCreateOpen(true)}
+            >
+              <div className="bg-background flex size-6 items-center justify-center rounded-md border">
+                <Plus className="size-4" />
+              </div>
+              <div className="text-muted-foreground font-medium">
+                {t('REALM_SWITCHER.CREATE_REALM_BTN')}
+              </div>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <CreateRealmDialog open={createOpen} onOpenChange={setCreateOpen} />
       </SidebarMenuItem>
     </SidebarMenu>
   )

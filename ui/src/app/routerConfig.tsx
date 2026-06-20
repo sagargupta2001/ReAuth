@@ -24,7 +24,6 @@ import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
 import { ThemeDetailsPage } from '@/pages/theme/ThemeDetailsPage.tsx'
 import { ThemesIndexPage } from '@/pages/theme/ThemesIndexPage.tsx'
 import { FluidBuilderPage } from '@/pages/theme/builder/FluidBuilderPage.tsx'
-import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { EmailSettingsPage } from '@/pages/realm/settings/EmailSettingsPage.tsx'
 import { IdentityBrokeringSettingsPage } from '@/pages/realm/settings/IdentityBrokeringSettingsPage.tsx'
@@ -48,7 +47,6 @@ import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 import { FluidBuilderLayout } from '@/widgets/Layout/FluidBuilderLayout.tsx'
 import { FlowBuilderLayout } from '@/widgets/Layout/FlowBuilderLayout.tsx'
 import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
-import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx'
 
 /**
  * Defines the shape of a static route.
@@ -152,12 +150,6 @@ export const staticRoutes: RouteConfig[] = [
     path: '/:realm/settings/token',
     element: TokenSettingsPage,
     layout: AuthenticatedLayout,
-    isProtected: true,
-  },
-  {
-    path: '/create-realm',
-    element: CreateRealmPage,
-    layout: MinimalLayout,
     isProtected: true,
   },
   {

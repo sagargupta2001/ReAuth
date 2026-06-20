@@ -57,7 +57,9 @@ export function EditRolePage() {
 
   return (
     <div className="bg-background flex h-full w-full flex-col overflow-hidden">
-      <RoleHeader role={role} />
+      <div className="shrink-0 px-6 pt-6">
+        <RoleHeader role={role} />
+      </div>
 
       <Tabs
         value={activeTab}
