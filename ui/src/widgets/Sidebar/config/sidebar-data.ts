@@ -8,11 +8,11 @@ import {
   LayoutDashboard,
   LucideClockFading,
   Palette,
-  ScrollText,
   Settings,
   Users,
   Webhook,
   Workflow,
+  Activity
 } from 'lucide-react'
 
 import type { SidebarData } from '@/widgets/Sidebar/model/types.ts'
@@ -58,9 +58,9 @@ export const sidebarData: SidebarData = {
       icon: Webhook,
     },
     {
-      title: 'Observability',
+      title: 'Logs',
       url: '/logs',
-      icon: ScrollText,
+      icon: Activity,
     },
     {
       title: 'Cache',
