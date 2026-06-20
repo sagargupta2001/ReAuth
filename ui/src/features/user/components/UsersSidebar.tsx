@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { Mail, Plus, Users } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 
 import { Button } from '@/components/button'
@@ -10,8 +10,8 @@ import { CreateUserDialog } from '@/features/user/components/CreateUserDialog'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { title: 'All Users', url: '/users', end: true, icon: Users },
-  { title: 'Invitations', url: '/users/invitations', end: false, icon: Mail },
+  { title: 'All Users', url: '/users', end: true},
+  { title: 'Invitations', url: '/users/invitations', end: false},
 ]
 
 export function UsersSidebar() {
@@ -19,7 +19,7 @@ export function UsersSidebar() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   return (
-    <div className="bg-sidebar-accent/10 flex h-full w-[var(--sidebar-width-secondary)] flex-col border-r">
+    <div className="bg-sidebar-accent/10 flex h-full w-(--sidebar-width-secondary) flex-col border-r">
       <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
         {navItems.map((item) => {
           const path = getRealmPath(item.url, realm)
@@ -38,7 +38,6 @@ export function UsersSidebar() {
                 )
               }
             >
-              <item.icon className="h-4 w-4" />
               {item.title}
             </NavLink>
           )
