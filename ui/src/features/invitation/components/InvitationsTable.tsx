@@ -15,7 +15,6 @@ import {
   useRevokeInvitation,
 } from '@/features/invitation/api/useInvitations'
 import { getInvitationColumns } from '@/features/invitation/components/InvitationColumns'
-import { UsersPrimaryButtons } from '@/features/user/components/UsersPrimaryButtons'
 import { DataTableFacetedFilter } from '@/shared/ui/data-table'
 import { DataTable } from '@/shared/ui/data-table/data-table'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton'
@@ -173,7 +172,8 @@ export function InvitationsTable() {
           options={invitationStatusFilterOptions}
         />
       )}
-      customToolbarButtons={<UsersPrimaryButtons />}
+      className="max-h-[calc(100vh-328px)]"
+      tableClassName="table-auto min-w-[800px]"
     />
   )
 }

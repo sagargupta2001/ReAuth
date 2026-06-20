@@ -34,6 +34,7 @@ export const sidebarData: SidebarData = {
       title: 'Users',
       url: '/users',
       icon: Users,
+      segment: 'users',
     },
     {
       title: 'Roles',

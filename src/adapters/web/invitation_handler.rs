@@ -7,6 +7,7 @@ use validator::Validate;
 
 use crate::adapters::web::auth_middleware::AuthUser;
 use crate::adapters::web::validation::ValidatedJson;
+use crate::application::invitation_service::InvitationStats;
 use crate::domain::invitation::{Invitation, InvitationStatus};
 use crate::domain::pagination::PageRequest;
 use crate::error::{Error, Result};
@@ -223,4 +224,18 @@ pub async fn accept_invitation_handler(
             url: format!("/#/login?realm={}&invited=1", realm_name),
         }),
     ))
+}
+
+pub async fn get_invitation_stats_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let stats: InvitationStats = state.invitation_service.get_stats(realm.id).await?;
+    Ok((StatusCode::OK, Json(stats)))
 }

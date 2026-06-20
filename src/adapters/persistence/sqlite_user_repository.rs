@@ -8,6 +8,7 @@ use crate::{
     ports::user_repository::UserRepository,
 };
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use sqlx::{QueryBuilder, Sqlite};
 use tracing::instrument;
 use uuid::Uuid;
@@ -288,6 +289,37 @@ impl UserRepository for SqliteUserRepository {
             .fetch_one(&*self.pool)
             .await
             .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(count)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "count")
+    )]
+    async fn count_active_since(&self, realm_id: &Uuid, since: DateTime<Utc>) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM users WHERE realm_id = ? AND last_sign_in_at >= ?",
+        )
+        .bind(realm_id.to_string())
+        .bind(since)
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(count)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "users", db_op = "count")
+    )]
+    async fn count_created_since(&self, realm_id: &Uuid, since: DateTime<Utc>) -> Result<i64> {
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE realm_id = ? AND created_at >= ?")
+                .bind(realm_id.to_string())
+                .bind(since)
+                .fetch_one(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(count)
     }
 

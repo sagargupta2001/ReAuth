@@ -14,7 +14,7 @@ use crate::{
     error::{Error, Result},
     ports::user_repository::UserRepository,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -48,6 +48,13 @@ pub struct UserMetadataUpdateResponse {
     pub private_metadata: Value,
     pub unsafe_metadata: Value,
     pub updated_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserStats {
+    pub total: i64,
+    pub active_last_24h: i64,
+    pub new_this_week: i64,
 }
 
 pub struct UserService {
@@ -236,6 +243,24 @@ impl UserService {
 
     pub async fn count_users_in_realm(&self, realm_id: Uuid) -> Result<i64> {
         self.user_repo.count_in_realm(&realm_id).await
+    }
+
+    pub async fn get_stats(&self, realm_id: Uuid) -> Result<UserStats> {
+        let now = Utc::now();
+        let total = self.user_repo.count_in_realm(&realm_id).await?;
+        let active_last_24h = self
+            .user_repo
+            .count_active_since(&realm_id, now - Duration::hours(24))
+            .await?;
+        let new_this_week = self
+            .user_repo
+            .count_created_since(&realm_id, now - Duration::days(7))
+            .await?;
+        Ok(UserStats {
+            total,
+            active_last_24h,
+            new_this_week,
+        })
     }
 
     pub async fn get_user(&self, id: Uuid) -> Result<User> {

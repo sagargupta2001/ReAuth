@@ -1,6 +1,7 @@
 import { FlowsSidebar } from '@/features/flow/components/FlowSidebar.tsx'
 import { GroupsSidebar } from '@/features/group/components/GroupsSidebar'
 import { ThemesSidebar } from '@/features/theme/components/ThemesSidebar.tsx'
+import { UsersSidebar } from '@/features/user/components/UsersSidebar'
 import { StaticMenuSidebar } from '@/widgets/Sidebar/components/StaticMenuSidebar.tsx'
 
 import type { PrimaryNavItem } from './model/types'
@@ -20,9 +21,8 @@ export function SecondarySidebar({ activeItem }: SecondarySidebarProps) {
       return <FlowsSidebar />
     case 'themes':
       return <ThemesSidebar />
-
-    // Future cases:
-    // case 'users': return <UsersSidebar />;
+    case 'users':
+      return <UsersSidebar />
 
     // Default: If it has static items (like Settings), render the generic list
     default:

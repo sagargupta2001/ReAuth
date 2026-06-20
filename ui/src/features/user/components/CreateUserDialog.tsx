@@ -61,8 +61,15 @@ const inviteFormSchema = z.object({
 type CreateFormValues = z.infer<typeof createFormSchema>
 type InviteFormValues = z.infer<typeof inviteFormSchema>
 
-export function CreateUserDialog() {
-  const [open, setOpen] = useState(false)
+interface CreateUserDialogProps {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function CreateUserDialog({ open: controlledOpen, onOpenChange: controlledOnOpenChange }: CreateUserDialogProps = {}) {
+  const isControlled = controlledOpen !== undefined
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = isControlled ? controlledOpen : internalOpen
   const [activeTab, setActiveTab] = useState('create')
 
   const mutation = useCreateUser()
@@ -79,7 +86,8 @@ export function CreateUserDialog() {
   })
 
   const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen)
+    if (!isControlled) setInternalOpen(newOpen)
+    controlledOnOpenChange?.(newOpen)
     if (!newOpen) {
       createForm.reset()
       inviteForm.reset()
@@ -137,12 +145,14 @@ export function CreateUserDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm" className="flex items-center gap-2">
-          <Plus size={18} />
-          <span>Create User</span>
-        </Button>
-      </DialogTrigger>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button size="sm" className="flex items-center gap-2">
+            <Plus size={18} />
+            <span>Create User</span>
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader className="pt-6 pl-6">
           <DialogTitle>

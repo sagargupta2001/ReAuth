@@ -249,6 +249,7 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
     // 2. Read Permission
     let read_routes = Router::new()
         .route("/", get(user_handler::list_users_handler))
+        .route("/stats", get(user_handler::get_user_stats_handler))
         .route(
             "/{id}/metadata",
             get(user_handler::get_user_metadata_handler),
@@ -395,6 +396,10 @@ fn protected_user_routes(state: AppState) -> Router<AppState> {
 fn protected_invitation_routes(state: AppState) -> Router<AppState> {
     let read_routes = Router::new()
         .route("/", get(invitation_handler::list_invitations_handler))
+        .route(
+            "/stats",
+            get(invitation_handler::get_invitation_stats_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
