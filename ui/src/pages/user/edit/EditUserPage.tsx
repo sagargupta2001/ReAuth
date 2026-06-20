@@ -1,12 +1,11 @@
 import { useEffect } from 'react'
 
 import { format } from 'date-fns'
-import { ArrowLeft, KeyRound, Settings, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
+import { KeyRound, Settings, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
-import { buttonVariants } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
-import { RealmLink } from '@/entities/realm/lib/navigation'
+import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useUser } from '@/features/user/api/useUser.ts'
 import { UserTabLayout } from '@/features/user/components/UserTabLayout'
@@ -14,7 +13,6 @@ import { UserCredentialsTab } from '@/features/user/components/UserCredentialsTa
 import { UserRolesTab } from '@/features/user/components/UserRolesTab'
 import { UserSettingsTab } from '@/features/user/components/UserSettingsTab'
 import { UseProfileTab } from '@/features/user/components/UseProfileTab.tsx'
-import { cn } from '@/lib/utils'
 import { Skeleton } from '@/shared/ui/skeleton.tsx'
 
 export function EditUserPage() {
@@ -22,6 +20,9 @@ export function EditUserPage() {
   const navigate = useRealmNavigate()
 
   const { data: user, isLoading: isUserLoading } = useUser(userId as string)
+
+  // Surface the user's name in the header breadcrumb (falls back to id while loading).
+  useSetBreadcrumb({ [userId ?? '']: user?.username ?? '' })
 
   const validTabs = ['profile', 'roles', 'credentials', 'settings']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'profile'
@@ -51,19 +52,6 @@ export function EditUserPage() {
   return (
     <div className="bg-background flex h-full w-full flex-col overflow-hidden">
       <div className="shrink-0 px-6 pt-6">
-        <div className="mb-2">
-          <RealmLink
-            to="/users"
-            className={cn(
-              buttonVariants({ variant: 'link', size: 'sm' }),
-              'text-muted-foreground hover:text-foreground gap-2 pl-0',
-            )}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Users
-          </RealmLink>
-        </div>
-
         {isUserLoading ? (
           userIconSkeleton()
         ) : (

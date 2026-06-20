@@ -46,7 +46,7 @@ export function UsersSidebar() {
 
       <div className="bg-background mt-auto border-t p-3">
         <Button
-          className="w-full justify-start gap-2"
+          className="w-full gap-2"
           size="sm"
           onClick={() => setIsCreateOpen(true)}
         >

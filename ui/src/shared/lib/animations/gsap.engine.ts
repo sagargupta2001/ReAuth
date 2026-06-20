@@ -1,6 +1,11 @@
 import gsap from 'gsap'
 
-import type { AnimationEngine, AnimationOptions, HighlightOptions } from './animation.types'
+import type {
+  AnimationEngine,
+  AnimationOptions,
+  HighlightOptions,
+  MorphOptions,
+} from './animation.types'
 
 export const gsapAnimationEngine: AnimationEngine = {
   fadeSlideIn(el, options = {}) {
@@ -50,6 +55,41 @@ export const gsapAnimationEngine: AnimationEngine = {
       onComplete: () => {
         gsap.set(el, { '--highlight-alpha': 0 })
       },
+    })
+  },
+
+  morphSize: (el: HTMLElement, options: MorphOptions): Promise<void> => {
+    return new Promise((resolve) => {
+      const { from, to, duration = 0.45, overshoot = true } = options
+      // A springy overshoot gives the "Dynamic Island" pop; power3 stays smooth.
+      const ease = options.ease ?? (overshoot ? 'back.out(1.7)' : 'power3.out')
+
+      gsap.killTweensOf(el)
+
+      const finish = () => {
+        // Hand sizing back to the content so layout stays fluid/responsive.
+        gsap.set(el, { width: 'auto', height: 'auto' })
+        resolve()
+      }
+
+      // Nothing meaningful to animate — snap and bail.
+      if (Math.round(from.width) === Math.round(to.width) &&
+          Math.round(from.height) === Math.round(to.height)) {
+        finish()
+        return
+      }
+
+      gsap.fromTo(
+        el,
+        { width: from.width, height: from.height },
+        {
+          width: to.width,
+          height: to.height,
+          duration,
+          ease,
+          onComplete: finish,
+        },
+      )
     })
   },
 }

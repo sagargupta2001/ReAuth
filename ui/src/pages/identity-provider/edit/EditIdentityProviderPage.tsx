@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowUpRight, Link2, Loader2, Radio, Trash2 } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
+import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { RealmLink } from '@/entities/realm/lib/navigation'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useIdentityProviderActivity } from '@/features/identity-provider/api/useIdentityProviderActivity'
@@ -49,6 +50,8 @@ export function EditIdentityProviderPage() {
     providerId || '',
   )
   const deleteProvider = useDeleteIdentityProvider(providerId || '')
+
+  useSetBreadcrumb({ [providerId ?? '']: provider?.display_name || provider?.alias || '' })
 
   if (isLoading) {
     return (

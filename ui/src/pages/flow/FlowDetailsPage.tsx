@@ -7,6 +7,7 @@ import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useFlowDraft } from '@/features/flow-builder/api/useFlowDraft'
 import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { FlowDetailsOverviewTab } from '@/features/flow/components/FlowDetailsOverviewTab.tsx'
@@ -22,6 +23,8 @@ export function FlowDetailsPage() {
   const [activeTab, setActiveTab] = useState('overview')
 
   const { data: draft, isLoading, isError } = useFlowDraft(flowId!)
+
+  useSetBreadcrumb({ [flowId ?? '']: draft?.name ?? '' })
 
   if (isLoading) {
     return (

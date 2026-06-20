@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 
+import { HeaderBreadcrumb } from '@/features/breadcrumb/components/HeaderBreadcrumb'
 import { Search } from '@/features/Search/components/Search'
 import { ProfileDropdown } from '@/features/auth/components/ProfileDropdown.tsx'
 import { cn } from '@/lib/utils'
@@ -13,6 +14,7 @@ export function AppHeader({ leftSlot }: AppHeaderProps) {
   return (
     <Header
       leftSlot={leftSlot}
+      centerSlot={<HeaderBreadcrumb />}
       className={cn(
         'fixed top-0 right-0 left-0 z-50 w-full',
         'bg-background/80 supports-backdrop-filter:bg-background/60 h-14 border-b backdrop-blur',
