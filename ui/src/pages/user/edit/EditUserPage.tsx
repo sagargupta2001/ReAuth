@@ -1,16 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 import { format } from 'date-fns'
 import { ArrowLeft, KeyRound, Settings, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
-import { Button, buttonVariants } from '@/components/button'
+import { buttonVariants } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { RealmLink } from '@/entities/realm/lib/navigation'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useUser } from '@/features/user/api/useUser.ts'
-import { UserHeaderActions } from '@/features/user/components/UserHeaderActions'
-import { UserJsonDialog } from '@/features/user/components/UserJsonDialog'
 import { UserTabLayout } from '@/features/user/components/UserTabLayout'
 import { UserCredentialsTab } from '@/features/user/components/UserCredentialsTab'
 import { UserRolesTab } from '@/features/user/components/UserRolesTab'
@@ -22,7 +20,6 @@ import { Skeleton } from '@/shared/ui/skeleton.tsx'
 export function EditUserPage() {
   const { userId, tab } = useParams<{ userId: string; tab?: string }>()
   const navigate = useRealmNavigate()
-  const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
 
   const { data: user, isLoading: isUserLoading } = useUser(userId as string)
 
@@ -70,38 +67,22 @@ export function EditUserPage() {
         {isUserLoading ? (
           userIconSkeleton()
         ) : (
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-4">
-              <div className="flex items-center justify-center rounded-full border-4 p-4">
-                <UserRound className="h-7 w-7" />
-              </div>
-
-              <div className="grid min-w-0">
-                <span className="truncate text-2xl font-semibold">{user?.username}</span>
-                {user?.last_sign_in_at && (
-                  <span className="text-muted-foreground text-sm">
-                    Last active{' '}
-                    {format(new Date(user?.last_sign_in_at as string), 'MMM d, yyyy, h:mm a')}
-                  </span>
-                )}
-              </div>
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex items-center justify-center rounded-full border-4 p-4">
+              <UserRound className="h-7 w-7" />
             </div>
-
-            <div className="flex shrink-0 items-center gap-2">
-              <Button size="sm" onClick={() => setJsonDialogOpen(true)}>
-                Show JSON
-              </Button>
-              <UserHeaderActions
-                userId={userId}
-                user={user}
-                onDeleted={() => navigate('/users')}
-              />
+            <div className="grid min-w-0">
+              <span className="truncate text-2xl font-semibold">{user?.username}</span>
+              {user?.last_sign_in_at && (
+                <span className="text-muted-foreground text-sm">
+                  Last active{' '}
+                  {format(new Date(user?.last_sign_in_at as string), 'MMM d, yyyy, h:mm a')}
+                </span>
+              )}
             </div>
           </div>
         )}
       </div>
-
-      <UserJsonDialog user={user} open={jsonDialogOpen} onOpenChange={setJsonDialogOpen} />
 
       <Tabs
         value={activeTab}
@@ -141,7 +122,7 @@ export function EditUserPage() {
           </TabsContent>
           <TabsContent value="settings" className="mt-0 min-h-full w-full p-6">
             <UserTabLayout userId={userId}>
-              <UserSettingsTab userId={userId} />
+              <UserSettingsTab userId={userId} user={user} onDeleted={() => navigate('/users')} />
             </UserTabLayout>
           </TabsContent>
         </div>

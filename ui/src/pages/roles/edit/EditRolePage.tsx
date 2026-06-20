@@ -55,18 +55,20 @@ export function EditRolePage() {
     )
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
-      <div className="mb-2 shrink-0">
-        <RealmLink
-          to="/roles"
-          className={cn(
-            buttonVariants({ variant: 'link', size: 'sm' }),
-            'text-muted-foreground hover:text-foreground gap-2 pl-0',
-          )}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Roles
-        </RealmLink>
+    <div className="bg-background flex h-full w-full flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-6">
+        <div className="mb-2">
+          <RealmLink
+            to="/roles"
+            className={cn(
+              buttonVariants({ variant: 'link', size: 'sm' }),
+              'text-muted-foreground hover:text-foreground gap-2 pl-0',
+            )}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Roles
+          </RealmLink>
+        </div>
       </div>
 
       <RoleHeader role={role} />
@@ -96,8 +98,8 @@ export function EditRolePage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto xl:overflow-hidden">
-          <TabsContent value="settings" className="mt-0 h-full w-full p-6">
+        <div className="bg-muted/5 flex-1 overflow-y-auto">
+          <TabsContent value="settings" className="mt-0 min-h-full w-full p-6">
             <RoleTabLayout role={role}>
               <RoleSettingsTab role={role} />
             </RoleTabLayout>

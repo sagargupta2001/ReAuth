@@ -10,9 +10,9 @@ interface RoleTabLayoutProps {
 
 export function RoleTabLayout({ role, children }: RoleTabLayoutProps) {
   return (
-    <div className="grid min-h-full w-full items-start gap-6 xl:h-full xl:grid-cols-[minmax(0,1fr)_20rem] xl:overflow-hidden">
-      <div className="min-w-0 xl:h-full xl:overflow-y-auto xl:pr-1">{children}</div>
-      <aside className="xl:h-full xl:overflow-hidden">
+    <div className="grid min-h-full w-full items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="min-w-0">{children}</div>
+      <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
         <RoleSummaryPanel role={role} />
       </aside>
     </div>
