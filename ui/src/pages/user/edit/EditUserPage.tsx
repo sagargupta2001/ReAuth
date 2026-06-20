@@ -52,52 +52,54 @@ export function EditUserPage() {
   }
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
-      <div className="mb-2 shrink-0">
-        <RealmLink
-          to="/users"
-          className={cn(
-            buttonVariants({ variant: 'link', size: 'sm' }),
-            'text-muted-foreground hover:text-foreground gap-2 pl-0',
-          )}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Users
-        </RealmLink>
-      </div>
-
-      {isUserLoading ? (
-        userIconSkeleton()
-      ) : (
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4">
-            <div className="flex items-center justify-center rounded-full border-4 p-4">
-              <UserRound className="h-7 w-7" />
-            </div>
-
-            <div className="grid min-w-0">
-              <span className="truncate text-2xl font-semibold">{user?.username}</span>
-              {user?.last_sign_in_at && (
-                <span className="text-muted-foreground text-sm">
-                  Last active{' '}
-                  {format(new Date(user?.last_sign_in_at as string), 'MMM d, yyyy, h:mm a')}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <Button size='sm' onClick={() => setJsonDialogOpen(true)}>
-              Show JSON
-            </Button>
-            <UserHeaderActions
-              userId={userId}
-              user={user}
-              onDeleted={() => navigate('/users')}
-            />
-          </div>
+    <div className="bg-background flex h-full w-full flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-6">
+        <div className="mb-2">
+          <RealmLink
+            to="/users"
+            className={cn(
+              buttonVariants({ variant: 'link', size: 'sm' }),
+              'text-muted-foreground hover:text-foreground gap-2 pl-0',
+            )}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Users
+          </RealmLink>
         </div>
-      )}
+
+        {isUserLoading ? (
+          userIconSkeleton()
+        ) : (
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <div className="flex items-center justify-center rounded-full border-4 p-4">
+                <UserRound className="h-7 w-7" />
+              </div>
+
+              <div className="grid min-w-0">
+                <span className="truncate text-2xl font-semibold">{user?.username}</span>
+                {user?.last_sign_in_at && (
+                  <span className="text-muted-foreground text-sm">
+                    Last active{' '}
+                    {format(new Date(user?.last_sign_in_at as string), 'MMM d, yyyy, h:mm a')}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-2">
+              <Button size="sm" onClick={() => setJsonDialogOpen(true)}>
+                Show JSON
+              </Button>
+              <UserHeaderActions
+                userId={userId}
+                user={user}
+                onDeleted={() => navigate('/users')}
+              />
+            </div>
+          </div>
+        )}
+      </div>
 
       <UserJsonDialog user={user} open={jsonDialogOpen} onOpenChange={setJsonDialogOpen} />
 
@@ -123,23 +125,21 @@ export function EditUserPage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto xl:overflow-hidden">
-          <TabsContent value="profile" className="mt-0 h-full w-full p-6">
+        <div className="bg-muted/5 flex-1 overflow-y-auto">
+          <TabsContent value="profile" className="mt-0 min-h-full w-full p-6">
             <UserTabLayout userId={userId}>
               <UseProfileTab userId={userId} />
             </UserTabLayout>
           </TabsContent>
-          <TabsContent value="roles" className="mt-0 h-full w-full p-6">
-            <UserTabLayout userId={userId}>
-              <UserRolesTab userId={userId} />
-            </UserTabLayout>
+          <TabsContent value="roles" className="mt-0 min-h-full w-full p-6">
+            <UserRolesTab userId={userId} />
           </TabsContent>
-          <TabsContent value="credentials" className="mt-0 h-full w-full p-6">
+          <TabsContent value="credentials" className="mt-0 min-h-full w-full p-6">
             <UserTabLayout userId={userId}>
               <UserCredentialsTab userId={userId} />
             </UserTabLayout>
           </TabsContent>
-          <TabsContent value="settings" className="mt-0 h-full w-full p-6">
+          <TabsContent value="settings" className="mt-0 min-h-full w-full p-6">
             <UserTabLayout userId={userId}>
               <UserSettingsTab userId={userId} />
             </UserTabLayout>
