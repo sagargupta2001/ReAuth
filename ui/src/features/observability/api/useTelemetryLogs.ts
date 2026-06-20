@@ -10,6 +10,8 @@ export interface TelemetryLogQuery {
   level?: string
   target?: string
   search?: string
+  user_id?: string
+  trace_id?: string
   start?: string
   end?: string
   include_spans?: boolean
@@ -30,6 +32,8 @@ export function useTelemetryLogs(
       if (params.level) query.set('level', params.level)
       if (params.target) query.set('target', params.target)
       if (params.search) query.set('search', params.search)
+      if (params.user_id) query.set('user_id', params.user_id)
+      if (params.trace_id) query.set('trace_id', params.trace_id)
       if (params.start) query.set('start', params.start)
       if (params.end) query.set('end', params.end)
       if (params.include_spans !== undefined) {

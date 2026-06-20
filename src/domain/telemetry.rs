@@ -48,6 +48,8 @@ pub struct TelemetryLogQuery {
     pub level: Option<String>,
     pub target: Option<String>,
     pub search: Option<String>,
+    pub user_id: Option<String>,
+    pub trace_id: Option<String>,
     pub start_time: Option<String>,
     pub end_time: Option<String>,
     pub include_spans: bool,

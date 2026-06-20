@@ -59,6 +59,44 @@ export function resolveTimeRange(
   return { key, label: option.label, start, end }
 }
 
+/** Returns the local "HH:MM" (24h) string for a date, e.g. for a time <input>. */
+export function timeStringFromDate(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
+/**
+ * Combines the day part of `day` with a local "HH:MM" time string into a new Date.
+ * Falls back to the day's existing time when the string is malformed.
+ */
+export function combineDateAndTime(day: Date, time: string): Date {
+  const result = new Date(day)
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim())
+  if (match) {
+    const hours = Math.min(23, Math.max(0, Number(match[1])))
+    const minutes = Math.min(59, Math.max(0, Number(match[2])))
+    result.setHours(hours, minutes, 0, 0)
+  }
+  return result
+}
+
+/** Human label for the time-range trigger: a preset name, or a custom "from – to" with time. */
+export function formatRangeLabel(range: ResolvedTimeRange, locale = 'en-US'): string {
+  if (range.key !== 'custom') return range.label
+  if (!range.start && !range.end) return 'Custom'
+  const fmt = (date: Date | null) =>
+    date
+      ? date.toLocaleString(locale, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '…'
+  return `${fmt(range.start)} – ${fmt(range.end)}`
+}
+
 export function isWithinRange(dateString: string, range: ResolvedTimeRange): boolean {
   if (!range.start || !range.end) {
     return true

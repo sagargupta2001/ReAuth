@@ -25,18 +25,13 @@ interface DateRangeLike {
   to?: unknown
 }
 
-function toDateOnly(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
+// Serialize to full ISO timestamps so the time component survives the round-trip.
+// The backend filters accept both RFC3339 datetimes and plain YYYY-MM-DD dates.
 function normalizeDateLike(value: unknown): string | undefined {
   if (value == null) return undefined
   const date = value instanceof Date ? value : new Date(String(value))
   if (Number.isNaN(date.getTime())) return undefined
-  return toDateOnly(date)
+  return date.toISOString()
 }
 
 export function serializeFilterValue(value: unknown): string {
