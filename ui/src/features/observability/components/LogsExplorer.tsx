@@ -411,7 +411,8 @@ export function LogsExplorer({
           onSortingChange={handleSortingChange}
           showToolbar={false}
           rootClassName="min-h-0 flex-1"
-          className="max-h-[calc(100vh-328px)]"
+          className="max-h-[calc(100vh-240px)]"
+          tableClassName="table-auto min-w-[900px]"
           pageSizeOptions={[50, 100, 200]}
           onRowClick={(log) =>
             setExpandedLogId((current) => (current === log.id ? null : log.id))

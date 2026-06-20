@@ -1,7 +1,7 @@
 import { type HTMLAttributes, type ReactNode, type Ref, useEffect, useState } from 'react'
 
-import { Slash } from '@/assets/header/slash.tsx'
 import { cn } from '@/lib/utils.ts'
+import { useActivePrimaryNavItem } from '@/widgets/Sidebar/hooks/useActivePrimaryNavItem'
 import { RealmSwitcher } from '@/widgets/Layout/components/realm-switcher.tsx'
 
 type HeaderProps = HTMLAttributes<HTMLElement> & {
@@ -12,16 +12,15 @@ type HeaderProps = HTMLAttributes<HTMLElement> & {
 
 export function Header({ className, fixed, children, leftSlot, ...props }: HeaderProps) {
   const [offset, setOffset] = useState(0)
+  const activeItem = useActivePrimaryNavItem()
 
   useEffect(() => {
     const onScroll = () => {
       setOffset(document.body.scrollTop || document.documentElement.scrollTop)
     }
 
-    // Add scroll listener to the body
     document.addEventListener('scroll', onScroll, { passive: true })
 
-    // Clean up the event listener on unmount
     return () => document.removeEventListener('scroll', onScroll)
   }, [])
 
@@ -37,22 +36,31 @@ export function Header({ className, fixed, children, leftSlot, ...props }: Heade
     >
       <div
         className={cn(
-          'relative flex h-full w-full items-center justify-between gap-3 px-4 sm:px-6',
+          'relative flex h-full w-full items-center justify-between gap-3 pr-4 sm:pr-6',
           offset > 10 &&
             fixed &&
             'after:bg-background/20 after:absolute after:inset-0 after:-z-10 after:backdrop-blur-lg',
         )}
       >
-        {/* If the Layout provides a slot (like SidebarTrigger), use it. */}
-        {/* Otherwise, show the default Logo + RealmSwitcher. */}
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1">
           {leftSlot ? (
             leftSlot
           ) : (
             <>
-              <img rel="icon" src="/reauth.svg" alt="logo" className="h-7 w-7" />
-              <Slash className="inline-block h-5 w-5 shrink-0 leading-none" />
-              <RealmSwitcher />
+              <div className="shrink-0 overflow-hidden pl-3" style={{ width: '12.5rem' }}>
+                <RealmSwitcher />
+              </div>
+              {activeItem && (
+                <>
+                  <div className="mx-1 h-5 w-px shrink-0" />
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <activeItem.icon className="text-foreground h-5 w-5 shrink-0" />
+                    <span className="text-foreground truncate text-lg font-medium">
+                      {activeItem.title}
+                    </span>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

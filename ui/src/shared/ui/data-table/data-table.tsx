@@ -38,6 +38,7 @@ interface DataTableProps<TData, TValue> {
   showToolbar?: boolean
   rootClassName?: string
   className?: string
+  tableClassName?: string
   pageSizeOptions?: number[]
   getRowClassName?: (row: TData) => string
   isRowExpanded?: (row: TData) => boolean
@@ -69,6 +70,7 @@ export function DataTable<TData, TValue>({
   showToolbar = true,
   rootClassName,
   className,
+  tableClassName,
   pageSizeOptions,
   getRowClassName,
   isRowExpanded,
@@ -129,7 +131,7 @@ export function DataTable<TData, TValue>({
         />
       ) : null}
       <div className={cn('relative overflow-auto rounded-2xl bg-table-background px-2 pb-2', className)}>
-        <Table className="w-full table-fixed " noWrapper>
+        <Table className={cn('w-full table-fixed', tableClassName)} noWrapper>
           <TableHeader className="sticky top-0 z-10 [&_th]:bg-table-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

@@ -117,6 +117,7 @@ export const queryKeys = {
   themeTemplateGaps: (realm: string, themeId: string) =>
     ['theme-template-gaps', realm, themeId] as const,
   activeTheme: (realm: string) => ['active-theme', realm] as const,
+  currentUser: (realm: string) => ['current-user', realm] as const,
   realms: () => ['realms'] as const,
   realm: (realmName?: string) =>
     realmName ? (['realm', realmName] as const) : (['realm'] as const),

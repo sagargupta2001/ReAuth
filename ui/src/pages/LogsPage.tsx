@@ -1,10 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 
-import { useTranslation } from 'react-i18next'
-
 import { LogsExplorer } from '@/features/observability/components/LogsExplorer'
 import { MetricsOverview } from '@/features/observability/components/MetricsOverview'
-import { ObservabilityLayout } from '@/features/observability/components/ObservabilityLayout'
 import { TraceWaterfallDialog } from '@/features/observability/components/TraceWaterfallDialog'
 import type { CustomTimeRange, TimeRangeKey } from '@/features/observability/lib/timeRange'
 import { TIME_RANGE_OPTIONS, resolveTimeRange } from '@/features/observability/lib/timeRange'
@@ -12,7 +9,6 @@ import { enumParam, stringParam, useUrlState } from '@/shared/lib/hooks/useUrlSt
 import { Main } from '@/widgets/Layout/Main'
 
 export function LogsPage() {
-  const { t } = useTranslation('logs')
   const timeRangeKeys = useMemo(
     () => TIME_RANGE_OPTIONS.map((option) => option.key) as TimeRangeKey[],
     [],
@@ -59,18 +55,15 @@ export function LogsPage() {
   )
 
   return (
-    <Main fixed className="flex min-h-0 flex-1 flex-col p-12">
-      <ObservabilityLayout
-        title={t('OBSERVABILITY.TITLE')}
-        description={t('OBSERVABILITY.DESCRIPTION')}
-        summary={<MetricsOverview />}
-      >
+    <Main fixed className="flex min-h-0 flex-1 flex-col p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <MetricsOverview />
         <LogsExplorer
           timeRange={resolvedTimeRange}
           onSelectTrace={handleTraceSelect}
           onRefreshTimeRange={refreshTimeRange}
         />
-      </ObservabilityLayout>
+      </div>
       <TraceWaterfallDialog
         traceId={selectedTraceId}
         open={!!selectedTraceId}
