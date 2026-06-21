@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
 
-import { AppWindow, Copy, Shield, ShieldAlert } from 'lucide-react'
+import { AppWindow, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Badge } from '@/components/badge'
 import type { OidcClient } from '@/entities/oidc/model/types.ts'
 
 interface ClientHeaderProps {
@@ -12,8 +11,6 @@ interface ClientHeaderProps {
 }
 
 export function ClientHeader({ client, actions }: ClientHeaderProps) {
-  const isConfidential = client.confidential ?? !!client.client_secret
-
   const copyId = () => {
     navigator.clipboard.writeText(client.client_id)
     toast.success('Client ID copied to clipboard')
@@ -29,24 +26,7 @@ export function ClientHeader({ client, actions }: ClientHeaderProps) {
 
         {/* Title & Metadata */}
         <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <h1 className="text-foreground text-lg font-bold tracking-tight">{client.client_id}</h1>
-
-            {/* Status Badges */}
-            {isConfidential ? (
-              <Badge
-                variant="default"
-              >
-                <Shield className="h-3 w-3" /> Confidential
-              </Badge>
-            ) : (
-              <Badge
-                variant="default"
-              >
-                <ShieldAlert className="h-3 w-3" /> Public
-              </Badge>
-            )}
-          </div>
+          <h1 className="text-foreground text-lg font-bold tracking-tight">{client.client_id}</h1>
 
           {/* ID Copy Snippet */}
           <div className="text-muted-foreground flex items-center gap-1 text-xs">

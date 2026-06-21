@@ -9,6 +9,7 @@ interface UpdateClientPayload {
   client_id: string
   redirect_uris: string[]
   web_origins: string[]
+  scopes?: string[]
 }
 
 export function useUpdateClient(id: string) {

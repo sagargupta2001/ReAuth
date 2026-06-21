@@ -311,6 +311,22 @@ impl OidcRepository for TestOidcRepo {
         })
     }
 
+    async fn count_client_delete_summary(
+        &self,
+        id: &Uuid,
+    ) -> Result<crate::domain::oidc::ClientDeleteSummary> {
+        Ok(crate::domain::oidc::ClientDeleteSummary {
+            client_id: *id,
+            name: String::new(),
+            role_count: 0,
+            permission_count: 0,
+        })
+    }
+
+    async fn delete_client(&self, _id: &Uuid) -> Result<()> {
+        Ok(())
+    }
+
     async fn find_client_by_uuid(&self, _id: &Uuid) -> Result<Option<OidcClient>> {
         Ok(None)
     }

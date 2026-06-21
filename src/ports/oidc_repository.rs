@@ -1,7 +1,7 @@
 use crate::domain::pagination::{PageRequest, PageResponse};
 use crate::ports::transaction_manager::Transaction;
 use crate::{
-    domain::oidc::{AuthCode, ClientStats, OidcClient},
+    domain::oidc::{AuthCode, ClientDeleteSummary, ClientStats, OidcClient},
     error::Result,
 };
 use async_trait::async_trait;
@@ -31,6 +31,10 @@ pub trait OidcRepository: Send + Sync {
     ) -> Result<PageResponse<OidcClient>>;
 
     async fn count_client_stats(&self, realm_id: &Uuid) -> Result<ClientStats>;
+
+    async fn count_client_delete_summary(&self, id: &Uuid) -> Result<ClientDeleteSummary>;
+
+    async fn delete_client(&self, id: &Uuid) -> Result<()>;
 
     async fn find_client_by_uuid(&self, id: &Uuid) -> Result<Option<OidcClient>>;
     async fn update_client(&self, client: &OidcClient) -> Result<()>;

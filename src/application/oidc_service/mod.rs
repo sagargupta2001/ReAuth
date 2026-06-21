@@ -6,7 +6,9 @@ use crate::{
     domain::{
         auth_session::{AuthenticationSession, SessionStatus},
         execution::ExecutionPlan,
-        oidc::{AuthCode, ClientStats, OidcClient, OidcContext, OidcRequest},
+        oidc::{
+            AuthCode, ClientDeleteSummary, ClientStats, OidcClient, OidcContext, OidcRequest,
+        },
         session::RefreshToken,
     },
     error::{Error, Result},
@@ -36,6 +38,7 @@ pub struct UpdateClientRequest {
     pub client_id: Option<String>,
     pub redirect_uris: Option<Vec<String>>,
     pub web_origins: Option<Vec<String>>,
+    pub scopes: Option<Vec<String>>,
 }
 
 pub struct OidcService {
@@ -420,8 +423,23 @@ impl OidcService {
                 serde_json::to_string(&origins).map_err(|e| Error::Unexpected(e.into()))?;
         }
 
+        if let Some(scopes) = payload.scopes {
+            client.scopes =
+                serde_json::to_string(&scopes).map_err(|e| Error::Unexpected(e.into()))?;
+        }
+
         self.update_client_record(&client).await?;
         Ok(client)
+    }
+
+    pub async fn delete_client(&self, id: Uuid) -> Result<()> {
+        // Ensure the client exists so callers get a clean 404 instead of a silent no-op.
+        self.get_client(id).await?;
+        self.oidc_repo.delete_client(&id).await
+    }
+
+    pub async fn get_client_delete_summary(&self, id: Uuid) -> Result<ClientDeleteSummary> {
+        self.oidc_repo.count_client_delete_summary(&id).await
     }
 
     pub async fn rotate_client_secret(&self, id: Uuid) -> Result<(OidcClient, String)> {

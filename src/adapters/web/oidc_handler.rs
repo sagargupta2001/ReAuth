@@ -495,6 +495,7 @@ pub struct CreateClientRequest {
     pub client_id: String,
     pub redirect_uris: Vec<String>,
     pub web_origins: Option<Vec<String>>,
+    pub scopes: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -542,8 +543,14 @@ pub async fn create_client_handler(
     // Serialize Web Origins
     let web_origins_json = serde_json::to_string(&payload.web_origins.unwrap_or_default())
         .map_err(|e| Error::Unexpected(e.into()))?;
-    let scopes_json = serde_json::to_string(&vec!["openid", "profile", "email"])
-        .map_err(|e| Error::Unexpected(e.into()))?;
+    let scopes = payload.scopes.unwrap_or_else(|| {
+        vec![
+            "openid".to_string(),
+            "profile".to_string(),
+            "email".to_string(),
+        ]
+    });
+    let scopes_json = serde_json::to_string(&scopes).map_err(|e| Error::Unexpected(e.into()))?;
 
     // Create Domain Entity
     let mut client = OidcClient {
@@ -603,4 +610,46 @@ pub async fn rotate_client_secret_handler(
         StatusCode::OK,
         Json(to_client_response(&client, Some(secret))),
     ))
+}
+
+pub async fn get_client_delete_summary_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let client = state.oidc_service.get_client(id).await?;
+    if client.realm_id != realm.id {
+        return Err(Error::SecurityViolation(
+            "Client does not belong to this realm".to_string(),
+        ));
+    }
+
+    let summary = state.oidc_service.get_client_delete_summary(id).await?;
+    Ok((StatusCode::OK, Json(summary)))
+}
+
+pub async fn delete_client_handler(
+    State(state): State<AppState>,
+    Path((realm_name, id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let client = state.oidc_service.get_client(id).await?;
+    if client.realm_id != realm.id {
+        return Err(Error::SecurityViolation(
+            "Client does not belong to this realm".to_string(),
+        ));
+    }
+
+    state.oidc_service.delete_client(id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

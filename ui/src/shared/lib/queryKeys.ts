@@ -13,6 +13,8 @@ export const queryKeys = {
   clients: (realm?: string, params?: unknown) =>
     realm ? (['clients', realm, params] as const) : (['clients'] as const),
   clientStats: (realm: string) => ['client-stats', realm] as const,
+  clientDeleteSummary: (realm: string, clientId: string) =>
+    ['client-delete-summary', realm, clientId] as const,
   identityProvider: (realm: string, providerId: string) =>
     ['identity-provider', realm, providerId] as const,
   identityProviderActivity: (realm: string, providerId: string, limit?: number) =>
