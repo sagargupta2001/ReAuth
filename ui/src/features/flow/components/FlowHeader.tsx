@@ -87,7 +87,7 @@ export function FlowHeader({ draft, actions }: FlowHeaderProps) {
 
         {actions}
 
-        <Button onClick={() => navigate(`/flows/${draft.id}/builder`)} className="gap-2">
+        <Button size='sm' onClick={() => navigate(`/flows/${draft.id}/builder`)} className="gap-2">
           <Pencil className="h-3.5 w-3.5" />
           {isSystemFlow ? 'Edit Flow' : 'Edit Draft'}
         </Button>

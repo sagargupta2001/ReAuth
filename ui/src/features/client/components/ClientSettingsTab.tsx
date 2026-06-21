@@ -492,7 +492,6 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
         </CardContent>
       </Card>
 
-      {/* Danger Zone */}
       <Card>
         <CardHeader>
           <CardTitle>Danger Zone</CardTitle>
