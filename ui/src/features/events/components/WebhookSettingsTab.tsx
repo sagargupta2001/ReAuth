@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 
-import { Copy, Eye, EyeOff, RotateCcw, Trash2 } from 'lucide-react'
+import { AlertTriangle, Copy, Eye, EyeOff, RotateCcw, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
@@ -118,33 +118,31 @@ export function WebhookSettingsTab({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Danger Zone</CardTitle>
-          <CardDescription>
-            Delete this webhook endpoint and remove its event subscriptions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border-destructive/30 bg-destructive/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4">
+      <div className="border-destructive/50 bg-destructive/10 rounded-xl border p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="bg-destructive/20 text-destructive rounded-full p-2">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
             <div>
-              <p className="text-sm font-medium">Delete webhook endpoint</p>
-              <p className="text-muted-foreground text-sm">
+              <div className="text-destructive text-sm font-semibold">Danger Zone</div>
+              <p className="text-muted-foreground text-xs">
                 This permanently removes the target from event routing.
               </p>
             </div>
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={onDeleteClick}
-              disabled={deletePending}
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete Webhook
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            type="button"
+            variant="destructive"
+            className="gap-2"
+            onClick={onDeleteClick}
+            disabled={deletePending}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Webhook
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

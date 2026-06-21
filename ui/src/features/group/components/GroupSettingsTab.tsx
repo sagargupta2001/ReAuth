@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { Trash2 } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertTriangle, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 import {
   Dialog,
   DialogContent,
@@ -15,15 +15,15 @@ import {
   DialogTitle,
 } from '@/components/dialog'
 import { Form } from '@/components/form'
+import type { Group } from '@/entities/group/model/types'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
-import type { Group } from '@/entities/group/model/types'
+import { findNode, removeNode } from '@/features/group-tree/lib/tree-utils'
+import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
+import type { GroupTreeNode } from '@/features/group-tree/model/types'
 import { useDeleteGroup } from '@/features/group/api/useDeleteGroup'
 import { useGroupDeleteSummary } from '@/features/group/api/useGroupDeleteSummary'
 import { useUpdateGroup } from '@/features/group/api/useUpdateGroup'
-import { useGroupTreeStore } from '@/features/group-tree/model/groupTreeStore'
-import { findNode, removeNode } from '@/features/group-tree/lib/tree-utils'
-import type { GroupTreeNode } from '@/features/group-tree/model/types'
 import { type GroupFormValues, groupSchema } from '@/features/group/schema/create.schema'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence'
 import { Checkbox } from '@/shared/ui/checkbox'
@@ -140,28 +140,30 @@ export function GroupSettingsTab({ group }: GroupSettingsTabProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Danger Zone</CardTitle>
-          <CardDescription>
-            Delete this group and unassign its members and roles.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border-destructive/30 bg-destructive/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4">
+      <div className="border-destructive/50 bg-destructive/10 rounded-xl border p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="bg-destructive/20 text-destructive rounded-full p-2">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
             <div>
-              <p className="text-sm font-medium">Delete group</p>
-              <p className="text-muted-foreground text-sm">
+              <div className="text-destructive text-sm font-semibold">Danger Zone</div>
+              <p className="text-muted-foreground text-xs">
                 Permanently removes the group and unassigns any roles or members linked to it.
               </p>
             </div>
-            <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" />
-              Delete Group
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            type="button"
+            variant="destructive"
+            className="gap-2"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Group
+          </Button>
+        </div>
+      </div>
 
       <Dialog
         open={deleteOpen}

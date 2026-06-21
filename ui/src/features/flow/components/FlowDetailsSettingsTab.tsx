@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Copy, Trash2 } from 'lucide-react'
+import { AlertTriangle, Copy, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
@@ -63,7 +63,7 @@ function FlowActionRow({
   onClick,
 }: FlowActionRowProps) {
   const btn = (
-    <Button  variant={buttonVariant} disabled={disabled} onClick={onClick}>
+    <Button variant={buttonVariant} disabled={disabled} onClick={onClick}>
       <Icon className="h-4 w-4" />
       {buttonLabel}
     </Button>
@@ -237,32 +237,63 @@ export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
         <Card>
           <CardHeader>
             <CardTitle>Flow Management</CardTitle>
-            <CardDescription>Duplicate or permanently remove this flow.</CardDescription>
+            <CardDescription>Duplicate this flow into a new draft.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              <FlowActionRow
-                icon={Copy}
-                label="Duplicate Flow"
-                description="Create a new draft with a copy of this flow's configuration, optionally publishing it as active."
-                buttonLabel="Duplicate"
-                buttonVariant="default"
-                onClick={() => setCloneOpen(true)}
-              />
-              <FlowActionRow
-                icon={Trash2}
-                label="Delete Flow"
-                description="Permanently removes this flow and its versions. Built-in and active flows cannot be deleted."
-                buttonLabel="Delete"
-                buttonVariant="destructive"
-                destructive
-                disabled={deleteDisabled}
-                disabledTooltip={deleteTooltip}
-                onClick={() => setConfirmDeleteOpen(true)}
-              />
-            </div>
+            <FlowActionRow
+              icon={Copy}
+              label="Duplicate Flow"
+              description="Create a new draft with a copy of this flow's configuration, optionally publishing it as active."
+              buttonLabel="Duplicate"
+              buttonVariant="default"
+              onClick={() => setCloneOpen(true)}
+            />
           </CardContent>
         </Card>
+
+        <div className="border-destructive/50 bg-destructive/10 rounded-xl border p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="bg-destructive/20 text-destructive rounded-full p-2">
+                <AlertTriangle className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-destructive text-sm font-semibold">Danger Zone</div>
+                <p className="text-muted-foreground text-xs">
+                  Permanently removes this flow and all of its versions. Built-in and active flows
+                  cannot be deleted.
+                </p>
+              </div>
+            </div>
+            {deleteDisabled && deleteTooltip ? (
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Button variant="destructive" className="gap-2" disabled>
+                        <Trash2 className="h-4 w-4" />
+                        Delete Flow
+                      </Button>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="bg-popover text-popover-foreground border">
+                    {deleteTooltip}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <Button
+                variant="destructive"
+                className="gap-2"
+                disabled={deleteDisabled}
+                onClick={() => setConfirmDeleteOpen(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Flow
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">

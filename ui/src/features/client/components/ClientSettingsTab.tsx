@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -10,29 +10,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/form'
 import { Input } from '@/components/input'
 import type { OidcClient } from '@/entities/oidc/model/types.ts'
-import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import { useDeleteClient } from '@/features/client/api/useDeleteClient'
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useClientDeleteSummary } from '@/features/client/api/useClientDeleteSummary'
-import { useUpdateClient } from '@/features/client/api/useUpdateClient.ts'
+import { useDeleteClient } from '@/features/client/api/useDeleteClient'
 import { useRotateClientSecret } from '@/features/client/api/useRotateClientSecret'
+import { useUpdateClient } from '@/features/client/api/useUpdateClient.ts'
 import { parseJsonArray } from '@/features/client/lib/clientFields'
-import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
-import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
-import { useThemePages } from '@/features/theme/api/useThemePages'
-import { useThemes } from '@/features/theme/api/useThemes'
-import { useThemeVersions } from '@/features/theme/api/useThemeVersions'
-import { useUpsertThemeBinding } from '@/features/theme/api/useUpsertThemeBinding'
-import { useDeleteThemeBinding } from '@/features/theme/api/useDeleteThemeBinding'
-import { useClientThemeBinding } from '@/features/theme/api/useClientThemeBinding'
 import {
   type CreateClientSchema,
   createClientSchema,
 } from '@/features/client/schema/create.schema.ts'
+import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
+import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
+import { useClientThemeBinding } from '@/features/theme/api/useClientThemeBinding'
+import { useDeleteThemeBinding } from '@/features/theme/api/useDeleteThemeBinding'
+import { useThemePages } from '@/features/theme/api/useThemePages'
+import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
+import { useThemeVersions } from '@/features/theme/api/useThemeVersions'
+import { useThemes } from '@/features/theme/api/useThemes'
+import { useUpsertThemeBinding } from '@/features/theme/api/useUpsertThemeBinding'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence'
-import { FormInput } from '@/shared/ui/form-input'
-import { Label } from '@/shared/ui/label.tsx'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -41,7 +39,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/dialog'
-import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
+import { FormInput } from '@/shared/ui/form-input'
+import { Label } from '@/shared/ui/label.tsx'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
 
 import { ClientSecretInput } from './ClientSecretInput'
 
@@ -64,9 +64,7 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
   const deleteBinding = useDeleteThemeBinding(binding?.theme_id || selectedThemeId)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewPageKey, setPreviewPageKey] = useState('login')
-  const [clientSecret, setClientSecret] = useState<string | null>(
-    client.client_secret ?? null,
-  )
+  const [clientSecret, setClientSecret] = useState<string | null>(client.client_secret ?? null)
   const rotateSecret = useRotateClientSecret(client.id)
 
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -492,29 +490,31 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Danger Zone</CardTitle>
-          <CardDescription>
-            Delete this client and everything scoped to it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border-destructive/30 bg-destructive/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4">
+      <div className="border-destructive/50 bg-destructive/10 rounded-xl border p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="bg-destructive/20 text-destructive rounded-full p-2">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
             <div>
-              <p className="text-sm font-medium">Delete client</p>
-              <p className="text-muted-foreground text-sm">
+              <div className="text-destructive text-sm font-semibold">Danger Zone</div>
+              <p className="text-muted-foreground text-xs">
                 Permanently removes the client and cascades to its client-scoped roles and
                 permissions.
               </p>
             </div>
-            <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" />
-              Delete Client
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            type="button"
+            variant="destructive"
+            className="gap-2"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Client
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-[520px]">
