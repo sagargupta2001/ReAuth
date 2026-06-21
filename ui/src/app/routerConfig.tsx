@@ -214,7 +214,7 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/flows/:flowId',
+    path: '/:realm/flows/:flowId/:tab?',
     element: FlowDetailsPage,
     layout: AuthenticatedLayout,
     isProtected: true,

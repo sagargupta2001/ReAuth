@@ -1,8 +1,10 @@
 import {
   Activity,
   Group as GroupIcon,
+  History,
   KeyRound,
   Layers,
+  Layout,
   Settings,
   Shield,
   ShieldCheck,
@@ -92,6 +94,11 @@ export const TAB_GROUPS: Record<string, TabDef[]> = {
     { slug: 'settings', label: 'Settings', icon: Settings },
     { slug: 'roles', label: 'Roles', icon: Shield },
     { slug: 'advanced', label: 'Advanced', icon: Activity },
+  ],
+  flows: [
+    { slug: 'overview', label: 'Overview', icon: Layout },
+    { slug: 'history', label: 'Version History', icon: History },
+    { slug: 'settings', label: 'Settings', icon: Settings },
   ],
   // /events/webhooks/:id/:tab — owning section is "webhooks".
   webhooks: [

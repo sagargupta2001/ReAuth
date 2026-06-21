@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
-import { GitBranch, Lock, Pencil } from 'lucide-react'
+import { Copy, GitBranch, Lock, Pencil } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -15,6 +16,13 @@ interface FlowHeaderProps {
 export function FlowHeader({ draft, actions }: FlowHeaderProps) {
   const navigate = useRealmNavigate()
   const isSystemFlow = draft.built_in
+
+  const copyId = () => {
+    void navigator.clipboard
+      .writeText(draft.id)
+      .then(() => toast.success('Flow ID copied.'))
+      .catch(() => toast.error('Failed to copy flow ID.'))
+  }
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between px-6">
@@ -40,9 +48,19 @@ export function FlowHeader({ draft, actions }: FlowHeaderProps) {
               </Badge>
             )}
           </div>
-          <span className="text-muted-foreground text-xs">
+          <div className="text-muted-foreground flex items-center gap-1 text-xs">
             ID: <span className="font-mono opacity-70">{draft.id.slice(0, 8)}...</span>
-          </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0"
+              onClick={copyId}
+              aria-label="Copy flow ID"
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       </div>
 

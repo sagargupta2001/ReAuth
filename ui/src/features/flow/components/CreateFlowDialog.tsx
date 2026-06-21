@@ -1,22 +1,26 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
-import { Controller, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
-import { Button } from '@/components/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/dialog'
-import { Input } from '@/components/input'
-import { Label } from '@/components/label'
-import { Textarea } from '@/components/textarea'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useCreateDraft } from '@/features/flow-builder/api/useCreateDraft'
+import { Button } from '@/components/button'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/shared/ui/form'
+import { FormInput } from '@/shared/ui/form-input'
 import {
   Select,
   SelectContent,
@@ -24,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/select.tsx'
+import { Separator } from '@/shared/ui/separator'
+import { Textarea } from '@/shared/ui/textarea'
 
 interface Props {
   open: boolean
@@ -50,13 +56,7 @@ export function CreateFlowDialog({ open, onOpenChange }: Props) {
   const navigate = useRealmNavigate()
   const { mutateAsync: createDraft, isPending } = useCreateDraft()
 
-  const {
-    control,
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<FormData>({
+  const form = useForm<FormData>({
     resolver: zodResolver(createFlowSchema),
     defaultValues: {
       name: '',
@@ -65,11 +65,15 @@ export function CreateFlowDialog({ open, onOpenChange }: Props) {
     },
   })
 
+  const handleOpenChange = (newOpen: boolean) => {
+    onOpenChange(newOpen)
+    if (!newOpen) form.reset()
+  }
+
   const onSubmit = async (data: FormData) => {
     try {
       const newDraft = await createDraft(data)
-      onOpenChange(false)
-      reset()
+      handleOpenChange(false)
       navigate(`/flows/${newDraft.id}/builder`)
     } catch (error) {
       console.error('Failed to create flow', error)
@@ -77,69 +81,76 @@ export function CreateFlowDialog({ open, onOpenChange }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create New Flow</DialogTitle>
-          <DialogDescription>
-            Give your new authentication flow a name to get started.
-          </DialogDescription>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader className="pt-6 pl-6">
+          <DialogTitle>Create new flow</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
-          {/* Name */}
-          <div className="space-y-2">
-            <Label htmlFor="name">Flow Name</Label>
-            <Input id="name" placeholder="e.g., Partner Login Flow" {...register('name')} />
-            {errors.name && <p className="text-destructive text-xs">{errors.name.message}</p>}
-          </div>
+        <Separator className="my-1" />
 
-          {/* Flow Type */}
-          <div className="space-y-2">
-            <Label>Flow Type</Label>
-            <Controller
-              control={control}
+        <Form {...form}>
+          <div className="grid gap-4 px-6 pb-6">
+            <FormInput
+              control={form.control}
+              name="name"
+              label="Flow Name"
+              placeholder="e.g., Partner Login Flow"
+            />
+
+            <FormField
+              control={form.control}
               name="flow_type"
               render={({ field }) => (
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select flow type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FLOW_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormItem>
+                  <FormLabel>Flow Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select flow type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {FLOW_TYPES.map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
               )}
             />
-            {errors.flow_type && (
-              <p className="text-destructive text-xs">{errors.flow_type.message}</p>
-            )}
-          </div>
 
-          {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
-            <Textarea
-              id="description"
-              placeholder="Briefly describe what this flow does..."
-              {...register('description')}
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Briefly describe what this flow does..."
+                      className="resize-none"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-1 py-3 pr-3">
+            <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create
+            <Button size="sm" onClick={form.handleSubmit(onSubmit)} disabled={isPending}>
+              {isPending ? 'Creating...' : 'Create Flow'}
             </Button>
           </DialogFooter>
-        </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )

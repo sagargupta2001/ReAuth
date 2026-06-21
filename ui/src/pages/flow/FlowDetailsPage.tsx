@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 
 import { History, Layout, Loader2, Settings } from 'lucide-react'
 import { useParams } from 'react-router-dom'
@@ -6,10 +6,8 @@ import { useParams } from 'react-router-dom'
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useFlowDraft } from '@/features/flow-builder/api/useFlowDraft'
-import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { FlowDetailsOverviewTab } from '@/features/flow/components/FlowDetailsOverviewTab.tsx'
 // Helper component for Overview to keep it clean (you can put this in a separate file too)
 import { FlowDetailsSettingsTab } from '@/features/flow/components/FlowDetailsSettingsTab.tsx'
@@ -17,14 +15,21 @@ import { FlowHeader } from '@/features/flow/components/FlowHeader.tsx'
 import { FlowHistoryTab } from '@/features/flow/components/FlowHistoryTab.tsx'
 
 export function FlowDetailsPage() {
-  const { flowId } = useParams()
-  const realm = useActiveRealm()
+  const { flowId, tab } = useParams<{ flowId: string; tab?: string }>()
   const navigate = useRealmNavigate()
-  const [activeTab, setActiveTab] = useState('overview')
 
   const { data: draft, isLoading, isError } = useFlowDraft(flowId!)
 
   useSetBreadcrumb({ [flowId ?? '']: draft?.name ?? '' })
+
+  const validTabs = ['overview', 'history', 'settings']
+  const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'overview'
+
+  const handleTabChange = (newTab: string) => flowId && navigate(`/flows/${flowId}/${newTab}`)
+
+  useEffect(() => {
+    if (!tab && flowId) navigate(`/flows/${flowId}/overview`, { replace: true })
+  }, [tab, flowId, navigate])
 
   if (isLoading) {
     return (
@@ -48,28 +53,11 @@ export function FlowDetailsPage() {
 
   return (
     <div className="bg-background flex h-full w-full flex-col">
-      <FlowHeader
-        draft={draft}
-        actions={
-          flowId && realm ? (
-            <HarborResourceActions
-              scope="flow"
-              id={flowId}
-              resourceLabel={draft.name}
-              invalidateKeys={[
-                ['flows', realm],
-                ['flow-draft', realm, flowId],
-                ['flow-drafts', realm],
-                ['flow-versions', flowId],
-              ]}
-            />
-          ) : null
-        }
-      />
+      <FlowHeader draft={draft} />
 
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 border-b px-6 pt-2">

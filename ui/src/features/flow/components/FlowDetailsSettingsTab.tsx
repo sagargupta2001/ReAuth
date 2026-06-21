@@ -3,7 +3,9 @@ import { useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 
+import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import type { FlowDraft } from '@/entities/flow/model/types'
+import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { useUpdateFlow } from '@/features/flow/api/useUpdateFlow.ts'
 import {
   type FlowSettingsSchema,
@@ -30,6 +32,7 @@ interface FlowSettingsTabProps {
 }
 
 export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
+  const realm = useActiveRealm()
   const updateMutation = useUpdateFlow(draft.id)
 
   const form = useForm<FlowSettingsSchema>({
@@ -76,38 +79,69 @@ export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
               <CardTitle>General Settings</CardTitle>
               <CardDescription>Manage the basic identity of this flow.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <FormInput
-                control={form.control}
-                name="name"
-                label="Flow Name"
-                placeholder="e.g. Browser Login"
-                description="A unique name to identify this flow."
-                disabled={draft.built_in} // Optional: Prevent renaming system flows?
-              />
+            <CardContent>
+              <div className="bg-primary-foreground space-y-4 rounded-2xl p-4">
+                <FormInput
+                  control={form.control}
+                  name="name"
+                  label="Flow Name"
+                  placeholder="e.g. Browser Login"
+                  description="A unique name to identify this flow."
+                  disabled={draft.built_in} // Optional: Prevent renaming system flows?
+                />
 
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Describe the purpose of this authentication flow..."
-                        className="resize-none"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>visible to other administrators.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Describe the purpose of this authentication flow..."
+                          className="resize-none"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>visible to other administrators.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </CardContent>
           </Card>
         </form>
       </Form>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Import / Export</CardTitle>
+          <CardDescription>
+            Export this flow as a portable bundle, or import a bundle to replace its configuration.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-primary-foreground flex items-center justify-between gap-4 rounded-2xl p-4">
+            <p className="text-muted-foreground text-sm">
+              Download the flow definition or upload a bundle to apply changes.
+            </p>
+            {realm ? (
+              <HarborResourceActions
+                scope="flow"
+                id={draft.id}
+                resourceLabel={draft.name}
+                invalidateKeys={[
+                  ['flows', realm],
+                  ['flow-draft', realm, draft.id],
+                  ['flow-drafts', realm],
+                  ['flow-versions', draft.id],
+                ]}
+              />
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
