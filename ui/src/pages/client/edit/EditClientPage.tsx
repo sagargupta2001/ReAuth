@@ -46,7 +46,7 @@ export function EditClientPage() {
 
   if (isError || !client)
     return (
-      <div className="text-destructive flex h-full w-full flex-col items-center justify-center gap-2">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-2">
         <p>Failed to load client details.</p>
         <Button variant="outline" onClick={() => navigate('/clients')}>
           Go Back

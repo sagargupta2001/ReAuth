@@ -11,7 +11,6 @@ import { SetupPage } from '@/pages/SetupPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { TraceDetailsPage } from '@/pages/observability/TraceDetailsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
 import { CreateIdentityProviderPage } from '@/pages/identity-provider/create/CreateIdentityProviderPage.tsx'
@@ -148,12 +147,6 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/clients',
     element: ClientsPage,
-    layout: AuthenticatedLayout,
-    isProtected: true,
-  },
-  {
-    path: '/:realm/clients/new',
-    element: CreateClientPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

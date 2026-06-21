@@ -12,9 +12,7 @@ interface ClientHeaderProps {
 }
 
 export function ClientHeader({ client, actions }: ClientHeaderProps) {
-  // Logic to determine badge status
   const isConfidential = client.confidential ?? !!client.client_secret
-  const isSystem = client.client_id === 'reauth-admin' // Example logic
 
   const copyId = () => {
     navigator.clipboard.writeText(client.client_id)
@@ -35,14 +33,9 @@ export function ClientHeader({ client, actions }: ClientHeaderProps) {
             <h1 className="text-foreground text-lg font-bold tracking-tight">{client.client_id}</h1>
 
             {/* Status Badges */}
-            {isSystem ? (
-              <Badge variant="secondary" className="h-5 text-[10px]">
-                System
-              </Badge>
-            ) : isConfidential ? (
+            {isConfidential ? (
               <Badge
                 variant="outline"
-                className="h-5 gap-1 border-green-200 bg-green-50 text-[10px] text-green-700"
               >
                 <Shield className="h-3 w-3" /> Confidential
               </Badge>

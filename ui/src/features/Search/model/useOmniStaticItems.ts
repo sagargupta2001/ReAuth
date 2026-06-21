@@ -81,7 +81,7 @@ export function useOmniStaticItems() {
         group: 'Suggested Actions',
         kind: 'link',
         icon: AppWindow,
-        href: `/${realm}/clients/new`,
+        href: `/${realm}/clients`,
         suggested: true,
       },
       {
