@@ -11,7 +11,6 @@ import { SetupPage } from '@/pages/SetupPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { TraceDetailsPage } from '@/pages/observability/TraceDetailsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { CachePage } from '@/pages/CachePage.tsx'
 import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
@@ -95,12 +94,6 @@ export const staticRoutes: RouteConfig[] = [
   {
     path: '/:realm/logs/:traceId',
     element: TraceDetailsPage,
-    layout: AuthenticatedLayout,
-    isProtected: true,
-  },
-  {
-    path: '/:realm/cache',
-    element: CachePage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

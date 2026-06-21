@@ -1,7 +1,6 @@
 import {
   Anchor,
   AppWindow,
-  Database,
   Fingerprint,
   Group,
   KeyRound,
@@ -62,11 +61,6 @@ export const sidebarData: SidebarData = {
       title: 'Logs',
       url: '/logs',
       icon: Activity,
-    },
-    {
-      title: 'Cache',
-      url: '/cache',
-      icon: Database,
     },
     {
       title: 'Harbor',

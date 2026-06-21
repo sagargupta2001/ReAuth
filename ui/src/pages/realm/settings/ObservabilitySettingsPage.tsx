@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
 import { Switch } from '@/components/switch'
+import { CacheManager } from '@/features/observability/components/CacheManager'
 import {
   useTelemetryClearLogs,
   useTelemetryClearTraces,
@@ -53,7 +54,7 @@ export function ObservabilitySettingsPage() {
       >
         <div
           id="telemetry-include-spans"
-          className="border-border/40 bg-background/60 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3"
+          className="border-border bg-surface-elevated flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3"
         >
           <div className="space-y-1">
             <div className="text-sm font-medium">{t('LOGS_EXPLORER.INCLUDE_SPANS')}</div>
@@ -127,7 +128,6 @@ export function ObservabilitySettingsPage() {
               </AlertDialogContent>
             </AlertDialog>
           </div>
-          <p className="text-muted-foreground mt-2 text-xs">{t('LOGS_CLEANUP.CONFIRM_HELPER')}</p>
         </div>
       </RealmSettingsCard>
 
@@ -194,8 +194,15 @@ export function ObservabilitySettingsPage() {
               </AlertDialogContent>
             </AlertDialog>
           </div>
-          <p className="text-muted-foreground mt-2 text-xs">{t('TRACES_CLEANUP.CONFIRM_HELPER')}</p>
         </div>
+      </RealmSettingsCard>
+
+      <RealmSettingsCard
+        id="cache"
+        title="Cache"
+        description="Monitor cache hit rate and flush namespaces."
+      >
+        <CacheManager />
       </RealmSettingsCard>
 
       <RealmSettingsCard
@@ -205,21 +212,21 @@ export function ObservabilitySettingsPage() {
         bodyClassName="space-y-4"
       >
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="border-border/40 bg-background/60 rounded-lg border px-4 py-3">
+          <div className="border-border bg-surface-elevated rounded-lg border px-4 py-3">
             <div className="text-muted-foreground text-xs">Credentials</div>
             <div className="text-xl font-semibold">{passkeyAnalytics?.credentials_total ?? 0}</div>
             <div className="text-muted-foreground text-xs">
               +{passkeyAnalytics?.credentials_created_last_7d ?? 0} new in 7d
             </div>
           </div>
-          <div className="border-border/40 bg-background/60 rounded-lg border px-4 py-3">
+          <div className="border-border bg-surface-elevated rounded-lg border px-4 py-3">
             <div className="text-muted-foreground text-xs">Assertions Succeeded</div>
             <div className="text-xl font-semibold">
               {passkeyAnalytics?.outcomes.assertion_success ?? 0}
             </div>
             <div className="text-muted-foreground text-xs">last 24h</div>
           </div>
-          <div className="border-border/40 bg-background/60 rounded-lg border px-4 py-3">
+          <div className="border-border bg-surface-elevated rounded-lg border px-4 py-3">
             <div className="text-muted-foreground text-xs">Pending Challenges</div>
             <div className="text-xl font-semibold">
               {passkeyAnalytics?.challenges.pending_total ?? 0}
@@ -230,7 +237,7 @@ export function ObservabilitySettingsPage() {
           </div>
         </div>
 
-        <div className="border-border/40 bg-background/60 rounded-lg border px-4 py-3">
+        <div className="border-border bg-surface-elevated rounded-lg border px-4 py-3">
           <div className="text-sm font-medium">Failure Signals</div>
           <p className="text-muted-foreground mt-1 text-xs">
             Invalid signatures, challenge mismatches, and counter regressions in last 24h.
@@ -255,7 +262,7 @@ export function ObservabilitySettingsPage() {
           </div>
         </div>
 
-        <div className="border-border/40 bg-background/60 rounded-lg border px-4 py-3">
+        <div className="border-border bg-surface-elevated rounded-lg border px-4 py-3">
           <div className="text-sm font-medium">Recent Passkey Failures</div>
           <div className="mt-2 space-y-2">
             {(passkeyAnalytics?.recent_failures ?? []).length === 0 ? (
