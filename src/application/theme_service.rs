@@ -493,6 +493,81 @@ impl ThemeResolverService {
         Ok(())
     }
 
+    /// Duplicates an existing theme into a brand-new (non-system) theme, copying
+    /// its tokens, layout, and nodes from the source draft. When `make_active`
+    /// is set, the clone is published and promoted to the realm's active theme.
+    pub async fn clone_theme(
+        &self,
+        realm_id: Uuid,
+        source_id: Uuid,
+        new_name: String,
+        make_active: bool,
+    ) -> Result<Theme> {
+        let source = self
+            .repo
+            .find_theme(&realm_id, &source_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+
+        // Loaded before the new theme exists so a bad source surfaces early.
+        let source_draft = self.get_draft(realm_id, source_id).await?;
+
+        let clone = self
+            .create_theme(realm_id, new_name, source.description.clone())
+            .await?;
+
+        // Overlay the source's actual design onto the freshly seeded clone.
+        self.save_draft(realm_id, clone.id, source_draft).await?;
+
+        if make_active {
+            // Publish records a version; activate promotes it to the realm slot.
+            let version = self.publish_theme(realm_id, clone.id).await?;
+            self.activate_version(realm_id, clone.id, version.id)
+                .await?;
+        }
+
+        Ok(clone)
+    }
+
+    /// Permanently deletes a theme. The system/default theme, the realm's active
+    /// theme, and any theme assigned to clients are protected.
+    pub async fn delete_theme(&self, realm_id: Uuid, theme_id: Uuid) -> Result<()> {
+        let theme = self
+            .repo
+            .find_theme(&realm_id, &theme_id)
+            .await?
+            .ok_or_else(|| Error::NotFound("Theme not found".to_string()))?;
+
+        if theme.is_system {
+            return Err(Error::Validation(
+                "The default theme cannot be deleted.".to_string(),
+            ));
+        }
+
+        if self
+            .get_active_version_id(realm_id, &theme_id)
+            .await?
+            .is_some()
+        {
+            return Err(Error::Validation(
+                "The active theme cannot be deleted. Activate a different theme first.".to_string(),
+            ));
+        }
+
+        if !self
+            .list_bindings_for_theme(realm_id, theme_id)
+            .await?
+            .is_empty()
+        {
+            return Err(Error::Validation(
+                "This theme is assigned to one or more clients. Remove those overrides first."
+                    .to_string(),
+            ));
+        }
+
+        self.repo.delete_theme(&realm_id, &theme_id, None).await
+    }
+
     pub async fn publish_theme(&self, realm_id: Uuid, theme_id: Uuid) -> Result<ThemeVersion> {
         self.publish_theme_with_tx(realm_id, theme_id, None).await
     }
@@ -1714,4 +1789,305 @@ fn build_theme_nodes(theme_id: Uuid, pages: &[ThemePageTemplate]) -> Result<Vec<
         });
     }
     Ok(nodes)
+}
+
+#[cfg(test)]
+mod delete_guard_tests {
+    use super::*;
+    use crate::domain::theme::{ThemeAsset, ThemeAssetMeta};
+    use async_trait::async_trait;
+    use std::sync::Mutex;
+
+    /// Minimal in-memory repo covering only what `delete_theme`'s guards touch:
+    /// theme lookup, the realm/default binding, client bindings, and deletion.
+    #[derive(Default)]
+    struct GuardThemeRepo {
+        theme: Option<Theme>,
+        bindings: Vec<ThemeBinding>,
+        deleted: Mutex<Vec<Uuid>>,
+    }
+
+    fn theme(realm_id: Uuid, id: Uuid, is_system: bool) -> Theme {
+        Theme {
+            id,
+            realm_id,
+            name: "Theme".to_string(),
+            description: None,
+            is_system,
+            created_at: "now".to_string(),
+            updated_at: "now".to_string(),
+        }
+    }
+
+    fn binding(realm_id: Uuid, theme_id: Uuid, client_id: Option<&str>) -> ThemeBinding {
+        ThemeBinding {
+            id: Uuid::new_v4(),
+            realm_id,
+            client_id: client_id.map(|c| c.to_string()),
+            theme_id,
+            active_version_id: Uuid::new_v4(),
+            created_at: "now".to_string(),
+            updated_at: "now".to_string(),
+        }
+    }
+
+    #[async_trait]
+    impl ThemeRepository for GuardThemeRepo {
+        async fn find_theme(&self, realm_id: &Uuid, theme_id: &Uuid) -> Result<Option<Theme>> {
+            Ok(self
+                .theme
+                .clone()
+                .filter(|t| &t.id == theme_id && &t.realm_id == realm_id))
+        }
+
+        async fn get_binding(
+            &self,
+            realm_id: &Uuid,
+            client_id: Option<&str>,
+        ) -> Result<Option<ThemeBinding>> {
+            Ok(self
+                .bindings
+                .iter()
+                .find(|b| &b.realm_id == realm_id && b.client_id.as_deref() == client_id)
+                .cloned())
+        }
+
+        async fn list_bindings(&self, realm_id: &Uuid) -> Result<Vec<ThemeBinding>> {
+            Ok(self
+                .bindings
+                .iter()
+                .filter(|b| &b.realm_id == realm_id)
+                .cloned()
+                .collect())
+        }
+
+        async fn delete_theme(
+            &self,
+            _realm_id: &Uuid,
+            theme_id: &Uuid,
+            _tx: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            self.deleted.lock().unwrap().push(*theme_id);
+            Ok(())
+        }
+
+        // --- Unused by the delete guards ---
+        async fn create_theme(&self, _: &Theme, _: Option<&mut dyn Transaction>) -> Result<()> {
+            unimplemented!()
+        }
+        async fn update_theme(&self, _: &Theme, _: Option<&mut dyn Transaction>) -> Result<()> {
+            unimplemented!()
+        }
+        async fn set_theme_system(
+            &self,
+            _: &Uuid,
+            _: bool,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn list_themes(&self, _: &Uuid) -> Result<Vec<Theme>> {
+            unimplemented!()
+        }
+        async fn upsert_tokens(
+            &self,
+            _: &ThemeTokens,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_tokens(&self, _: &Uuid) -> Result<Option<ThemeTokens>> {
+            unimplemented!()
+        }
+        async fn upsert_layout(
+            &self,
+            _: &ThemeLayout,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_layout(&self, _: &Uuid, _: &str) -> Result<Option<ThemeLayout>> {
+            unimplemented!()
+        }
+        async fn list_layouts(&self, _: &Uuid) -> Result<Vec<ThemeLayout>> {
+            unimplemented!()
+        }
+        async fn upsert_node(&self, _: &ThemeNode, _: Option<&mut dyn Transaction>) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_node(&self, _: &Uuid, _: &str) -> Result<Option<ThemeNode>> {
+            unimplemented!()
+        }
+        async fn list_nodes(&self, _: &Uuid) -> Result<Vec<ThemeNode>> {
+            unimplemented!()
+        }
+        async fn delete_node(
+            &self,
+            _: &Uuid,
+            _: &str,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn create_asset(
+            &self,
+            _: &ThemeAsset,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_asset(&self, _: &Uuid, _: &Uuid) -> Result<Option<ThemeAsset>> {
+            unimplemented!()
+        }
+        async fn list_assets(&self, _: &Uuid) -> Result<Vec<ThemeAssetMeta>> {
+            unimplemented!()
+        }
+        async fn delete_asset(
+            &self,
+            _: &Uuid,
+            _: &Uuid,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn set_draft_exists(
+            &self,
+            _: &Uuid,
+            _: bool,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_draft_exists(&self, _: &Uuid) -> Result<bool> {
+            unimplemented!()
+        }
+        async fn create_version(
+            &self,
+            _: &ThemeVersion,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn get_version(&self, _: &Uuid, _: &Uuid) -> Result<Option<ThemeVersion>> {
+            unimplemented!()
+        }
+        async fn list_versions(&self, _: &Uuid) -> Result<Vec<ThemeVersion>> {
+            unimplemented!()
+        }
+        async fn set_version_status(
+            &self,
+            _: &Uuid,
+            _: &str,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn upsert_binding(
+            &self,
+            _: &ThemeBinding,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+        async fn delete_binding(
+            &self,
+            _: &Uuid,
+            _: Option<&str>,
+            _: Option<&mut dyn Transaction>,
+        ) -> Result<()> {
+            unimplemented!()
+        }
+    }
+
+    struct NoopTx;
+    impl Transaction for NoopTx {
+        fn as_any(&mut self) -> &mut dyn std::any::Any {
+            self
+        }
+        fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
+            self
+        }
+    }
+
+    #[derive(Default)]
+    struct NoopTxManager;
+    #[async_trait]
+    impl TransactionManager for NoopTxManager {
+        async fn begin(&self) -> Result<Box<dyn Transaction>> {
+            Ok(Box::new(NoopTx))
+        }
+        async fn commit(&self, _: Box<dyn Transaction>) -> Result<()> {
+            Ok(())
+        }
+        async fn rollback(&self, _: Box<dyn Transaction>) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn service(repo: GuardThemeRepo) -> ThemeResolverService {
+        ThemeResolverService::new(Arc::new(repo), Arc::new(NoopTxManager))
+    }
+
+    #[tokio::test]
+    async fn delete_theme_removes_plain_theme() {
+        let realm = Uuid::new_v4();
+        let id = Uuid::new_v4();
+        let repo = GuardThemeRepo {
+            theme: Some(theme(realm, id, false)),
+            // realm default points at a different theme; none belong to `id`.
+            bindings: vec![binding(realm, Uuid::new_v4(), None)],
+            deleted: Mutex::new(Vec::new()),
+        };
+        let svc = service(repo);
+        svc.delete_theme(realm, id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn delete_theme_rejects_system() {
+        let realm = Uuid::new_v4();
+        let id = Uuid::new_v4();
+        let svc = service(GuardThemeRepo {
+            theme: Some(theme(realm, id, true)),
+            ..Default::default()
+        });
+        let err = svc.delete_theme(realm, id).await.unwrap_err();
+        assert!(matches!(err, Error::Validation(_)));
+    }
+
+    #[tokio::test]
+    async fn delete_theme_rejects_active() {
+        let realm = Uuid::new_v4();
+        let id = Uuid::new_v4();
+        let svc = service(GuardThemeRepo {
+            theme: Some(theme(realm, id, false)),
+            bindings: vec![binding(realm, id, None)], // realm default == this theme
+            ..Default::default()
+        });
+        let err = svc.delete_theme(realm, id).await.unwrap_err();
+        assert!(matches!(err, Error::Validation(_)));
+    }
+
+    #[tokio::test]
+    async fn delete_theme_rejects_client_bound() {
+        let realm = Uuid::new_v4();
+        let id = Uuid::new_v4();
+        let svc = service(GuardThemeRepo {
+            theme: Some(theme(realm, id, false)),
+            bindings: vec![
+                binding(realm, Uuid::new_v4(), None),   // default elsewhere
+                binding(realm, id, Some("client-app")), // a client uses this theme
+            ],
+            ..Default::default()
+        });
+        let err = svc.delete_theme(realm, id).await.unwrap_err();
+        assert!(matches!(err, Error::Validation(_)));
+    }
+
+    #[tokio::test]
+    async fn delete_theme_missing_returns_not_found() {
+        let realm = Uuid::new_v4();
+        let svc = service(GuardThemeRepo::default());
+        let err = svc.delete_theme(realm, Uuid::new_v4()).await.unwrap_err();
+        assert!(matches!(err, Error::NotFound(_)));
+    }
 }

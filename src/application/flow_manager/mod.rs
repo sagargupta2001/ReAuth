@@ -91,6 +91,86 @@ impl FlowManager {
         Ok(draft)
     }
 
+    /// Duplicates an existing flow into a brand-new draft. The source graph is
+    /// loaded via [`Self::get_draft`], so it works whether the source is an
+    /// unpublished draft or a published runtime flow. When `make_active` is set
+    /// the clone is published immediately, which binds it to its realm slot.
+    pub async fn clone_flow(
+        &self,
+        realm_id: Uuid,
+        source_id: Uuid,
+        new_name: String,
+        make_active: bool,
+    ) -> Result<FlowDraft> {
+        let name = new_name.trim().to_string();
+        if name.is_empty() {
+            return Err(Error::Validation("Flow name is required.".to_string()));
+        }
+
+        let source = self.get_draft(source_id).await?;
+
+        let now = Utc::now();
+        let clone = FlowDraft {
+            id: Uuid::new_v4(),
+            realm_id,
+            name,
+            description: source.description.clone(),
+            graph_json: source.graph_json.clone(),
+            flow_type: source.flow_type.clone(),
+            created_at: now,
+            updated_at: now,
+        };
+
+        self.flow_store.create_draft(&clone).await?;
+
+        if make_active {
+            // Promotes the draft to a runtime flow, records a version, and binds
+            // the realm slot for this flow type to the new flow.
+            self.publish_flow(realm_id, clone.id).await?;
+        }
+
+        Ok(clone)
+    }
+
+    /// Permanently deletes a flow (its draft and, if published, its runtime
+    /// record/versions/deployments). Built-in and currently-active flows are
+    /// protected and cannot be deleted.
+    pub async fn delete_flow(&self, _realm_id: Uuid, flow_id: Uuid) -> Result<()> {
+        let draft = self.flow_store.get_draft_by_id(&flow_id).await?;
+        let runtime = self.flow_repo.find_flow_by_id(&flow_id).await?;
+
+        if draft.is_none() && runtime.is_none() {
+            return Err(Error::FlowNotFound(flow_id.to_string()));
+        }
+
+        if runtime.as_ref().map(|f| f.built_in).unwrap_or(false) {
+            return Err(Error::Validation(
+                "Built-in flows cannot be deleted.".to_string(),
+            ));
+        }
+
+        if self
+            .flow_store
+            .get_active_version(&flow_id)
+            .await?
+            .is_some()
+        {
+            return Err(Error::Validation(
+                "Active flows cannot be deleted. Bind a different flow to this slot first."
+                    .to_string(),
+            ));
+        }
+
+        if draft.is_some() {
+            self.flow_store.delete_draft(&flow_id).await?;
+        }
+        if runtime.is_some() {
+            self.flow_repo.delete_flow(&flow_id).await?;
+        }
+
+        Ok(())
+    }
+
     pub async fn get_draft(&self, id: Uuid) -> Result<FlowDraft> {
         // 1. Try to find an existing active draft
         if let Some(draft) = self.flow_store.get_draft_by_id(&id).await? {

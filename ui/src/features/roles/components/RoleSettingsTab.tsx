@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 
-import { Trash2 } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertTriangle, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 import {
   Dialog,
   DialogContent,
@@ -82,7 +82,7 @@ export function RoleSettingsTab({ role, clientId }: RoleSettingsTabProps) {
               <CardTitle>Basic Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="bg-primary-foreground p-4 rounded-2xl space-y-4">
+              <div className="bg-primary-foreground space-y-4 rounded-2xl p-4">
                 <FormInput
                   control={form.control}
                   name="name"
@@ -104,28 +104,31 @@ export function RoleSettingsTab({ role, clientId }: RoleSettingsTabProps) {
         </form>
       </Form>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Danger Zone</CardTitle>
-          <CardDescription>
-            Delete this role and remove its assignments, composites, and permissions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border-destructive/30 bg-destructive/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4">
+      <div className="border-destructive/50 bg-destructive/10 rounded-xl border p-4">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="bg-destructive/20 text-destructive rounded-full p-2">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
             <div>
-              <p className="text-sm font-medium">Delete role</p>
-              <p className="text-muted-foreground text-sm">
-                Permanently removes the role and clears all user assignments and permissions linked to it.
+              <div className="text-destructive text-sm font-semibold">Danger Zone</div>
+              <p className="text-muted-foreground text-xs">
+                Permanently removes the role and clears all user assignments and permissions linked
+                to it.
               </p>
             </div>
-            <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash2 className="h-4 w-4" />
-              Delete Role
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+          <Button
+            type="button"
+            variant="destructive"
+            className="gap-2"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete Role
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent className="sm:max-w-[520px]">

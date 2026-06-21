@@ -1,17 +1,12 @@
 import type { ReactNode } from 'react'
 
-import { MoreVertical, Palette, Sparkles } from 'lucide-react'
+import { Copy, Palette, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/dropdown-menu'
-import type { Theme } from '@/entities/theme/model/types'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import type { Theme } from '@/entities/theme/model/types'
 
 interface ThemeHeaderProps {
   theme: Theme
@@ -23,8 +18,15 @@ export function ThemeHeader({ theme, activeVersionNumber, actions }: ThemeHeader
   const navigate = useRealmNavigate()
   const hasActiveVersion = typeof activeVersionNumber === 'number'
 
+  const copyId = () => {
+    void navigator.clipboard
+      .writeText(theme.id)
+      .then(() => toast.success('Theme ID copied.'))
+      .catch(() => toast.error('Failed to copy theme ID.'))
+  }
+
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between px-6">
       <div className="flex items-center gap-4">
         <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
           <Palette className="text-primary h-5 w-5" />
@@ -33,18 +35,25 @@ export function ThemeHeader({ theme, activeVersionNumber, actions }: ThemeHeader
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <h1 className="text-foreground text-lg font-bold tracking-tight">{theme.name}</h1>
-            <Badge variant="outline" className="h-5 text-[10px]">
-              Theme
-            </Badge>
             {theme.is_system && (
               <Badge variant="secondary" className="h-5 text-[10px]">
                 Default
               </Badge>
             )}
           </div>
-          <span className="text-muted-foreground text-xs">
+          <div className="text-muted-foreground flex items-center gap-1 text-xs">
             ID: <span className="font-mono opacity-70">{theme.id.slice(0, 8)}...</span>
-          </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0"
+              onClick={copyId}
+              aria-label="Copy theme ID"
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -57,9 +66,7 @@ export function ThemeHeader({ theme, activeVersionNumber, actions }: ThemeHeader
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500"></span>
               </span>
               Active Version:{' '}
-              <span className="text-foreground font-semibold">
-                v{activeVersionNumber}
-              </span>
+              <span className="text-foreground font-semibold">v{activeVersionNumber}</span>
             </>
           ) : (
             <>
@@ -74,6 +81,7 @@ export function ThemeHeader({ theme, activeVersionNumber, actions }: ThemeHeader
         {actions}
 
         <Button
+          size="sm"
           onClick={() => navigate(`/themes/${theme.id}/fluid`)}
           className="gap-2"
           variant="secondary"
@@ -81,23 +89,6 @@ export function ThemeHeader({ theme, activeVersionNumber, actions }: ThemeHeader
           <Sparkles className="h-3.5 w-3.5" />
           Open in Fluid
         </Button>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>Duplicate</DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-destructive"
-              disabled={theme.is_system}
-            >
-              Archive
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </header>
   )

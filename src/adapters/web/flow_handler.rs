@@ -197,6 +197,51 @@ pub async fn update_draft_handler(
 }
 
 #[derive(serde::Deserialize)]
+pub struct CloneFlowRequest {
+    pub name: String,
+    #[serde(default)]
+    pub make_active: bool,
+}
+
+/// POST /api/realms/{realm}/flows/{id}/clone
+/// Duplicates a flow into a new draft, optionally publishing it (make active).
+pub async fn clone_flow_handler(
+    State(state): State<AppState>,
+    Path((realm_name, flow_id)): Path<(String, Uuid)>,
+    Json(payload): Json<CloneFlowRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let draft = state
+        .flow_manager
+        .clone_flow(realm.id, flow_id, payload.name, payload.make_active)
+        .await?;
+
+    Ok((StatusCode::CREATED, Json(draft)))
+}
+
+/// DELETE /api/realms/{realm}/flows/{id}
+/// Permanently deletes a flow. Built-in and active flows are rejected.
+pub async fn delete_flow_handler(
+    State(state): State<AppState>,
+    Path((realm_name, flow_id)): Path<(String, Uuid)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    state.flow_manager.delete_flow(realm.id, flow_id).await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(serde::Deserialize)]
 pub struct PublishFlowRequest {
     // Empty for now, ID is in path
 }

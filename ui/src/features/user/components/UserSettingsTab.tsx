@@ -9,8 +9,8 @@ import { useSessionStore } from '@/entities/session/model/sessionStore'
 import type { User } from '@/entities/user/model/types'
 import { useBanUser, useDeleteUser, useLockUser } from '@/features/user/api/useUserActions'
 import { useUserCredentials } from '@/features/user/api/useUserCredentials'
-import { PasswordPolicySection } from '@/features/user/components/settings/PasswordPolicySection'
 import { UserJsonDialog } from '@/features/user/components/UserJsonDialog'
+import { PasswordPolicySection } from '@/features/user/components/settings/PasswordPolicySection'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { Skeleton } from '@/shared/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip'
@@ -43,9 +43,9 @@ const dialogCopy: Record<
   },
 }
 
-interface DangerRowProps {
+interface DangerSectionProps {
   icon: LucideIcon
-  label: string
+  title: string
   description: string
   buttonLabel: string
   buttonVariant?: 'destructive' | 'outline'
@@ -54,43 +54,56 @@ interface DangerRowProps {
   onClick: () => void
 }
 
-function DangerRow({
+function DangerSection({
   icon: Icon,
-  label,
+  title,
   description,
   buttonLabel,
   buttonVariant = 'destructive',
   disabled,
   disabledTooltip,
   onClick,
-}: DangerRowProps) {
+}: DangerSectionProps) {
   const btn = (
-    <Button type="button" variant={buttonVariant} disabled={disabled} onClick={onClick}>
+    <Button
+      type="button"
+      variant={buttonVariant}
+      className="gap-2"
+      disabled={disabled}
+      onClick={onClick}
+    >
       <Icon className="h-4 w-4" />
       {buttonLabel}
     </Button>
   )
 
   return (
-    <div className="border-destructive/30 bg-destructive/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4">
-      <div>
-        <p className="text-sm font-medium">{label}</p>
-        <p className="text-muted-foreground text-sm">{description}</p>
+    <div className="border-destructive/50 bg-destructive/10 rounded-xl border p-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="bg-destructive/20 text-destructive rounded-full p-2">
+            <Icon className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="text-destructive text-sm font-semibold">{title}</div>
+            <p className="text-muted-foreground text-xs">{description}</p>
+          </div>
+        </div>
+        {disabled && disabledTooltip ? (
+          <TooltipProvider delayDuration={150}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>{btn}</div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="bg-popover text-popover-foreground border">
+                {disabledTooltip}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          btn
+        )}
       </div>
-      {disabled && disabledTooltip ? (
-        <TooltipProvider delayDuration={150}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div>{btn}</div>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="bg-popover text-popover-foreground border">
-              {disabledTooltip}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      ) : (
-        btn
-      )}
     </div>
   )
 }
@@ -143,7 +156,7 @@ export function UserSettingsTab({ userId, user, onDeleted }: UserSettingsTabProp
   }
 
   return (
-    <div className="max-w-4xl flex flex-col gap-6">
+    <div className="flex max-w-4xl flex-col gap-6">
       <PasswordPolicySection userId={userId} password={data?.password} />
 
       <Card>
@@ -167,44 +180,36 @@ export function UserSettingsTab({ userId, user, onDeleted }: UserSettingsTabProp
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Danger Zone</CardTitle>
-          <CardDescription>Irreversible or high-impact actions for this user account.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <DangerRow
-              icon={LockKeyhole}
-              label="Lock User"
-              description="Temporarily prevents sign-in. Lockout duration is set in realm settings. This action can be undone."
-              buttonLabel="Lock User"
-              buttonVariant="outline"
-              disabled={isSelf || isActionPending}
-              disabledTooltip={isSelf ? selfTooltip : undefined}
-              onClick={() => setAction('lock')}
-            />
-            <DangerRow
-              icon={Ban}
-              label="Ban User"
-              description="Prevents sign-in indefinitely. This action can be undone."
-              buttonLabel="Ban User"
-              disabled={isSelf || isActionPending}
-              disabledTooltip={isSelf ? selfTooltip : undefined}
-              onClick={() => setAction('ban')}
-            />
-            <DangerRow
-              icon={Trash2}
-              label="Delete User"
-              description="Permanently removes this user and all associated data. This cannot be undone."
-              buttonLabel="Delete User"
-              disabled={isSelf || isActionPending}
-              disabledTooltip={isSelf ? selfTooltip : undefined}
-              onClick={() => setAction('delete')}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <DangerSection
+        icon={LockKeyhole}
+        title="Lock User"
+        description="Temporarily prevents sign-in. Lockout duration is set in realm settings. This action can be undone."
+        buttonLabel="Lock User"
+        buttonVariant="outline"
+        disabled={isSelf || isActionPending}
+        disabledTooltip={isSelf ? selfTooltip : undefined}
+        onClick={() => setAction('lock')}
+      />
+
+      <DangerSection
+        icon={Ban}
+        title="Ban User"
+        description="Prevents sign-in indefinitely. This action can be undone."
+        buttonLabel="Ban User"
+        disabled={isSelf || isActionPending}
+        disabledTooltip={isSelf ? selfTooltip : undefined}
+        onClick={() => setAction('ban')}
+      />
+
+      <DangerSection
+        icon={Trash2}
+        title="Delete User"
+        description="Permanently removes this user and all associated data. This cannot be undone."
+        buttonLabel="Delete User"
+        disabled={isSelf || isActionPending}
+        disabledTooltip={isSelf ? selfTooltip : undefined}
+        onClick={() => setAction('delete')}
+      />
 
       <UserJsonDialog user={user} open={jsonOpen} onOpenChange={setJsonOpen} />
 

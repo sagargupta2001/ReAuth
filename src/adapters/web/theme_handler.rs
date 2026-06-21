@@ -136,6 +136,13 @@ pub struct UpdateThemeRequest {
     pub description: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct CloneThemeRequest {
+    pub name: String,
+    #[serde(default)]
+    pub make_active: bool,
+}
+
 pub async fn resolve_theme_handler(
     State(state): State<AppState>,
     Path(realm_name): Path<String>,
@@ -247,6 +254,73 @@ pub async fn update_theme_handler(
     };
 
     Ok((StatusCode::OK, Json(response)))
+}
+
+pub async fn clone_theme_handler(
+    State(state): State<AppState>,
+    Path((realm_name, theme_id)): Path<(String, String)>,
+    Json(payload): Json<CloneThemeRequest>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let theme_uuid = Uuid::parse_str(&theme_id)
+        .map_err(|_| Error::Validation("Invalid theme id".to_string()))?;
+
+    let theme = state
+        .theme_service
+        .clone_theme(realm.id, theme_uuid, payload.name, payload.make_active)
+        .await?;
+
+    let active_version_id = state
+        .theme_service
+        .get_active_version_id(realm.id, &theme.id)
+        .await?
+        .map(|id| id.to_string());
+    let active_version_number = state
+        .theme_service
+        .get_active_version_number(realm.id, &theme.id)
+        .await?;
+
+    let response = ThemeDetailsResponse {
+        theme: ThemeSummary {
+            id: theme.id.to_string(),
+            realm_id: theme.realm_id.to_string(),
+            name: theme.name,
+            description: theme.description,
+            is_system: theme.is_system,
+            created_at: theme.created_at,
+            updated_at: theme.updated_at,
+        },
+        active_version_id,
+        active_version_number,
+    };
+
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+pub async fn delete_theme_handler(
+    State(state): State<AppState>,
+    Path((realm_name, theme_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let theme_uuid = Uuid::parse_str(&theme_id)
+        .map_err(|_| Error::Validation("Invalid theme id".to_string()))?;
+
+    state
+        .theme_service
+        .delete_theme(realm.id, theme_uuid)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn list_themes_handler(

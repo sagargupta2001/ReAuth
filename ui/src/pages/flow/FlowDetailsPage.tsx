@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 
 import { History, Layout, Loader2, Settings } from 'lucide-react'
 import { useParams } from 'react-router-dom'
@@ -6,25 +6,31 @@ import { useParams } from 'react-router-dom'
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useFlowDraft } from '@/features/flow-builder/api/useFlowDraft'
-import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { FlowDetailsOverviewTab } from '@/features/flow/components/FlowDetailsOverviewTab.tsx'
 // Helper component for Overview to keep it clean (you can put this in a separate file too)
 import { FlowDetailsSettingsTab } from '@/features/flow/components/FlowDetailsSettingsTab.tsx'
 import { FlowHeader } from '@/features/flow/components/FlowHeader.tsx'
 import { FlowHistoryTab } from '@/features/flow/components/FlowHistoryTab.tsx'
+import { FlowTabLayout } from '@/features/flow/components/FlowTabLayout.tsx'
 
 export function FlowDetailsPage() {
-  const { flowId } = useParams()
-  const realm = useActiveRealm()
+  const { flowId, tab } = useParams<{ flowId: string; tab?: string }>()
   const navigate = useRealmNavigate()
-  const [activeTab, setActiveTab] = useState('overview')
 
   const { data: draft, isLoading, isError } = useFlowDraft(flowId!)
 
   useSetBreadcrumb({ [flowId ?? '']: draft?.name ?? '' })
+
+  const validTabs = ['overview', 'history', 'settings']
+  const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'overview'
+
+  const handleTabChange = (newTab: string) => flowId && navigate(`/flows/${flowId}/${newTab}`)
+
+  useEffect(() => {
+    if (!tab && flowId) navigate(`/flows/${flowId}/overview`, { replace: true })
+  }, [tab, flowId, navigate])
 
   if (isLoading) {
     return (
@@ -48,39 +54,22 @@ export function FlowDetailsPage() {
 
   return (
     <div className="bg-background flex h-full w-full flex-col">
-      <FlowHeader
-        draft={draft}
-        actions={
-          flowId && realm ? (
-            <HarborResourceActions
-              scope="flow"
-              id={flowId}
-              resourceLabel={draft.name}
-              invalidateKeys={[
-                ['flows', realm],
-                ['flow-draft', realm, flowId],
-                ['flow-drafts', realm],
-                ['flow-versions', flowId],
-              ]}
-            />
-          ) : null
-        }
-      />
+      <FlowHeader draft={draft} />
 
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 border-b px-6 pt-2">
-          <TabsList className="gap-6 bg-transparent p-0">
-            <TabsTrigger value="overview" className="tab-trigger-styles">
+          <TabsList variant="line" className="gap-6 bg-transparent p-0">
+            <TabsTrigger variant="line" value="overview" className="tab-trigger-styles">
               <Layout className="mr-2 h-4 w-4" /> Overview
             </TabsTrigger>
-            <TabsTrigger value="history" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="history" className="tab-trigger-styles">
               <History className="mr-2 h-4 w-4" /> Version History
             </TabsTrigger>
-            <TabsTrigger value="settings" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
               <Settings className="mr-2 h-4 w-4" /> Settings
             </TabsTrigger>
           </TabsList>
@@ -94,8 +83,13 @@ export function FlowDetailsPage() {
           <FlowHistoryTab flowId={draft.id} activeVersion={draft.active_version} />
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-0 flex-1">
-          <FlowDetailsSettingsTab draft={draft} />
+        <TabsContent
+          value="settings"
+          className="bg-muted/5 mt-0 min-h-0 w-full flex-1 overflow-y-auto p-6"
+        >
+          <FlowTabLayout draft={draft}>
+            <FlowDetailsSettingsTab draft={draft} />
+          </FlowTabLayout>
         </TabsContent>
       </Tabs>
     </div>

@@ -1,22 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '@/components/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/dialog'
-import { Input } from '@/components/input'
-import { Label } from '@/components/label'
-import { Textarea } from '@/components/textarea'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useCreateTheme } from '@/features/theme/api/useCreateTheme'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/shared/ui/form'
+import { FormInput } from '@/shared/ui/form-input'
+import { Separator } from '@/shared/ui/separator'
+import { Textarea } from '@/shared/ui/textarea'
 
 interface Props {
   open: boolean
@@ -34,12 +27,7 @@ export function CreateThemeDialog({ open, onOpenChange }: Props) {
   const navigate = useRealmNavigate()
   const { mutateAsync: createTheme, isPending } = useCreateTheme()
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<FormData>({
+  const form = useForm<FormData>({
     resolver: zodResolver(createThemeSchema),
     defaultValues: {
       name: '',
@@ -47,11 +35,15 @@ export function CreateThemeDialog({ open, onOpenChange }: Props) {
     },
   })
 
+  const handleOpenChange = (newOpen: boolean) => {
+    onOpenChange(newOpen)
+    if (!newOpen) form.reset()
+  }
+
   const onSubmit = async (data: FormData) => {
     try {
       const created = await createTheme(data)
-      onOpenChange(false)
-      reset()
+      handleOpenChange(false)
       navigate(`/themes/${created.theme.id}`)
     } catch (error) {
       console.error('Failed to create theme', error)
@@ -59,41 +51,51 @@ export function CreateThemeDialog({ open, onOpenChange }: Props) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Create New Theme</DialogTitle>
-          <DialogDescription>
-            Start a new visual experience for your authentication flows.
-          </DialogDescription>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader className="pt-6 pl-6">
+          <DialogTitle>Create new theme</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Theme Name</Label>
-            <Input id="name" placeholder="e.g., Brand Refresh" {...register('name')} />
-            {errors.name && <p className="text-destructive text-xs">{errors.name.message}</p>}
-          </div>
+        <Separator className="my-1" />
 
-          <div className="space-y-2">
-            <Label htmlFor="description">Description (Optional)</Label>
-            <Textarea
-              id="description"
-              placeholder="Describe the purpose of this theme..."
-              {...register('description')}
+        <Form {...form}>
+          <div className="grid gap-4 px-6 pb-6">
+            <FormInput
+              control={form.control}
+              name="name"
+              label="Theme Name"
+              placeholder="e.g., Brand Refresh"
+            />
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Describe the purpose of this theme..."
+                      className="resize-none"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          <DialogFooter className="gap-1 py-3 pr-3">
+            <Button variant="outline" type="button" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Theme
+            <Button size="sm" onClick={form.handleSubmit(onSubmit)} disabled={isPending}>
+              {isPending ? 'Creating...' : 'Create Theme'}
             </Button>
           </DialogFooter>
-        </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )

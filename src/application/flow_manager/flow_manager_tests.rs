@@ -26,6 +26,7 @@ struct TestFlowStore {
     latest_version: Mutex<Option<FlowVersion>>,
     versions_by_number: Mutex<HashMap<(Uuid, i32), FlowVersion>>,
     deployed_versions: Mutex<HashMap<(Uuid, String, Uuid), i32>>,
+    active_version: Mutex<Option<FlowVersion>>,
 }
 
 impl Default for TestFlowStore {
@@ -44,6 +45,7 @@ impl Default for TestFlowStore {
             latest_version: Mutex::new(None),
             versions_by_number: Mutex::new(HashMap::new()),
             deployed_versions: Mutex::new(HashMap::new()),
+            active_version: Mutex::new(None),
         }
     }
 }
@@ -87,6 +89,10 @@ impl TestFlowStore {
             .lock()
             .unwrap()
             .insert((realm_id, flow_type.to_string(), flow_id), version_number);
+    }
+
+    fn set_active_version(&self, value: Option<FlowVersion>) {
+        *self.active_version.lock().unwrap() = value;
     }
 }
 
@@ -211,7 +217,7 @@ impl FlowStore for TestFlowStore {
     }
 
     async fn get_active_version(&self, _flow_id: &Uuid) -> Result<Option<FlowVersion>> {
-        Ok(None)
+        Ok(self.active_version.lock().unwrap().clone())
     }
 
     async fn create_version_with_tx(
@@ -253,6 +259,7 @@ impl FlowStore for TestFlowStore {
 struct TestFlowRepo {
     flows: Mutex<HashMap<Uuid, AuthFlow>>,
     create_calls: Mutex<Vec<AuthFlow>>,
+    delete_calls: Mutex<Vec<Uuid>>,
 }
 
 impl TestFlowRepo {
@@ -262,6 +269,10 @@ impl TestFlowRepo {
 
     fn create_calls(&self) -> Vec<AuthFlow> {
         self.create_calls.lock().unwrap().clone()
+    }
+
+    fn delete_calls(&self) -> Vec<Uuid> {
+        self.delete_calls.lock().unwrap().clone()
     }
 }
 
@@ -300,6 +311,12 @@ impl FlowRepository for TestFlowRepo {
             .filter(|flow| flow.realm_id == *realm_id)
             .cloned()
             .collect())
+    }
+
+    async fn delete_flow(&self, flow_id: &Uuid) -> Result<()> {
+        self.flows.lock().unwrap().remove(flow_id);
+        self.delete_calls.lock().unwrap().push(*flow_id);
+        Ok(())
     }
 }
 
@@ -894,4 +911,178 @@ async fn restore_draft_from_version_errors_when_missing() {
         .await
         .unwrap_err();
     assert!(matches!(err, Error::Unexpected(_)));
+}
+
+#[tokio::test]
+async fn clone_flow_duplicates_draft_into_new_id() {
+    let flow_store = Arc::new(TestFlowStore::default());
+    let realm_id = Uuid::new_v4();
+    let source_id = Uuid::new_v4();
+    let source = build_draft(realm_id, source_id, "browser", sample_graph_json());
+    flow_store.insert_draft(source.clone());
+
+    let realm_repo = Arc::new(TestRealmRepo::default());
+    let manager = build_manager(
+        flow_store.clone(),
+        Arc::new(TestFlowRepo::default()),
+        realm_repo.clone(),
+        registry_for_publish(),
+    );
+
+    let clone = manager
+        .clone_flow(realm_id, source_id, "Copy of Draft".to_string(), false)
+        .await
+        .unwrap();
+
+    assert_ne!(clone.id, source_id);
+    assert_eq!(clone.name, "Copy of Draft");
+    assert_eq!(clone.graph_json, source.graph_json);
+    assert_eq!(clone.flow_type, source.flow_type);
+    // Not published, so no deployment/binding occurred.
+    assert!(flow_store.set_deployment_calls.lock().unwrap().is_empty());
+    assert!(realm_repo.update_calls().is_empty());
+}
+
+#[tokio::test]
+async fn clone_flow_make_active_publishes_clone() {
+    let flow_store = Arc::new(TestFlowStore::default());
+    let realm_id = Uuid::new_v4();
+    let source_id = Uuid::new_v4();
+    flow_store.insert_draft(build_draft(
+        realm_id,
+        source_id,
+        "browser",
+        sample_graph_json(),
+    ));
+
+    let realm_repo = Arc::new(TestRealmRepo::default());
+    let manager = build_manager(
+        flow_store.clone(),
+        Arc::new(TestFlowRepo::default()),
+        realm_repo.clone(),
+        registry_for_publish(),
+    );
+
+    let clone = manager
+        .clone_flow(realm_id, source_id, "Active Copy".to_string(), true)
+        .await
+        .unwrap();
+
+    // Publishing the clone records a deployment and binds the browser slot to it.
+    assert_eq!(flow_store.set_deployment_calls.lock().unwrap().len(), 1);
+    let bindings = realm_repo.update_calls();
+    assert_eq!(bindings.len(), 1);
+    assert_eq!(bindings[0].1, "browser_flow_id");
+    assert_eq!(bindings[0].2, clone.id);
+}
+
+#[tokio::test]
+async fn clone_flow_rejects_blank_name() {
+    let manager = build_manager(
+        Arc::new(TestFlowStore::default()),
+        Arc::new(TestFlowRepo::default()),
+        Arc::new(TestRealmRepo::default()),
+        RuntimeRegistry::new(),
+    );
+
+    let err = manager
+        .clone_flow(Uuid::new_v4(), Uuid::new_v4(), "   ".to_string(), false)
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::Validation(_)));
+}
+
+#[tokio::test]
+async fn delete_flow_removes_draft_and_runtime() {
+    let flow_store = Arc::new(TestFlowStore::default());
+    let flow_repo = Arc::new(TestFlowRepo::default());
+    let realm_id = Uuid::new_v4();
+    let flow_id = Uuid::new_v4();
+    flow_store.insert_draft(build_draft(
+        realm_id,
+        flow_id,
+        "browser",
+        sample_graph_json(),
+    ));
+    flow_repo.insert_flow(build_flow_meta(realm_id, flow_id, "browser", false));
+
+    let manager = build_manager(
+        flow_store.clone(),
+        flow_repo.clone(),
+        Arc::new(TestRealmRepo::default()),
+        RuntimeRegistry::new(),
+    );
+
+    manager.delete_flow(realm_id, flow_id).await.unwrap();
+
+    assert_eq!(
+        flow_store.delete_draft_calls.lock().unwrap().as_slice(),
+        [flow_id]
+    );
+    assert_eq!(flow_repo.delete_calls().as_slice(), [flow_id]);
+}
+
+#[tokio::test]
+async fn delete_flow_rejects_built_in() {
+    let flow_store = Arc::new(TestFlowStore::default());
+    let flow_repo = Arc::new(TestFlowRepo::default());
+    let realm_id = Uuid::new_v4();
+    let flow_id = Uuid::new_v4();
+    flow_repo.insert_flow(build_flow_meta(realm_id, flow_id, "browser", true));
+
+    let manager = build_manager(
+        flow_store.clone(),
+        flow_repo.clone(),
+        Arc::new(TestRealmRepo::default()),
+        RuntimeRegistry::new(),
+    );
+
+    let err = manager.delete_flow(realm_id, flow_id).await.unwrap_err();
+    assert!(matches!(err, Error::Validation(_)));
+    assert!(flow_store.delete_draft_calls.lock().unwrap().is_empty());
+    assert!(flow_repo.delete_calls().is_empty());
+}
+
+#[tokio::test]
+async fn delete_flow_rejects_active() {
+    let flow_store = Arc::new(TestFlowStore::default());
+    let flow_repo = Arc::new(TestFlowRepo::default());
+    let realm_id = Uuid::new_v4();
+    let flow_id = Uuid::new_v4();
+    flow_store.insert_draft(build_draft(
+        realm_id,
+        flow_id,
+        "browser",
+        sample_graph_json(),
+    ));
+    flow_repo.insert_flow(build_flow_meta(realm_id, flow_id, "browser", false));
+    flow_store.set_active_version(Some(build_version(flow_id, 1, sample_graph_json())));
+
+    let manager = build_manager(
+        flow_store.clone(),
+        flow_repo.clone(),
+        Arc::new(TestRealmRepo::default()),
+        RuntimeRegistry::new(),
+    );
+
+    let err = manager.delete_flow(realm_id, flow_id).await.unwrap_err();
+    assert!(matches!(err, Error::Validation(_)));
+    assert!(flow_store.delete_draft_calls.lock().unwrap().is_empty());
+    assert!(flow_repo.delete_calls().is_empty());
+}
+
+#[tokio::test]
+async fn delete_flow_missing_returns_not_found() {
+    let manager = build_manager(
+        Arc::new(TestFlowStore::default()),
+        Arc::new(TestFlowRepo::default()),
+        Arc::new(TestRealmRepo::default()),
+        RuntimeRegistry::new(),
+    );
+
+    let err = manager
+        .delete_flow(Uuid::new_v4(), Uuid::new_v4())
+        .await
+        .unwrap_err();
+    assert!(matches!(err, Error::FlowNotFound(_)));
 }

@@ -6,7 +6,6 @@ import { NavLink } from 'react-router-dom'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
-import { Separator } from '@/components/separator'
 import type { Theme } from '@/entities/theme/model/types'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useThemes } from '@/features/theme/api/useThemes'
@@ -35,7 +34,7 @@ export function ThemesSidebar() {
   if (isLoading || !realm) return null
 
   return (
-    <div className="bg-muted/10 flex h-full w-[var(--sidebar-width-secondary)] flex-col border-r">
+    <div className="bg-muted/10 flex h-full w-(--sidebar-width-secondary) flex-col border-r">
       <div className="bg-background flex h-14 shrink-0 items-center justify-between border-b px-4">
         <h2 className="text-sm font-semibold tracking-tight">Themes</h2>
         <Badge variant="secondary" className="text-muted-foreground h-5 px-1.5 text-[10px]">
@@ -47,15 +46,13 @@ export function ThemesSidebar() {
         <div className="relative">
           <Search className="text-muted-foreground/50 absolute top-2.5 left-2.5 h-4 w-4" />
           <Input
-            placeholder="Find a theme..."
+            placeholder="Search..."
             className="bg-background h-9 pl-9 text-sm transition-shadow focus-visible:ring-1"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
       </div>
-
-      <Separator />
 
       <div className="flex-1 overflow-y-auto p-2">
         {filteredThemes.length > 0 ? (
@@ -76,13 +73,12 @@ export function ThemesSidebar() {
 
       <div className="bg-background mt-auto border-t p-3">
         <Button
-          className="w-full justify-start gap-2"
-          size="sm"
+          className="w-full gap-2" size="sm"
           variant="default"
           onClick={() => setIsCreateOpen(true)}
         >
           <Plus className="h-4 w-4" />
-          Create New Theme
+          Create Theme
         </Button>
       </div>
 

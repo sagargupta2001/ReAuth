@@ -753,7 +753,13 @@ fn theme_admin_routes(state: AppState) -> Router<AppState> {
         .route("/pages", get(theme_handler::list_theme_pages_handler))
         .route(
             "/{theme_id}",
-            get(theme_handler::get_theme_handler).put(theme_handler::update_theme_handler),
+            get(theme_handler::get_theme_handler)
+                .put(theme_handler::update_theme_handler)
+                .delete(theme_handler::delete_theme_handler),
+        )
+        .route(
+            "/{theme_id}/clone",
+            post(theme_handler::clone_theme_handler),
         )
         .route(
             "/{theme_id}/preview",
@@ -939,6 +945,8 @@ fn flow_routes(state: AppState) -> Router<AppState> {
         .route("/drafts", post(flow_handler::create_draft_handler))
         .route("/drafts/{id}", get(flow_handler::get_draft_handler))
         .route("/drafts/{id}", put(flow_handler::update_draft_handler))
+        .route("/{id}", delete(flow_handler::delete_flow_handler))
+        .route("/{id}/clone", post(flow_handler::clone_flow_handler))
         .route("/{id}/publish", post(flow_handler::publish_flow_handler))
         .route("/{id}/versions", get(flow_handler::list_versions_handler))
         .route("/{id}/rollback", post(flow_handler::rollback_flow_handler))
