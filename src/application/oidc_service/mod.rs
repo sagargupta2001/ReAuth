@@ -6,9 +6,7 @@ use crate::{
     domain::{
         auth_session::{AuthenticationSession, SessionStatus},
         execution::ExecutionPlan,
-        oidc::{
-            AuthCode, ClientDeleteSummary, ClientStats, OidcClient, OidcContext, OidcRequest,
-        },
+        oidc::{AuthCode, ClientDeleteSummary, ClientStats, OidcClient, OidcContext, OidcRequest},
         session::RefreshToken,
     },
     error::{Error, Result},
