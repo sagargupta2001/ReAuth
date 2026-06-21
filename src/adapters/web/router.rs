@@ -881,7 +881,12 @@ fn observability_routes(state: AppState) -> Router<AppState> {
 fn client_routes(state: AppState) -> Router<AppState> {
     let read_routes = Router::new()
         .route("/", get(oidc_handler::list_clients_handler))
+        .route("/stats", get(oidc_handler::get_client_stats_handler))
         .route("/{id}", get(oidc_handler::get_client_handler))
+        .route(
+            "/{id}/delete-summary",
+            get(oidc_handler::get_client_delete_summary_handler),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             move |state, req, next| {
@@ -905,13 +910,25 @@ fn client_routes(state: AppState) -> Router<AppState> {
             post(oidc_handler::rotate_client_secret_handler),
         )
         .route_layer(middleware::from_fn_with_state(
-            state,
+            state.clone(),
             move |state, req, next| {
                 permission_guard::require_permission(state, req, next, permissions::CLIENT_UPDATE)
             },
         ));
 
-    read_routes.merge(create_routes).merge(update_routes)
+    let delete_routes = Router::new()
+        .route("/{id}", delete(oidc_handler::delete_client_handler))
+        .route_layer(middleware::from_fn_with_state(
+            state,
+            move |state, req, next| {
+                permission_guard::require_permission(state, req, next, permissions::CLIENT_DELETE)
+            },
+        ));
+
+    read_routes
+        .merge(create_routes)
+        .merge(update_routes)
+        .merge(delete_routes)
 }
 
 fn flow_routes(state: AppState) -> Router<AppState> {

@@ -11,7 +11,6 @@ import { SetupPage } from '@/pages/SetupPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
 import { TraceDetailsPage } from '@/pages/observability/TraceDetailsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
 import { CreateIdentityProviderPage } from '@/pages/identity-provider/create/CreateIdentityProviderPage.tsx'
@@ -152,14 +151,16 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/clients/new',
-    element: CreateClientPage,
+    path: '/:realm/clients/:clientId/:tab?',
+    element: EditClientPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
   {
-    path: '/:realm/clients/:clientId/:tab?',
-    element: EditClientPage,
+    // Client-scoped role detail reuses EditRolePage. The nested path makes the
+    // breadcrumb derive Clients > {client} > Roles > {role} automatically.
+    path: '/:realm/clients/:clientId/roles/:roleId/:tab?',
+    element: EditRolePage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },

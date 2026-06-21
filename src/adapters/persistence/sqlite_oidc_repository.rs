@@ -2,7 +2,7 @@ use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::{
-    domain::oidc::{AuthCode, OidcClient},
+    domain::oidc::{AuthCode, ClientDeleteSummary, ClientStats, OidcClient},
     error::{Error, Result},
     ports::oidc_repository::OidcRepository,
     ports::transaction_manager::Transaction,
@@ -181,6 +181,82 @@ impl OidcRepository for SqliteOidcRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(PageResponse::new(clients, total, req.page, limit))
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "select")
+    )]
+    async fn count_client_stats(&self, realm_id: &Uuid) -> Result<ClientStats> {
+        let realm = realm_id.to_string();
+
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM oidc_clients WHERE realm_id = ?")
+            .bind(&realm)
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let confidential: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM oidc_clients WHERE realm_id = ? AND client_secret IS NOT NULL",
+        )
+        .bind(&realm)
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(ClientStats {
+            total,
+            confidential,
+            public: total - confidential,
+        })
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "select")
+    )]
+    async fn count_client_delete_summary(&self, id: &Uuid) -> Result<ClientDeleteSummary> {
+        let id_str = id.to_string();
+
+        let name: String = sqlx::query_scalar("SELECT client_id FROM oidc_clients WHERE id = ?")
+            .bind(&id_str)
+            .fetch_optional(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?
+            .ok_or_else(|| Error::OidcClientNotFound(id_str.clone()))?;
+
+        let role_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM roles WHERE client_id = ?")
+            .bind(&id_str)
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let permission_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM custom_permissions WHERE client_id = ?")
+                .bind(&id_str)
+                .fetch_one(&*self.pool)
+                .await
+                .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(ClientDeleteSummary {
+            client_id: *id,
+            name,
+            role_count,
+            permission_count,
+        })
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "delete")
+    )]
+    async fn delete_client(&self, id: &Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM oidc_clients WHERE id = ?")
+            .bind(id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
     }
 
     #[instrument(

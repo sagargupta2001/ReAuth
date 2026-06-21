@@ -27,9 +27,12 @@ import { FormTextarea } from '@/shared/ui/form-textarea'
 
 interface RoleSettingsTabProps {
   role: Role
+  /** Set when the role was opened from a client, so delete returns to that
+   * client's Roles tab instead of the realm roles list. */
+  clientId?: string
 }
 
-export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
+export function RoleSettingsTab({ role, clientId }: RoleSettingsTabProps) {
   const navigate = useRealmNavigate()
   const mutation = useUpdateRole(role.id)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -65,7 +68,7 @@ export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
     deleteRole.mutate(undefined, {
       onSuccess: () => {
         setDeleteOpen(false)
-        navigate('/roles')
+        navigate(clientId ? `/clients/${clientId}/roles` : '/roles')
       },
     })
   }

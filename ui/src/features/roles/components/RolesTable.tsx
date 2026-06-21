@@ -96,7 +96,7 @@ export function RolesTable({ clientId }: RolesTableProps) {
       searchKey="name"
       searchValue={searchTerm}
       onSearch={handleSearch}
-      customToolbarButtons={!clientId ? <RolesPrimaryButtons /> : undefined}
+      customToolbarButtons={<RolesPrimaryButtons clientId={clientId} />}
       onRowClick={(role) => clientId ? navigate(`/clients/${clientId}/roles/${role.id}`) : navigate(`/roles/${role.id}`)}
       className="max-h-[calc(100vh-328px)]"
     />

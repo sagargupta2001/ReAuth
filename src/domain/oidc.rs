@@ -18,6 +18,24 @@ pub struct OidcClient {
     pub managed_by_config: bool,
 }
 
+/// Aggregate counts for the Clients analytics cards.
+#[derive(Debug, Serialize, Clone)]
+pub struct ClientStats {
+    pub total: i64,
+    pub confidential: i64,
+    pub public: i64,
+}
+
+/// Impact preview for deleting a client. Deleting a client cascades to its
+/// client-scoped roles and custom permissions, so we surface those counts.
+#[derive(Debug, Serialize, Clone)]
+pub struct ClientDeleteSummary {
+    pub client_id: Uuid,
+    pub name: String,
+    pub role_count: i64,
+    pub permission_count: i64,
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct AuthCode {
     pub code: String,

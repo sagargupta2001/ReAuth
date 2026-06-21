@@ -24,6 +24,7 @@ export const createClientSchema = () =>
         message: i18n.t('client:FORMS.CREATE_CLIENT.VALIDATIONS.VALID_REDIRECT_URI_MIN_COUNT'),
       }),
     web_origins: z.array(z.object({ value: z.string().url() })).optional(),
+    scopes: z.array(z.object({ value: z.string().min(1) })).optional(),
   })
 
 export type CreateClientSchema = z.infer<ReturnType<typeof createClientSchema>>

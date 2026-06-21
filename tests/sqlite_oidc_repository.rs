@@ -180,6 +180,108 @@ async fn list_clients_with_filters_and_pagination() -> Result<()> {
 }
 
 #[tokio::test]
+async fn count_client_stats_splits_confidential_and_public() -> Result<()> {
+    let db = TestDb::new().await;
+    let repo = SqliteOidcRepository::new(db.pool.clone());
+
+    let realm_id = Uuid::new_v4();
+    let realm_entity = realm(realm_id, "realm-stats");
+    insert_realm(&db.pool, &realm_entity).await?;
+
+    let other_realm_id = Uuid::new_v4();
+    let other_realm_entity = realm(other_realm_id, "realm-stats-other");
+    insert_realm(&db.pool, &other_realm_entity).await?;
+
+    // Two confidential clients (helper sets a secret) ...
+    repo.create_client(&client(Uuid::new_v4(), realm_id, "conf-a", "[]"))
+        .await?;
+    repo.create_client(&client(Uuid::new_v4(), realm_id, "conf-b", "[]"))
+        .await?;
+
+    // ... and one public client (no secret).
+    let mut public_client = client(Uuid::new_v4(), realm_id, "public-a", "[]");
+    public_client.client_secret = None;
+    repo.create_client(&public_client).await?;
+
+    // A client in another realm must not leak into the counts.
+    repo.create_client(&client(Uuid::new_v4(), other_realm_id, "other", "[]"))
+        .await?;
+
+    let stats = repo.count_client_stats(&realm_id).await?;
+    assert_eq!(stats.total, 3);
+    assert_eq!(stats.confidential, 2);
+    assert_eq!(stats.public, 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_client_persists_scopes() -> Result<()> {
+    let db = TestDb::new().await;
+    let repo = SqliteOidcRepository::new(db.pool.clone());
+
+    let realm_id = Uuid::new_v4();
+    insert_realm(&db.pool, &realm(realm_id, "realm-scopes")).await?;
+
+    let client_id = Uuid::new_v4();
+    let mut entity = client(client_id, realm_id, "scoped", "[]");
+    repo.create_client(&entity).await?;
+
+    entity.scopes = "[\"openid\",\"profile\",\"email\",\"offline_access\"]".to_string();
+    repo.update_client(&entity).await?;
+
+    let stored = repo.find_client_by_uuid(&client_id).await?.unwrap();
+    assert_eq!(
+        stored.scopes,
+        "[\"openid\",\"profile\",\"email\",\"offline_access\"]"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn delete_client_reports_impact_and_removes_record() -> Result<()> {
+    let db = TestDb::new().await;
+    let repo = SqliteOidcRepository::new(db.pool.clone());
+
+    let realm_id = Uuid::new_v4();
+    insert_realm(&db.pool, &realm(realm_id, "realm-del")).await?;
+
+    let client_id = Uuid::new_v4();
+    repo.create_client(&client(client_id, realm_id, "doomed", "[]"))
+        .await?;
+
+    // Two client-scoped roles and one client-scoped custom permission.
+    for name in ["role-a", "role-b"] {
+        sqlx::query("INSERT INTO roles (id, realm_id, client_id, name) VALUES (?, ?, ?, ?)")
+            .bind(Uuid::new_v4().to_string())
+            .bind(realm_id.to_string())
+            .bind(client_id.to_string())
+            .bind(name)
+            .execute(&*db.pool)
+            .await?;
+    }
+    sqlx::query(
+        "INSERT INTO custom_permissions (id, realm_id, client_id, permission, name) VALUES (?, ?, ?, ?, ?)",
+    )
+    .bind(Uuid::new_v4().to_string())
+    .bind(realm_id.to_string())
+    .bind(client_id.to_string())
+    .bind("custom:do")
+    .bind("Custom Do")
+    .execute(&*db.pool)
+    .await?;
+
+    let summary = repo.count_client_delete_summary(&client_id).await?;
+    assert_eq!(summary.name, "doomed");
+    assert_eq!(summary.role_count, 2);
+    assert_eq!(summary.permission_count, 1);
+
+    repo.delete_client(&client_id).await?;
+    assert!(repo.find_client_by_uuid(&client_id).await?.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn auth_code_lifecycle_and_expiration() -> Result<()> {
     let db = TestDb::new().await;
     let repo = SqliteOidcRepository::new(db.pool.clone());

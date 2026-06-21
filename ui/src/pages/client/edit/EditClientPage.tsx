@@ -1,22 +1,20 @@
 import { useEffect } from 'react'
 
-import { Activity, Loader2, Settings, Shield } from 'lucide-react'
+import { Loader2, Settings, Shield } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useClient } from '@/features/client/api/useClient'
-import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { ClientHeader } from '@/features/client/components/ClientHeader.tsx'
 import { ClientRolesTab } from '@/features/client/components/ClientRolesTab.tsx'
 import { ClientSettingsTab } from '@/features/client/components/ClientSettingsTab.tsx'
+import { ClientTabLayout } from '@/features/client/components/ClientTabLayout.tsx'
 
 export function EditClientPage() {
   const { clientId, tab } = useParams<{ clientId: string; tab?: string }>()
-  const realm = useActiveRealm()
   const navigate = useRealmNavigate()
   const validTabs = ['settings', 'roles', 'advanced']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
@@ -46,7 +44,7 @@ export function EditClientPage() {
 
   if (isError || !client)
     return (
-      <div className="text-destructive flex h-full w-full flex-col items-center justify-center gap-2">
+      <div className="flex h-full w-full flex-col items-center justify-center gap-2">
         <p>Failed to load client details.</p>
         <Button variant="outline" onClick={() => navigate('/clients')}>
           Go Back
@@ -58,23 +56,7 @@ export function EditClientPage() {
   return (
     <div className="bg-background flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden p-6">
       <div className="shrink-0">
-        <ClientHeader
-          client={client}
-          actions={
-            realm ? (
-              <HarborResourceActions
-                scope="client"
-                id={client.client_id}
-                resourceLabel={client.client_id}
-                allowedConflictPolicies={['overwrite', 'skip']}
-                invalidateKeys={[
-                  ['client', realm, clientId],
-                  ['clients', realm],
-                ]}
-              />
-            ) : null
-          }
-        />
+        <ClientHeader client={client} />
       </div>
 
       <Tabs
@@ -83,35 +65,28 @@ export function EditClientPage() {
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">
-          <TabsList className="gap-6 bg-transparent p-0">
-            <TabsTrigger value="settings" className="tab-trigger-styles">
+          <TabsList variant='line' className="gap-6 bg-transparent p-0">
+            <TabsTrigger variant='line' value="settings" className="tab-trigger-styles">
               <Settings className="mr-2 h-4 w-4" /> Settings
             </TabsTrigger>
 
-            <TabsTrigger value="roles" className="tab-trigger-styles">
+            <TabsTrigger variant='line' value="roles" className="tab-trigger-styles">
               <Shield className="mr-2 h-4 w-4" /> Roles
-            </TabsTrigger>
-
-            <TabsTrigger value="advanced" className="tab-trigger-styles">
-              <Activity className="mr-2 h-4 w-4" /> Advanced
             </TabsTrigger>
           </TabsList>
         </div>
 
         <div className="bg-muted/5 min-h-0 flex-1 overflow-y-auto">
-          <TabsContent value="settings" className="mt-0 h-full w-full">
-            <ClientSettingsTab client={client} />
+          <TabsContent value="settings" className="mt-0 min-h-full w-full p-6">
+            <ClientTabLayout client={client}>
+              <ClientSettingsTab client={client} />
+            </ClientTabLayout>
           </TabsContent>
 
           <TabsContent value="roles" className="mt-0 h-full w-full">
             <ClientRolesTab clientId={client.id} />
           </TabsContent>
 
-          <TabsContent value="advanced" className="mt-0 h-full w-full p-6">
-            <div className="text-muted-foreground flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed">
-              <p>Advanced OAuth2 settings coming soon.</p>
-            </div>
-          </TabsContent>
         </div>
       </Tabs>
     </div>
