@@ -948,7 +948,12 @@ async fn clone_flow_make_active_publishes_clone() {
     let flow_store = Arc::new(TestFlowStore::default());
     let realm_id = Uuid::new_v4();
     let source_id = Uuid::new_v4();
-    flow_store.insert_draft(build_draft(realm_id, source_id, "browser", sample_graph_json()));
+    flow_store.insert_draft(build_draft(
+        realm_id,
+        source_id,
+        "browser",
+        sample_graph_json(),
+    ));
 
     let realm_repo = Arc::new(TestRealmRepo::default());
     let manager = build_manager(
@@ -993,7 +998,12 @@ async fn delete_flow_removes_draft_and_runtime() {
     let flow_repo = Arc::new(TestFlowRepo::default());
     let realm_id = Uuid::new_v4();
     let flow_id = Uuid::new_v4();
-    flow_store.insert_draft(build_draft(realm_id, flow_id, "browser", sample_graph_json()));
+    flow_store.insert_draft(build_draft(
+        realm_id,
+        flow_id,
+        "browser",
+        sample_graph_json(),
+    ));
     flow_repo.insert_flow(build_flow_meta(realm_id, flow_id, "browser", false));
 
     let manager = build_manager(
@@ -1005,7 +1015,10 @@ async fn delete_flow_removes_draft_and_runtime() {
 
     manager.delete_flow(realm_id, flow_id).await.unwrap();
 
-    assert_eq!(flow_store.delete_draft_calls.lock().unwrap().as_slice(), [flow_id]);
+    assert_eq!(
+        flow_store.delete_draft_calls.lock().unwrap().as_slice(),
+        [flow_id]
+    );
     assert_eq!(flow_repo.delete_calls().as_slice(), [flow_id]);
 }
 
@@ -1036,7 +1049,12 @@ async fn delete_flow_rejects_active() {
     let flow_repo = Arc::new(TestFlowRepo::default());
     let realm_id = Uuid::new_v4();
     let flow_id = Uuid::new_v4();
-    flow_store.insert_draft(build_draft(realm_id, flow_id, "browser", sample_graph_json()));
+    flow_store.insert_draft(build_draft(
+        realm_id,
+        flow_id,
+        "browser",
+        sample_graph_json(),
+    ));
     flow_repo.insert_flow(build_flow_meta(realm_id, flow_id, "browser", false));
     flow_store.set_active_version(Some(build_version(flow_id, 1, sample_graph_json())));
 

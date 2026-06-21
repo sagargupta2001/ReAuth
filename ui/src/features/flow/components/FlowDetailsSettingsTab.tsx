@@ -18,7 +18,6 @@ import {
   flowSettingsSchema,
 } from '@/features/flow/model/settings-schema.ts'
 import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
-// Shadcn Textarea
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'

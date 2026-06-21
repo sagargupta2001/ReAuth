@@ -149,7 +149,12 @@ impl FlowManager {
             ));
         }
 
-        if self.flow_store.get_active_version(&flow_id).await?.is_some() {
+        if self
+            .flow_store
+            .get_active_version(&flow_id)
+            .await?
+            .is_some()
+        {
             return Err(Error::Validation(
                 "Active flows cannot be deleted. Bind a different flow to this slot first."
                     .to_string(),
