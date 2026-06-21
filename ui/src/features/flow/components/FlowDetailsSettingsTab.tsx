@@ -12,7 +12,6 @@ import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useDeleteFlow } from '@/features/flow/api/useDeleteFlow.ts'
 import { useUpdateFlow } from '@/features/flow/api/useUpdateFlow.ts'
 import { CloneFlowDialog } from '@/features/flow/components/CloneFlowDialog.tsx'
-import { FlowSummaryPanel } from '@/features/flow/components/FlowSummaryPanel.tsx'
 import {
   type FlowSettingsSchema,
   flowSettingsSchema,
@@ -160,8 +159,8 @@ export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
   useFormPersistence(form, onSubmit, updateMutation.isPending)
 
   return (
-    <div className="grid min-h-full w-full items-start gap-6 p-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="min-w-0 space-y-6">
+    <>
+      <div className="space-y-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Card>
@@ -296,10 +295,6 @@ export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
         </div>
       </div>
 
-      <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
-        <FlowSummaryPanel draft={draft} />
-      </aside>
-
       <CloneFlowDialog draft={draft} open={cloneOpen} onOpenChange={setCloneOpen} />
 
       <ConfirmDialog
@@ -319,6 +314,6 @@ export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
         isLoading={deleteFlow.isPending}
         handleConfirm={handleDelete}
       />
-    </div>
+    </>
   )
 }

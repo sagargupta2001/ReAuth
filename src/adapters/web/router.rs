@@ -753,7 +753,13 @@ fn theme_admin_routes(state: AppState) -> Router<AppState> {
         .route("/pages", get(theme_handler::list_theme_pages_handler))
         .route(
             "/{theme_id}",
-            get(theme_handler::get_theme_handler).put(theme_handler::update_theme_handler),
+            get(theme_handler::get_theme_handler)
+                .put(theme_handler::update_theme_handler)
+                .delete(theme_handler::delete_theme_handler),
+        )
+        .route(
+            "/{theme_id}/clone",
+            post(theme_handler::clone_theme_handler),
         )
         .route(
             "/{theme_id}/preview",

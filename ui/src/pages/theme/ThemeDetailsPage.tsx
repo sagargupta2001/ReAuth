@@ -6,18 +6,16 @@ import { useParams } from 'react-router-dom'
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
-import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
-import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
+import { useTheme } from '@/features/theme/api/useTheme'
 import { ThemeDetailsOverviewTab } from '@/features/theme/components/ThemeDetailsOverviewTab'
 import { ThemeDetailsSettingsTab } from '@/features/theme/components/ThemeDetailsSettingsTab'
 import { ThemeHeader } from '@/features/theme/components/ThemeHeader'
 import { ThemeHistoryTab } from '@/features/theme/components/ThemeHistoryTab'
-import { useTheme } from '@/features/theme/api/useTheme'
+import { ThemeTabLayout } from '@/features/theme/components/ThemeTabLayout'
 
 export function ThemeDetailsPage() {
   const { themeId } = useParams()
-  const realm = useActiveRealm()
   const navigate = useRealmNavigate()
   const [activeTab, setActiveTab] = useState('overview')
 
@@ -47,28 +45,7 @@ export function ThemeDetailsPage() {
 
   return (
     <div className="bg-background flex h-full w-full flex-col">
-      <ThemeHeader
-        theme={data.theme}
-        activeVersionNumber={data.active_version_number ?? null}
-        actions={
-          themeId && realm ? (
-            <HarborResourceActions
-              scope="theme"
-              id={themeId}
-              resourceLabel={data.theme.name}
-              invalidateKeys={[
-                ['themes', realm],
-                ['themes', realm, themeId],
-                ['themes', realm, themeId, 'draft'],
-                ['themes', realm, themeId, 'assets'],
-                ['themes', realm, themeId, 'versions'],
-                ['theme-bindings', realm, themeId],
-                ['theme-preview', realm, themeId],
-              ]}
-            />
-          ) : null
-        }
-      />
+      <ThemeHeader theme={data.theme} activeVersionNumber={data.active_version_number ?? null} />
 
       <Tabs
         value={activeTab}
@@ -76,14 +53,14 @@ export function ThemeDetailsPage() {
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 border-b px-6 pt-2">
-          <TabsList className="gap-6 bg-transparent p-0">
-            <TabsTrigger value="overview" className="tab-trigger-styles">
+          <TabsList variant="line" className="gap-6 bg-transparent p-0">
+            <TabsTrigger variant="line" value="overview" className="tab-trigger-styles">
               <Layout className="mr-2 h-4 w-4" /> Overview
             </TabsTrigger>
-            <TabsTrigger value="history" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="history" className="tab-trigger-styles">
               <History className="mr-2 h-4 w-4" /> Version History
             </TabsTrigger>
-            <TabsTrigger value="settings" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
               <Settings className="mr-2 h-4 w-4" /> Settings
             </TabsTrigger>
           </TabsList>
@@ -97,8 +74,10 @@ export function ThemeDetailsPage() {
           <ThemeHistoryTab themeId={data.theme.id} activeVersionId={data.active_version_id} />
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-0 flex-1 overflow-auto">
-          <ThemeDetailsSettingsTab theme={data.theme} />
+        <TabsContent value="settings" className="mt-0 min-h-0 w-full flex-1 overflow-auto p-6">
+          <ThemeTabLayout themeId={data.theme.id}>
+            <ThemeDetailsSettingsTab theme={data.theme} />
+          </ThemeTabLayout>
         </TabsContent>
       </Tabs>
     </div>

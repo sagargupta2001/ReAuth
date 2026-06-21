@@ -13,6 +13,7 @@ import { FlowDetailsOverviewTab } from '@/features/flow/components/FlowDetailsOv
 import { FlowDetailsSettingsTab } from '@/features/flow/components/FlowDetailsSettingsTab.tsx'
 import { FlowHeader } from '@/features/flow/components/FlowHeader.tsx'
 import { FlowHistoryTab } from '@/features/flow/components/FlowHistoryTab.tsx'
+import { FlowTabLayout } from '@/features/flow/components/FlowTabLayout.tsx'
 
 export function FlowDetailsPage() {
   const { flowId, tab } = useParams<{ flowId: string; tab?: string }>()
@@ -61,14 +62,14 @@ export function FlowDetailsPage() {
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 border-b px-6 pt-2">
-          <TabsList variant='line' className="gap-6 bg-transparent p-0">
-            <TabsTrigger variant='line' value="overview" className="tab-trigger-styles">
+          <TabsList variant="line" className="gap-6 bg-transparent p-0">
+            <TabsTrigger variant="line" value="overview" className="tab-trigger-styles">
               <Layout className="mr-2 h-4 w-4" /> Overview
             </TabsTrigger>
-            <TabsTrigger variant='line' value="history" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="history" className="tab-trigger-styles">
               <History className="mr-2 h-4 w-4" /> Version History
             </TabsTrigger>
-            <TabsTrigger variant='line' value="settings" className="tab-trigger-styles">
+            <TabsTrigger variant="line" value="settings" className="tab-trigger-styles">
               <Settings className="mr-2 h-4 w-4" /> Settings
             </TabsTrigger>
           </TabsList>
@@ -82,8 +83,13 @@ export function FlowDetailsPage() {
           <FlowHistoryTab flowId={draft.id} activeVersion={draft.active_version} />
         </TabsContent>
 
-        <TabsContent value="settings" className="bg-muted/5 mt-0 min-h-0 flex-1 overflow-y-auto">
-          <FlowDetailsSettingsTab draft={draft} />
+        <TabsContent
+          value="settings"
+          className="bg-muted/5 mt-0 min-h-0 w-full flex-1 overflow-y-auto p-6"
+        >
+          <FlowTabLayout draft={draft}>
+            <FlowDetailsSettingsTab draft={draft} />
+          </FlowTabLayout>
         </TabsContent>
       </Tabs>
     </div>
