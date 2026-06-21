@@ -23,7 +23,7 @@ export function FlowHeader({ draft, actions }: FlowHeaderProps) {
   const isSystemFlow = draft.built_in
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between px-6">
       <div className="flex items-center gap-4">
         <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
           {isSystemFlow ? (
