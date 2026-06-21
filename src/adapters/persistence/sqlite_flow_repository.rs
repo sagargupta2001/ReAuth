@@ -94,4 +94,18 @@ impl FlowRepository for SqliteFlowRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
         Ok(flows)
     }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "auth_flows", db_op = "delete")
+    )]
+    async fn delete_flow(&self, flow_id: &Uuid) -> Result<()> {
+        // Versions (and the deployments pointing at them) cascade via FK.
+        sqlx::query("DELETE FROM auth_flows WHERE id = ?")
+            .bind(flow_id.to_string())
+            .execute(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(())
+    }
 }

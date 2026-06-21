@@ -82,7 +82,7 @@ export function FlowDetailsPage() {
           <FlowHistoryTab flowId={draft.id} activeVersion={draft.active_version} />
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-0 flex-1">
+        <TabsContent value="settings" className="bg-muted/5 mt-0 min-h-0 flex-1 overflow-y-auto">
           <FlowDetailsSettingsTab draft={draft} />
         </TabsContent>
       </Tabs>

@@ -1,11 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Copy, Trash2 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
+import { Button } from '@/components/button'
 import type { FlowDraft } from '@/entities/flow/model/types'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { useDeleteFlow } from '@/features/flow/api/useDeleteFlow.ts'
 import { useUpdateFlow } from '@/features/flow/api/useUpdateFlow.ts'
+import { CloneFlowDialog } from '@/features/flow/components/CloneFlowDialog.tsx'
 import { FlowSummaryPanel } from '@/features/flow/components/FlowSummaryPanel.tsx'
 import {
   type FlowSettingsSchema,
@@ -15,6 +21,7 @@ import { HarborResourceActions } from '@/features/harbor/components/HarborResour
 // Shadcn Textarea
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import {
   Form,
   FormControl,
@@ -27,14 +34,96 @@ import {
 import { FormInput } from '@/shared/ui/form-input'
 // Assuming this exists from your example
 import { Textarea } from '@/shared/ui/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/shared/ui/tooltip'
 
 interface FlowSettingsTabProps {
   draft: FlowDraft
 }
 
+interface FlowActionRowProps {
+  icon: LucideIcon
+  label: string
+  description: string
+  buttonLabel: string
+  buttonVariant?: 'destructive' | 'outline' | 'default'
+  destructive?: boolean
+  disabled?: boolean
+  disabledTooltip?: string
+  onClick: () => void
+}
+
+function FlowActionRow({
+  icon: Icon,
+  label,
+  description,
+  buttonLabel,
+  buttonVariant = 'outline',
+  destructive = false,
+  disabled,
+  disabledTooltip,
+  onClick,
+}: FlowActionRowProps) {
+  const btn = (
+    <Button  variant={buttonVariant} disabled={disabled} onClick={onClick}>
+      <Icon className="h-4 w-4" />
+      {buttonLabel}
+    </Button>
+  )
+
+  return (
+    <div
+      className={
+        destructive
+          ? 'border-destructive/30 bg-destructive/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4'
+          : 'bg-primary-foreground flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4'
+      }
+    >
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-muted-foreground text-sm">{description}</p>
+      </div>
+      {disabled && disabledTooltip ? (
+        <TooltipProvider delayDuration={150}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div>{btn}</div>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="bg-popover text-popover-foreground border">
+              {disabledTooltip}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : (
+        btn
+      )}
+    </div>
+  )
+}
+
 export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
   const realm = useActiveRealm()
+  const navigate = useRealmNavigate()
   const updateMutation = useUpdateFlow(draft.id)
+  const deleteFlow = useDeleteFlow(draft.id)
+  const [cloneOpen, setCloneOpen] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+
+  const isActive = Boolean(draft.active_version)
+  const deleteDisabled = draft.built_in || isActive || deleteFlow.isPending
+  const deleteTooltip = draft.built_in
+    ? 'Built-in flows cannot be deleted.'
+    : isActive
+      ? 'Active flows cannot be deleted. Bind a different flow to this slot first.'
+      : undefined
+
+  const handleDelete = () => {
+    deleteFlow.mutate(undefined, {
+      onSuccess: () => {
+        setConfirmDeleteOpen(false)
+        navigate('/flows')
+      },
+    })
+  }
 
   const form = useForm<FlowSettingsSchema>({
     resolver: zodResolver(flowSettingsSchema),
@@ -145,11 +234,61 @@ export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Flow Management</CardTitle>
+            <CardDescription>Duplicate or permanently remove this flow.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <FlowActionRow
+                icon={Copy}
+                label="Duplicate Flow"
+                description="Create a new draft with a copy of this flow's configuration, optionally publishing it as active."
+                buttonLabel="Duplicate"
+                buttonVariant="default"
+                onClick={() => setCloneOpen(true)}
+              />
+              <FlowActionRow
+                icon={Trash2}
+                label="Delete Flow"
+                description="Permanently removes this flow and its versions. Built-in and active flows cannot be deleted."
+                buttonLabel="Delete"
+                buttonVariant="destructive"
+                destructive
+                disabled={deleteDisabled}
+                disabledTooltip={deleteTooltip}
+                onClick={() => setConfirmDeleteOpen(true)}
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <aside className="min-w-0 xl:sticky xl:top-6 xl:self-start">
         <FlowSummaryPanel draft={draft} />
       </aside>
+
+      <CloneFlowDialog draft={draft} open={cloneOpen} onOpenChange={setCloneOpen} />
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="Delete flow"
+        desc={
+          <div className="space-y-3">
+            <p>
+              Are you sure you want to delete <span className="font-medium">{draft.name}</span>?
+            </p>
+            <p>This permanently removes the flow and all of its versions. This cannot be undone.</p>
+          </div>
+        }
+        confirmText="Delete flow"
+        destructive
+        isLoading={deleteFlow.isPending}
+        handleConfirm={handleDelete}
+      />
     </div>
   )
 }

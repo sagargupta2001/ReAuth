@@ -13,4 +13,11 @@ pub trait FlowRepository: Send + Sync {
         tx: Option<&'a mut dyn Transaction>,
     ) -> Result<()>;
     async fn list_flows_by_realm(&self, realm_id: &Uuid) -> Result<Vec<AuthFlow>>;
+
+    /// Permanently removes a runtime flow. Versions and deployments referencing
+    /// it are cascaded by the schema's foreign keys. Defaults to a no-op so test
+    /// doubles need not implement it.
+    async fn delete_flow(&self, _flow_id: &Uuid) -> Result<()> {
+        Ok(())
+    }
 }
