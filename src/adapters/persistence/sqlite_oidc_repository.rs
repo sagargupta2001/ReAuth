@@ -2,7 +2,7 @@ use crate::adapters::persistence::connection::Database;
 use crate::adapters::persistence::transaction::SqliteTransaction;
 use crate::domain::pagination::{PageRequest, PageResponse, SortDirection};
 use crate::{
-    domain::oidc::{AuthCode, OidcClient},
+    domain::oidc::{AuthCode, ClientStats, OidcClient},
     error::{Error, Result},
     ports::oidc_repository::OidcRepository,
     ports::transaction_manager::Transaction,
@@ -181,6 +181,34 @@ impl OidcRepository for SqliteOidcRepository {
             .map_err(|e| Error::Unexpected(e.into()))?;
 
         Ok(PageResponse::new(clients, total, req.page, limit))
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "oidc_clients", db_op = "select")
+    )]
+    async fn count_client_stats(&self, realm_id: &Uuid) -> Result<ClientStats> {
+        let realm = realm_id.to_string();
+
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM oidc_clients WHERE realm_id = ?")
+            .bind(&realm)
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+
+        let confidential: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM oidc_clients WHERE realm_id = ? AND client_secret IS NOT NULL",
+        )
+        .bind(&realm)
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+
+        Ok(ClientStats {
+            total,
+            confidential,
+            public: total - confidential,
+        })
     }
 
     #[instrument(

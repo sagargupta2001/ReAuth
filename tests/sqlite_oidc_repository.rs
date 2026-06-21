@@ -180,6 +180,41 @@ async fn list_clients_with_filters_and_pagination() -> Result<()> {
 }
 
 #[tokio::test]
+async fn count_client_stats_splits_confidential_and_public() -> Result<()> {
+    let db = TestDb::new().await;
+    let repo = SqliteOidcRepository::new(db.pool.clone());
+
+    let realm_id = Uuid::new_v4();
+    let realm_entity = realm(realm_id, "realm-stats");
+    insert_realm(&db.pool, &realm_entity).await?;
+
+    let other_realm_id = Uuid::new_v4();
+    let other_realm_entity = realm(other_realm_id, "realm-stats-other");
+    insert_realm(&db.pool, &other_realm_entity).await?;
+
+    // Two confidential clients (helper sets a secret) ...
+    repo.create_client(&client(Uuid::new_v4(), realm_id, "conf-a", "[]"))
+        .await?;
+    repo.create_client(&client(Uuid::new_v4(), realm_id, "conf-b", "[]"))
+        .await?;
+
+    // ... and one public client (no secret).
+    let mut public_client = client(Uuid::new_v4(), realm_id, "public-a", "[]");
+    public_client.client_secret = None;
+    repo.create_client(&public_client).await?;
+
+    // A client in another realm must not leak into the counts.
+    repo.create_client(&client(Uuid::new_v4(), other_realm_id, "other", "[]"))
+        .await?;
+
+    let stats = repo.count_client_stats(&realm_id).await?;
+    assert_eq!(stats.total, 3);
+    assert_eq!(stats.confidential, 2);
+    assert_eq!(stats.public, 1);
+    Ok(())
+}
+
+#[tokio::test]
 async fn auth_code_lifecycle_and_expiration() -> Result<()> {
     let db = TestDb::new().await;
     let repo = SqliteOidcRepository::new(db.pool.clone());

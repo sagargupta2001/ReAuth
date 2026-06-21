@@ -881,6 +881,7 @@ fn observability_routes(state: AppState) -> Router<AppState> {
 fn client_routes(state: AppState) -> Router<AppState> {
     let read_routes = Router::new()
         .route("/", get(oidc_handler::list_clients_handler))
+        .route("/stats", get(oidc_handler::get_client_stats_handler))
         .route("/{id}", get(oidc_handler::get_client_handler))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

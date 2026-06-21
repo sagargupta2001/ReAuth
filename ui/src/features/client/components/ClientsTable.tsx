@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useClients } from '@/features/client/api/useClients.ts'
 import { clientColumns } from '@/features/client/components/ClientColumns.tsx'
+import { ClientsPrimaryButtons } from '@/features/client/components/ClientsPrimaryButtons.tsx'
 import { DataTableSkeleton } from '@/shared/ui/data-table/data-table-skeleton.tsx'
 import { DataTable } from '@/shared/ui/data-table/data-table.tsx'
 
@@ -103,6 +104,7 @@ export function ClientsTable() {
       searchPlaceholder="Search..."
       searchValue={searchTerm}
       onSearch={setSearchTerm}
+      customToolbarButtons={<ClientsPrimaryButtons />}
       className="max-h-[calc(100vh-328px)]"
     />
   )

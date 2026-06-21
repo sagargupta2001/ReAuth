@@ -300,6 +300,17 @@ impl OidcRepository for TestOidcRepo {
         Ok(empty_page())
     }
 
+    async fn count_client_stats(
+        &self,
+        _realm_id: &Uuid,
+    ) -> Result<crate::domain::oidc::ClientStats> {
+        Ok(crate::domain::oidc::ClientStats {
+            total: 0,
+            confidential: 0,
+            public: 0,
+        })
+    }
+
     async fn find_client_by_uuid(&self, _id: &Uuid) -> Result<Option<OidcClient>> {
         Ok(None)
     }

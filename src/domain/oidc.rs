@@ -18,6 +18,14 @@ pub struct OidcClient {
     pub managed_by_config: bool,
 }
 
+/// Aggregate counts for the Clients analytics cards.
+#[derive(Debug, Serialize, Clone)]
+pub struct ClientStats {
+    pub total: i64,
+    pub confidential: i64,
+    pub public: i64,
+}
+
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct AuthCode {
     pub code: String,

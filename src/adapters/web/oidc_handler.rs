@@ -475,6 +475,21 @@ pub async fn list_clients_handler(
     Ok((StatusCode::OK, Json(payload)))
 }
 
+pub async fn get_client_stats_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let stats = state.oidc_service.get_client_stats(realm.id).await?;
+
+    Ok((StatusCode::OK, Json(stats)))
+}
+
 #[derive(Deserialize)]
 pub struct CreateClientRequest {
     pub client_id: String,

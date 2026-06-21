@@ -6,7 +6,7 @@ use crate::{
     domain::{
         auth_session::{AuthenticationSession, SessionStatus},
         execution::ExecutionPlan,
-        oidc::{AuthCode, OidcClient, OidcContext, OidcRequest},
+        oidc::{AuthCode, ClientStats, OidcClient, OidcContext, OidcRequest},
         session::RefreshToken,
     },
     error::{Error, Result},
@@ -386,6 +386,10 @@ impl OidcService {
         self.oidc_repo
             .find_clients_by_realm(&realm_id, &page_req)
             .await
+    }
+
+    pub async fn get_client_stats(&self, realm_id: Uuid) -> Result<ClientStats> {
+        self.oidc_repo.count_client_stats(&realm_id).await
     }
 
     pub async fn get_client(&self, id: Uuid) -> Result<OidcClient> {
