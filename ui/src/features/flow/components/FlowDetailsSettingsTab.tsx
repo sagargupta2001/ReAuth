@@ -116,7 +116,7 @@ export function FlowDetailsSettingsTab({ draft }: FlowSettingsTabProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Import / Export</CardTitle>
+          <CardTitle>Harbor</CardTitle>
           <CardDescription>
             Export this flow as a portable bundle, or import a bundle to replace its configuration.
           </CardDescription>

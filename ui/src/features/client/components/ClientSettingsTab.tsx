@@ -466,16 +466,18 @@ export function ClientSettingsTab({ client }: ClientSettingsTabProps) {
         </form>
       </Form>
 
-      {/* Import / Export */}
       <Card>
         <CardHeader>
-          <CardTitle>Import &amp; Export</CardTitle>
+          <CardTitle>Harbor</CardTitle>
           <CardDescription>
             Export this client&apos;s configuration or import a definition to overwrite it.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-primary-foreground flex flex-wrap items-center gap-2 rounded-2xl p-4">
+          <div className="bg-primary-foreground flex items-center justify-between gap-4 rounded-2xl p-4">
+            <p className="text-muted-foreground text-sm">
+              Download the flow definition or upload a bundle to apply changes.
+            </p>
             <HarborResourceActions
               scope="client"
               id={client.client_id}
