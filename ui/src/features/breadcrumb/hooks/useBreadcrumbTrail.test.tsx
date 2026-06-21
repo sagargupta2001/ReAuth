@@ -80,6 +80,37 @@ describe('useBreadcrumbTrail', () => {
     ])
   })
 
+  it('derives a clients-rooted trail for a client-scoped role detail route', () => {
+    act(() =>
+      useBreadcrumbStore.setState({ overrides: { 'c-1': 'Acme', 'r-9': 'Billing Admin' } }),
+    )
+    renderAt('/master/clients/c-1/roles/r-9/members')
+    const items = screen.getAllByRole('listitem')
+    expect(items.map((i) => i.textContent)).toEqual([
+      'Clients',
+      'Acme',
+      'Roles',
+      'Billing Admin',
+      'Members',
+    ])
+
+    // The intermediate "Roles" crumb links to the client's own Roles tab.
+    expect(items[2]).toHaveAttribute('data-href', '/master/clients/c-1/roles')
+    // The "Acme" client crumb links to the client detail page.
+    expect(items[1]).toHaveAttribute('data-href', '/master/clients/c-1')
+
+    // The trailing tab is a quick-switch rooted at the nested role base.
+    const tabNode = items[4]
+    expect(tabNode).toHaveAttribute('data-current', 'true')
+    expect(tabNode.getAttribute('data-siblings')?.split(',')).toEqual([
+      '/master/clients/c-1/roles/r-9/settings',
+      '/master/clients/c-1/roles/r-9/permissions',
+      '/master/clients/c-1/roles/r-9/composites',
+      '/master/clients/c-1/roles/r-9/members',
+    ])
+    act(() => useBreadcrumbStore.setState({ overrides: {} }))
+  })
+
   it('skips the structural "webhooks" passthrough segment', () => {
     renderAt('/master/events/webhooks/t-9/deliveries')
     expect(screen.getAllByRole('listitem').map((i) => i.textContent)).toEqual([

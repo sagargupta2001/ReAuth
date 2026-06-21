@@ -157,6 +157,14 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
+    // Client-scoped role detail reuses EditRolePage. The nested path makes the
+    // breadcrumb derive Clients > {client} > Roles > {role} automatically.
+    path: '/:realm/clients/:clientId/roles/:roleId/:tab?',
+    element: EditRolePage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
+  {
     path: '/:realm/identity-providers',
     element: IdentityProvidersPage,
     layout: AuthenticatedLayout,
