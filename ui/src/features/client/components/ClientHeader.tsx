@@ -1,17 +1,9 @@
 import type { ReactNode } from 'react'
 
-import { AppWindow, Copy, MoreVertical, Shield, ShieldAlert, Trash2 } from 'lucide-react'
+import { AppWindow, Copy, Shield, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/badge'
-import { Button } from '@/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/dropdown-menu'
-import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import type { OidcClient } from '@/entities/oidc/model/types.ts'
 
 interface ClientHeaderProps {
@@ -20,8 +12,6 @@ interface ClientHeaderProps {
 }
 
 export function ClientHeader({ client, actions }: ClientHeaderProps) {
-  const navigate = useRealmNavigate()
-
   // Logic to determine badge status
   const isConfidential = client.confidential ?? !!client.client_secret
   const isSystem = client.client_id === 'reauth-admin' // Example logic
@@ -32,7 +22,7 @@ export function ClientHeader({ client, actions }: ClientHeaderProps) {
   }
 
   return (
-    <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between border-b px-6 backdrop-blur">
+    <header className="bg-background/95 supports-backdrop-filter:bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between px-6 backdrop-blur">
       <div className="flex items-center gap-4">
         {/* Icon Box */}
         <div className="bg-primary/10 flex h-10 w-10 items-center justify-center rounded-lg">
@@ -82,27 +72,7 @@ export function ClientHeader({ client, actions }: ClientHeaderProps) {
       </div>
 
       {/* Right Side Actions */}
-      <div className="flex items-center gap-3">
-        {actions}
-
-        <Button variant="outline" onClick={() => navigate('/clients')} size="sm">
-          Back
-        </Button>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={copyId}>Copy Client ID</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive focus:text-destructive">
-              <Trash2 className="mr-2 h-4 w-4" /> Delete Client
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+      <div className="flex items-center gap-3">{actions}</div>
     </header>
   )
 }

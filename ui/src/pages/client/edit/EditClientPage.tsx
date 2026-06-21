@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 
-import { Activity, Loader2, Settings, Shield } from 'lucide-react'
+import { Loader2, Settings, Shield } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
@@ -83,17 +83,13 @@ export function EditClientPage() {
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">
-          <TabsList className="gap-6 bg-transparent p-0">
-            <TabsTrigger value="settings" className="tab-trigger-styles">
+          <TabsList variant='line' className="gap-6 bg-transparent p-0">
+            <TabsTrigger variant='line' value="settings" className="tab-trigger-styles">
               <Settings className="mr-2 h-4 w-4" /> Settings
             </TabsTrigger>
 
-            <TabsTrigger value="roles" className="tab-trigger-styles">
+            <TabsTrigger variant='line' value="roles" className="tab-trigger-styles">
               <Shield className="mr-2 h-4 w-4" /> Roles
-            </TabsTrigger>
-
-            <TabsTrigger value="advanced" className="tab-trigger-styles">
-              <Activity className="mr-2 h-4 w-4" /> Advanced
             </TabsTrigger>
           </TabsList>
         </div>
@@ -107,11 +103,6 @@ export function EditClientPage() {
             <ClientRolesTab clientId={client.id} />
           </TabsContent>
 
-          <TabsContent value="advanced" className="mt-0 h-full w-full p-6">
-            <div className="text-muted-foreground flex h-64 flex-col items-center justify-center rounded-lg border-2 border-dashed">
-              <p>Advanced OAuth2 settings coming soon.</p>
-            </div>
-          </TabsContent>
         </div>
       </Tabs>
     </div>

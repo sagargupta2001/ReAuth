@@ -1,17 +1,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
-import { Copy, MoreHorizontal } from 'lucide-react'
-import { toast } from 'sonner'
 
-import { Badge } from '@/shared/ui/badge.tsx'
-import { Button } from '@/shared/ui/button.tsx'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/shared/ui/dropdown-menu.tsx'
 import type { OidcClient } from '@/entities/oidc/model/types.ts'
+import { Badge } from '@/shared/ui/badge.tsx'
 import { DataTableColumnHeader } from '@/shared/ui/data-table'
 
 export const clientColumns: ColumnDef<OidcClient>[] = [
@@ -64,31 +54,5 @@ export const clientColumns: ColumnDef<OidcClient>[] = [
       )
     },
     enableSorting: false,
-  },
-  {
-    id: 'actions',
-    cell: ({ row }) => {
-      const client = row.original
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => {
-                void navigator.clipboard.writeText(client.client_id)
-                toast.success('Copied Client ID')
-              }}
-            >
-              <Copy className="mr-2 h-4 w-4" /> Copy ID
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )
-    },
   },
 ]
