@@ -82,7 +82,6 @@ export const queryKeys = {
   harborJobs: (realm: string, limit?: number) => ['harbor-jobs', realm, limit] as const,
   harborJobDetails: (realm: string, jobId: string) => ['harbor-job-details', realm, jobId] as const,
   observabilityLogs: (params?: unknown) => ['observability-logs', params] as const,
-  observabilityTraces: (params?: unknown) => ['observability-traces', params] as const,
   observabilityTraceSpans: (traceId: string) => ['observability-trace-spans', traceId] as const,
   observabilityMetrics: () => ['observability-metrics'] as const,
   observabilityCacheStats: (namespace?: string) =>
@@ -118,6 +117,11 @@ export const queryKeys = {
   themeTemplateGaps: (realm: string, themeId: string) =>
     ['theme-template-gaps', realm, themeId] as const,
   activeTheme: (realm: string) => ['active-theme', realm] as const,
+  currentUser: (realm: string) => ['current-user', realm] as const,
+  userStats: (realm: string) => ['user-stats', realm] as const,
+  roleStats: (realm: string) => ['role-stats', realm] as const,
+  sessionStats: (realm: string) => ['session-stats', realm] as const,
+  invitationStats: (realm: string) => ['invitation-stats', realm] as const,
   realms: () => ['realms'] as const,
   realm: (realmName?: string) =>
     realmName ? (['realm', realmName] as const) : (['realm'] as const),

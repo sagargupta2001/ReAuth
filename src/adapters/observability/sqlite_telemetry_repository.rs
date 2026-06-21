@@ -45,6 +45,18 @@ impl SqliteTelemetryRepository {
             builder.push_bind(target.clone());
         }
 
+        if let Some(user_id) = &query.user_id {
+            push_where(builder, &mut has_filter);
+            builder.push("user_id = ");
+            builder.push_bind(user_id.clone());
+        }
+
+        if let Some(trace_id) = &query.trace_id {
+            push_where(builder, &mut has_filter);
+            builder.push("trace_id = ");
+            builder.push_bind(trace_id.clone());
+        }
+
         if let Some(start_time) = &query.start_time {
             push_where(builder, &mut has_filter);
             builder.push("timestamp >= ");

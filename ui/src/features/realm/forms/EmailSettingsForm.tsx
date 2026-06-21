@@ -7,31 +7,19 @@ import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
 import { useRealmEmailSettings } from '@/features/realm/api/useRealmEmailSettings.ts'
 import { useTestRealmEmailSettings } from '@/features/realm/api/useTestRealmEmailSettings.ts'
 import { useUpdateRealmEmailSettings } from '@/features/realm/api/useUpdateRealmEmailSettings.ts'
+import { RealmSettingsCard } from '@/features/realm/components/RealmSettingsCard'
 import {
   type EmailSettingsSchema,
   emailSettingsSchema,
 } from '@/features/realm/schema/email-settings.schema.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
 import { Button } from '@/shared/ui/button.tsx'
-import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-} from '@/shared/ui/form.tsx'
 import { FormInput } from '@/shared/ui/form-input.tsx'
+import { FormControl, FormDescription, FormField, FormItem, FormLabel } from '@/shared/ui/form.tsx'
 import { Form } from '@/shared/ui/form.tsx'
-import { Switch } from '@/shared/ui/switch'
 import { Input } from '@/shared/ui/input.tsx'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/select'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/shared/ui/select'
+import { Switch } from '@/shared/ui/switch'
 
 export function EmailSettingsForm() {
   const { data: realm } = useCurrentRealm()
@@ -111,179 +99,171 @@ export function EmailSettingsForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Email Delivery</CardTitle>
-            <CardDescription>Configure SMTP delivery for recovery and verification.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div id="email-enabled" className="scroll-mt-24 rounded-md -m-2 p-2">
+        <RealmSettingsCard
+          title="Email Delivery"
+          description="Configure SMTP delivery for recovery and verification."
+          bodyClassName="space-y-6"
+        >
+          <div id="email-enabled" className="-m-2 scroll-mt-24 rounded-md p-2">
+            <FormField
+              control={form.control}
+              name="enabled"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between gap-6">
+                  <div className="space-y-1">
+                    <FormLabel>Enable Email Delivery</FormLabel>
+                    <FormDescription>Turn on SMTP-based emails for this realm.</FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      aria-label="Enable email delivery"
+                      disabled={updateMutation.isPending}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div id="email-from-address" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="from_address"
+                label="From Address"
+                description="Address shown in the From field."
+              />
+            </div>
+            <div id="email-from-name" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="from_name"
+                label="From Name"
+                description="Optional display name."
+              />
+            </div>
+            <div id="email-reply-to" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="reply_to_address"
+                label="Reply-To Address"
+                description="Optional reply-to override."
+              />
+            </div>
+          </div>
+        </RealmSettingsCard>
+
+        <RealmSettingsCard
+          title="SMTP Server"
+          description="Set the SMTP connection details."
+          bodyClassName="space-y-6"
+        >
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div id="email-smtp-host" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="smtp_host"
+                label="SMTP Host"
+                description="Hostname or IP address."
+              />
+            </div>
+            <div id="email-smtp-port" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="smtp_port"
+                label="SMTP Port"
+                description="Usually 587 for STARTTLS, 465 for TLS."
+                type="number"
+              />
+            </div>
+            <div id="email-smtp-security" className="-m-2 scroll-mt-24 rounded-md p-2">
               <FormField
                 control={form.control}
-                name="enabled"
+                name="smtp_security"
                 render={({ field }) => (
-                  <FormItem className="flex items-center justify-between gap-6">
-                    <div className="space-y-1">
-                      <FormLabel>Enable Email Delivery</FormLabel>
-                      <FormDescription>Turn on SMTP-based emails for this realm.</FormDescription>
-                    </div>
+                  <FormItem>
+                    <FormLabel>Security</FormLabel>
                     <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        aria-label="Enable email delivery"
-                        disabled={updateMutation.isPending}
-                      />
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select TLS mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="starttls">STARTTLS</SelectItem>
+                          <SelectItem value="tls">TLS (SMTPS)</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </FormControl>
+                    <FormDescription>Use STARTTLS when supported.</FormDescription>
                   </FormItem>
                 )}
               />
             </div>
-
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div id="email-from-address" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="from_address"
-                  label="From Address"
-                  description="Address shown in the From field."
-                />
-              </div>
-              <div id="email-from-name" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="from_name"
-                  label="From Name"
-                  description="Optional display name."
-                />
-              </div>
-              <div id="email-reply-to" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="reply_to_address"
-                  label="Reply-To Address"
-                  description="Optional reply-to override."
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>SMTP Server</CardTitle>
-            <CardDescription>Set the SMTP connection details.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div id="email-smtp-host" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="smtp_host"
-                  label="SMTP Host"
-                  description="Hostname or IP address."
-                />
-              </div>
-              <div id="email-smtp-port" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="smtp_port"
-                  label="SMTP Port"
-                  description="Usually 587 for STARTTLS, 465 for TLS."
-                  type="number"
-                />
-              </div>
-              <div id="email-smtp-security" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormField
-                  control={form.control}
-                  name="smtp_security"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Security</FormLabel>
-                      <FormControl>
-                        <Select value={field.value} onValueChange={field.onChange}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select TLS mode" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="starttls">STARTTLS</SelectItem>
-                            <SelectItem value="tls">TLS (SMTPS)</SelectItem>
-                            <SelectItem value="none">None</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </FormControl>
-                      <FormDescription>Use STARTTLS when supported.</FormDescription>
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div id="email-smtp-username" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="smtp_username"
-                  label="SMTP Username"
-                  description="Leave blank if your server does not require auth."
-                />
-              </div>
-              <div id="email-smtp-password" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="smtp_password"
-                  label="SMTP Password"
-                  description={
-                    settings?.smtp_password_set
-                      ? 'Password is already set. Enter a new one to rotate.'
-                      : 'Set the password for SMTP authentication.'
-                  }
-                  type="password"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Test Email</CardTitle>
-            <CardDescription>
-              Send a test email using the current form values (without saving).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
-              <Input
-                placeholder="Recipient email address"
-                value={testAddress}
-                onChange={(event) => setTestAddress(event.target.value)}
-                type="email"
+            <div id="email-smtp-username" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="smtp_username"
+                label="SMTP Username"
+                description="Leave blank if your server does not require auth."
               />
-              <Button
-                type="button"
-                variant="default"
-                disabled={!testAddress || testMutation.isPending}
-                onClick={() => {
-                  const recipient = testAddress.trim()
-                  if (!recipient) return
-                  const values = form.getValues()
-                  testMutation.mutate({
-                    to_address: recipient,
-                    enabled: values.enabled,
-                    from_address: values.from_address || null,
-                    from_name: values.from_name || null,
-                    reply_to_address: values.reply_to_address || null,
-                    smtp_host: values.smtp_host || null,
-                    smtp_port: values.smtp_port || null,
-                    smtp_username: values.smtp_username || null,
-                    smtp_password: values.smtp_password || null,
-                    smtp_security: values.smtp_security,
-                  })
-                }}
-              >
-                Send Test Email
-              </Button>
             </div>
-          </CardContent>
-        </Card>
+            <div id="email-smtp-password" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="smtp_password"
+                label="SMTP Password"
+                description={
+                  settings?.smtp_password_set
+                    ? 'Password is already set. Enter a new one to rotate.'
+                    : 'Set the password for SMTP authentication.'
+                }
+                type="password"
+              />
+            </div>
+          </div>
+        </RealmSettingsCard>
+
+        <RealmSettingsCard
+          title="Test Email"
+          description="Send a test email using the current form values (without saving)."
+          bodyClassName="space-y-4"
+        >
+          <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+            <Input
+              placeholder="Recipient email address"
+              value={testAddress}
+              onChange={(event) => setTestAddress(event.target.value)}
+              type="email"
+            />
+            <Button
+              type="button"
+              variant="default"
+              disabled={!testAddress || testMutation.isPending}
+              onClick={() => {
+                const recipient = testAddress.trim()
+                if (!recipient) return
+                const values = form.getValues()
+                testMutation.mutate({
+                  to_address: recipient,
+                  enabled: values.enabled,
+                  from_address: values.from_address || null,
+                  from_name: values.from_name || null,
+                  reply_to_address: values.reply_to_address || null,
+                  smtp_host: values.smtp_host || null,
+                  smtp_port: values.smtp_port || null,
+                  smtp_username: values.smtp_username || null,
+                  smtp_password: values.smtp_password || null,
+                  smtp_security: values.smtp_security,
+                })
+              }}
+            >
+              Send Test Email
+            </Button>
+          </div>
+        </RealmSettingsCard>
       </form>
     </Form>
   )

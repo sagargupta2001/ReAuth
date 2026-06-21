@@ -25,6 +25,7 @@ export function StaticMenuSidebar({ item }: Props) {
             <NavLink
               key={subItem.url}
               to={path}
+              end={subItem.end}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',

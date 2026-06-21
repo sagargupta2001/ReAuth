@@ -3,6 +3,7 @@ use crate::domain::user::{User, UserListFilters};
 use crate::error::Result;
 use crate::ports::transaction_manager::Transaction;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 /// A "Port" defining the contract for user persistence operations.
@@ -23,5 +24,7 @@ pub trait UserRepository: Send + Sync {
         filters: &UserListFilters,
     ) -> Result<PageResponse<User>>;
     async fn count_in_realm(&self, realm_id: &Uuid) -> Result<i64>;
+    async fn count_active_since(&self, realm_id: &Uuid, since: DateTime<Utc>) -> Result<i64>;
+    async fn count_created_since(&self, realm_id: &Uuid, since: DateTime<Utc>) -> Result<i64>;
     async fn delete_users(&self, realm_id: &Uuid, user_ids: &[Uuid]) -> Result<u64>;
 }

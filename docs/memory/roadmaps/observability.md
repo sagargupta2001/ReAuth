@@ -9,7 +9,7 @@
 - **Spans as Traces:** trace_id, span_id, parent_id, name, start_time, duration.
 - **Storage Sink:** dedicated SQLite DB (`reauth_telemetry.db`) optimized for high write throughput (WAL, synchronous=NORMAL).
 - **Admin API:** `/api/system/observability` endpoints for logs, traces, and cache control.
-- **UI:** Logs Explorer, Traces Waterfall, Cache Manager (dark-mode friendly, CloudWatch-inspired).
+- **UI:** Logs Explorer with full-screen trace waterfall inspection, Cache Manager (dark-mode friendly, CloudWatch-inspired).
 
 ## Current implementation (code-aligned)
 - [x] API latency logging is standardized (route, status, duration).
@@ -32,7 +32,8 @@
 - [x] Observability filters/pagination/sorting state is URL-backed.
 - [x] Telemetry cleanup endpoints (logs/traces) with RFC3339 `before` support.
 - [x] Scheduled telemetry retention cleanup (configurable interval + days).
-- [x] Logs/Traces layout uses fixed-height scroll containers with Chromium parity (min-height chain + overflow fixes).
+- [x] Logs layout uses fixed-height scroll containers with Chromium parity (min-height chain + overflow fixes).
+- [x] Trace IDs open a full-screen waterfall dialog backed by `GET /traces/{trace_id}`.
 
 ## MVP scope (prioritized)
 1. **Audit persistence (RBAC)** (done)
@@ -52,10 +53,10 @@
 4. **Structured logging (in progress)**
    - Standardize key fields across handler logs (request_id, user_id, realm, trace_id, span_id).
 5. **UI MVP** (in progress)
-   - [x] Observability layout with Logs/Traces/Cache tabs + time range selector.
-   - [x] Logs tab includes existing real-time log stream with a `Live Trail` toggle.
+   - [x] Observability layout with logs-first inspection and trace detail dialog.
+   - [x] Logs Explorer includes existing real-time log stream with a `Live Trail` toggle.
    - [x] Logs Explorer: search/filters, live tail, dense table + JSON expansion.
-   - [x] Traces view: request list + waterfall chart.
+   - [x] Trace detail: clickable trace IDs open a full-screen waterfall chart.
    - [x] Cache Manager: stats, namespaces, purge actions, guarded global flush.
 
 ## Enhancements (later)

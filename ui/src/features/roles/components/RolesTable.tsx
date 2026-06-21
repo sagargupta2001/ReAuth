@@ -78,7 +78,7 @@ export function RolesTable({ clientId }: RolesTableProps) {
 
   if (isLoading) {
     return (
-      <div className="h-[calc(100vh-240px)]">
+      <div className="h-[calc(100vh-200px)]">
         <DataTableSkeleton columnCount={5} rowCount={5} />
       </div>
     )
@@ -98,6 +98,7 @@ export function RolesTable({ clientId }: RolesTableProps) {
       onSearch={handleSearch}
       customToolbarButtons={!clientId ? <RolesPrimaryButtons /> : undefined}
       onRowClick={(role) => clientId ? navigate(`/clients/${clientId}/roles/${role.id}`) : navigate(`/roles/${role.id}`)}
+      className="max-h-[calc(100vh-328px)]"
     />
   )
 }

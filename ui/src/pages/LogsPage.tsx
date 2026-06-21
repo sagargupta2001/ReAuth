@@ -1,36 +1,27 @@
 import { useCallback, useMemo, useState } from 'react'
 
-import { useTranslation } from 'react-i18next'
-
-import { ObservabilityLayout } from '@/features/observability/components/ObservabilityLayout'
-import { MetricsOverview } from '@/features/observability/components/MetricsOverview'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { LogsExplorer } from '@/features/observability/components/LogsExplorer'
-import { TracesExplorer } from '@/features/observability/components/TracesExplorer'
+import { MetricsOverview } from '@/features/observability/components/MetricsOverview'
 import type { CustomTimeRange, TimeRangeKey } from '@/features/observability/lib/timeRange'
-import { resolveTimeRange, TIME_RANGE_OPTIONS } from '@/features/observability/lib/timeRange'
+import { TIME_RANGE_OPTIONS, resolveTimeRange } from '@/features/observability/lib/timeRange'
 import { enumParam, stringParam, useUrlState } from '@/shared/lib/hooks/useUrlState'
 import { Main } from '@/widgets/Layout/Main'
 
-const TAB_OPTIONS = ['logs', 'traces'] as const
-
 export function LogsPage() {
-  const { t } = useTranslation('logs')
+  const navigate = useRealmNavigate()
   const timeRangeKeys = useMemo(
     () => TIME_RANGE_OPTIONS.map((option) => option.key) as TimeRangeKey[],
     [],
   )
-  const [urlState, setUrlState] = useUrlState<{
-    tab: (typeof TAB_OPTIONS)[number]
+  const [urlState] = useUrlState<{
     range: TimeRangeKey
     start: string
     end: string
-    trace: string
   }>({
-    tab: enumParam(TAB_OPTIONS, 'logs'),
     range: enumParam(timeRangeKeys, '15m'),
     start: stringParam(''),
     end: stringParam(''),
-    trace: stringParam(''),
   })
 
   const timeRangeKey = urlState.range
@@ -41,8 +32,6 @@ export function LogsPage() {
     }),
     [urlState.end, urlState.start],
   )
-  const activeTab = urlState.tab
-  const selectedTraceId = urlState.trace ? urlState.trace : null
 
   const [now, setNow] = useState(() => new Date())
 
@@ -56,59 +45,23 @@ export function LogsPage() {
     [customRange, now, timeRangeKey],
   )
 
-  const handleTraceSelect = useCallback((traceId: string) => {
-    setUrlState({ trace: traceId, tab: 'traces' })
-  }, [setUrlState])
+  const handleTraceSelect = useCallback(
+    (traceId: string) => {
+      navigate(`/logs/${traceId}`)
+    },
+    [navigate],
+  )
 
-  const tabs = [
-    {
-      value: 'logs',
-      label: t('OBSERVABILITY.TABS.LOGS'),
-      content: (
+  return (
+    <Main fixed className="flex min-h-0 flex-1 flex-col p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <MetricsOverview />
         <LogsExplorer
           timeRange={resolvedTimeRange}
           onSelectTrace={handleTraceSelect}
           onRefreshTimeRange={refreshTimeRange}
         />
-      ),
-    },
-    {
-      value: 'traces',
-      label: t('OBSERVABILITY.TABS.TRACES'),
-      content: (
-        <TracesExplorer
-          timeRange={resolvedTimeRange}
-          selectedTraceId={selectedTraceId}
-          onSelectTrace={(traceId) => setUrlState({ trace: traceId })}
-        />
-      ),
-    },
-  ]
-
-  return (
-    <Main fixed className="flex min-h-0 flex-1 flex-col p-12">
-      <ObservabilityLayout
-        title={t('OBSERVABILITY.TITLE')}
-        description={t('OBSERVABILITY.DESCRIPTION')}
-        tabs={tabs}
-        activeTab={activeTab}
-        onTabChange={(value) => setUrlState({ tab: value as (typeof TAB_OPTIONS)[number] })}
-        timeRange={timeRangeKey}
-        onTimeRangeChange={(value) => {
-          setUrlState({
-            range: value,
-            start: value === 'custom' ? urlState.start : '',
-            end: value === 'custom' ? urlState.end : '',
-          })
-        }}
-        customRange={customRange}
-        onCustomRangeChange={(value) =>
-          setUrlState({ start: value.start ?? '', end: value.end ?? '' })
-        }
-        timeRangeLabel={t('OBSERVABILITY.TIME_RANGE_LABEL')}
-        timeRangePlaceholder={t('OBSERVABILITY.TIME_RANGE_PLACEHOLDER')}
-        summary={<MetricsOverview />}
-      />
+      </div>
     </Main>
   )
 }

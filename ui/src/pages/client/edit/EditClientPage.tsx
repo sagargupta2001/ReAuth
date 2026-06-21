@@ -7,6 +7,7 @@ import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useClient } from '@/features/client/api/useClient'
 import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { ClientHeader } from '@/features/client/components/ClientHeader.tsx'
@@ -21,6 +22,8 @@ export function EditClientPage() {
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
 
   const { data: client, isLoading, isError } = useClient(clientId!)
+
+  useSetBreadcrumb({ [clientId ?? '']: client?.client_id ?? '' })
 
   const handleTabChange = (newTab: string) =>
     navigate(`/clients/${clientId}/${newTab}`)

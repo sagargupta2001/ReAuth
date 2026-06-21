@@ -1,7 +1,9 @@
 use crate::adapters::web::auth_middleware::AuthUser;
 use crate::adapters::web::validation::ValidatedJson;
 use crate::application::user_credentials_service::UserCredentialsSummary;
-use crate::application::user_service::{admin_metadata_response, UserMetadataVisibility};
+use crate::application::user_service::{
+    admin_metadata_response, UserMetadataVisibility, UserStats,
+};
 use crate::domain::pagination::PageRequest;
 use crate::domain::user::{User, UserDateTimeRangeFilter, UserListFilters};
 use crate::domain::user_email::UserEmail;
@@ -1176,4 +1178,22 @@ pub async fn update_user_password_policy_handler(
         StatusCode::OK,
         Json(serde_json::json!({ "status": "updated" })),
     ))
+}
+
+// ---------------------------------------------------------------------------
+// User stats
+// ---------------------------------------------------------------------------
+
+pub async fn get_user_stats_handler(
+    State(state): State<AppState>,
+    Path(realm_name): Path<String>,
+) -> Result<impl IntoResponse> {
+    let realm = state
+        .realm_service
+        .find_by_name(&realm_name)
+        .await?
+        .ok_or(Error::RealmNotFound(realm_name))?;
+
+    let stats: UserStats = state.user_service.get_stats(realm.id).await?;
+    Ok((StatusCode::OK, Json(stats)))
 }

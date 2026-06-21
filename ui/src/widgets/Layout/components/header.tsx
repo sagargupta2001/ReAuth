@@ -8,9 +8,17 @@ type HeaderProps = HTMLAttributes<HTMLElement> & {
   fixed?: boolean
   ref?: Ref<HTMLElement>
   leftSlot?: ReactNode
+  centerSlot?: ReactNode
 }
 
-export function Header({ className, fixed, children, leftSlot, ...props }: HeaderProps) {
+export function Header({
+  className,
+  fixed,
+  children,
+  leftSlot,
+  centerSlot,
+  ...props
+}: HeaderProps) {
   const [offset, setOffset] = useState(0)
 
   useEffect(() => {
@@ -56,6 +64,16 @@ export function Header({ className, fixed, children, leftSlot, ...props }: Heade
             </>
           )}
         </div>
+
+        {/* Center: dynamic-island breadcrumb. Absolutely centered so it stays
+            put regardless of the left/right slot widths. Hidden on small screens
+            where horizontal room is scarce. */}
+        {centerSlot && (
+          <div className="pointer-events-none absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 md:block">
+            <div className="pointer-events-auto">{centerSlot}</div>
+          </div>
+        )}
+
         {/* Right side: rest of header */}
         {children}
       </div>

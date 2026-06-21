@@ -114,7 +114,9 @@ export function WebhookEndpointForm({
   const handleSave = async () => {
     const trimmedUrl = url.trim()
     try {
-      if (!trimmedUrl || selectedEvents.size === 0) return
+      if (!trimmedUrl) return
+      // Subscriptions are chosen later (Configure tab); only edit mode edits them here.
+      if (mode === 'edit' && selectedEvents.size === 0) return
 
       if (mode === 'create') {
         const name = deriveEndpointName(trimmedUrl)
@@ -123,7 +125,8 @@ export function WebhookEndpointForm({
           url: trimmedUrl,
           description: description.trim() || undefined,
           http_method: method,
-          subscriptions: Array.from(selectedEvents),
+          // Subscribe to the catalog defaults; refine on the endpoint's Configure tab.
+          subscriptions: defaultEvents,
         })
       } else {
         if (!endpointId) return
@@ -179,7 +182,9 @@ export function WebhookEndpointForm({
             {mode === 'create' ? 'Create webhook endpoint' : 'Edit webhook endpoint'}
           </DialogTitle>
           <DialogDescription>
-            Configure a destination URL and choose which ReAuth events should be delivered.
+            {mode === 'create'
+              ? 'Configure a destination URL. You can choose which events to deliver after creating it.'
+              : 'Configure a destination URL and choose which ReAuth events should be delivered.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -222,46 +227,48 @@ export function WebhookEndpointForm({
             />
           </div>
 
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <Label>Event Subscriptions</Label>
-                <p className="text-muted-foreground text-xs">
-                  {selectedEvents.size} of {allEvents.length} events selected
-                </p>
-              </div>
-              <label className="flex items-center gap-2 pt-1 text-xs">
-                <span className="text-muted-foreground">Send all events</span>
-                <Switch
-                  checked={sendEverything}
-                  onCheckedChange={handleSendEverythingChange}
+          {mode === 'edit' ? (
+            <>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <Label>Event Subscriptions</Label>
+                    <p className="text-muted-foreground text-xs">
+                      {selectedEvents.size} of {allEvents.length} events selected
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 pt-1 text-xs">
+                    <span className="text-muted-foreground">Send all events</span>
+                    <Switch
+                      checked={sendEverything}
+                      onCheckedChange={handleSendEverythingChange}
+                      disabled={
+                        eventCatalog.isLoading ||
+                        allEvents.length === 0 ||
+                        updateWebhook.isPending ||
+                        updateSubscriptions.isPending
+                      }
+                    />
+                  </label>
+                </div>
+
+                <WebhookEventSubscriptionPicker
+                  groups={eventGroups}
+                  selectedEvents={Array.from(selectedEvents)}
+                  onSelectedEventsChange={(events) => setSelectedEvents(new Set(events))}
+                  sendEverything={sendEverything}
+                  onSendEverythingChange={handleSendEverythingChange}
                   disabled={
                     eventCatalog.isLoading ||
-                    allEvents.length === 0 ||
-                    createWebhook.isPending ||
                     updateWebhook.isPending ||
                     updateSubscriptions.isPending
                   }
                 />
-              </label>
-            </div>
-
-            <WebhookEventSubscriptionPicker
-              groups={eventGroups}
-              selectedEvents={Array.from(selectedEvents)}
-              onSelectedEventsChange={(events) => setSelectedEvents(new Set(events))}
-              sendEverything={sendEverything}
-              onSendEverythingChange={handleSendEverythingChange}
-              disabled={
-                eventCatalog.isLoading ||
-                createWebhook.isPending ||
-                updateWebhook.isPending ||
-                updateSubscriptions.isPending
-              }
-            />
-          </div>
-          {eventCatalog.isError ? (
-            <p className="text-destructive text-xs">Failed to load webhook event catalog.</p>
+              </div>
+              {eventCatalog.isError ? (
+                <p className="text-destructive text-xs">Failed to load webhook event catalog.</p>
+              ) : null}
+            </>
           ) : null}
         </div>
 
@@ -273,12 +280,12 @@ export function WebhookEndpointForm({
             onClick={handleSave}
             disabled={
               !url.trim() ||
-              selectedEvents.size === 0 ||
-              eventCatalog.isLoading ||
-              allEvents.length === 0 ||
               createWebhook.isPending ||
               updateWebhook.isPending ||
-              updateSubscriptions.isPending
+              updateSubscriptions.isPending ||
+              // Edit mode still requires a valid, loaded catalog + at least one event.
+              (mode === 'edit' &&
+                (selectedEvents.size === 0 || eventCatalog.isLoading || allEvents.length === 0))
             }
           >
             {mode === 'create' ? 'Create Webhook' : 'Update Endpoint'}

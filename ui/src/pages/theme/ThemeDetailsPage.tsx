@@ -7,6 +7,7 @@ import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
+import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { HarborResourceActions } from '@/features/harbor/components/HarborResourceActions'
 import { ThemeDetailsOverviewTab } from '@/features/theme/components/ThemeDetailsOverviewTab'
 import { ThemeDetailsSettingsTab } from '@/features/theme/components/ThemeDetailsSettingsTab'
@@ -21,6 +22,8 @@ export function ThemeDetailsPage() {
   const [activeTab, setActiveTab] = useState('overview')
 
   const { data, isLoading, isError } = useTheme(themeId)
+
+  useSetBreadcrumb({ [themeId ?? '']: data?.theme.name ?? '' })
 
   if (isLoading) {
     return (

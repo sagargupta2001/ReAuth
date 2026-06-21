@@ -5,6 +5,7 @@ export interface NavItem {
   url: string
   icon?: ElementType
   badge?: string
+  end?: boolean
 }
 
 export interface PrimaryNavItem {

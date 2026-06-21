@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { OnChangeFn, PaginationState, SortingState } from '@tanstack/react-table'
-import { Pause, Play, RotateCw, Sparkles } from 'lucide-react'
+import { Pause, Play, RotateCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/button'
-import { Command, CommandInput } from '@/components/command'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select'
 import type { LogEntry } from '@/entities/log/model/types'
 import { useLogStream } from '@/features/logs/hooks/useLogStream'
 import { cn } from '@/lib/utils'
@@ -16,10 +14,12 @@ import { enumParam, numberParam, stringParam, useUrlState } from '@/shared/lib/h
 
 import { useTelemetryLogs } from '../api/useTelemetryLogs'
 import { useTelemetryLogTargets } from '../api/useTelemetryLogTargets'
+import { LogSelectFilterChip, LogTextFilterChip } from './LogFilterChips'
+import { LogTimeRangeControl } from './LogTimeRangeControl'
 import { createLogColumns } from './LogsTableColumns'
 import { useIncludeSpansPreference } from '../lib/observabilityPreferences'
-import { isWithinRange } from '../lib/timeRange'
-import type { ResolvedTimeRange } from '../lib/timeRange'
+import { TIME_RANGE_OPTIONS, isWithinRange } from '../lib/timeRange'
+import type { ResolvedTimeRange, TimeRangeKey } from '../lib/timeRange'
 import type { TelemetryLog } from '../model/types'
 
 interface LogsExplorerProps {
@@ -31,14 +31,20 @@ interface LogsExplorerProps {
 const LOG_LEVELS = ['all', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'TRACE'] as const
 const SORT_FIELDS = ['timestamp', 'duration_ms'] as const
 const SORT_DIRS = ['desc', 'asc'] as const
+const TIME_RANGE_KEYS = TIME_RANGE_OPTIONS.map((option) => option.key) as TimeRangeKey[]
+
+const LEVEL_OPTIONS = LOG_LEVELS.filter((level) => level !== 'all').map((level) => ({
+  value: level,
+  label: level,
+}))
 
 type LogLevelFilter = (typeof LOG_LEVELS)[number]
-
 type SortField = (typeof SORT_FIELDS)[number]
-
 type SortDir = (typeof SORT_DIRS)[number]
 
-const isTraceSpan = (log: TelemetryLog) => log.target === 'trace.span' || log.message === 'trace.span';
+const isTraceSpan = (log: TelemetryLog) =>
+  log.target === 'trace.span' || log.message === 'trace.span'
+
 function parseNumber(value?: string) {
   if (!value) return undefined
   const parsed = Number(value)
@@ -71,9 +77,7 @@ function normalizeLiveLog(log: LogEntry, index: number): TelemetryLog {
 
 function normalizeStoredLog(log: TelemetryLog): TelemetryLog {
   const fields =
-    log.fields && typeof log.fields === 'object' && !Array.isArray(log.fields)
-      ? log.fields
-      : {}
+    log.fields && typeof log.fields === 'object' && !Array.isArray(log.fields) ? log.fields : {}
 
   return {
     ...log,
@@ -102,11 +106,7 @@ function buildMetadata(log: TelemetryLog) {
   return metadata
 }
 
-export function LogsExplorer({
-  timeRange,
-  onSelectTrace,
-  onRefreshTimeRange,
-}: LogsExplorerProps) {
+export function LogsExplorer({ timeRange, onSelectTrace, onRefreshTimeRange }: LogsExplorerProps) {
   const { t } = useTranslation('logs')
 
   const [urlState, setUrlState] = useUrlState<{
@@ -114,43 +114,33 @@ export function LogsExplorer({
     log_per_page: number
     log_level: LogLevelFilter
     log_source: string
-    log_q: string
+    log_user: string
+    log_trace: string
     log_sort_by: SortField
     log_sort_dir: SortDir
+    range: TimeRangeKey
+    start: string
+    end: string
   }>({
     log_page: numberParam(1),
     log_per_page: numberParam(100),
     log_level: enumParam(LOG_LEVELS, 'all'),
     log_source: stringParam('all'),
-    log_q: stringParam(''),
+    log_user: stringParam(''),
+    log_trace: stringParam(''),
     log_sort_by: enumParam(SORT_FIELDS, 'timestamp'),
     log_sort_dir: enumParam(SORT_DIRS, 'desc'),
+    range: enumParam(TIME_RANGE_KEYS, '15m'),
+    start: stringParam(''),
+    end: stringParam(''),
   })
 
-  const [searchInput, setSearchInput] = useState(urlState.log_q)
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
 
   const levelFilter = urlState.log_level
   const moduleFilter = urlState.log_source
   const { includeSpans } = useIncludeSpansPreference()
-  const columns = useMemo(
-    () => createLogColumns({ t, onSelectTrace }),
-    [onSelectTrace, t],
-  )
-
-  useEffect(() => {
-    setSearchInput(urlState.log_q)
-  }, [urlState.log_q])
-
-  useEffect(() => {
-    const handle = window.setTimeout(() => {
-      const trimmed = searchInput.trim()
-      if (trimmed !== urlState.log_q) {
-        setUrlState({ log_q: trimmed, log_page: 1 })
-      }
-    }, 350)
-    return () => window.clearTimeout(handle)
-  }, [searchInput, setUrlState, urlState.log_q])
+  const columns = useMemo(() => createLogColumns({ t, onSelectTrace }), [onSelectTrace, t])
 
   const liveAllowed =
     urlState.log_page === 1 &&
@@ -166,7 +156,8 @@ export function LogsExplorer({
     {
       level: levelFilter === 'all' ? undefined : levelFilter,
       target: moduleFilter === 'all' ? undefined : moduleFilter,
-      search: urlState.log_q || undefined,
+      user_id: urlState.log_user || undefined,
+      trace_id: urlState.log_trace || undefined,
       start,
       end,
       include_spans: includeSpans,
@@ -180,7 +171,6 @@ export function LogsExplorer({
 
   const { data: targetOptions } = useTelemetryLogTargets({
     level: levelFilter === 'all' ? undefined : levelFilter,
-    search: urlState.log_q || undefined,
     start,
     end,
     include_spans: includeSpans,
@@ -204,26 +194,16 @@ export function LogsExplorer({
     [liveAllowed, liveLogs],
   )
 
-  const searchTerm = urlState.log_q.toLowerCase()
   const applyRangeToLive = !(liveAllowed && isConnected)
   const filteredLiveLogs = useMemo(() => {
     return normalizedLive.filter((log) => {
       if (!includeSpans && isTraceSpan(log)) return false
       if (levelFilter !== 'all' && log.level !== levelFilter) return false
       if (moduleFilter !== 'all' && log.target !== moduleFilter) return false
+      if (urlState.log_user && log.user_id !== urlState.log_user) return false
+      if (urlState.log_trace && log.trace_id !== urlState.log_trace) return false
       if (applyRangeToLive && !isWithinRange(log.timestamp, timeRange)) return false
-      if (!searchTerm) return true
-      const haystack = [
-        log.message,
-        log.target,
-        log.trace_id,
-        log.request_id,
-        JSON.stringify(log.fields ?? {}),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(searchTerm)
+      return true
     })
   }, [
     applyRangeToLive,
@@ -231,8 +211,9 @@ export function LogsExplorer({
     levelFilter,
     moduleFilter,
     normalizedLive,
-    searchTerm,
     timeRange,
+    urlState.log_trace,
+    urlState.log_user,
   ])
 
   const handleRefresh = useCallback(() => {
@@ -262,24 +243,25 @@ export function LogsExplorer({
     return merged
   }, [filteredLiveLogs, liveAllowed, normalizedStored])
 
-  const moduleOptions = useMemo(() => {
+  const sourceOptions = useMemo(() => {
     const targets = new Set<string>()
     const sourceList =
       targetOptions && targetOptions.length > 0
         ? targetOptions
         : combinedLogs.map((log) => log.target).filter(Boolean)
-
     sourceList.forEach((target) => {
       if (target) targets.add(target)
     })
-    if (moduleFilter && moduleFilter !== 'all') {
-      targets.add(moduleFilter)
-    }
-    return ['all', ...Array.from(targets).slice(0, 12)]
+    if (moduleFilter && moduleFilter !== 'all') targets.add(moduleFilter)
+    return Array.from(targets)
+      .slice(0, 50)
+      .map((target) => ({ value: target, label: target }))
   }, [combinedLogs, moduleFilter, targetOptions])
-  const showModuleFilter = moduleOptions.length > 2
 
-  const totalResults = meta?.total ?? combinedLogs.length
+  const handleTimeRangeChange = (next: { rangeKey: TimeRangeKey; start: string; end: string }) => {
+    setUrlState({ range: next.rangeKey, start: next.start, end: next.end, log_page: 1 })
+  }
+
   const totalPages = meta?.total_pages && meta.total_pages > 0 ? meta.total_pages : 1
   const pagination = useMemo<PaginationState>(
     () => ({
@@ -290,12 +272,7 @@ export function LogsExplorer({
   )
 
   const sorting = useMemo<SortingState>(
-    () => [
-      {
-        id: urlState.log_sort_by,
-        desc: urlState.log_sort_dir === 'desc',
-      },
-    ],
+    () => [{ id: urlState.log_sort_by, desc: urlState.log_sort_dir === 'desc' }],
     [urlState.log_sort_by, urlState.log_sort_dir],
   )
 
@@ -320,81 +297,67 @@ export function LogsExplorer({
       log_page: 1,
     })
   }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <div className="flex flex-wrap items-center gap-3">
-        <Command className="min-w-[240px] flex-1 border bg-background/60">
-          <CommandInput
-            value={searchInput}
-            onValueChange={setSearchInput}
-            placeholder={t('LOGS_EXPLORER.SEARCH_PLACEHOLDER')}
-            className="h-10 text-sm"
-          />
-        </Command>
-        <Select
-          value={levelFilter}
-          onValueChange={(value) =>
-            setUrlState({ log_level: value as LogLevelFilter, log_page: 1 })
+      <div className="flex flex-wrap items-center gap-2">
+        <LogSelectFilterChip
+          label={t('LOGS_EXPLORER.LEVEL_FILTER')}
+          value={levelFilter === 'all' ? '' : levelFilter}
+          options={LEVEL_OPTIONS}
+          onChange={(value) =>
+            setUrlState({ log_level: (value as LogLevelFilter) || 'all', log_page: 1 })
           }
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder={t('LOGS_EXPLORER.LEVEL_FILTER')} />
-          </SelectTrigger>
-          <SelectContent>
-            {LOG_LEVELS.map((level) => (
-              <SelectItem key={level} value={level}>
-                {level === 'all' ? t('LOGS_EXPLORER.ALL_LEVELS') : level}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {showModuleFilter && (
-          <Select
-            value={moduleFilter}
-            onValueChange={(value) => setUrlState({ log_source: value, log_page: 1 })}
-          >
-            <SelectTrigger className="w-[240px]">
-              <SelectValue placeholder={t('LOGS_EXPLORER.SOURCE_FILTER')} />
-            </SelectTrigger>
-            <SelectContent>
-              {moduleOptions.map((module) => (
-                <SelectItem key={module} value={module}>
-                  {module === 'all' ? t('LOGS_EXPLORER.ALL_SOURCES') : module}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        <div className="flex flex-wrap items-center gap-2">
+        />
+        <LogSelectFilterChip
+          label={t('LOGS_EXPLORER.SOURCE_FILTER')}
+          value={moduleFilter === 'all' ? '' : moduleFilter}
+          options={sourceOptions}
+          searchable
+          contentClassName="w-96"
+          onChange={(value) => setUrlState({ log_source: value || 'all', log_page: 1 })}
+        />
+        <LogTextFilterChip
+          label={t('LOGS_EXPLORER.USER_FILTER')}
+          value={urlState.log_user}
+          placeholder="User id…"
+          onApply={(value) => setUrlState({ log_user: value, log_page: 1 })}
+        />
+        <LogTextFilterChip
+          label={t('LOGS_EXPLORER.TRACE_FILTER')}
+          value={urlState.log_trace}
+          placeholder="Trace id…"
+          onApply={(value) => setUrlState({ log_trace: value, log_page: 1 })}
+        />
+
+        <div className="ml-auto flex items-center gap-2">
+          <LogTimeRangeControl
+            rangeKey={urlState.range}
+            start={urlState.start}
+            end={urlState.end}
+            onChange={handleTimeRangeChange}
+          />
           <Button
             variant={isConnected ? 'secondary' : 'outline'}
             onClick={isConnected ? disconnect : connect}
-            className="h-11 gap-2"
+            className="h-9 gap-2"
             disabled={!liveAllowed}
           >
-              <span
-                className={cn(
-                  'h-2 w-2 rounded-full bg-muted-foreground/40',
-                  isConnected &&
-                  liveAllowed &&
-                  'animate-pulse bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)]',
-                )}
-              />
-            {isConnected ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            {isConnected ? (
+              <Pause className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <Play className="text-muted-foreground h-4 w-4" />
+            )}
             {t('LOGS_EXPLORER.LIVE_TRAIL')}
           </Button>
           <Button
             variant="outline"
-            className="h-11 gap-2"
+            className="h-9 gap-2"
             onClick={handleRefresh}
             disabled={isLoading || isFetching}
           >
             <RotateCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
           </Button>
-        </div>
-        <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-          <Sparkles className="h-3.5 w-3.5" />
-          {t('LOGS_EXPLORER.RESULT_COUNT', { count: totalResults })}
         </div>
       </div>
 
@@ -411,20 +374,19 @@ export function LogsExplorer({
           onSortingChange={handleSortingChange}
           showToolbar={false}
           rootClassName="min-h-0 flex-1"
-          className="h-[calc(100vh-540px)]"
+          className="max-h-[calc(100vh-240px)]"
+          tableClassName="table-auto min-w-[900px]"
           pageSizeOptions={[50, 100, 200]}
-          onRowClick={(log) =>
-            setExpandedLogId((current) => (current === log.id ? null : log.id))
-          }
+          onRowClick={(log) => setExpandedLogId((current) => (current === log.id ? null : log.id))}
           getRowClassName={(log) => (expandedLogId === log.id ? 'bg-muted/40' : '')}
           isRowExpanded={(log) => expandedLogId === log.id}
           renderSubRow={(log) => (
             <div className="bg-muted/30 p-4">
               <div className="flex flex-col gap-2">
-                <div className="text-xs font-medium text-muted-foreground">
+                <div className="text-muted-foreground text-xs font-medium">
                   {t('LOGS_TABLE.METADATA')}
                 </div>
-                <pre className="max-h-72 overflow-auto rounded-md bg-background/80 p-3 text-xs text-muted-foreground">
+                <pre className="bg-background/80 text-muted-foreground max-h-72 overflow-auto rounded-md p-3 text-xs">
                   {JSON.stringify(buildMetadata(log), null, 2)}
                 </pre>
               </div>

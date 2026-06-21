@@ -9,8 +9,8 @@ import { RegisterPage } from '@/pages/RegisterPage.tsx'
 import { InvitationAcceptPage } from '@/pages/InvitationAcceptPage.tsx'
 import { SetupPage } from '@/pages/SetupPage.tsx'
 import { LogsPage } from '@/pages/LogsPage.tsx'
+import { TraceDetailsPage } from '@/pages/observability/TraceDetailsPage.tsx'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { CachePage } from '@/pages/CachePage.tsx'
 import { CreateClientPage } from '@/pages/client/create/CreateClientPage.tsx'
 import { EditClientPage } from '@/pages/client/edit/EditClientPage.tsx'
 import { ClientsPage } from '@/pages/client/listing/ClientsPage.tsx'
@@ -23,7 +23,6 @@ import { FlowBuilderPage } from '@/pages/flow/builder/FlowBuilderPage.tsx'
 import { ThemeDetailsPage } from '@/pages/theme/ThemeDetailsPage.tsx'
 import { ThemesIndexPage } from '@/pages/theme/ThemesIndexPage.tsx'
 import { FluidBuilderPage } from '@/pages/theme/builder/FluidBuilderPage.tsx'
-import { CreateRealmPage } from '@/pages/realm/create/CreateRealmPage.tsx'
 import { GeneralSettingsPage } from '@/pages/realm/settings/GeneralSettingsPage.tsx'
 import { EmailSettingsPage } from '@/pages/realm/settings/EmailSettingsPage.tsx'
 import { IdentityBrokeringSettingsPage } from '@/pages/realm/settings/IdentityBrokeringSettingsPage.tsx'
@@ -41,12 +40,12 @@ import TargetDetailsPage from '@/pages/events/TargetDetailsPage.tsx'
 import { SessionsPage } from '@/pages/session/listing/SessionsPage.tsx'
 import { EditUserPage } from '@/pages/user/edit/EditUserPage.tsx'
 import { UsersPage } from '@/pages/user/listing/UsersPage.tsx'
+import { InvitationsPage } from '@/pages/user/listing/InvitationsPage.tsx'
 import HarborDashboardPage from '@/pages/harbor/HarborDashboardPage.tsx'
 import { AuthenticatedLayout } from '@/widgets/Layout/AuthenticatedLayout.tsx'
 import { FluidBuilderLayout } from '@/widgets/Layout/FluidBuilderLayout.tsx'
 import { FlowBuilderLayout } from '@/widgets/Layout/FlowBuilderLayout.tsx'
 import { LoginLayout } from '@/widgets/Layout/LoginLayout.tsx'
-import { MinimalLayout } from '@/widgets/Layout/MinimalLayout.tsx'
 
 /**
  * Defines the shape of a static route.
@@ -93,8 +92,8 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/cache',
-    element: CachePage,
+    path: '/:realm/logs/:traceId',
+    element: TraceDetailsPage,
     layout: AuthenticatedLayout,
     isProtected: true,
   },
@@ -147,12 +146,6 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/create-realm',
-    element: CreateRealmPage,
-    layout: MinimalLayout,
-    isProtected: true,
-  },
-  {
     path: '/:realm/clients',
     element: ClientsPage,
     layout: AuthenticatedLayout,
@@ -189,6 +182,12 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   { path: '/:realm/users', element: UsersPage, layout: AuthenticatedLayout, isProtected: true },
+  {
+    path: '/:realm/users/invitations',
+    element: InvitationsPage,
+    layout: AuthenticatedLayout,
+    isProtected: true,
+  },
   {
     path: '/:realm/users/:userId/:tab?',
     element: EditUserPage,

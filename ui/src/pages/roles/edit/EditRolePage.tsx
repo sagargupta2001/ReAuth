@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
 
-import { ArrowLeft, Layers, Loader2, Settings, ShieldCheck, Users } from 'lucide-react'
+import { Layers, Loader2, Settings, ShieldCheck, Users } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
-import { Button, buttonVariants } from '@/components/button'
+import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
-import { RealmLink } from '@/entities/realm/lib/navigation'
+import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useRole } from '@/features/roles/api/useRole'
 import { RoleHeader } from '@/features/roles/components/RoleHeader'
@@ -14,13 +14,14 @@ import { RoleMembersTab } from '@/features/roles/components/RoleMembersTab'
 import { RolePermissionsTab } from '@/features/roles/components/RolePermissionsTab'
 import { RoleSettingsTab } from '@/features/roles/components/RoleSettingsTab'
 import { RoleTabLayout } from '@/features/roles/components/RoleTabLayout'
-import { cn } from '@/lib/utils'
 
 export function EditRolePage() {
   const { roleId, tab } = useParams<{ roleId: string; tab?: string }>()
   const navigate = useRealmNavigate()
 
   const { data: role, isLoading, isError } = useRole(roleId!)
+
+  useSetBreadcrumb({ [roleId ?? '']: role?.name ?? '' })
 
   const validTabs = ['settings', 'permissions', 'composites', 'members']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
@@ -55,21 +56,10 @@ export function EditRolePage() {
     )
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
-      <div className="mb-2 shrink-0">
-        <RealmLink
-          to="/roles"
-          className={cn(
-            buttonVariants({ variant: 'link', size: 'sm' }),
-            'text-muted-foreground hover:text-foreground gap-2 pl-0',
-          )}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Roles
-        </RealmLink>
+    <div className="bg-background flex h-full w-full flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-6">
+        <RoleHeader role={role} />
       </div>
-
-      <RoleHeader role={role} />
 
       <Tabs
         value={activeTab}
@@ -96,8 +86,8 @@ export function EditRolePage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto xl:overflow-hidden">
-          <TabsContent value="settings" className="mt-0 h-full w-full p-6">
+        <div className="bg-muted/5 flex-1 overflow-y-auto">
+          <TabsContent value="settings" className="mt-0 min-h-full w-full p-6">
             <RoleTabLayout role={role}>
               <RoleSettingsTab role={role} />
             </RoleTabLayout>

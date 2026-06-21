@@ -3,14 +3,7 @@
   "DESCRIPTION": "Real-time system events.",
   "OBSERVABILITY": {
     "TITLE": "Observability",
-    "DESCRIPTION": "Monitor logs, traces, and cache health across your realm.",
-    "TIME_RANGE_LABEL": "Time Range",
-    "TIME_RANGE_PLACEHOLDER": "Select range",
-    "TABS": {
-      "LOGS": "Logs",
-      "TRACES": "Traces",
-      "CACHE": "Cache Manager"
-    }
+    "DESCRIPTION": "Monitor logs, traces, and cache health across your realm."
   },
   "LOG_VIEWER_WIDGET": {
     "START_STREAM_BTN_TEXT": "Start Stream",
@@ -26,6 +19,10 @@
     "ALL_LEVELS": "All levels",
     "SOURCE_FILTER": "Source module",
     "ALL_SOURCES": "All modules",
+    "USER_FILTER": "User",
+    "TRACE_FILTER": "Trace ID",
+    "DATE_FILTER": "Date range",
+    "ADD_FILTER": "Add filter",
     "RESULT_COUNT": "{{count}} results",
     "SORT_LABEL": "Sort",
     "SORT_NEWEST": "Newest first",
@@ -80,27 +77,22 @@
     "MESSAGE_LABEL": "Message",
     "FIELDS_LABEL": "Fields"
   },
-  "TRACES_LIST": {
-    "TITLE": "Recent Requests",
-    "SUBTITLE": "Top-level API traces sorted by start time.",
-    "LOADING": "Loading traces...",
-    "EMPTY": "No traces captured yet.",
-    "SEARCH_PLACEHOLDER": "Search traces: route:/api/login status:500",
-    "SORT_LABEL": "Sort",
-    "SORT_NEWEST": "Newest first",
-    "SORT_OLDEST": "Oldest first",
-    "SORT_SLOWEST": "Slowest first",
-    "SORT_FASTEST": "Fastest first",
-    "RESULT_COUNT": "{{count}} traces",
-    "ROWS_PER_PAGE": "Rows per page",
-    "PAGE_STATUS": "Page {{page}} of {{total}}",
-    "PREV": "Prev",
-    "NEXT": "Next"
-  },
   "TRACES_WATERFALL": {
     "HEADER": "Trace Waterfall",
     "EMPTY": "Select a trace to inspect the waterfall.",
     "NO_SPANS": "No spans recorded yet."
+  },
+  "TRACE_DIALOG": {
+    "EYEBROW": "Trace detail",
+    "CLOSE": "Close trace detail",
+    "DURATION": "Duration",
+    "STARTED": "Started",
+    "ROUTE": "Route",
+    "REQUEST_ID": "Request ID",
+    "USER": "User",
+    "SPAN_COUNT": "{{count}} spans",
+    "LOADING": "Loading trace spans...",
+    "ERROR": "Unable to load trace spans."
   },
   "TRACES_CLEANUP": {
     "TITLE": "Trace cleanup",

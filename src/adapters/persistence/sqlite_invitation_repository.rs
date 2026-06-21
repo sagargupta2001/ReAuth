@@ -206,6 +206,35 @@ impl InvitationRepository for SqliteInvitationRepository {
 
     #[instrument(
         skip_all,
+        fields(telemetry = "span", db_table = "invitations", db_op = "count")
+    )]
+    async fn count_all(&self, realm_id: &Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM invitations WHERE realm_id = ?")
+            .bind(realm_id.to_string())
+            .fetch_one(&*self.pool)
+            .await
+            .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(count)
+    }
+
+    #[instrument(
+        skip_all,
+        fields(telemetry = "span", db_table = "invitations", db_op = "count")
+    )]
+    async fn count_by_status(&self, realm_id: &Uuid, status: InvitationStatus) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM invitations WHERE realm_id = ? AND status = ?",
+        )
+        .bind(realm_id.to_string())
+        .bind(status.to_string())
+        .fetch_one(&*self.pool)
+        .await
+        .map_err(|e| Error::Unexpected(e.into()))?;
+        Ok(count)
+    }
+
+    #[instrument(
+        skip_all,
         fields(telemetry = "span", db_table = "invitations", db_op = "select")
     )]
     async fn list(

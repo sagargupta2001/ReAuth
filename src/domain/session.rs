@@ -3,6 +3,14 @@ use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
+/// Aggregate counts for the Sessions analytics cards (over active sessions).
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionStats {
+    pub total_active: i64,
+    pub unique_users: i64,
+    pub active_last_24h: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RefreshToken {
     pub id: Uuid,

@@ -1,10 +1,23 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
+import { Trash2 } from 'lucide-react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
+import { Button } from '@/components/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/dialog'
 import { Form } from '@/components/form'
+import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useDeleteRole } from '@/features/roles/api/useDeleteRole'
+import { useRoleDeleteSummary } from '@/features/roles/api/useRoleDeleteSummary'
 import type { Role } from '@/features/roles/api/useRoles.ts'
 import { useUpdateRole } from '@/features/roles/api/useUpdateRole'
 import { type RoleFormValues, roleSchema } from '@/features/roles/schema/create.schema'
@@ -17,7 +30,11 @@ interface RoleSettingsTabProps {
 }
 
 export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
+  const navigate = useRealmNavigate()
   const mutation = useUpdateRole(role.id)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const deleteRole = useDeleteRole(role.id)
+  const { data: summary, isLoading: summaryLoading } = useRoleDeleteSummary(role.id, deleteOpen)
 
   const form = useForm<RoleFormValues>({
     resolver: zodResolver(roleSchema),
@@ -42,8 +59,16 @@ export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
     })
   }
 
-  // Enable Floating Save Bar
   useFormPersistence(form, onSubmit, mutation.isPending)
+
+  const handleConfirmDelete = () => {
+    deleteRole.mutate(undefined, {
+      onSuccess: () => {
+        setDeleteOpen(false)
+        navigate('/roles')
+      },
+    })
+  }
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -53,8 +78,8 @@ export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
             <CardHeader>
               <CardTitle>Basic Information</CardTitle>
             </CardHeader>
-            <CardContent >
-              <div className='bg-primary-foreground p-4 rounded-2xl space-y-4'>
+            <CardContent>
+              <div className="bg-primary-foreground p-4 rounded-2xl space-y-4">
                 <FormInput
                   control={form.control}
                   name="name"
@@ -75,6 +100,91 @@ export function RoleSettingsTab({ role }: RoleSettingsTabProps) {
           </Card>
         </form>
       </Form>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Danger Zone</CardTitle>
+          <CardDescription>
+            Delete this role and remove its assignments, composites, and permissions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="border-destructive/30 bg-destructive/5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-4">
+            <div>
+              <p className="text-sm font-medium">Delete role</p>
+              <p className="text-muted-foreground text-sm">
+                Permanently removes the role and clears all user assignments and permissions linked to it.
+              </p>
+            </div>
+            <Button type="button" variant="destructive" onClick={() => setDeleteOpen(true)}>
+              <Trash2 className="h-4 w-4" />
+              Delete Role
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader className="px-6 pt-6">
+            <DialogTitle>Delete role</DialogTitle>
+            <DialogDescription>
+              This permanently removes the role and clears assignments, composites, and permissions
+              linked to it.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="px-6 pb-2">
+            {summaryLoading ? (
+              <div className="text-muted-foreground text-sm">Loading impact...</div>
+            ) : summary ? (
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Direct users</div>
+                    <div className="font-medium">{summary.direct_user_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Effective users</div>
+                    <div className="font-medium">{summary.effective_user_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Groups assigned</div>
+                    <div className="font-medium">{summary.group_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Parent composites</div>
+                    <div className="font-medium">{summary.parent_role_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Child composites</div>
+                    <div className="font-medium">{summary.child_role_count}</div>
+                  </div>
+                  <div className="rounded-md border px-3 py-2">
+                    <div className="text-muted-foreground text-xs">Permissions</div>
+                    <div className="font-medium">{summary.permission_count}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-destructive text-sm">Unable to load delete impact.</div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-1 py-3 pr-3">
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={summaryLoading || deleteRole.isPending || !summary}
+            >
+              {deleteRole.isPending ? 'Deleting...' : 'Delete Role'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -453,3 +453,44 @@ async fn revoke_is_realm_scoped() {
         "foreign realm session untouched"
     );
 }
+
+#[tokio::test]
+#[serial(test_db)]
+async fn session_stats_returns_active_counts() {
+    let ctx = TestContext::new().await;
+    let realm = setup_realm(&ctx, DEFAULT_REALM_NAME).await;
+    let (reader, _) =
+        admin_with_permissions(&ctx, realm.id, "reader", &[permissions::SESSION_READ]).await;
+    // Two active sessions for one user.
+    user_with_sessions(&ctx, realm.id, "alice", 2).await;
+
+    let uri = format!("/api/realms/{}/sessions/stats", DEFAULT_REALM_NAME);
+    let res = ctx.request(empty_request("GET", uri, &reader)).await;
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let body = json_body(res).await;
+    // reader (admin) + alice both have active sessions.
+    assert!(body["total_active"].as_i64().unwrap() >= 2);
+    assert!(body["unique_users"].as_i64().unwrap() >= 1);
+    assert!(body["active_last_24h"].as_i64().is_some());
+}
+
+#[tokio::test]
+#[serial(test_db)]
+async fn role_stats_returns_counts() {
+    let ctx = TestContext::new().await;
+    let realm = setup_realm(&ctx, DEFAULT_REALM_NAME).await;
+    // admin_with_permissions creates at least one role in the realm.
+    // The /rbac routes are guarded by RBAC_WRITE.
+    let (admin, _) =
+        admin_with_permissions(&ctx, realm.id, "admin", &[permissions::RBAC_WRITE]).await;
+
+    let uri = format!("/api/realms/{}/rbac/roles/stats", DEFAULT_REALM_NAME);
+    let res = ctx.request(empty_request("GET", uri, &admin)).await;
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let body = json_body(res).await;
+    assert!(body["total"].as_i64().unwrap() >= 1);
+    assert!(body["composite"].as_i64().is_some());
+    assert!(body["client"].as_i64().is_some());
+}

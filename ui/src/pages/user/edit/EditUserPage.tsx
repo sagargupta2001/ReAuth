@@ -1,30 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 import { format } from 'date-fns'
-import { ArrowLeft, KeyRound, Settings, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
+import { KeyRound, Settings, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
-import { Button, buttonVariants } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
-import { RealmLink } from '@/entities/realm/lib/navigation'
+import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import { useUser } from '@/features/user/api/useUser.ts'
-import { UserHeaderActions } from '@/features/user/components/UserHeaderActions'
-import { UserJsonDialog } from '@/features/user/components/UserJsonDialog'
 import { UserTabLayout } from '@/features/user/components/UserTabLayout'
 import { UserCredentialsTab } from '@/features/user/components/UserCredentialsTab'
 import { UserRolesTab } from '@/features/user/components/UserRolesTab'
 import { UserSettingsTab } from '@/features/user/components/UserSettingsTab'
 import { UseProfileTab } from '@/features/user/components/UseProfileTab.tsx'
-import { cn } from '@/lib/utils'
 import { Skeleton } from '@/shared/ui/skeleton.tsx'
 
 export function EditUserPage() {
   const { userId, tab } = useParams<{ userId: string; tab?: string }>()
   const navigate = useRealmNavigate()
-  const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
 
   const { data: user, isLoading: isUserLoading } = useUser(userId as string)
+
+  // Surface the user's name in the header breadcrumb (falls back to id while loading).
+  useSetBreadcrumb({ [userId ?? '']: user?.username ?? '' })
 
   const validTabs = ['profile', 'roles', 'credentials', 'settings']
   const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'profile'
@@ -52,29 +50,15 @@ export function EditUserPage() {
   }
 
   return (
-    <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
-      <div className="mb-2 shrink-0">
-        <RealmLink
-          to="/users"
-          className={cn(
-            buttonVariants({ variant: 'link', size: 'sm' }),
-            'text-muted-foreground hover:text-foreground gap-2 pl-0',
-          )}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Users
-        </RealmLink>
-      </div>
-
-      {isUserLoading ? (
-        userIconSkeleton()
-      ) : (
-        <div className="flex items-center justify-between gap-4">
+    <div className="bg-background flex h-full w-full flex-col overflow-hidden">
+      <div className="shrink-0 px-6 pt-6">
+        {isUserLoading ? (
+          userIconSkeleton()
+        ) : (
           <div className="flex min-w-0 items-center gap-4">
             <div className="flex items-center justify-center rounded-full border-4 p-4">
               <UserRound className="h-7 w-7" />
             </div>
-
             <div className="grid min-w-0">
               <span className="truncate text-2xl font-semibold">{user?.username}</span>
               {user?.last_sign_in_at && (
@@ -85,21 +69,8 @@ export function EditUserPage() {
               )}
             </div>
           </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            <Button size='sm' onClick={() => setJsonDialogOpen(true)}>
-              Show JSON
-            </Button>
-            <UserHeaderActions
-              userId={userId}
-              user={user}
-              onDeleted={() => navigate('/users')}
-            />
-          </div>
-        </div>
-      )}
-
-      <UserJsonDialog user={user} open={jsonDialogOpen} onOpenChange={setJsonDialogOpen} />
+        )}
+      </div>
 
       <Tabs
         value={activeTab}
@@ -123,25 +94,23 @@ export function EditUserPage() {
           </TabsList>
         </div>
 
-        <div className="bg-muted/5 flex-1 overflow-y-auto xl:overflow-hidden">
-          <TabsContent value="profile" className="mt-0 h-full w-full p-6">
+        <div className="bg-muted/5 flex-1 overflow-y-auto">
+          <TabsContent value="profile" className="mt-0 min-h-full w-full p-6">
             <UserTabLayout userId={userId}>
               <UseProfileTab userId={userId} />
             </UserTabLayout>
           </TabsContent>
-          <TabsContent value="roles" className="mt-0 h-full w-full p-6">
-            <UserTabLayout userId={userId}>
-              <UserRolesTab userId={userId} />
-            </UserTabLayout>
+          <TabsContent value="roles" className="mt-0 min-h-full w-full p-6">
+            <UserRolesTab userId={userId} />
           </TabsContent>
-          <TabsContent value="credentials" className="mt-0 h-full w-full p-6">
+          <TabsContent value="credentials" className="mt-0 min-h-full w-full p-6">
             <UserTabLayout userId={userId}>
               <UserCredentialsTab userId={userId} />
             </UserTabLayout>
           </TabsContent>
-          <TabsContent value="settings" className="mt-0 h-full w-full p-6">
+          <TabsContent value="settings" className="mt-0 min-h-full w-full p-6">
             <UserTabLayout userId={userId}>
-              <UserSettingsTab userId={userId} />
+              <UserSettingsTab userId={userId} user={user} onDeleted={() => navigate('/users')} />
             </UserTabLayout>
           </TabsContent>
         </div>

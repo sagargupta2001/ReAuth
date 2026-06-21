@@ -1,9 +1,18 @@
-import { X } from 'lucide-react'
-import { type DateRange } from 'react-day-picker'
+import { Check, ChevronsUpDown, X } from 'lucide-react'
 
 import { Button } from '@/shared/ui/button'
-import { DateRangePicker } from '@/shared/ui/date-range-picker'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/shared/ui/command'
+import { DateTimeRangePicker } from '@/shared/ui/date-time-range-picker'
 import { Input } from '@/shared/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/shared/ui/popover'
+import { cn } from '@/shared/lib/utils'
 
 import { type DataTableFilterField, type DataTableFilterValue } from './types'
 
@@ -89,19 +98,76 @@ function FilterValueControl({
     )
 
   if (field.type === 'date-range') {
-    const dateValue = value as DateRange | undefined
+    const dateValue = value as { from?: Date | string; to?: Date | string } | undefined
 
     return (
-      <DateRangePicker
-        initialDateFrom={dateValue?.from}
-        initialDateTo={dateValue?.to}
-        onUpdate={(values) => onChange(values.range)}
-        showCompare={false}
+      <DateTimeRangePicker
+        value={dateValue}
+        onChange={(range) => onChange(range)}
         align="start"
+        placeholder="Pick range…"
         triggerClassName="h-7 border-0 bg-transparent px-1 text-xs shadow-none hover:bg-transparent"
       />
     )
   }
 
+  if (field.type === 'select') {
+    return <SelectFilterControl field={field} value={value} onChange={onChange} />
+  }
+
   return null
+}
+
+function SelectFilterControl({
+  field,
+  value,
+  onChange,
+}: {
+  field: DataTableFilterField
+  value: unknown
+  onChange: (value: unknown) => void
+}) {
+  const options = field.options ?? []
+  const selected = options.find((option) => option.value === value)
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          role="combobox"
+          className="h-7 justify-between gap-1 border-0 px-1 text-sm font-normal shadow-none hover:bg-transparent"
+        >
+          {selected?.label ?? <span className="text-muted-foreground">Select...</span>}
+          <ChevronsUpDown className="size-3.5 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[220px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder={field.placeholder ?? `Search ${field.label.toLowerCase()}...`} />
+          <CommandList>
+            <CommandEmpty>No results found.</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.label}
+                  onSelect={() => onChange(option.value === value ? '' : option.value)}
+                >
+                  <Check
+                    className={cn(
+                      'size-4',
+                      option.value === value ? 'opacity-100' : 'opacity-0',
+                    )}
+                  />
+                  {option.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }

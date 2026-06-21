@@ -20,6 +20,8 @@ pub trait InvitationRepository: Send + Sync {
         email_normalized: &str,
     ) -> Result<Option<Invitation>>;
     async fn expire_pending_before(&self, realm_id: &Uuid, cutoff: DateTime<Utc>) -> Result<u64>;
+    async fn count_all(&self, realm_id: &Uuid) -> Result<i64>;
+    async fn count_by_status(&self, realm_id: &Uuid, status: InvitationStatus) -> Result<i64>;
     async fn list(
         &self,
         realm_id: &Uuid,

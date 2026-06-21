@@ -37,7 +37,6 @@ export function PhoneNumberSection({ userId }: PhoneNumberSectionProps) {
           <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-10 text-center">
             <Phone className="text-muted-foreground h-8 w-8" />
             <p className="text-muted-foreground text-sm">No phone numbers on this account.</p>
-            <AddPhoneNumberDialog userId={userId} />
           </div>
         ) : (
           <div>

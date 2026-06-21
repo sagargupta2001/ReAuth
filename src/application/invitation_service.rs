@@ -3,6 +3,7 @@ use std::sync::Arc;
 use base64::Engine;
 use chrono::{Duration, Utc};
 use rand::distr::{Alphanumeric, SampleString};
+use serde::Serialize;
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -19,6 +20,13 @@ use crate::ports::flow_store::FlowStore;
 use crate::ports::invitation_repository::InvitationRepository;
 use crate::ports::realm_repository::RealmRepository;
 use tracing::warn;
+
+#[derive(Debug, Serialize)]
+pub struct InvitationStats {
+    pub total: i64,
+    pub pending: i64,
+    pub accepted: i64,
+}
 
 pub struct InvitationService {
     invitation_repo: Arc<dyn InvitationRepository>,
@@ -125,6 +133,23 @@ impl InvitationService {
     ) -> Result<PageResponse<Invitation>> {
         self.expire_pending(realm_id).await?;
         self.invitation_repo.list(&realm_id, &req, &statuses).await
+    }
+
+    pub async fn get_stats(&self, realm_id: Uuid) -> Result<InvitationStats> {
+        let total = self.invitation_repo.count_all(&realm_id).await?;
+        let pending = self
+            .invitation_repo
+            .count_by_status(&realm_id, InvitationStatus::Pending)
+            .await?;
+        let accepted = self
+            .invitation_repo
+            .count_by_status(&realm_id, InvitationStatus::Accepted)
+            .await?;
+        Ok(InvitationStats {
+            total,
+            pending,
+            accepted,
+        })
     }
 
     pub async fn resend_invitation(

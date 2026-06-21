@@ -6,12 +6,12 @@ import { type Resolver, useForm } from 'react-hook-form'
 import { useCurrentRealm } from '@/features/realm/api/useRealm.ts'
 import { useRealmSecurityHeaders } from '@/features/realm/api/useRealmSecurityHeaders.ts'
 import { useUpdateRealmSecurityHeaders } from '@/features/realm/api/useUpdateRealmSecurityHeaders.ts'
+import { RealmSettingsCard } from '@/features/realm/components/RealmSettingsCard'
 import {
   type SecurityHeadersSchema,
   securityHeadersSchema,
 } from '@/features/realm/schema/security-headers.schema.ts'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence.ts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card.tsx'
 import { FormInput } from '@/shared/ui/form-input.tsx'
 import { Form } from '@/shared/ui/form.tsx'
 
@@ -74,82 +74,67 @@ export function SecurityHeadersSettingsForm() {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Browser Security Headers</CardTitle>
-            <CardDescription>
-              Apply security headers to auth and OIDC responses. {headerHint}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div id="security-x-frame-options" className="scroll-mt-24 rounded-md -m-2 p-2">
-                <FormInput
-                  control={form.control}
-                  name="x_frame_options"
-                  label="X-Frame-Options"
-                  description="Controls embedding in frames. Example: SAMEORIGIN"
-                />
-              </div>
-              <div
-                id="security-content-security-policy"
-                className="scroll-mt-24 rounded-md -m-2 p-2"
-              >
-                <FormInput
-                  control={form.control}
-                  name="content_security_policy"
-                  label="Content-Security-Policy"
-                  description="Restrict where the UI can be embedded."
-                  placeholder="frame-ancestors 'self'"
-                />
-              </div>
+        <RealmSettingsCard
+          title="Browser Security Headers"
+          description={<>Apply security headers to auth and OIDC responses. {headerHint}</>}
+          bodyClassName="space-y-6"
+        >
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div id="security-x-frame-options" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="x_frame_options"
+                label="X-Frame-Options"
+                description="Controls embedding in frames. Example: SAMEORIGIN"
+              />
             </div>
-          </CardContent>
-        </Card>
+            <div id="security-content-security-policy" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="content_security_policy"
+                label="Content-Security-Policy"
+                description="Restrict where the UI can be embedded."
+                placeholder="frame-ancestors 'self'"
+              />
+            </div>
+          </div>
+        </RealmSettingsCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Additional Headers</CardTitle>
-            <CardDescription>Harden common response headers. {headerHint}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div
-                id="security-x-content-type-options"
-                className="scroll-mt-24 rounded-md -m-2 p-2"
-              >
-                <FormInput
-                  control={form.control}
-                  name="x_content_type_options"
-                  label="X-Content-Type-Options"
-                  description="Disable MIME sniffing. Example: nosniff"
-                />
-              </div>
-              <div
-                id="security-referrer-policy"
-                className="scroll-mt-24 rounded-md -m-2 p-2"
-              >
-                <FormInput
-                  control={form.control}
-                  name="referrer_policy"
-                  label="Referrer-Policy"
-                  description="Control referrer data. Example: no-referrer"
-                />
-              </div>
-              <div
-                id="security-strict-transport-security"
-                className="scroll-mt-24 rounded-md -m-2 p-2"
-              >
-                <FormInput
-                  control={form.control}
-                  name="strict_transport_security"
-                  label="Strict-Transport-Security"
-                  description="Enable HSTS only on HTTPS. Example: max-age=31536000"
-                />
-              </div>
+        <RealmSettingsCard
+          title="Additional Headers"
+          description={<>Harden common response headers. {headerHint}</>}
+          bodyClassName="space-y-6"
+        >
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div id="security-x-content-type-options" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="x_content_type_options"
+                label="X-Content-Type-Options"
+                description="Disable MIME sniffing. Example: nosniff"
+              />
             </div>
-          </CardContent>
-        </Card>
+            <div id="security-referrer-policy" className="-m-2 scroll-mt-24 rounded-md p-2">
+              <FormInput
+                control={form.control}
+                name="referrer_policy"
+                label="Referrer-Policy"
+                description="Control referrer data. Example: no-referrer"
+              />
+            </div>
+            <div
+              id="security-strict-transport-security"
+              className="-m-2 scroll-mt-24 rounded-md p-2"
+            >
+              <FormInput
+                control={form.control}
+                name="strict_transport_security"
+                label="Strict-Transport-Security"
+                description="Enable HSTS only on HTTPS. Example: max-age=31536000"
+              />
+            </div>
+          </div>
+        </RealmSettingsCard>
       </form>
     </Form>
   )

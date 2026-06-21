@@ -256,3 +256,35 @@ async fn observability_endpoints_return_ok() {
     assert!(metrics_json.get("request_count").is_some());
     assert!(metrics_json.get("latency_ms").is_some());
 }
+
+#[tokio::test]
+#[serial(test_db)]
+async fn logs_accept_user_and_trace_filters() {
+    let ctx = TestContext::new().await;
+    let token = setup_observability_user(&ctx).await;
+
+    // The logs endpoint must accept the user_id/trace_id filter params and
+    // return a well-formed paginated response narrowed to the (here, empty) match set.
+    let request = Request::builder()
+        .uri("/api/system/observability/logs?user_id=no-such-user&trace_id=no-such-trace")
+        .method("GET")
+        .header(header::AUTHORIZATION, format!("Bearer {}", token))
+        .body(Body::empty())
+        .expect("filtered logs request");
+    let response = ctx.request(request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response
+        .into_body()
+        .collect()
+        .await
+        .expect("filtered logs body")
+        .to_bytes();
+    let json: Value = serde_json::from_slice(&body).expect("filtered logs json");
+    let data = json
+        .get("data")
+        .and_then(|value| value.as_array())
+        .expect("data array");
+    assert!(data.is_empty(), "no logs should match the bogus filters");
+    assert!(json.get("meta").is_some());
+}

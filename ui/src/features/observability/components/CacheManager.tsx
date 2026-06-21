@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react'
 
-import { AlertTriangle, Database, MemoryStick, Trash2 } from 'lucide-react'
+import { AlertTriangle, Database, Gauge, MemoryStick, Trash2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/alert-dialog'
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/card'
 import { Input } from '@/components/input'
+import { MetricCard } from '@/shared/ui/metric-card'
 import {
   Table,
   TableBody,
@@ -50,42 +50,34 @@ export function CacheManager() {
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">
-              {t('CACHE_MANAGER.OVERALL_HIT_RATE')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{formatPercent(totals.weightedHitRate)}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-sky-500/30 bg-sky-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">
-              {t('CACHE_MANAGER.TOTAL_ITEMS')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{totals.totalEntries}</div>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">
-              {t('CACHE_MANAGER.MEMORY_USAGE')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{formatPercent(usagePercent)}</div>
-            <p className="text-xs text-muted-foreground">
-              {totals.totalEntries} / {totals.totalCapacity}
-            </p>
-          </CardContent>
-        </Card>
+        <MetricCard
+          title={t('CACHE_MANAGER.OVERALL_HIT_RATE')}
+          value={formatPercent(totals.weightedHitRate)}
+          icon={Gauge}
+          accentClassName="from-emerald-500/20 via-emerald-500/10 to-transparent"
+          iconClassName="bg-emerald-500/15 text-emerald-500 ring-emerald-500/20"
+          barClassName="bg-emerald-500"
+        />
+        <MetricCard
+          title={t('CACHE_MANAGER.TOTAL_ITEMS')}
+          value={totals.totalEntries.toLocaleString()}
+          icon={Database}
+          accentClassName="from-sky-500/20 via-sky-500/10 to-transparent"
+          iconClassName="bg-sky-500/15 text-sky-500 ring-sky-500/20"
+          barClassName="bg-sky-500"
+        />
+        <MetricCard
+          title={t('CACHE_MANAGER.MEMORY_USAGE')}
+          value={formatPercent(usagePercent)}
+          description={`${totals.totalEntries} / ${totals.totalCapacity}`}
+          icon={MemoryStick}
+          accentClassName="from-amber-500/20 via-amber-500/10 to-transparent"
+          iconClassName="bg-amber-500/15 text-amber-500 ring-amber-500/20"
+          barClassName="bg-amber-500"
+        />
       </div>
 
-      <div className="rounded-xl border bg-background/40">
+      <div className="bg-surface-elevated rounded-xl border">
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div>
             <div className="text-sm font-semibold">{t('CACHE_MANAGER.NAMESPACE_TABLE')}</div>

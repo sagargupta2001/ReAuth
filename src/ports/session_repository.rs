@@ -1,5 +1,5 @@
 use crate::domain::pagination::{PageRequest, PageResponse};
-use crate::domain::session::SessionListFilter;
+use crate::domain::session::{SessionListFilter, SessionStats};
 use crate::{domain::session::RefreshToken, error::Result};
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -43,4 +43,5 @@ pub trait SessionRepository: Send + Sync {
         req: &PageRequest,
         filter: &SessionListFilter,
     ) -> Result<PageResponse<RefreshToken>>;
+    async fn get_stats(&self, realm_id: &Uuid) -> Result<SessionStats>;
 }

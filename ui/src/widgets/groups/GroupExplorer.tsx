@@ -56,7 +56,9 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
         </div>
       ) : (
         <div className="flex h-full flex-col overflow-hidden">
-          <GroupHeader group={group} showBack={false} />
+          <div className="shrink-0 px-6 pt-6">
+            <GroupHeader group={group} showBack={false} />
+          </div>
 
           <Tabs
             value={activeTab}

@@ -1,13 +1,13 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
-import { Activity, ArrowLeft, Loader2, Settings, SlidersHorizontal } from 'lucide-react'
+import { Activity, Loader2, Settings, SlidersHorizontal } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
-import { Button, buttonVariants } from '@/components/button'
+import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import type { WebhookEndpointDetails } from '@/entities/events/model/types'
-import { RealmLink } from '@/entities/realm/lib/navigation'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useReplayDelivery } from '@/features/events/api/useReplayDelivery'
 import { useWebhookDeliveries } from '@/features/events/api/useWebhookDeliveries'
@@ -21,7 +21,7 @@ import { WebhookConfigureTab } from '@/features/events/components/WebhookConfigu
 import { WebhookSettingsTab } from '@/features/events/components/WebhookSettingsTab'
 import { WebhookTargetHeader } from '@/features/events/components/WebhookTargetHeader'
 import { WebhookTargetSummaryPanel } from '@/features/events/components/WebhookTargetSummaryPanel'
-import { cn, formatClockTime } from '@/lib/utils'
+import { formatClockTime } from '@/lib/utils'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 
 const VALID_TABS = ['configure', 'deliveries', 'settings'] as const
@@ -43,6 +43,11 @@ export function TargetDetailsPage() {
     isError: webhookError,
     refetch: refetchWebhook,
   } = useWebhook(webhookId)
+
+  useSetBreadcrumb({
+    [targetId ?? '']: webhookDetails?.endpoint.name || webhookDetails?.endpoint.url || '',
+  })
+
   const { enableWebhook, disableWebhook } = useWebhookMutations()
   const deleteWebhook = useDeleteWebhook()
   const replayDelivery = useReplayDelivery()
@@ -99,7 +104,6 @@ export function TargetDetailsPage() {
   if (webhookLoading) {
     return (
       <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
-        <BackToWebhooksLink />
         <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-4">
           <Loader2 className="text-primary h-8 w-8 animate-spin" />
           <p>Loading webhook...</p>
@@ -111,7 +115,6 @@ export function TargetDetailsPage() {
   if (webhookError || !webhookDetails) {
     return (
       <div className="bg-background flex h-full w-full flex-col overflow-hidden p-6">
-        <BackToWebhooksLink />
         <div className="text-destructive flex flex-1 flex-col items-center justify-center gap-2">
           <p>Webhook endpoint not found.</p>
           <Button variant="outline" onClick={() => navigate('/events')}>
@@ -150,8 +153,6 @@ export function TargetDetailsPage() {
   return (
     <div className="bg-background flex h-full w-full flex-col overflow-hidden">
       <div className="shrink-0 px-6 pt-6">
-        <BackToWebhooksLink />
-
         <WebhookTargetHeader endpoint={endpoint} />
       </div>
 
@@ -228,23 +229,6 @@ export function TargetDetailsPage() {
 }
 
 export default TargetDetailsPage
-
-function BackToWebhooksLink() {
-  return (
-    <div className="mb-2 shrink-0">
-      <RealmLink
-        to="/events"
-        className={cn(
-          buttonVariants({ variant: 'link', size: 'sm' }),
-          'text-muted-foreground hover:text-foreground gap-2 pl-0',
-        )}
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Webhooks
-      </RealmLink>
-    </div>
-  )
-}
 
 function WebhookTargetTabLayout({
   details,
