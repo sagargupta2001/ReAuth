@@ -1,15 +1,9 @@
 import type { ReactNode } from 'react'
 
-import { GitBranch, Lock, MoreVertical, Pencil } from 'lucide-react'
+import { GitBranch, Lock, Pencil } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/dropdown-menu'
 import type { FlowDraft } from '@/entities/flow/model/types'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 
@@ -79,18 +73,6 @@ export function FlowHeader({ draft, actions }: FlowHeaderProps) {
           <Pencil className="h-3.5 w-3.5" />
           {isSystemFlow ? 'Edit Flow' : 'Edit Draft'}
         </Button>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem>Duplicate</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </header>
   )
