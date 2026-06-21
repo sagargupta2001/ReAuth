@@ -35,14 +35,13 @@ export function ClientHeader({ client, actions }: ClientHeaderProps) {
             {/* Status Badges */}
             {isConfidential ? (
               <Badge
-                variant="outline"
+                variant="default"
               >
                 <Shield className="h-3 w-3" /> Confidential
               </Badge>
             ) : (
               <Badge
-                variant="outline"
-                className="h-5 gap-1 border-orange-200 bg-orange-50 text-[10px] text-orange-700"
+                variant="default"
               >
                 <ShieldAlert className="h-3 w-3" /> Public
               </Badge>
