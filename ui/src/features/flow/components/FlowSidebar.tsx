@@ -5,8 +5,8 @@ import {
   Globe,
   LayoutTemplate,
   ListFilter,
-  Mail,
   type LucideIcon,
+  Mail,
   Plus,
   Search,
   ShieldCheck,
@@ -53,7 +53,6 @@ const flowTypeOptions: { value: FlowType | 'all'; label: string; icon?: LucideIc
 ]
 
 export function FlowsSidebar() {
-  // Destructure realmId (string) for URLs and isFlowActive (logic)
   const { isFlowActive, realmId } = useFlowBindings()
   const { data: flows, isLoading } = useFlows()
 
@@ -61,18 +60,15 @@ export function FlowsSidebar() {
   const [typeFilter, setTypeFilter] = useState<FlowType | 'all'>('all')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
-  // Filter & Group Logic
   const { activeFlows, availableFlows } = useMemo(() => {
     if (!flows) return { activeFlows: [], availableFlows: [] }
 
-    // 1. Filter
     const filtered = flows.filter((f) => {
       const matchesSearch = f.alias.toLowerCase().includes(search.toLowerCase())
       const matchesType = typeFilter === 'all' || f.type === typeFilter
       return matchesSearch && matchesType
     })
 
-    // 2. Group
     const active: UnifiedFlowDto[] = []
     const available: UnifiedFlowDto[] = []
 
@@ -84,7 +80,6 @@ export function FlowsSidebar() {
       }
     })
 
-    // 3. Sort (Alphabetical)
     const sortFn = (a: UnifiedFlowDto, b: UnifiedFlowDto) => a.alias.localeCompare(b.alias)
 
     return {
@@ -96,21 +91,19 @@ export function FlowsSidebar() {
   if (isLoading || !realmId) return null
 
   return (
-    <div className="bg-muted/10 flex h-full w-[var(--sidebar-width-secondary)] flex-col border-r">
-      {/* HEADER */}
+    <div className="bg-muted/10 flex h-full w-(--sidebar-width-secondary) flex-col border-r">
       <div className="bg-background flex h-14 shrink-0 items-center justify-between border-b px-4">
-        <h2 className="text-sm font-semibold tracking-tight">Authentication Flows</h2>
+        <h2 className="text-lg font-semibold tracking-tight">Flows</h2>
         <Badge variant="secondary" className="text-muted-foreground h-5 px-1.5 text-[10px]">
           {activeFlows.length + availableFlows.length}
         </Badge>
       </div>
 
-      {/* SEARCH & CONTROLS */}
       <div className="space-y-3 p-3">
         <div className="relative">
           <Search className="text-muted-foreground/50 absolute top-2.5 left-2.5 h-4 w-4" />
           <Input
-            placeholder="Find a flow..."
+            placeholder="Search..."
             className="bg-background h-9 pl-9 text-sm transition-shadow focus-visible:ring-1"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -141,11 +134,7 @@ export function FlowsSidebar() {
         </Select>
       </div>
 
-      <Separator />
-
-      {/* FLOW LIST */}
       <div className="flex-1 overflow-y-auto p-2">
-        {/* Active Group */}
         {activeFlows.length > 0 && (
           <div className="mb-4">
             <h3 className="text-muted-foreground/60 mb-2 px-2 text-[10px] font-bold tracking-wider uppercase">
@@ -159,12 +148,10 @@ export function FlowsSidebar() {
           </div>
         )}
 
-        {/* Separator */}
         {activeFlows.length > 0 && availableFlows.length > 0 && (
           <Separator className="my-2 opacity-50" />
         )}
 
-        {/* Available Group */}
         {availableFlows.length > 0 && (
           <div>
             <h3 className="text-muted-foreground/60 mb-2 px-2 text-[10px] font-bold tracking-wider uppercase">
@@ -178,7 +165,6 @@ export function FlowsSidebar() {
           </div>
         )}
 
-        {/* Empty State */}
         {activeFlows.length === 0 && availableFlows.length === 0 && (
           <div className="flex h-32 flex-col items-center justify-center gap-2 text-center">
             <div className="bg-muted rounded-full p-3">
@@ -189,15 +175,13 @@ export function FlowsSidebar() {
         )}
       </div>
 
-      {/* FOOTER */}
       <div className="bg-background mt-auto border-t p-3">
         <Button
-          className="w-full justify-start gap-2 shadow-sm"
-          size="sm"
+          className="w-full gap-2" size="sm"
           onClick={() => setIsCreateOpen(true)}
         >
           <Plus className="h-4 w-4" />
-          Create New Flow
+          Create Flow
         </Button>
       </div>
 
