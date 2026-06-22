@@ -86,11 +86,11 @@ export function NodePalette() {
 
   return (
     <aside className="bg-muted/10 flex w-64 flex-col border-r">
-      <div className="border-b p-4">
+      <div className="p-4">
         <Input
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="search components..."
+          placeholder="Search..."
           className="h-8 text-xs"
         />
       </div>
