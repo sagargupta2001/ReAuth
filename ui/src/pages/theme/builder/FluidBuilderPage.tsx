@@ -28,7 +28,6 @@ import { useThemeTemplateGaps } from '@/features/theme/api/useThemeTemplateGaps'
 import { FluidBlocksPanel } from '@/features/fluid/components/FluidBlocksPanel'
 import { FluidBuilderHeader } from '@/features/fluid/components/FluidBuilderHeader'
 import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
-import { FluidFloatingActionBar } from '@/features/fluid/components/FluidFloatingActionBar'
 import { FluidInspector } from '@/features/fluid/components/FluidInspector'
 import { FluidPrimarySidebar } from '@/features/fluid/components/FluidPrimarySidebar'
 import { FluidThemeSettingsPanel } from '@/features/fluid/components/FluidThemeSettingsPanel'
@@ -38,6 +37,7 @@ import {
   validateThemeDraft,
 } from '@/features/fluid/lib/themeValidation'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
+import { BuilderFloatingActionBar } from '@/components/builder-floating-action-bar'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 
 const fallbackDraft: ThemeDraft = {
@@ -527,7 +527,6 @@ export function FluidBuilderPage() {
           setSelectedNodeId(null)
         }}
         onCreatePage={handleCreatePage}
-        onSave={() => void handleSave()}
         onResetPage={handleResetPage}
         canResetPage={
           data.theme.is_system
@@ -621,12 +620,14 @@ export function FluidBuilderPage() {
           onUpdateSelectedBlock={handleUpdateSelectedNode}
         />
       </div>
-      <FluidFloatingActionBar
-        isInspecting={isInspecting}
+      <BuilderFloatingActionBar
         canUndo={canUndo}
         canRedo={canRedo}
         onUndo={handleUndo}
         onRedo={handleRedo}
+        onSave={() => void handleSave()}
+        isSaving={isSaving}
+        isInspecting={isInspecting}
         onToggleInspect={() => setIsInspecting((prev) => !prev)}
       />
     </div>

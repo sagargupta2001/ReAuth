@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 
-import { ArrowLeft, Check, ChevronDown, CloudUpload, Loader2, Plus, Save } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, CloudUpload, Loader2, Plus } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -33,7 +33,6 @@ interface FluidBuilderHeaderProps {
   activePageKey: string
   onSelectPage: (pageKey: string) => void
   onCreatePage?: (label: string) => void
-  onSave: () => void
   onResetPage?: () => void
   onPublish: () => void
   actions?: ReactNode
@@ -48,7 +47,6 @@ export function FluidBuilderHeader({
   activePageKey,
   onSelectPage,
   onCreatePage,
-  onSave,
   onPublish,
   isSaving,
   isPublishing,
@@ -143,14 +141,6 @@ export function FluidBuilderHeader({
       </div>
 
       <div className="flex items-center gap-2">
-        <Button size="sm" variant="secondary" onClick={onSave} disabled={isBusy}>
-          {isSaving ? (
-            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-3.5 w-3.5" />
-          )}
-          Save Draft
-        </Button>
         <Button size="sm" className="gap-2" onClick={onPublish} disabled={isBusy}>
           {isPublishing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

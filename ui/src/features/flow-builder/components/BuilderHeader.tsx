@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { ArrowLeft, CloudUpload, Loader2, Save } from 'lucide-react'
-import { toast } from 'sonner'
+import { ArrowLeft, CloudUpload, Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -25,12 +24,6 @@ export function BuilderHeader({ flowName, flowId, activeVersion }: BuilderHeader
   const { mutateAsync: publishFlow, isPending: isPublishing } = usePublishFlow()
 
   const isBusy = isSaving || isPublishing
-
-  const handleSave = async () => {
-    const graphData = toObject()
-    await saveDraft({ draftId: flowId, graph: graphData })
-    toast.success('Flow saved successfully')
-  }
 
   const handlePublish = async () => {
     try {
@@ -78,15 +71,6 @@ export function BuilderHeader({ flowName, flowId, activeVersion }: BuilderHeader
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="secondary" size="sm" onClick={handleSave} disabled={isBusy}>
-          {isSaving ? (
-            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-3.5 w-3.5" />
-          )}
-          Save Draft
-        </Button>
-
         <Button size="sm" onClick={handlePublish} disabled={isBusy} className="gap-2">
           {isPublishing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
