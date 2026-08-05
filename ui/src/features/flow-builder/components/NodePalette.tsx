@@ -92,13 +92,12 @@ export function NodePalette() {
     event.dataTransfer.effectAllowed = 'move'
   }
 
-  if (isLoading) {
+  if (isLoading)
     return (
       <aside className="bg-muted/10 text-muted-foreground flex w-64 flex-col items-center justify-center border-r">
         <Loader2 className="h-5 w-5 animate-spin" />
       </aside>
     )
-  }
 
   return (
     <aside className="bg-muted/10 flex w-64 flex-col border-r">

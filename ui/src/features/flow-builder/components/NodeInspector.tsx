@@ -1,5 +1,5 @@
 import { Check, ChevronDown, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/button'
 import {
@@ -80,6 +80,19 @@ export function NodeInspector() {
       ? availablePages.some((page) => page.key === currentTemplate)
       : true
 
+  const [activeTab, setActiveTab] = useState('general')
+
+  // Selecting a different node resets the panel to the first tab, so a tab the
+  // new node does not render (Template is conditional on supports_ui) can never
+  // stay active and leave the panel blank.
+  useEffect(() => {
+    setActiveTab('general')
+  }, [selectedNodeId])
+
+  // Guards the render between the selection change and the effect above
+  // committing, which would otherwise flash an empty panel.
+  const currentTab = activeTab === 'template' && !supportsUi ? 'general' : activeTab
+
   if (!selectedNode) return null
 
   // 2. Handlers
@@ -132,7 +145,7 @@ export function NodeInspector() {
   return (
     <aside className="bg-background z-20 flex h-full w-80 shrink-0 flex-col border-l shadow-xl transition-all duration-300 ease-in-out">
       {/* Header */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+      <div className="flex h-14 shrink-0 items-center justify-between px-4">
         <div className="flex flex-col">
           <h3 className="text-sm font-semibold">Configuration</h3>
           <span className="text-muted-foreground font-mono text-[10px] tracking-wider uppercase">
@@ -145,7 +158,11 @@ export function NodeInspector() {
       </div>
 
       {/* Content */}
-      <Tabs defaultValue="general" className="flex min-h-0 flex-1 flex-col gap-0">
+      <Tabs
+        value={currentTab}
+        onValueChange={setActiveTab}
+        className="flex min-h-0 flex-1 flex-col gap-0"
+      >
         <div className="shrink-0 px-4">
           <TabsList variant="line">
             <TabsTrigger variant="line" value="general">
