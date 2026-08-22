@@ -57,6 +57,22 @@ export function NodePalette() {
     })
   }, [nodes, searchTerm])
 
+  // Group nodes by the `category` field returned from the registry, preserving
+  // the order categories first appear in the API response (no hardcoded list).
+  const groupedNodes = useMemo(() => {
+    const groups = new Map<string, NodeContract[]>()
+    for (const node of filteredNodes) {
+      const key = node.category || 'Other'
+      const bucket = groups.get(key)
+      if (bucket) {
+        bucket.push(node)
+      } else {
+        groups.set(key, [node])
+      }
+    }
+    return Array.from(groups.entries())
+  }, [filteredNodes])
+
   const onDragStart = (event: DragEvent, node: NodeContract) => {
     // 1. Pass Identification
     event.dataTransfer.setData('application/reactflow/type', node.id)
@@ -76,48 +92,59 @@ export function NodePalette() {
     event.dataTransfer.effectAllowed = 'move'
   }
 
-  if (isLoading) {
+  if (isLoading)
     return (
       <aside className="bg-muted/10 text-muted-foreground flex w-64 flex-col items-center justify-center border-r">
         <Loader2 className="h-5 w-5 animate-spin" />
       </aside>
     )
-  }
 
   return (
     <aside className="bg-muted/10 flex w-64 flex-col border-r">
-      <div className="border-b p-4">
+      <div className="p-4">
         <Input
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="search components..."
+          placeholder="Search..."
           className="h-8 text-xs"
         />
       </div>
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        {filteredNodes.map((node) => {
-          const IconComponent = IconMap[node.icon] || Box
+      <div className="flex-1 space-y-6 overflow-y-auto p-4">
+        {groupedNodes.length === 0 && (
+          <p className="text-muted-foreground px-1 text-xs italic">No matching nodes.</p>
+        )}
+        {groupedNodes.map(([category, categoryNodes]) => (
+          <div key={category} className="space-y-2">
+            <h4 className="text-muted-foreground px-1 text-[10px] font-bold tracking-wider uppercase">
+              {category}
+            </h4>
+            <div className="space-y-2">
+              {categoryNodes.map((node) => {
+                const IconComponent = IconMap[node.icon] || Box
 
-          return (
-            <div
-              key={node.id}
-              className={cn(
-                'bg-card hover:border-primary/50 flex cursor-grab items-center gap-3 rounded-md border p-3 shadow-sm transition-colors active:cursor-grabbing',
-              )}
-              draggable
-              onDragStart={(e) => onDragStart(e, node)}
-            >
-              <IconComponent className="text-muted-foreground h-4 w-4" />
+                return (
+                  <div
+                    key={node.id}
+                    className={cn(
+                      'bg-card hover:border-primary/50 flex cursor-grab items-center gap-3 rounded-md border p-3 shadow-sm transition-colors active:cursor-grabbing',
+                    )}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, node)}
+                  >
+                    <IconComponent className="text-muted-foreground h-4 w-4" />
 
-              <div className="flex flex-col">
-                <span className="text-sm leading-none font-medium">{node.display_name}</span>
-                <span className="text-muted-foreground mt-1 line-clamp-1 text-[10px]">
-                  {node.description}
-                </span>
-              </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm leading-none font-medium">{node.display_name}</span>
+                      <span className="text-muted-foreground mt-1 line-clamp-1 text-[10px]">
+                        {node.description}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          )
-        })}
+          </div>
+        ))}
       </div>
     </aside>
   )

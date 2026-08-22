@@ -1,14 +1,7 @@
 import type { ReactNode } from 'react'
-import {
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  CloudUpload,
-  Loader2,
-  Plus,
-  Save,
-} from 'lucide-react'
 import { useState } from 'react'
+
+import { ArrowLeft, Check, ChevronDown, CloudUpload, Loader2, Plus } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -28,11 +21,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/dialog'
+import { Input } from '@/components/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/popover'
 import { Separator } from '@/components/separator'
-import { Input } from '@/components/input'
-import type { ThemePageTemplate } from '@/entities/theme/model/types'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import type { ThemePageTemplate } from '@/entities/theme/model/types'
 
 interface FluidBuilderHeaderProps {
   themeName: string
@@ -40,7 +33,6 @@ interface FluidBuilderHeaderProps {
   activePageKey: string
   onSelectPage: (pageKey: string) => void
   onCreatePage?: (label: string) => void
-  onSave: () => void
   onResetPage?: () => void
   onPublish: () => void
   actions?: ReactNode
@@ -55,13 +47,9 @@ export function FluidBuilderHeader({
   activePageKey,
   onSelectPage,
   onCreatePage,
-  onSave,
-  onResetPage,
   onPublish,
-  actions,
   isSaving,
   isPublishing,
-  canResetPage = false,
 }: FluidBuilderHeaderProps) {
   const navigate = useRealmNavigate()
   const isBusy = Boolean(isSaving || isPublishing)
@@ -104,10 +92,8 @@ export function FluidBuilderHeader({
         <Popover open={isPageOpen} onOpenChange={setIsPageOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2">
-              <span className="text-xs font-semibold">
-                {activePage?.label ?? 'Select Page'}
-              </span>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold">{activePage?.label ?? 'Select Page'}</span>
+              <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>
           <PopoverContent align="center" className="w-64 p-0">
@@ -130,9 +116,7 @@ export function FluidBuilderHeader({
                           {page.description}
                         </span>
                       </span>
-                      {page.key === activePageKey && (
-                        <Check className="h-3.5 w-3.5 text-primary" />
-                      )}
+                      {page.key === activePageKey && <Check className="text-primary h-3.5 w-3.5" />}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -157,25 +141,6 @@ export function FluidBuilderHeader({
       </div>
 
       <div className="flex items-center gap-2">
-        {actions}
-        {onResetPage && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onResetPage}
-            disabled={!canResetPage}
-          >
-            Reset Page
-          </Button>
-        )}
-        <Button size="sm" variant="secondary" onClick={onSave} disabled={isBusy}>
-          {isSaving ? (
-            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-3.5 w-3.5" />
-          )}
-          Save Draft
-        </Button>
         <Button size="sm" className="gap-2" onClick={onPublish} disabled={isBusy}>
           {isPublishing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -191,8 +156,8 @@ export function FluidBuilderHeader({
           <DialogHeader>
             <DialogTitle>Create a new page</DialogTitle>
             <DialogDescription>
-              Add a custom page to this theme. You can customize the layout and blocks
-              after creating it.
+              Add a custom page to this theme. You can customize the layout and blocks after
+              creating it.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

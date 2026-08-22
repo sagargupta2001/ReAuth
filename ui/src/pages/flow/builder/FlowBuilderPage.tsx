@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom'
 import { useActiveRealm } from '@/entities/realm/model/useActiveRealm'
 import { useFlowDraft } from '@/features/flow-builder/api/useFlowDraft'
 import { BuilderHeader } from '@/features/flow-builder/components/BuilderHeader'
+import { FlowBuilderActionBar } from '@/features/flow-builder/components/FlowBuilderActionBar'
 import { FlowCanvas } from '@/features/flow-builder/components/FlowCanvas'
 import { NodeInspector } from '@/features/flow-builder/components/NodeInspector'
 import { NodePalette } from '@/features/flow-builder/components/NodePalette'
@@ -195,6 +196,8 @@ export function FlowBuilderPage() {
 
           <NodeInspector />
         </div>
+
+        <FlowBuilderActionBar flowId={draftId} />
       </div>
     </ReactFlowProvider>
   )

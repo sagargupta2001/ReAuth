@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { ArrowLeft, CloudUpload, Loader2, Play, Save } from 'lucide-react'
-import { toast } from 'sonner'
+import { ArrowLeft, CloudUpload, Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -17,7 +16,7 @@ interface BuilderHeaderProps {
   actions?: ReactNode
 }
 
-export function BuilderHeader({ flowName, flowId, activeVersion, actions }: BuilderHeaderProps) {
+export function BuilderHeader({ flowName, flowId, activeVersion }: BuilderHeaderProps) {
   const navigate = useRealmNavigate()
   const { toObject } = useReactFlow()
 
@@ -25,13 +24,6 @@ export function BuilderHeader({ flowName, flowId, activeVersion, actions }: Buil
   const { mutateAsync: publishFlow, isPending: isPublishing } = usePublishFlow()
 
   const isBusy = isSaving || isPublishing
-
-  // ... handleSave and handlePublish logic (same as before) ...
-  const handleSave = async () => {
-    const graphData = toObject()
-    await saveDraft({ draftId: flowId, graph: graphData })
-    toast.success('Flow saved successfully')
-  }
 
   const handlePublish = async () => {
     try {
@@ -79,21 +71,6 @@ export function BuilderHeader({ flowName, flowId, activeVersion, actions }: Buil
       </div>
 
       <div className="flex items-center gap-2">
-        {actions}
-
-        <Button variant="outline" size="sm">
-          <Play className="mr-2 h-3.5 w-3.5" /> Simulate
-        </Button>
-
-        <Button variant="secondary" size="sm" onClick={handleSave} disabled={isBusy}>
-          {isSaving ? (
-            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-3.5 w-3.5" />
-          )}
-          Save Draft
-        </Button>
-
         <Button size="sm" onClick={handlePublish} disabled={isBusy} className="gap-2">
           {isPublishing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

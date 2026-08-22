@@ -48,12 +48,23 @@ export interface PublishError {
   issues?: PublishIssue[]
 }
 
+interface GraphSnapshot {
+  nodes: Node[]
+  edges: Edge[]
+}
+
+const MAX_HISTORY = 50
+
 interface FlowBuilderState {
   nodes: Node[]
   edges: Edge[]
   selectedNodeId: string | null
   nodeTypes: NodeContract[]
   publishError: PublishError | null
+  past: GraphSnapshot[]
+  future: GraphSnapshot[]
+  // Transient flag so a single drag interaction records only one history entry.
+  isDragging: boolean
   onNodesChange: OnNodesChange
   onEdgesChange: OnEdgesChange
   onConnect: OnConnect
@@ -63,36 +74,70 @@ interface FlowBuilderState {
   setNodeTypes: (types: NodeContract[]) => void
   updateNodeData: (id: string, newData: Record<string, unknown>) => void
   setPublishError: (error: PublishError | null) => void
+  undo: () => void
+  redo: () => void
 
   reset: () => void
 }
 
-export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
+export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => {
+  // Push the current graph onto the undo stack and clear the redo stack.
+  const takeSnapshot = () => {
+    const { nodes, edges, past } = get()
+    set({
+      past: [...past.slice(-(MAX_HISTORY - 1)), { nodes, edges }],
+      future: [],
+    })
+  }
+
+  return {
   nodes: [],
   edges: [],
   selectedNodeId: null,
   nodeTypes: [],
   publishError: null,
+  past: [],
+  future: [],
+  isDragging: false,
 
   onNodesChange: (changes: NodeChange[]) => {
-    set({
-      nodes: applyNodeChanges(changes, get().nodes),
-    })
+    const isRemoval = changes.some((change) => change.type === 'remove')
+    const dragStart =
+      !get().isDragging &&
+      changes.some((change) => change.type === 'position' && change.dragging === true)
+    const dragEnd = changes.some(
+      (change) => change.type === 'position' && change.dragging === false,
+    )
+
+    // Snapshot the pre-change graph for removals and at the start of a drag.
+    if (isRemoval || dragStart) {
+      takeSnapshot()
+    }
+
+    set((state) => ({
+      nodes: applyNodeChanges(changes, state.nodes),
+      isDragging: dragStart ? true : dragEnd ? false : state.isDragging,
+    }))
   },
 
   onEdgesChange: (changes: EdgeChange[]) => {
+    if (changes.some((change) => change.type === 'remove')) {
+      takeSnapshot()
+    }
     set({
       edges: applyEdgeChanges(changes, get().edges),
     })
   },
 
   onConnect: (connection: Connection) => {
+    takeSnapshot()
     set({
       edges: addEdge(connection, get().edges),
     })
   },
 
   addNode: (node: Node) => {
+    takeSnapshot()
     set({ nodes: [...get().nodes, node] })
   },
 
@@ -101,7 +146,8 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
   },
 
   setGraph: (nodes: Node[], edges: Edge[]) => {
-    set({ nodes, edges })
+    // Loading a draft resets history so undo cannot reach an empty graph.
+    set({ nodes, edges, past: [], future: [], isDragging: false })
   },
 
   setNodeTypes: (types: NodeContract[]) => {
@@ -109,6 +155,7 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
   },
 
   updateNodeData: (id: string, newData: Record<string, unknown>) => {
+    takeSnapshot()
     set({
       nodes: get().nodes.map((node) => {
         if (node.id === id) {
@@ -127,7 +174,40 @@ export const useFlowBuilderStore = create<FlowBuilderState>((set, get) => ({
     set({ publishError: error })
   },
 
-  reset: () => {
-    set({ nodes: [], edges: [], selectedNodeId: null, publishError: null })
+  undo: () => {
+    const { past, future, nodes, edges } = get()
+    if (past.length === 0) return
+    const previous = past[past.length - 1]
+    set({
+      nodes: previous.nodes,
+      edges: previous.edges,
+      past: past.slice(0, -1),
+      future: [{ nodes, edges }, ...future],
+    })
   },
-}))
+
+  redo: () => {
+    const { past, future, nodes, edges } = get()
+    if (future.length === 0) return
+    const next = future[0]
+    set({
+      nodes: next.nodes,
+      edges: next.edges,
+      past: [...past, { nodes, edges }],
+      future: future.slice(1),
+    })
+  },
+
+  reset: () => {
+    set({
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+      publishError: null,
+      past: [],
+      future: [],
+      isDragging: false,
+    })
+  },
+  }
+})
