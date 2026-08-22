@@ -14,7 +14,12 @@ import type { ThemeAsset, ThemeNode } from '@/entities/theme/model/types'
 import { renderIcon } from '@/shared/ui/icon-registry'
 import { PasswordInput } from '@/shared/ui/password-input'
 import { cn } from '@/lib/utils'
-import { expandComponentNode } from '@/features/fluid/lib/componentRegistry'
+import {
+  expandComponentNode,
+  type ComponentThemeContext,
+} from '@/features/fluid/lib/componentRegistry'
+import { readableTextOn } from '@/lib/colorUtils'
+import { alignItemsFor, justifyContentFor } from '@/features/fluid/lib/flexLayout'
 import {
   getNestedRecord,
   resolveInputType,
@@ -67,6 +72,7 @@ export function FluidCanvas({
   const text = resolveThemeColor(rawText, 'var(--foreground)')
   const surface = resolveThemeColor(rawSurface, 'var(--card)')
   const primary = rawPrimary.trim() || 'var(--primary)'
+  const componentTheme: ComponentThemeContext = { text, radius: radiusBase }
   const fontFamily = String(typography.font_family || 'system-ui')
   const baseSize = Number.parseFloat(String(typography.base_size || '16')) || 16
   const containerStyle: CSSProperties = {
@@ -109,10 +115,17 @@ export function FluidCanvas({
     const heightMode = String(node.size?.height || props.height || 'hug')
     const heightValue = String(node.size?.height_value || props.height_value || '')
     const size = String(props.size || 'md')
-    const style: CSSProperties = {
-      marginTop: `${marginTop}px`,
-      marginBottom: `${marginBottom}px`,
-      padding: `${padding}px`,
+    // Only emit spacing the node actually asks for. Writing `0px` inline beat the
+    // container's `space-y-*` classes, which flattened the whole page's rhythm.
+    const style: CSSProperties = {}
+    if (marginTop) {
+      style.marginTop = `${marginTop}px`
+    }
+    if (marginBottom) {
+      style.marginBottom = `${marginBottom}px`
+    }
+    if (padding) {
+      style.padding = `${padding}px`
     }
     const widthClass =
       widthMode === 'hug' || widthMode === 'auto'
@@ -192,24 +205,22 @@ export function FluidCanvas({
         const layout = node.layout ?? {}
         const direction = layout.direction === 'row' ? 'flex-row' : 'flex-col'
         const gap = typeof layout.gap === 'number' ? `${layout.gap}px` : undefined
-        const alignItems =
-          layout.align === 'center'
-            ? 'center'
-            : layout.align === 'end'
-              ? 'flex-end'
-              : layout.align === 'start'
-                ? 'flex-start'
-                : 'stretch'
+        const alignItems = alignItemsFor(layout)
+        const justifyContent = justifyContentFor(layout)
         const paddingValue = Array.isArray(layout.padding)
           ? layout.padding.map((value) => `${value}px`).join(' ')
           : undefined
         const borderColor = String(props.border_color || '')
         const borderWidth = Number.parseFloat(String(props.border_width || ''))
-        const borderRadius = String(props.radius || '')
+        // A bare number is not valid CSS ("border-radius: 12" is dropped), so
+        // unitless values get px.
+        const rawRadius = String(props.radius ?? '').trim()
+        const borderRadius = /^-?\d*\.?\d+$/.test(rawRadius) ? `${rawRadius}px` : rawRadius
         const background = String(props.background || '')
         const boxStyle: CSSProperties = {
           gap,
           alignItems,
+          justifyContent,
           padding: paddingValue,
           backgroundColor: background || undefined,
           borderColor: borderColor || undefined,
@@ -227,9 +238,14 @@ export function FluidCanvas({
         )
       }
       case 'Text':
+        // The wrapper already carries font_size/font_weight/color from props, so
+        // only apply the heading defaults when the node does not set them —
+        // a utility class here would override the inherited inline style.
         return wrap(
           <div className={cn('py-1', alignClass)}>
-            <p className="text-lg font-semibold">{String(props.text || 'Headline')}</p>
+            <p className={cn(!fontSize && 'text-lg', !fontWeight && 'font-semibold')}>
+              {String(props.text || 'Headline')}
+            </p>
           </div>,
           undefined,
         )
@@ -260,7 +276,9 @@ export function FluidCanvas({
         const placeholder = String(props.placeholder || '')
         const inputClass = cn(
           sizeClass,
-          'flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0',
+          // h-auto: the expanded field container supplies the height via its
+          // padding, so the input must not add its own.
+          'h-auto flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0',
           fillHeightClass,
         )
         if (isInspecting) {
@@ -278,7 +296,12 @@ export function FluidCanvas({
         }
         return wrap(
           inputType === 'password' ? (
-            <PasswordInput className={inputClass} disabled />
+            <PasswordInput
+              className="flex-1"
+              inputClassName={inputClass}
+              placeholder={placeholder}
+              disabled
+            />
           ) : (
             <Input className={inputClass} placeholder={placeholder} type={inputType} disabled />
           ),
@@ -286,7 +309,7 @@ export function FluidCanvas({
         )
       }
       case 'Component': {
-        const expanded = expandComponentNode(node)
+        const expanded = expandComponentNode(node, componentTheme)
         if (expanded) {
           return wrap(renderNode(expanded, { disableSelection: true }), options?.wrapperClass)
         }
@@ -298,12 +321,13 @@ export function FluidCanvas({
             variant === 'secondary' ? 'secondary' : variant === 'outline' ? 'outline' : 'default'
           const buttonStyle: CSSProperties = {}
           if (variant === 'primary') {
-            buttonStyle.backgroundColor = String(colors.primary || 'var(--primary)')
-            buttonStyle.color = '#ffffff'
+            buttonStyle.backgroundColor = primary
+            // Derived, not hard-coded: a white label on a light primary is invisible.
+            buttonStyle.color = readableTextOn(primary)
           }
           if (variant === 'outline') {
-            buttonStyle.borderColor = String(colors.primary || 'var(--primary)')
-            buttonStyle.color = String(colors.primary || 'var(--primary)')
+            buttonStyle.borderColor = primary
+            buttonStyle.color = primary
           }
           return wrap(
             <Button
@@ -330,13 +354,13 @@ export function FluidCanvas({
               href={href}
               target={target}
               rel={isExternal ? 'noreferrer' : undefined}
-              className={cn('text-xs underline', alignClass)}
+              className="text-xs underline underline-offset-2"
               style={{ color: fontColor || primary }}
               onClick={(event) => event.preventDefault()}
             >
               {label}
             </a>,
-            undefined,
+            alignClass,
           )
         }
 
@@ -474,7 +498,7 @@ export function FluidCanvas({
             </div>
             <div className="p-8" style={{ backgroundColor: background, color: text }}>
               <Form {...form}>
-                <form className="space-y-3" onSubmit={(event) => event.preventDefault()}>
+                <form className="space-y-4" onSubmit={(event) => event.preventDefault()}>
                   {formBlocks.length === 0 ? (
                     <div className="text-muted-foreground text-sm">
                       Add blocks to build this page.
@@ -499,7 +523,7 @@ export function FluidCanvas({
             }}
           >
             <Form {...form}>
-              <form className="space-y-3" onSubmit={(event) => event.preventDefault()}>
+              <form className="space-y-4" onSubmit={(event) => event.preventDefault()}>
                 {nonSplitBlocks.length === 0 ? (
                   <div className="text-muted-foreground text-sm">
                     Add blocks to build this page.

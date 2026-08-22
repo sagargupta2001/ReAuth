@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/alert'
 import { Button } from '@/components/button'
+import { Input } from '@/components/input'
+import { Label } from '@/components/label'
 import {
   Card,
   CardContent,
@@ -10,7 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/card'
-import { Input } from '@/components/input'
 import { SETUP_SEALED_STORAGE_KEY } from '@/shared/config/setup'
 import { useSetupBootstrap } from '@/features/setup/api/useSetupBootstrap'
 import { useSetupStatus } from '@/features/setup/api/useSetupStatus'
@@ -27,13 +28,12 @@ export function SetupPage() {
   const isSubmitting = setupMutation.isPending
 
   useEffect(() => {
-    if (setupStatus.isError) {
+    if (setupStatus.isError)
       setError(
         setupStatus.error instanceof Error
           ? setupStatus.error.message
           : 'Failed to check setup status.',
       )
-    }
   }, [setupStatus.error, setupStatus.isError])
 
   useEffect(() => {
@@ -75,31 +75,37 @@ export function SetupPage() {
     )
   }
 
-  if (setupStatus.isLoading) {
+  if (setupStatus.isLoading) 
     return <div className="flex h-screen items-center justify-center">Checking setup...</div>
-  }
+  
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-6 py-10">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle>Initialize ReAuth</CardTitle>
-          <CardDescription>
-            Enter the setup token from the server console to create the first master admin.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertTitle>Setup failed</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <form className="space-y-4" onSubmit={handleSubmit}>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10">
+      <div aria-hidden="true" className="pulse-glow pointer-events-none absolute inset-0" />
+      <form className="relative w-full max-w-lg" onSubmit={handleSubmit}>
+        {/*
+          Composed from the Card primitives rather than SectionCard: this is a
+          centred hero card, not a settings card, and it deliberately has no
+          inset content panel. CardContent is p-1 by default, so the padding
+          below is doing real work — do not drop it.
+        */}
+        <Card>
+          <CardHeader className="items-center text-center">
+            <img rel="icon" src="/reauth.svg" alt="logo" className="mb-2 h-14 w-14" />
+            <CardTitle>Initialize ReAuth</CardTitle>
+            <CardDescription>
+              Enter the setup token from the server console to create the first master admin.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 px-6 pb-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertTitle>Setup failed</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="setup-token">
-                Setup token
-              </label>
+              <Label htmlFor="setup-token">Setup token</Label>
               <Input
                 id="setup-token"
                 value={token}
@@ -109,9 +115,7 @@ export function SetupPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="setup-username">
-                Admin username
-              </label>
+              <Label htmlFor="setup-username">Admin username</Label>
               <Input
                 id="setup-username"
                 value={username}
@@ -121,9 +125,7 @@ export function SetupPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="setup-password">
-                Admin password
-              </label>
+              <Label htmlFor="setup-password">Admin password</Label>
               <Input
                 id="setup-password"
                 type="password"
@@ -133,15 +135,15 @@ export function SetupPage() {
                 autoComplete="new-password"
               />
             </div>
-            <Button className="w-full" type="submit" disabled={!canSubmit || isSubmitting}>
+            <Button className="mt-2 w-full" type="submit" disabled={!canSubmit || isSubmitting}>
               {isSubmitting ? 'Creating admin...' : 'Create master admin'}
             </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="text-xs text-muted-foreground">
-          Setup is available only until the first master admin is created.
-        </CardFooter>
-      </Card>
+          </CardContent>
+          <CardFooter className="text-muted-foreground justify-center text-center text-xs">
+            Setup is available only until the first master admin is created.
+          </CardFooter>
+        </Card>
+      </form>
     </div>
   )
 }

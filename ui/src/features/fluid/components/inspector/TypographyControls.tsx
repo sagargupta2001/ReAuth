@@ -1,7 +1,7 @@
 import { Baseline, Palette, Weight } from 'lucide-react'
 
 import { Input } from '@/components/input'
-import { BuilderPanelCard } from '@/features/fluid/components/controls/BuilderPanelCard'
+import { SectionCard } from '@/shared/ui/section-card'
 import { ColorPicker } from '@/features/fluid/components/controls/ColorPicker'
 import { FieldLabel } from '@/features/fluid/components/controls/FieldLabel'
 
@@ -21,7 +21,7 @@ export function TypographyControls({
   onChange,
 }: TypographyControlsProps) {
   return (
-    <BuilderPanelCard title="Typography" description="Font overrides for this block.">
+    <SectionCard title="Typography" description="Font overrides for this block.">
       <div className="space-y-2">
         <FieldLabel htmlFor="font-size" label="Font Size" icon={Baseline} />
         <Input
@@ -52,6 +52,6 @@ export function TypographyControls({
           onChange={(newColor) => onChange({ color: newColor })}
         />
       </div>
-    </BuilderPanelCard>
+    </SectionCard>
   )
 }

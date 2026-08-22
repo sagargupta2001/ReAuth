@@ -229,12 +229,21 @@ fn default_login_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Welcome back" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username", "name": "username", "input_type": "text" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username", "name": "username", "input_type": "text", "placeholder": "you@company.com" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password", "placeholder": "Enter your password" } },
             { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Forgot password?", "href": "/forgot-password", "target": "_self", "align": "right" } },
-            { "type": "Component", "component": "Link", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Create account", "href": "/register", "target": "_self", "align": "left", "visible_if": "capabilities.registration_enabled" } },
+            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } },
             { "type": "Component", "component": "ProviderButtons", "size": { "width": "fill", "height": "hug" }, "props": { "visible_if": "enabled_providers_count" } },
-            { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue", "variant": "primary" } }
+            {
+                "type": "Box",
+                "size": { "width": "fill", "height": "hug" },
+                "layout": { "direction": "row", "justify": "center", "align": "baseline", "gap": 4, "padding": [0, 0, 0, 0] },
+                "props": { "visible_if": "capabilities.registration_enabled" },
+                "children": [
+                    { "type": "Text", "size": { "width": "hug", "height": "hug" }, "props": { "text": "New on our platform?", "font_size": "12px", "font_weight": "400" } },
+                    { "type": "Component", "component": "Link", "size": { "width": "hug", "height": "hug" }, "props": { "label": "Create an account", "href": "/register", "target": "_self" } }
+                ]
+            }
         ]
     })
 }

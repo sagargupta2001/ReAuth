@@ -77,6 +77,28 @@ export function resolveCssColor(value: string): string | null {
   return resolved.startsWith('var(') ? resolveCssColor(resolved) : resolved
 }
 
+/**
+ * Returns `color` at the given alpha, or the original value when it cannot be
+ * parsed (e.g. an unresolvable `var()`).
+ *
+ * Used to derive borders and secondary text from a theme's own text colour, so
+ * they follow the theme instead of borrowing the admin palette.
+ */
+export function withAlpha(color: string, alpha: number): string {
+  const resolved = resolveCssColor(color)
+  const rgb = resolved ? parseColor(resolved) : null
+  if (!rgb) return color
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`
+}
+
+/** Picks the higher-contrast of black or white for text drawn on `background`. */
+export function readableTextOn(background: string, light = '#ffffff', dark = '#111827'): string {
+  const resolved = resolveCssColor(background)
+  const rgb = resolved ? parseColor(resolved) : null
+  if (!rgb) return light
+  return relativeLuminance(rgb) > 0.45 ? dark : light
+}
+
 export function contrastRatio(foreground: string, background: string) {
   const resolvedForeground = resolveCssColor(foreground)
   const resolvedBackground = resolveCssColor(background)

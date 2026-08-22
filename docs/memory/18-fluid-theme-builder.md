@@ -203,7 +203,68 @@ button's hard-coded white label. An unresolvable pair reports `n/a` rather than 
 failure. `contrastRatio` resolves `var()` values, so the inspector's per-block
 check now works on token-based colours too (it previously showed "Unavailable").
 
-### 5.4.2 Theme Modes Removed
+### 5.4.1 Renderer Defaults Must Follow the Theme
+
+The seeded blueprints specify almost nothing but text and structure, so nearly
+every visual decision comes from renderer defaults. Five of those defaults were
+wrong in ways that no blueprint could override, and all five produced the same
+symptom — a prop that appeared to be set but did nothing on screen:
+
+- `Text` nodes rendered `<p class="text-lg font-semibold">`. A utility class beats
+  the inherited inline style from the wrapper, so `font_size` and `font_weight`
+  were dead props. The heading defaults now apply only when the node sets neither.
+- The `Input` expansion hard-coded `#ffffff` field backgrounds and `#e2e8f0`
+  borders, so every input was a solid white box on a dark theme. Field border and
+  label colour now derive from the theme's own text colour via `withAlpha`
+  (`ComponentThemeContext` in `lib/componentRegistry.ts`), and the field is
+  transparent so it sits on the theme surface.
+- Primary buttons hard-coded a white label. With the seeded `var(--primary)`
+  resolving to white, the label was invisible. `readableTextOn` now picks black or
+  white by luminance.
+- `Box` radius was emitted as a bare number. `border-radius: 12` is invalid CSS
+  and was dropped, so no field ever had rounded corners. Unitless values get `px`.
+- `Link` put its alignment class on the inline `<a>`, where `text-right` has no
+  effect, so the seeded right-aligned "Forgot password?" rendered left. The class
+  now goes on the block wrapper.
+
+`PasswordInput` also gained `inputClassName`: `className` styles its wrapper, so
+the Fluid renderers' `border-0` never reached the inner input and password fields
+drew a second border inside the field container.
+
+Two more of the same shape:
+
+- Every node emitted `margin-top: 0px; margin-bottom: 0px; padding: 0px` inline.
+  Inline styles beat Tailwind's class-based margins, so the form's `space-y-*`
+  was dead on every page and the only visible gaps were incidental (`py-1` on
+  text, field padding). Spacing is now emitted only when a node asks for it.
+- The password branch of the `Input` case dropped `placeholder`, so password
+  fields never showed one even when the blueprint set it.
+
+Rule of thumb: a default that names a colour or a length literally will be wrong
+for some theme. Derive it from a token, or take it from `ComponentThemeContext`.
+Both renderers must be changed together — `FluidCanvas` is the preview and
+`FluidLoginScreen` is what users get, and they duplicate this logic.
+
+`ThemeNodeLayout` gained `justify` (main-axis distribution) alongside `align`
+(cross-axis), and `align` gained `baseline`; the mapping lives in
+`lib/flexLayout.ts` and is shared by both renderers. Without `justify` a
+horizontally-centred row was not expressible, which is what the login page's
+"New on our platform? / Create an account" line needs. `baseline` is what that row
+actually uses: the prompt and the link have different line heights, so `center`
+aligns their boxes and leaves the text visibly off. The Rust side stores `layout`
+as untyped JSON, so layout keys need no backend change.
+
+### 5.4.2 Changing a Seeded Blueprint
+
+`ensure_theme_pages` only inserts page keys that are **missing** — it never
+updates an existing page. Editing `theme_pages.rs` therefore has no effect on a
+theme that has already been seeded, and there is no reset-to-default endpoint. To
+see a blueprint change locally, delete `target/debug/data/reauth.db*` and restart;
+that also clears the master admin, so the app returns to first-run setup.
+
+A "reset page to default" action would remove this friction and is worth building.
+
+### 5.4.3 Theme Modes Removed
 
 ReAuth has no per-theme light/dark mode. The `appearance.mode` token, its settings
 control, `resolveThemeMode`, and the light/dark substitution branch of
@@ -217,7 +278,7 @@ render exactly what they store instead of following the admin app's mode — whi
 is the intended semantics now that a theme has one appearance. Stored drafts may
 still carry an `appearance` key; it is simply ignored.
 
-### 5.4.1 Side Panel Card Style
+### 5.4.4 Side Panel Card Style
 
 `components/controls/BuilderPanelCard.tsx` is the single card shell for both side
 panels — elevated `Card`, header with title/description, and an inset

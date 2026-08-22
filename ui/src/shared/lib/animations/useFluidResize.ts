@@ -2,11 +2,7 @@ import { useLayoutEffect, useRef } from 'react'
 
 import { getAnimationEngine } from './animation.engine'
 import type { BoxSize } from './animation.types'
-
-function prefersReducedMotion(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
+import { prefersReducedMotion } from './prefersReducedMotion'
 
 /**
  * Fluidly morphs the returned element from its previous natural box size to its

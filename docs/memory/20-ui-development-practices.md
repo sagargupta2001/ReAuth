@@ -44,6 +44,23 @@ This document defines the baseline UI engineering practices for ReAuth. Follow t
 ## 8. UI consistency
 - Use shared UI components from `ui/src/components` and `ui/src/shared/ui`.
 - Avoid custom styling unless necessary; follow theme tokens and Fluid where applicable.
+- For a settings/detail card use `SectionCard` (`shared/ui/section-card.tsx`), not
+  a hand-assembled `Card` + `CardHeader` + inset `div`. `CardContent` is
+  deliberately `p-1`; the inset `bg-primary-foreground rounded-2xl p-4` panel is
+  what supplies the content padding, so writing the card by hand and forgetting
+  the panel leaves the content at a different inset from the title. That is
+  exactly the bug the setup page shipped with.
+- `SetupPage` is a deliberate exception: it is a centred *hero* card (logo, centred
+  title/description, single surface with no inset panel), which is a different
+  archetype from a settings card. It composes the `Card` primitives directly and
+  pays for its own `CardContent` padding. Do not "fix" it back to `SectionCard`.
+  If a second hero card appears, promote that shape rather than adding
+  align/media/flush variants to `SectionCard` — the inset panel is the defining
+  feature of `SectionCard`, and a `flush` flag would negate it.
+- Known duplication: `features/realm/components/RealmSettingsCard.tsx` predates
+  `SectionCard` and implements the same pattern, and roughly a dozen settings tabs
+  (client, events, user, group, roles) still hand-write the inset panel. Migrate
+  them to `SectionCard` when touching those files.
 
 ## 9. Testing and linting
 - Update or add tests for any new hooks or API behavior.
@@ -57,3 +74,22 @@ This document defines the baseline UI engineering practices for ReAuth. Follow t
 - [ ] Realm scoping is correct.
 - [ ] Types are updated.
 - [ ] Lint and build pass.
+
+## 11. Animation
+- JS-driven animation goes through the engine in `shared/lib/animations`
+  (`fadeSlideIn`, `fadeSlideOut`, `highlight`, `morphSize`). Do not import `gsap`
+  directly in a component — the engine indirection is what makes the library
+  swappable.
+- Prefer CSS for ambient decoration. A looping background effect is a
+  `@keyframes` plus an `@utility` in `app/style/index.css` (see `pulse-glow`),
+  which costs no JS and stays on the compositor. Reach for the JS engine only
+  when the animation needs to react to component state.
+- Animate only `opacity` and `transform` for ambient effects, and disable them
+  under `@media (prefers-reduced-motion: reduce)`. For JS-driven cases use
+  `prefersReducedMotion()` (`shared/lib/animations/prefersReducedMotion.ts`).
+- Decorative layers are `aria-hidden="true"` and `pointer-events-none`, and take
+  their colours from CSS custom properties (e.g. `--glow-violet`) rather than
+  literals.
+- Never gate navigation or other user-visible progress on an animation finishing.
+- A JS timeline recreated on an interval must replace and kill its predecessor;
+  collecting them in an array cleared only on unmount leaks one per tick.

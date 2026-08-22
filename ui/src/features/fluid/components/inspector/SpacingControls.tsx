@@ -1,7 +1,7 @@
 import { Ruler } from 'lucide-react'
 
 import { Input } from '@/components/input'
-import { BuilderPanelCard } from '@/features/fluid/components/controls/BuilderPanelCard'
+import { SectionCard } from '@/shared/ui/section-card'
 import { FieldLabel } from '@/features/fluid/components/controls/FieldLabel'
 
 interface SpacingControlsProps {
@@ -20,7 +20,7 @@ export function SpacingControls({
   onChange,
 }: SpacingControlsProps) {
   return (
-    <BuilderPanelCard title="Spacing" description="Padding and margins.">
+    <SectionCard title="Spacing" description="Padding and margins.">
       <div className="space-y-2">
         <FieldLabel htmlFor="spacing-padding" label="Padding" icon={Ruler} />
         <Input
@@ -48,6 +48,6 @@ export function SpacingControls({
           onChange={(event) => onChange({ margin_bottom: event.target.value })}
         />
       </div>
-    </BuilderPanelCard>
+    </SectionCard>
   )
 }

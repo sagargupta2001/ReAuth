@@ -40,7 +40,13 @@ export type ThemeNodeType = 'Box' | 'Text' | 'Image' | 'Icon' | 'Input' | 'Compo
 export interface ThemeNodeLayout {
   direction?: 'row' | 'column'
   gap?: number
-  align?: 'start' | 'center' | 'end' | 'stretch'
+  /**
+   * Cross-axis alignment. Use `baseline` for a row mixing text of different
+   * sizes or line heights — `center` lines up boxes, not text.
+   */
+  align?: 'start' | 'center' | 'end' | 'stretch' | 'baseline'
+  /** Main-axis distribution. */
+  justify?: 'start' | 'center' | 'end' | 'between' | 'around'
   padding?: [number, number, number, number]
 }
 

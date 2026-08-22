@@ -10,7 +10,7 @@ import type { ThemeAsset, ThemeNode } from '@/entities/theme/model/types'
 import { createNodeFromDefinition } from '@/features/fluid/lib/nodeUtils'
 import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
-import { BuilderPanelCard } from '@/features/fluid/components/controls/BuilderPanelCard'
+import { SectionCard } from '@/shared/ui/section-card'
 import { ICON_NAMES, renderIcon } from '@/shared/ui/icon-registry'
 import { Label } from '@/shared/ui/label'
 import {
@@ -383,7 +383,7 @@ export function FluidInspector({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        <BuilderPanelCard title="Element" description="Selected block properties.">
+        <SectionCard title="Element" description="Selected block properties.">
             {!selectedBlock ? (
               <p className="text-muted-foreground text-sm">
                 Select a block from the canvas to edit its properties.
@@ -1285,7 +1285,7 @@ export function FluidInspector({
             )}
           </>
         )}
-        </BuilderPanelCard>
+        </SectionCard>
 
         <TypographyControls
           fontSize={String(selectedProps.font_size || '')}
@@ -1302,7 +1302,7 @@ export function FluidInspector({
         />
 
         {selectedType === 'Text' && (
-          <BuilderPanelCard
+          <SectionCard
             title="Accessibility"
             description="Basic contrast check for text color."
             contentClassName="space-y-3 text-xs"
@@ -1324,7 +1324,7 @@ export function FluidInspector({
                   </AlertDescription>
                 </Alert>
               )}
-          </BuilderPanelCard>
+          </SectionCard>
         )}
 
         <SpacingControls

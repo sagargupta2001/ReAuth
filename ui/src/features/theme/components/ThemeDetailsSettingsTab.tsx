@@ -18,7 +18,7 @@ import {
   themeSettingsSchema,
 } from '@/features/theme/model/settings-schema'
 import { useFormPersistence } from '@/shared/hooks/useFormPersistence'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
+import { SectionCard } from '@/shared/ui/section-card'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import {
   Form,
@@ -96,100 +96,84 @@ export function ThemeDetailsSettingsTab({ theme }: ThemeDetailsSettingsTabProps)
       <div className="space-y-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>General Settings</CardTitle>
-                <CardDescription>Manage the basic identity of this theme.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-primary-foreground space-y-4 rounded-2xl p-4">
-                  <FormInput
-                    control={form.control}
-                    name="name"
-                    label="Theme Name"
-                    placeholder="e.g. Brand Refresh"
-                    description="A unique name to identify this theme."
-                    disabled={theme.is_system}
-                  />
+            <SectionCard
+              title="General Settings"
+              description="Manage the basic identity of this theme."
+            >
+              <FormInput
+                control={form.control}
+                name="name"
+                label="Theme Name"
+                placeholder="e.g. Brand Refresh"
+                description="A unique name to identify this theme."
+                disabled={theme.is_system}
+              />
 
-                  <FormField
-                    control={form.control}
-                    name="description"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Description</FormLabel>
-                        <FormControl>
-                          <Textarea
-                            placeholder="Describe the purpose of this theme..."
-                            className="resize-none"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>Visible to other administrators.</FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Describe the purpose of this theme..."
+                        className="resize-none"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>Visible to other administrators.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </SectionCard>
           </form>
         </Form>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Harbor</CardTitle>
-            <CardDescription>
-              Export this theme as a portable bundle, or import a bundle to replace its
-              configuration.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-primary-foreground flex items-center justify-between gap-4 rounded-2xl p-4">
-              <p className="text-muted-foreground text-sm">
-                Download the theme definition or upload a bundle to apply changes.
-              </p>
-              {realm ? (
-                <HarborResourceActions
-                  scope="theme"
-                  id={theme.id}
-                  resourceLabel={theme.name}
-                  invalidateKeys={[
-                    ['themes', realm],
-                    ['themes', realm, theme.id],
-                    ['themes', realm, theme.id, 'draft'],
-                    ['themes', realm, theme.id, 'assets'],
-                    ['themes', realm, theme.id, 'versions'],
-                    ['theme-bindings', realm, theme.id],
-                    ['theme-preview', realm, theme.id],
-                  ]}
-                />
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
+        <SectionCard
+          title="Harbor"
+          description="Export this theme as a portable bundle, or import a bundle to replace its configuration."
+          contentClassName="flex items-center justify-between gap-4"
+        >
+          <p className="text-muted-foreground text-sm">
+            Download the theme definition or upload a bundle to apply changes.
+          </p>
+          {realm ? (
+            <HarborResourceActions
+              scope="theme"
+              id={theme.id}
+              resourceLabel={theme.name}
+              invalidateKeys={[
+                ['themes', realm],
+                ['themes', realm, theme.id],
+                ['themes', realm, theme.id, 'draft'],
+                ['themes', realm, theme.id, 'assets'],
+                ['themes', realm, theme.id, 'versions'],
+                ['theme-bindings', realm, theme.id],
+                ['theme-preview', realm, theme.id],
+              ]}
+            />
+          ) : null}
+        </SectionCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Theme Management</CardTitle>
-            <CardDescription>Duplicate this theme into a new draft.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-primary-foreground flex flex-wrap items-center justify-between gap-4 rounded-2xl p-4">
-              <div>
-                <p className="text-sm font-medium">Duplicate Theme</p>
-                <p className="text-muted-foreground text-sm">
-                  Create a new theme with a copy of this theme&apos;s tokens, layout, and pages,
-                  optionally making it active.
-                </p>
-              </div>
-              <Button type="button" className="gap-2" onClick={() => setCloneOpen(true)}>
-                <Copy className="h-4 w-4" />
-                Duplicate
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <SectionCard
+          title="Theme Management"
+          description="Duplicate this theme into a new draft."
+          contentClassName="flex flex-wrap items-center justify-between gap-4"
+        >
+          <div>
+            <p className="text-sm font-medium">Duplicate Theme</p>
+            <p className="text-muted-foreground text-sm">
+              Create a new theme with a copy of this theme&apos;s tokens, layout, and pages,
+              optionally making it active.
+            </p>
+          </div>
+          <Button type="button" className="gap-2" onClick={() => setCloneOpen(true)}>
+            <Copy className="h-4 w-4" />
+            Duplicate
+          </Button>
+        </SectionCard>
 
         <div className="border-destructive/50 bg-destructive/10 rounded-xl border p-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
