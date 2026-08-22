@@ -115,3 +115,24 @@ This document defines the baseline UI engineering practices for ReAuth. Follow t
   only a later argument cannot collide with one specifying an earlier argument.
 - Guarded by `shared/lib/queryKeys.test.ts`, which asserts the prefix property
   directly rather than snapshotting key shapes.
+
+## 13. Detail-page tabs
+- Tabs on a detail page are **routes**, not local state: the route carries a
+  `:tab?` segment so each tab is linkable, bookmarkable, and reachable with the
+  back button. Holding the active tab in `useState` (as the theme page did) loses
+  all three.
+- Use `useRoutedTab` (`entities/realm/lib/useRoutedTab.ts`) rather than repeating
+  the param/validate/redirect block. Pass the tab slugs in display order — the
+  first is the default — plus the realm-relative `basePath`. It also canonicalises
+  an unknown slug, instead of rendering default content under a URL that does not
+  describe it.
+- It lives in `entities/realm` rather than `shared` because it depends on
+  realm-scoped navigation, and `shared` must not import from `entities`.
+- Adding a tabbed detail page means touching **two** places: the `:tab?` route in
+  `app/routerConfig.tsx` and the `TAB_GROUPS` entry in
+  `features/breadcrumb/config/breadcrumb-config.ts`, which drives the breadcrumb's
+  tab dropdown. The theme page had neither.
+- A sibling static route (`/themes/:id/fluid`, `/flows/:id/builder`) coexists with
+  `:tab?` safely: React Router ranks static segments above dynamic ones.
+- Still on local state and worth migrating when touched: the roles, groups, client,
+  user, and webhook-target detail pages each repeat the old block.
