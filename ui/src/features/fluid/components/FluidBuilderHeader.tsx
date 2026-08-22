@@ -91,7 +91,7 @@ export function FluidBuilderHeader({
       <div className="flex flex-1 items-center justify-center">
         <Popover open={isPageOpen} onOpenChange={setIsPageOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button variant="secondary" size="sm" className="gap-2">
               <span className="text-xs font-semibold">{activePage?.label ?? 'Select Page'}</span>
               <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
             </Button>

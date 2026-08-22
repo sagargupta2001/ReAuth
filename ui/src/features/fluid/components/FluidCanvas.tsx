@@ -413,7 +413,7 @@ export function FluidCanvas({
   return (
     <section className={cn('flex h-full flex-1 flex-col', themeClass)}>
       {showChrome && (
-        <div className="bg-background flex items-center justify-between border-b px-4 py-2">
+        <div className="bg-background flex items-center justify-between  px-4 py-2">
           <Tabs defaultValue="desktop" className="w-auto">
             <TabsList className="h-8">
               <TabsTrigger value="desktop" className="gap-2 text-xs">
