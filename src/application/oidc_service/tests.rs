@@ -519,13 +519,7 @@ impl SessionRepository for TestSessionRepo {
             .unwrap()
             .get(id)
             .cloned()
-            .and_then(|token| {
-                if token.revoked_at.is_some() || token.replaced_by.is_some() {
-                    None
-                } else {
-                    Some(token)
-                }
-            }))
+            .filter(|token| token.revoked_at.is_none() && token.replaced_by.is_none()))
     }
 
     async fn find_by_id_any(&self, id: &Uuid) -> Result<Option<RefreshToken>> {
