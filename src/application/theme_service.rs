@@ -1610,9 +1610,6 @@ fn default_tokens() -> Value {
             "text": "var(--foreground)",
             "surface": "var(--card)"
         },
-        "appearance": {
-            "mode": "auto"
-        },
         "typography": {
             "font_family": "system-ui",
             "base_size": 16

@@ -1,5 +1,5 @@
 import { Input } from '@/components/input'
-import { FieldLabel } from '@/features/fluid/components/settings/FieldLabel'
+import { FieldLabel } from '@/features/fluid/components/controls/FieldLabel'
 import { useThemeSettings } from '@/features/fluid/components/settings/themeSettingsContext'
 import { readTokenString } from '@/features/fluid/lib/tokenAccess'
 import type { NumberSettingsField } from '@/features/fluid/model/settingsFields'

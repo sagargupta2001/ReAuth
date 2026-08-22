@@ -1,8 +1,7 @@
+import { ColorContrastField } from '@/features/fluid/components/settings/fields/ColorContrastField'
 import { ColorTokenField } from '@/features/fluid/components/settings/fields/ColorTokenField'
 import { LayoutShellField } from '@/features/fluid/components/settings/fields/LayoutShellField'
 import { NumberTokenField } from '@/features/fluid/components/settings/fields/NumberTokenField'
-import { SelectTokenField } from '@/features/fluid/components/settings/fields/SelectTokenField'
-import { StaticSettingsFieldView } from '@/features/fluid/components/settings/fields/StaticSettingsFieldView'
 import { TextTokenField } from '@/features/fluid/components/settings/fields/TextTokenField'
 import { ThemeAssetsField } from '@/features/fluid/components/settings/fields/ThemeAssetsField'
 import {
@@ -24,10 +23,8 @@ export function ThemeSettingsField({ field }: { field: SettingsField }) {
       return <TextTokenField field={field} />
     case SettingsFieldKind.Number:
       return <NumberTokenField field={field} />
-    case SettingsFieldKind.Select:
-      return <SelectTokenField field={field} />
-    case SettingsFieldKind.Static:
-      return <StaticSettingsFieldView field={field} />
+    case SettingsFieldKind.ColorContrast:
+      return <ColorContrastField field={field} />
     case SettingsFieldKind.LayoutShell:
       return <LayoutShellField />
     case SettingsFieldKind.Assets:

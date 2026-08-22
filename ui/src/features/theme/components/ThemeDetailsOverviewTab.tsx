@@ -43,9 +43,6 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
       text: 'var(--foreground)',
       surface: 'var(--card)',
     },
-    appearance: {
-      mode: 'auto',
-    },
     radius: {
       base: 12,
     },

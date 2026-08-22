@@ -9,31 +9,21 @@ export function getNestedRecord(
   return {}
 }
 
-export function resolveThemeColor(
-  value: string,
-  mode: string,
-  fallback: string,
-  legacy: string[],
-) {
+/**
+ * Resolves a theme colour token to a CSS colour value.
+ *
+ * Themes have a single appearance, so a literal value is always honoured
+ * verbatim — there is no light/dark substitution.
+ */
+export function resolveThemeColor(value: string, fallback: string) {
   const trimmed = value.trim()
   if (!trimmed) return fallback
+  // Legacy themes stored design tokens as hsl(var(--x)); unwrap to var(--x).
   const hslVarMatch = trimmed.match(/^hsl\(\s*(var\(--[^)]+\))\s*\)$/i)
   if (hslVarMatch) {
     return hslVarMatch[1]
   }
-  const normalized = trimmed.toLowerCase()
-  if (mode === 'dark' && legacy.includes(normalized)) {
-    return fallback
-  }
   return trimmed
-}
-
-export function resolveThemeMode(mode: string) {
-  if (mode !== 'auto') return mode
-  if (typeof window === 'undefined') return 'light'
-  if (document?.documentElement?.classList?.contains('dark')) return 'dark'
-  if (document?.documentElement?.classList?.contains('light')) return 'light'
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
 export function resolveInputType(props: Record<string, unknown>, name: string) {

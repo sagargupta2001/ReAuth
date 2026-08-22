@@ -35,11 +35,18 @@ describe('filterBlocks', () => {
   })
 
   it('matches labels case-insensitively', () => {
-    expect(filterBlocks('BUTTON').map((block) => block.id)).toEqual([FluidBlockId.Button])
+    expect(filterBlocks('DIVIDER').map((block) => block.id)).toEqual([FluidBlockId.Divider])
   })
 
   it('matches descriptions', () => {
     expect(filterBlocks('auto-layout').map((block) => block.id)).toEqual([FluidBlockId.Box])
+  })
+
+  it('returns every block that matches the query', () => {
+    expect(filterBlocks('button').map((block) => block.id)).toEqual([
+      FluidBlockId.Button,
+      FluidBlockId.ProviderButtons,
+    ])
   })
 
   it('returns nothing for an unknown query', () => {
@@ -49,9 +56,9 @@ describe('filterBlocks', () => {
 
 describe('groupBlocksByCategory', () => {
   it('groups in the declared category order and drops empty groups', () => {
-    const groups = groupBlocksByCategory(filterBlocks('button'))
+    const groups = groupBlocksByCategory(filterBlocks('divider'))
     expect(groups).toHaveLength(1)
-    expect(groups[0].blocks.map((block) => block.id)).toEqual([FluidBlockId.Button])
+    expect(groups[0].blocks.map((block) => block.id)).toEqual([FluidBlockId.Divider])
   })
 
   it('orders full-catalog groups by BLOCK_CATEGORY_ORDER', () => {

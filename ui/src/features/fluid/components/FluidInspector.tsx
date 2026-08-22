@@ -10,7 +10,7 @@ import type { ThemeAsset, ThemeNode } from '@/entities/theme/model/types'
 import { createNodeFromDefinition } from '@/features/fluid/lib/nodeUtils'
 import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
+import { BuilderPanelCard } from '@/features/fluid/components/controls/BuilderPanelCard'
 import { ICON_NAMES, renderIcon } from '@/shared/ui/icon-registry'
 import { Label } from '@/shared/ui/label'
 import {
@@ -377,18 +377,13 @@ export function FluidInspector({
   }
 
   return (
-    <aside className="bg-muted/10 flex w-72 flex-col border-l">
+    <aside className="bg-muted/10 flex w-80 flex-col border-l">
       <div className="bg-background border-b px-4 py-3">
         <h3 className="text-sm font-semibold">Inspector</h3>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Element</CardTitle>
-            <CardDescription>Selected block properties.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <BuilderPanelCard title="Element" description="Selected block properties.">
             {!selectedBlock ? (
               <p className="text-muted-foreground text-sm">
                 Select a block from the canvas to edit its properties.
@@ -1290,8 +1285,7 @@ export function FluidInspector({
             )}
           </>
         )}
-          </CardContent>
-        </Card>
+        </BuilderPanelCard>
 
         <TypographyControls
           fontSize={String(selectedProps.font_size || '')}
@@ -1308,12 +1302,11 @@ export function FluidInspector({
         />
 
         {selectedType === 'Text' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Accessibility</CardTitle>
-              <CardDescription>Basic contrast check for text color.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-xs">
+          <BuilderPanelCard
+            title="Accessibility"
+            description="Basic contrast check for text color."
+            contentClassName="space-y-3 text-xs"
+          >
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Contrast ratio</span>
                 <span className="font-semibold">
@@ -1331,8 +1324,7 @@ export function FluidInspector({
                   </AlertDescription>
                 </Alert>
               )}
-            </CardContent>
-          </Card>
+          </BuilderPanelCard>
         )}
 
         <SpacingControls

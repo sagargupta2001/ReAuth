@@ -8,19 +8,12 @@
  */
 
 export const TokenGroup = {
-  Appearance: 'appearance',
   Colors: 'colors',
   Typography: 'typography',
   Radius: 'radius',
-  Shadow: 'shadow',
-  Spacing: 'spacing',
 } as const
 
 export type TokenGroup = (typeof TokenGroup)[keyof typeof TokenGroup]
-
-export const AppearanceToken = {
-  Mode: 'mode',
-} as const
 
 export const ColorToken = {
   Primary: 'primary',
@@ -31,30 +24,12 @@ export const ColorToken = {
 
 export const TypographyToken = {
   FontFamily: 'font_family',
+  BaseSize: 'base_size',
 } as const
 
 export const RadiusToken = {
   Base: 'base',
 } as const
-
-export const ThemeMode = {
-  Auto: 'auto',
-  Light: 'light',
-  Dark: 'dark',
-} as const
-
-export type ThemeMode = (typeof ThemeMode)[keyof typeof ThemeMode]
-
-export interface TokenOption {
-  value: string
-  label: string
-}
-
-export const THEME_MODE_OPTIONS: readonly TokenOption[] = [
-  { value: ThemeMode.Auto, label: 'Auto (System)' },
-  { value: ThemeMode.Light, label: 'Light' },
-  { value: ThemeMode.Dark, label: 'Dark' },
-]
 
 /** Fallbacks used when a token is missing from the draft. */
 export const TOKEN_FALLBACK = {

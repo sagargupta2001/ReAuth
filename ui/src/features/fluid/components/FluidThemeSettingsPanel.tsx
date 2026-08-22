@@ -68,8 +68,8 @@ export function FluidThemeSettingsPanel({
 
   return (
     <ThemeSettingsProvider value={settingsContext}>
-      <aside className="bg-muted/10 flex w-72 flex-col border-r">
-        <div className="bg-background border-b px-4 py-5">
+      <aside className="bg-muted/10 flex w-80 flex-col border-r">
+        <div className="bg-background border-b px-4 py-3">
           <h3 className="text-sm font-semibold">Theme Settings</h3>
         </div>
 

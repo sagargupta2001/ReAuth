@@ -1,4 +1,12 @@
-import { Image, LayoutTemplate, Minus, MousePointer2, Type, type LucideIcon } from 'lucide-react'
+import {
+  Fingerprint,
+  Image,
+  LayoutTemplate,
+  Minus,
+  MousePointer2,
+  Type,
+  type LucideIcon,
+} from 'lucide-react'
 
 import type { ThemeNode } from '@/entities/theme/model/types'
 import {
@@ -18,6 +26,7 @@ export const FluidBlockId = {
   Text: 'text',
   Input: 'input',
   Button: 'button',
+  ProviderButtons: 'provider-buttons',
   Divider: 'divider',
   Link: 'link',
   Image: 'image',
@@ -115,6 +124,20 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
       component: 'Button',
       size: { width: 'fill', height: 'hug' },
       props: { label: 'Continue', variant: 'primary' },
+    },
+  },
+  {
+    id: FluidBlockId.ProviderButtons,
+    label: 'Sign-in Providers',
+    description: 'Buttons for the realm’s enabled providers',
+    icon: Fingerprint,
+    category: BlockCategory.Actions,
+    node: {
+      type: 'Component',
+      component: 'ProviderButtons',
+      size: { width: 'fill', height: 'hug' },
+      // The runtime hides the block when the realm has no enabled providers.
+      props: { visible_if: 'enabled_providers_count' },
     },
   },
   {

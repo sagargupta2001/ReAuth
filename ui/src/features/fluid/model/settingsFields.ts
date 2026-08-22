@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 
-import type { TokenGroup, TokenOption } from '@/features/fluid/model/tokens'
+import type { TokenGroup } from '@/features/fluid/model/tokens'
 
 /**
  * Every control type the theme settings panel knows how to render.
@@ -13,9 +13,8 @@ export const SettingsFieldKind = {
   Color: 'color',
   Text: 'text',
   Number: 'number',
-  Select: 'select',
-  /** Read-only placeholder for a token that is not editable yet. */
-  Static: 'static',
+  /** Read-only WCAG contrast report over token pairs. */
+  ColorContrast: 'color-contrast',
   LayoutShell: 'layout-shell',
   Assets: 'assets',
 } as const
@@ -55,16 +54,23 @@ export interface NumberSettingsField extends TokenFieldBase {
   step?: number
 }
 
-export interface SelectSettingsField extends TokenFieldBase {
-  kind: typeof SettingsFieldKind.Select
-  options: readonly TokenOption[]
-  fallback: string
-  placeholder?: string
+/** One side of a contrast pair: either a theme token or a hard-coded colour. */
+export type ColorRef =
+  | { group: TokenGroup; token: string; fallback: string }
+  | { literal: string }
+
+export interface ColorContrastPair {
+  /** What this pair represents on screen, e.g. "Body text on background". */
+  label: string
+  foreground: ColorRef
+  background: ColorRef
+  /** WCAG minimum for this pair (4.5 for normal text, 3 for large/UI). */
+  minRatio: number
 }
 
-export interface StaticSettingsField extends FieldBase {
-  kind: typeof SettingsFieldKind.Static
-  value: string
+export interface ColorContrastSettingsField extends FieldBase {
+  kind: typeof SettingsFieldKind.ColorContrast
+  pairs: readonly ColorContrastPair[]
 }
 
 export interface LayoutShellSettingsField extends FieldBase {
@@ -79,8 +85,7 @@ export type SettingsField =
   | ColorSettingsField
   | TextSettingsField
   | NumberSettingsField
-  | SelectSettingsField
-  | StaticSettingsField
+  | ColorContrastSettingsField
   | LayoutShellSettingsField
   | AssetsSettingsField
 

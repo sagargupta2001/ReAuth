@@ -19,8 +19,8 @@ import {
   getNestedRecord,
   resolveInputType,
   resolveThemeColor,
-  resolveThemeMode,
 } from '@/features/fluid/lib/themeUtils'
+import type { ProviderPreview } from '@/features/fluid/model/providerPreview'
 
 interface FluidCanvasProps {
   tokens: Record<string, unknown>
@@ -28,6 +28,8 @@ interface FluidCanvasProps {
   blocks: ThemeNode[]
   assets: ThemeAsset[]
   selectedNodeId: string | null
+  /** Realm providers, so `ProviderButtons` previews what users will see. */
+  providers?: ProviderPreview[]
   isInspecting?: boolean
   showChrome?: boolean
   onSelectNode: (nodeId: string) => void
@@ -40,6 +42,7 @@ export function FluidCanvas({
   blocks,
   assets,
   selectedNodeId,
+  providers = [],
   isInspecting = false,
   showChrome = true,
   onSelectNode,
@@ -50,7 +53,6 @@ export function FluidCanvas({
   const colors = getNestedRecord(tokens, 'colors')
   const typography = getNestedRecord(tokens, 'typography')
   const radius = getNestedRecord(tokens, 'radius')
-  const appearance = getNestedRecord(tokens, 'appearance')
 
   const rawBackground = String(colors.background || '')
   const rawText = String(colors.text || '')
@@ -60,28 +62,10 @@ export function FluidCanvas({
   const shell = typeof layout.shell === 'string' ? layout.shell : 'CenteredCard'
   const assetMap = new Map(assets.map((asset) => [asset.id, asset]))
   const [hoveredIndex, setHoveredIndex] = useState<string | null>(null)
-  const mode = String(appearance.mode || 'auto')
-  const resolvedMode = resolveThemeMode(mode)
-  const themeClass = resolvedMode === 'dark' ? 'dark' : resolvedMode === 'light' ? 'light' : ''
 
-  const background = resolveThemeColor(
-    rawBackground,
-    resolvedMode,
-    'var(--background)',
-    ['#ffffff', '#fff', '#f8fafc'],
-  )
-  const text = resolveThemeColor(
-    rawText,
-    resolvedMode,
-    'var(--foreground)',
-    ['#0f172a', '#111827'],
-  )
-  const surface = resolveThemeColor(
-    rawSurface,
-    resolvedMode,
-    'var(--card)',
-    ['#ffffff', '#fff'],
-  )
+  const background = resolveThemeColor(rawBackground, 'var(--background)')
+  const text = resolveThemeColor(rawText, 'var(--foreground)')
+  const surface = resolveThemeColor(rawSurface, 'var(--card)')
   const primary = rawPrimary.trim() || 'var(--primary)'
   const fontFamily = String(typography.font_family || 'system-ui')
   const baseSize = Number.parseFloat(String(typography.base_size || '16')) || 16
@@ -360,6 +344,37 @@ export function FluidCanvas({
           return wrap(<Separator />, cn('py-2'))
         }
 
+        if (component.toLowerCase() === 'providerbuttons') {
+          // The runtime hides this block when no providers are enabled. The
+          // builder keeps a placeholder so the node stays visible and selectable.
+          return wrap(
+            providers.length === 0 ? (
+              <div className="text-muted-foreground rounded-md border border-dashed px-3 py-4 text-center text-xs">
+                No sign-in providers enabled for this realm.
+              </div>
+            ) : (
+              <div className="flex w-full flex-col gap-3">
+                {providers.map((provider) => {
+                  const accent = provider.button_color || primary
+                  return (
+                    <Button
+                      key={provider.alias}
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-center"
+                      style={{ borderColor: accent, color: accent }}
+                      disabled
+                    >
+                      {provider.display_name}
+                    </Button>
+                  )
+                })}
+              </div>
+            ),
+            options?.wrapperClass,
+          )
+        }
+
         return wrap(
           <div className="text-xs text-muted-foreground">Unknown component: {component}</div>,
         )
@@ -411,7 +426,7 @@ export function FluidCanvas({
   )
 
   return (
-    <section className={cn('flex h-full flex-1 flex-col', themeClass)}>
+    <section className="flex h-full flex-1 flex-col">
       {showChrome && (
         <div className="bg-background flex items-center justify-between  px-4 py-2">
           <Tabs defaultValue="desktop" className="w-auto">

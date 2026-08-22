@@ -1,7 +1,8 @@
 import { Ruler } from 'lucide-react'
 
 import { Input } from '@/components/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
+import { BuilderPanelCard } from '@/features/fluid/components/controls/BuilderPanelCard'
+import { FieldLabel } from '@/features/fluid/components/controls/FieldLabel'
 
 interface SpacingControlsProps {
   padding: string
@@ -19,40 +20,34 @@ export function SpacingControls({
   onChange,
 }: SpacingControlsProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">Spacing</CardTitle>
-        <CardDescription>Padding and margins.</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Ruler className="h-3.5 w-3.5" />
-          <span>Padding</span>
-        </div>
+    <BuilderPanelCard title="Spacing" description="Padding and margins.">
+      <div className="space-y-2">
+        <FieldLabel htmlFor="spacing-padding" label="Padding" icon={Ruler} />
         <Input
+          id="spacing-padding"
           value={padding}
           disabled={disabled}
           onChange={(event) => onChange({ padding: event.target.value })}
         />
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Ruler className="h-3.5 w-3.5" />
-          <span>Margin Top</span>
-        </div>
+      </div>
+      <div className="space-y-2">
+        <FieldLabel htmlFor="spacing-margin-top" label="Margin Top" icon={Ruler} />
         <Input
+          id="spacing-margin-top"
           value={marginTop}
           disabled={disabled}
           onChange={(event) => onChange({ margin_top: event.target.value })}
         />
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Ruler className="h-3.5 w-3.5" />
-          <span>Margin Bottom</span>
-        </div>
+      </div>
+      <div className="space-y-2">
+        <FieldLabel htmlFor="spacing-margin-bottom" label="Margin Bottom" icon={Ruler} />
         <Input
+          id="spacing-margin-bottom"
           value={marginBottom}
           disabled={disabled}
           onChange={(event) => onChange({ margin_bottom: event.target.value })}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </BuilderPanelCard>
   )
 }

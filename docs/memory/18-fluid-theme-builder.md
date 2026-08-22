@@ -153,9 +153,19 @@ To add a block: add its id to `FluidBlockId`, its definition to `FLUID_BLOCKS`,
 and its preview to `BLOCK_PREVIEWS`. The preview registry is keyed by
 `FluidBlockId`, so a missing preview is a compile error.
 
+A block whose component is rendered by an inline `case` (rather than by
+`componentRegistry` expansion) must be handled in **both** `FluidCanvas` (builder
+preview) and `FluidLoginScreen` (runtime). `ProviderButtons` is seeded by
+`theme_pages.rs` but was only handled at runtime, so the canvas rendered
+"Unknown component: ProviderButtons". The canvas now previews it from the realm's
+own providers (`model/providerPreview.ts`, fed by `useIdentityProviders` in
+`FluidBuilderPage`) and falls back to a visible placeholder when the realm has
+none — the runtime hides the block in that case, but the builder needs the node
+to stay selectable.
+
 Theme settings panel (`FluidThemeSettingsPanel`):
 
-- `model/tokens.ts` — token group/key names, theme-mode options, fallbacks.
+- `model/tokens.ts` — token group/key names and fallbacks.
 - `model/settingsFields.ts` — `SettingsFieldKind` plus the discriminated union of
   field descriptors.
 - `model/themeSettingsSchema.ts` — `THEME_SETTINGS_SECTIONS`, the declarative
@@ -173,6 +183,49 @@ To add a theme property: add its key to `model/tokens.ts` and a descriptor to
 `THEME_SETTINGS_SECTIONS`. To add a new control type: add a `SettingsFieldKind`
 member, its descriptor to the `SettingsField` union, and a case in
 `ThemeSettingsField` — the union's exhaustiveness check flags the missing case.
+
+Rule for the schema: only expose a token that a renderer actually reads. The
+renderers consume exactly `colors.{primary,background,text,surface}`,
+`typography.{font_family,base_size}` and `radius.base`. A control for anything
+else is a control that silently does nothing — the old disabled "Shadow: Soft"
+field was exactly that, and has been removed.
+
+Colours may hold either a design-token reference (`var(--primary)`) or a literal
+value. `model/designTokens.ts` lists the referenceable tokens and
+`controls/ThemeColorControl.tsx` makes the two an explicit choice, previewing a
+token's real colour via `resolveCssColor` (`shared/lib/colorUtils.ts`, which reads
+custom properties off the document root). Seeded themes reference tokens, so a new
+theme inherits the product palette until someone pins a literal.
+
+The `ColorContrast` field kind is read-only and reports WCAG ratios for
+`CONTRAST_PAIRS` — the pairs the renderers actually paint, including the primary
+button's hard-coded white label. An unresolvable pair reports `n/a` rather than a
+failure. `contrastRatio` resolves `var()` values, so the inspector's per-block
+check now works on token-based colours too (it previously showed "Unavailable").
+
+### 5.4.2 Theme Modes Removed
+
+ReAuth has no per-theme light/dark mode. The `appearance.mode` token, its settings
+control, `resolveThemeMode`, and the light/dark substitution branch of
+`resolveThemeColor` are all gone, along with the seeded `appearance` block in
+`theme_service.rs::default_tokens` and the UI fallback drafts.
+
+`resolveThemeColor(value, fallback)` now honours a literal value verbatim. It used
+to swap known light hexes (`#ffffff`, `#f8fafc`, `#0f172a`, …) for CSS variables
+when the resolved mode was dark. Existing themes storing those literals therefore
+render exactly what they store instead of following the admin app's mode — which
+is the intended semantics now that a theme has one appearance. Stored drafts may
+still carry an `appearance` key; it is simply ignored.
+
+### 5.4.1 Side Panel Card Style
+
+`components/controls/BuilderPanelCard.tsx` is the single card shell for both side
+panels — elevated `Card`, header with title/description, and an inset
+`bg-primary-foreground rounded-2xl p-4` content panel. It mirrors the settings-page
+card pattern (e.g. "General Settings" in `FlowDetailsSettingsTab`) so the builder
+does not look like a different app. `components/controls/FieldLabel.tsx` gives both
+panels the same label treatment. Both sidebars and the sections panel are `w-80`,
+so switching left panels does not shift the canvas.
 
 ### 5.5 Diff and Snapshot Viewer
 

@@ -1,5 +1,5 @@
-import { ColorPicker } from '@/features/fluid/components/controls/ColorPicker'
-import { FieldLabel } from '@/features/fluid/components/settings/FieldLabel'
+import { FieldLabel } from '@/features/fluid/components/controls/FieldLabel'
+import { ThemeColorControl } from '@/features/fluid/components/controls/ThemeColorControl'
 import { useThemeSettings } from '@/features/fluid/components/settings/themeSettingsContext'
 import { readTokenString } from '@/features/fluid/lib/tokenAccess'
 import type { ColorSettingsField } from '@/features/fluid/model/settingsFields'
@@ -13,11 +13,11 @@ export function ColorTokenField({ field }: { field: ColorSettingsField }) {
       {field.label && (
         <FieldLabel htmlFor={field.id} label={field.label} icon={field.icon} hint={field.hint} />
       )}
-      <ColorPicker
+      <ThemeColorControl
         id={field.id}
-        ariaLabel={field.label ? `${field.label} color` : undefined}
         value={value}
         fallback={field.fallback}
+        ariaLabel={field.label}
         onChange={(next) => setToken(field.group, field.token, next)}
       />
     </div>

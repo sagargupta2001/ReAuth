@@ -25,6 +25,8 @@ import { useThemeAssets } from '@/features/theme/api/useThemeAssets'
 import { useThemeDraft } from '@/features/theme/api/useThemeDraft'
 import { useUploadThemeAsset } from '@/features/theme/api/useUploadThemeAsset'
 import { useThemeTemplateGaps } from '@/features/theme/api/useThemeTemplateGaps'
+import { useIdentityProviders } from '@/features/identity-provider/api/useIdentityProviders'
+import { toProviderPreviews } from '@/features/fluid/model/providerPreview'
 import { FluidBlocksPanel } from '@/features/fluid/components/FluidBlocksPanel'
 import { FluidBuilderHeader } from '@/features/fluid/components/FluidBuilderHeader'
 import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
@@ -47,9 +49,6 @@ const fallbackDraft: ThemeDraft = {
       background: 'var(--background)',
       text: 'var(--foreground)',
       surface: 'var(--card)',
-    },
-    appearance: {
-      mode: 'auto',
     },
     typography: {
       font_family: 'system-ui',
@@ -261,6 +260,11 @@ export function FluidBuilderPage() {
   const { mutateAsync: publishTheme, isPending: isPublishing } = usePublishTheme(themeId || '')
   const { data: assets = [] } = useThemeAssets(themeId)
   const { mutateAsync: uploadAsset, isPending: isUploading } = useUploadThemeAsset(themeId || '')
+  const { data: identityProviders = [] } = useIdentityProviders()
+  const providerPreviews = useMemo(
+    () => toProviderPreviews(identityProviders),
+    [identityProviders],
+  )
   const validationErrors = useMemo(
     () => validateThemeDraft(draftState),
     [draftState],
@@ -608,6 +612,7 @@ export function FluidBuilderPage() {
           blocks={activeNodes}
           assets={assets}
           selectedNodeId={selectedNodeId}
+          providers={providerPreviews}
           isInspecting={isInspecting}
           onSelectNode={setSelectedNodeId}
         />

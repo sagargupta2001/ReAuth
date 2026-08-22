@@ -29,6 +29,16 @@ const BLOCK_PREVIEWS: Record<FluidBlockId, () => ReactElement> = {
       Continue
     </div>
   ),
+  [FluidBlockId.ProviderButtons]: () => (
+    <div className="flex flex-col gap-2">
+      <div className="text-primary flex h-9 w-full items-center justify-center rounded-md border text-xs font-medium">
+        Continue with Google
+      </div>
+      <div className="text-primary flex h-9 w-full items-center justify-center rounded-md border text-xs font-medium">
+        Continue with Okta
+      </div>
+    </div>
+  ),
   [FluidBlockId.Divider]: () => <div className="bg-border h-px w-full" />,
   [FluidBlockId.Link]: () => <div className="text-primary text-xs underline">Forgot password?</div>,
   [FluidBlockId.Image]: () => (

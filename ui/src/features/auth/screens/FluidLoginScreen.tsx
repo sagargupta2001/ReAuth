@@ -23,7 +23,6 @@ import {
   getNestedRecord,
   resolveInputType,
   resolveThemeColor,
-  resolveThemeMode,
 } from '@/features/fluid/lib/themeUtils'
 
 type LoginFormValues = Record<string, string>
@@ -297,7 +296,6 @@ export function FluidLoginScreen({
   const colors = getNestedRecord(tokens, 'colors')
   const typography = getNestedRecord(tokens, 'typography')
   const radius = getNestedRecord(tokens, 'radius')
-  const appearance = getNestedRecord(tokens, 'appearance')
 
   const rawBackground = String(colors.background || '')
   const rawText = String(colors.text || '')
@@ -308,29 +306,10 @@ export function FluidLoginScreen({
   const baseSize = Number.parseFloat(String(typography.base_size || '16')) || 16
   const shell = typeof layout.shell === 'string' ? layout.shell : 'CenteredCard'
   const assetMap = new Map(assets.map((asset) => [asset.id, asset]))
-  const themeMode = String(appearance.mode || 'auto')
-  const resolvedMode = resolveThemeMode(themeMode)
-  const themeClass = resolvedMode === 'dark' ? 'dark' : resolvedMode === 'light' ? 'light' : ''
-
-  const background = resolveThemeColor(
-    rawBackground,
-    resolvedMode,
-    'var(--background)',
-    ['#ffffff', '#fff', '#f8fafc'],
-  )
-  const text = resolveThemeColor(
-    rawText,
-    resolvedMode,
-    'var(--foreground)',
-    ['#0f172a', '#111827'],
-  )
+  const background = resolveThemeColor(rawBackground, 'var(--background)')
+  const text = resolveThemeColor(rawText, 'var(--foreground)')
   const primary = rawPrimary.trim() || 'var(--primary)'
-  const surface = resolveThemeColor(
-    rawSurface,
-    resolvedMode,
-    'var(--card)',
-    ['#ffffff', '#fff'],
-  )
+  const surface = resolveThemeColor(rawSurface, 'var(--card)')
 
   const formBlocks = useMemo(
     () =>
@@ -1290,7 +1269,7 @@ export function FluidLoginScreen({
 
   if (isPasskeyEnrollScreen) {
     return (
-      <div className={cn('min-h-svh w-full', themeClass)} style={{ backgroundColor: background, color: text }}>
+      <div className="min-h-svh w-full" style={{ backgroundColor: background, color: text }}>
         <div className="flex min-h-svh w-full items-center justify-center p-8">
           <div
             className="w-full max-w-md border p-8 shadow-lg"
@@ -1355,7 +1334,7 @@ export function FluidLoginScreen({
 
   if (isPasskeyAssertScreen) {
     return (
-      <div className={cn('min-h-svh w-full', themeClass)} style={{ backgroundColor: background, color: text }}>
+      <div className="min-h-svh w-full" style={{ backgroundColor: background, color: text }}>
         <div className="flex min-h-svh w-full items-center justify-center p-8">
           <div
             className="w-full max-w-md border p-8 shadow-lg"
@@ -1439,7 +1418,7 @@ export function FluidLoginScreen({
   }
 
   return (
-    <div className={cn('min-h-svh w-full', themeClass)} style={containerStyle}>
+    <div className="min-h-svh w-full" style={containerStyle}>
       <div className="flex min-h-svh w-full items-center justify-center p-8">
         {shell === 'SplitScreen' ? (
           <div
