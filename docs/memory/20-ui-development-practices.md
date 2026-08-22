@@ -134,5 +134,10 @@ This document defines the baseline UI engineering practices for ReAuth. Follow t
   tab dropdown. The theme page had neither.
 - A sibling static route (`/themes/:id/fluid`, `/flows/:id/builder`) coexists with
   `:tab?` safely: React Router ranks static segments above dynamic ones.
-- Still on local state and worth migrating when touched: the roles, groups, client,
-  user, and webhook-target detail pages each repeat the old block.
+- Every tabbed page now uses the hook: theme, flow, client, user, role,
+  webhook-target, and `GroupExplorer`. `routedTabs.test.ts` guards both halves —
+  that each `:tab?` route has a `TAB_GROUPS` entry, and that no page reintroduces
+  a local `validTabs` / `handleTabChange` block.
+- `GroupExplorer` is the one widget rather than page: it renders both with and
+  without a selected group, which is what `enabled` is for — with no group there
+  is no tab segment to read or redirect to.

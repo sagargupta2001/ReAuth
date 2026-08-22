@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 
 import { Activity, Loader2, Settings, SlidersHorizontal } from 'lucide-react'
 import { useParams } from 'react-router-dom'
@@ -7,6 +7,7 @@ import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import type { WebhookEndpointDetails } from '@/entities/events/model/types'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useRoutedTab } from '@/entities/realm/lib/useRoutedTab'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useDeleteWebhook } from '@/features/events/api/useDeleteWebhook'
 import { useReplayDelivery } from '@/features/events/api/useReplayDelivery'
@@ -24,18 +25,20 @@ import { WebhookTargetSummaryPanel } from '@/features/events/components/WebhookT
 import { formatClockTime } from '@/lib/utils'
 import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 
+/** Tab slugs, in display order. The first is the default. */
 const VALID_TABS = ['configure', 'deliveries', 'settings'] as const
-type TargetDetailsTab = (typeof VALID_TABS)[number]
 
 export function TargetDetailsPage() {
-  const { targetId, tab } = useParams<{ targetId: string; tab?: string }>()
+  const { targetId } = useParams<{ targetId: string }>()
   const navigate = useRealmNavigate()
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const webhookId = targetId
-  const activeTab = VALID_TABS.includes((tab ?? '') as TargetDetailsTab)
-    ? (tab as TargetDetailsTab)
-    : 'configure'
+  const { activeTab, onTabChange } = useRoutedTab({
+    tabs: VALID_TABS,
+    basePath: `/events/webhooks/${webhookId}`,
+    enabled: Boolean(webhookId),
+  })
 
   const {
     data: webhookDetails,
@@ -58,13 +61,6 @@ export function TargetDetailsPage() {
     isFetching: webhookDeliveriesFetching,
     refetch: refetchWebhookDeliveries,
   } = useWebhookDeliveries(webhookId, { per_page: 50, page: 1 })
-
-  useEffect(() => {
-    if (!webhookId) return
-    if (!tab || !VALID_TABS.includes(tab as TargetDetailsTab)) {
-      navigate(`/events/webhooks/${webhookId}/configure`, { replace: true })
-    }
-  }, [navigate, tab, webhookId])
 
   const deliveries = useMemo<DeliveryInspectorItem[]>(() => {
     const logs = webhookDeliveries?.data ?? []
@@ -128,10 +124,6 @@ export function TargetDetailsPage() {
   const endpoint = webhookDetails.endpoint
   const statusPending = enableWebhook.isPending || disableWebhook.isPending
 
-  const handleTabChange = (newTab: string) => {
-    navigate(`/events/webhooks/${webhookId}/${newTab}`)
-  }
-
   const handleStatusChange = (checked: boolean) => {
     if (checked) {
       enableWebhook.mutate(endpoint.id)
@@ -158,7 +150,7 @@ export function TargetDetailsPage() {
 
       <Tabs
         value={activeTab}
-        onValueChange={handleTabChange}
+        onValueChange={onTabChange}
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 px-6 pt-2">
