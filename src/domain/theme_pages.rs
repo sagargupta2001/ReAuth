@@ -278,8 +278,8 @@ fn default_oauth_link_confirm_blueprint() -> Value {
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Link your account" } },
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "message" } },
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text_path": "error", "visible_if": "error" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username", "name": "username", "input_type": "text" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username", "name": "username", "input_type": "text", "placeholder": "you@company.com" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password", "placeholder": "Enter your password" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Confirm link", "variant": "primary", "intent": "link" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Use another sign-in method", "variant": "outline", "intent": "cancel" } }
         ]
@@ -317,8 +317,8 @@ fn default_register_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Create your account" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email", "name": "email", "input_type": "email" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email", "name": "email", "input_type": "email", "placeholder": "you@company.com" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Password", "name": "password", "input_type": "password", "placeholder": "Create a password" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Sign up", "variant": "primary" } }
         ]
     })
@@ -330,7 +330,7 @@ fn default_passkey_assert_blueprint() -> Value {
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Sign in with a passkey" } },
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Use your device passkey. If unavailable, continue with password fallback." } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username (optional)", "name": "username", "input_type": "text" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Email or username (optional)", "name": "username", "input_type": "text", "placeholder": "you@company.com" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Continue with passkey", "variant": "primary" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Use password instead", "variant": "outline", "visible_if": "fallback_allowed" } }
         ]
@@ -343,7 +343,7 @@ fn default_passkey_enroll_blueprint() -> Value {
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Create a passkey" } },
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Set up a passkey now for faster and phishing-resistant sign-in." } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Passkey label (optional)", "name": "passkey_friendly_name", "input_type": "text" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Passkey label (optional)", "name": "passkey_friendly_name", "input_type": "text", "placeholder": "e.g. MacBook Pro" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Create passkey", "variant": "primary" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Skip for now", "variant": "outline", "visible_if": "can_skip" } }
         ]
@@ -355,7 +355,7 @@ fn default_forgot_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Reset your password" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Username or email", "name": "username", "input_type": "text" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Username or email", "name": "username", "input_type": "text", "placeholder": "you@company.com" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Send reset link", "variant": "primary" } }
         ]
     })
@@ -366,8 +366,8 @@ fn default_reset_password_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Set a new password" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "New password", "name": "password", "input_type": "password" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Confirm password", "name": "password_confirm", "input_type": "password" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "New password", "name": "password", "input_type": "password", "placeholder": "Create a new password" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Confirm password", "name": "password_confirm", "input_type": "password", "placeholder": "Repeat the new password" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Update password", "variant": "primary" } }
         ]
     })
@@ -412,7 +412,7 @@ fn default_mfa_blueprint() -> Value {
         "layout": "default",
         "nodes": [
             { "type": "Text", "size": { "width": "fill", "height": "hug" }, "props": { "text": "Enter your verification code" } },
-            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Code", "name": "otp" } },
+            { "type": "Component", "component": "Input", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Code", "name": "otp", "placeholder": "123456" } },
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Verify", "variant": "primary" } }
         ]
     })
@@ -447,4 +447,149 @@ fn default_error_blueprint() -> Value {
             { "type": "Component", "component": "Button", "size": { "width": "fill", "height": "hug" }, "props": { "label": "Try again", "variant": "primary" } }
         ]
     })
+}
+
+#[cfg(test)]
+mod seed_audit_tests {
+    use super::*;
+
+    /// Walks every node in a blueprint, children and slots included.
+    fn visit(nodes: &[Value], f: &mut impl FnMut(&Value)) {
+        for node in nodes {
+            f(node);
+            if let Some(children) = node.get("children").and_then(Value::as_array) {
+                visit(children, f);
+            }
+            if let Some(slots) = node.get("slots").and_then(Value::as_object) {
+                for slot in slots.values() {
+                    visit(std::slice::from_ref(slot), f);
+                }
+            }
+        }
+    }
+
+    fn for_each_seeded_node(mut f: impl FnMut(&str, &Value)) {
+        for page in system_pages() {
+            let nodes = page
+                .blueprint
+                .get("nodes")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let key = page.key.clone();
+            visit(&nodes, &mut |node| f(&key, node));
+        }
+    }
+
+    fn node_kind(node: &Value) -> &str {
+        node.get("component")
+            .and_then(Value::as_str)
+            .or_else(|| node.get("type").and_then(Value::as_str))
+            .unwrap_or("")
+    }
+
+    #[test]
+    fn every_page_blueprint_defines_nodes() {
+        for page in system_pages() {
+            let nodes = page.blueprint.get("nodes").and_then(Value::as_array);
+            assert!(
+                nodes.is_some_and(|n| !n.is_empty()),
+                "page '{}' has no nodes",
+                page.key
+            );
+        }
+    }
+
+    #[test]
+    fn every_seeded_input_has_a_placeholder() {
+        // An input with no placeholder renders as an unlabelled empty box; the
+        // seeds shipped 12 of them across 8 pages before this was caught.
+        let mut missing = Vec::new();
+        for_each_seeded_node(|page, node| {
+            if node_kind(node) != "Input" {
+                return;
+            }
+            let props = node.get("props");
+            let has = props
+                .and_then(|p| p.get("placeholder"))
+                .and_then(Value::as_str)
+                .is_some_and(|s| !s.trim().is_empty());
+            if !has {
+                let name = props
+                    .and_then(|p| p.get("name"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("?");
+                missing.push(format!("{page}/{name}"));
+            }
+        });
+        assert!(
+            missing.is_empty(),
+            "inputs without a placeholder: {missing:?}"
+        );
+    }
+
+    #[test]
+    fn every_seeded_input_has_a_name_and_label() {
+        let mut bad = Vec::new();
+        for_each_seeded_node(|page, node| {
+            if node_kind(node) != "Input" {
+                return;
+            }
+            let props = node.get("props");
+            for field in ["name", "label"] {
+                let ok = props
+                    .and_then(|p| p.get(field))
+                    .and_then(Value::as_str)
+                    .is_some_and(|s| !s.trim().is_empty());
+                if !ok {
+                    bad.push(format!("{page}: input missing {field}"));
+                }
+            }
+        });
+        assert!(bad.is_empty(), "{bad:?}");
+    }
+
+    #[test]
+    fn every_seeded_text_node_has_copy_or_a_binding() {
+        // A Text node with neither renders the literal placeholder "Headline".
+        let mut bare = Vec::new();
+        for_each_seeded_node(|page, node| {
+            if node_kind(node) != "Text" {
+                return;
+            }
+            let props = node.get("props");
+            let has_copy = ["text", "text_path"].iter().any(|field| {
+                props
+                    .and_then(|p| p.get(*field))
+                    .and_then(Value::as_str)
+                    .is_some_and(|s| !s.trim().is_empty())
+            });
+            if !has_copy {
+                bare.push(page.to_string());
+            }
+        });
+        assert!(
+            bare.is_empty(),
+            "text nodes with no copy or binding: {bare:?}"
+        );
+    }
+
+    #[test]
+    fn every_seeded_component_is_one_the_renderers_handle() {
+        // Both `FluidCanvas` and `FluidLoginScreen` switch on these names. A seed
+        // naming anything else renders "Unknown component" — which is exactly how
+        // ProviderButtons shipped broken in the builder.
+        const RENDERABLE: &[&str] = &["Input", "Button", "Link", "Divider", "ProviderButtons"];
+        let mut unknown = Vec::new();
+        for_each_seeded_node(|page, node| {
+            if node.get("type").and_then(Value::as_str) != Some("Component") {
+                return;
+            }
+            let component = node.get("component").and_then(Value::as_str).unwrap_or("");
+            if !RENDERABLE.contains(&component) {
+                unknown.push(format!("{page}/{component}"));
+            }
+        });
+        assert!(unknown.is_empty(), "unrenderable components: {unknown:?}");
+    }
 }

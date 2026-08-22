@@ -25,6 +25,12 @@ import {
   resolveInputType,
   resolveThemeColor,
 } from '@/features/fluid/lib/themeUtils'
+import {
+  computeNodeVisuals,
+  resolveDisplayText,
+  resolveRadius,
+  resolveVisibleFlag,
+} from '@/features/fluid/lib/nodeVisuals'
 import type { ProviderPreview } from '@/features/fluid/model/providerPreview'
 
 interface FluidCanvasProps {
@@ -86,82 +92,24 @@ export function FluidCanvas({
     node: ThemeNode,
     options?: { wrapperClass?: string; disableSelection?: boolean },
   ): ReactNode => {
-    const isVisible = (() => {
-      const value = node.props?.visible
-      if (value === undefined) return true
-      if (typeof value === 'boolean') return value
-      if (typeof value === 'string') return value.toLowerCase() !== 'false'
-      return true
-    })()
-    if (!isVisible) {
+    if (!resolveVisibleFlag(node.props?.visible)) {
       return null
     }
-    const props = node.props ?? {}
-    const align = String(props.align || 'left')
-    const alignClass =
-      align === 'center'
-        ? 'text-center'
-        : align === 'right'
-          ? 'text-right'
-          : 'text-left'
-    const fontSize = String(props.font_size || '')
-    const fontWeight = String(props.font_weight || '')
-    const fontColor = String(props.color || '')
-    const marginTop = Number.parseFloat(String(props.margin_top || '0')) || 0
-    const marginBottom = Number.parseFloat(String(props.margin_bottom || '0')) || 0
-    const padding = Number.parseFloat(String(props.padding || '0')) || 0
-    const widthMode = String(node.size?.width || props.width || 'fill')
-    const widthValue = String(node.size?.width_value || props.width_value || '')
-    const heightMode = String(node.size?.height || props.height || 'hug')
-    const heightValue = String(node.size?.height_value || props.height_value || '')
-    const size = String(props.size || 'md')
-    // Only emit spacing the node actually asks for. Writing `0px` inline beat the
-    // container's `space-y-*` classes, which flattened the whole page's rhythm.
-    const style: CSSProperties = {}
-    if (marginTop) {
-      style.marginTop = `${marginTop}px`
-    }
-    if (marginBottom) {
-      style.marginBottom = `${marginBottom}px`
-    }
-    if (padding) {
-      style.padding = `${padding}px`
-    }
-    const widthClass =
-      widthMode === 'hug' || widthMode === 'auto'
-        ? 'w-auto'
-        : widthMode === 'fixed' || widthMode === 'custom'
-          ? ''
-          : 'w-full'
-    const heightClass =
-      heightMode === 'fill'
-        ? 'h-full'
-        : heightMode === 'fixed'
-          ? ''
-          : 'h-auto'
-    const fillHeightClass =
-      heightMode === 'fill' || heightMode === 'fixed' ? 'h-full' : ''
-    const fillWidthClass = widthMode === 'fill' ? 'w-full' : ''
-    if ((widthMode === 'fixed' || widthMode === 'custom') && widthValue) {
-      style.width = widthValue
-    }
-    if (heightMode === 'fixed' && heightValue) {
-      style.height = heightValue
-    }
-
-    if (fontSize) {
-      style.fontSize = fontSize
-    }
-    if (fontWeight) {
-      const numeric = Number.parseInt(fontWeight, 10)
-      style.fontWeight = Number.isNaN(numeric) ? fontWeight : numeric
-    }
-    if (fontColor) {
-      style.color = fontColor
-    }
-
-    const sizeClass =
-      size === 'sm' ? 'h-8 text-xs' : size === 'lg' ? 'h-11 text-base' : 'h-9 text-sm'
+    const {
+      props,
+      alignClass,
+      sizeClass,
+      widthClass,
+      heightClass,
+      fillWidthClass,
+      fillHeightClass,
+      style,
+      fontSize,
+      fontWeight,
+      size,
+      heightMode,
+      heightValue,
+    } = computeNodeVisuals(node)
     const isSelected = selectedNodeId === node.id
     const isHoverable = isInspecting && !options?.disableSelection
     const handleSelect = (event: MouseEvent<HTMLDivElement>) => {
@@ -212,10 +160,7 @@ export function FluidCanvas({
           : undefined
         const borderColor = String(props.border_color || '')
         const borderWidth = Number.parseFloat(String(props.border_width || ''))
-        // A bare number is not valid CSS ("border-radius: 12" is dropped), so
-        // unitless values get px.
-        const rawRadius = String(props.radius ?? '').trim()
-        const borderRadius = /^-?\d*\.?\d+$/.test(rawRadius) ? `${rawRadius}px` : rawRadius
+        const borderRadius = resolveRadius(props.radius)
         const background = String(props.background || '')
         const boxStyle: CSSProperties = {
           gap,
@@ -237,18 +182,27 @@ export function FluidCanvas({
           undefined,
         )
       }
-      case 'Text':
+      case 'Text': {
+        const { text: displayText, isBinding } = resolveDisplayText(props)
         // The wrapper already carries font_size/font_weight/color from props, so
         // only apply the heading defaults when the node does not set them —
         // a utility class here would override the inherited inline style.
         return wrap(
           <div className={cn('py-1', alignClass)}>
-            <p className={cn(!fontSize && 'text-lg', !fontWeight && 'font-semibold')}>
-              {String(props.text || 'Headline')}
+            <p
+              className={cn(
+                !fontSize && 'text-lg',
+                !fontWeight && 'font-semibold',
+                isBinding && 'italic opacity-60',
+              )}
+              title={isBinding ? `Bound to context: ${String(props.text_path)}` : undefined}
+            >
+              {displayText}
             </p>
           </div>,
           undefined,
         )
+      }
       case 'Icon': {
         const name = String(props.name || '')
         const color = String(props.color || '')

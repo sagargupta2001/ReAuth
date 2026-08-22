@@ -121,6 +121,38 @@ describe('FluidThemeSettingsPanel', () => {
     })
   })
 
+  it('hides the reset action when no handler is supplied', () => {
+    renderPanel()
+    expect(screen.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+  })
+
+  it('confirms before resetting theme settings', () => {
+    const onResetTokens = vi.fn()
+    renderPanel({ onResetTokens })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+
+    expect(onResetTokens).not.toHaveBeenCalled()
+    expect(screen.getByText(/Reset theme settings to their defaults\?/i)).toBeInTheDocument()
+    // Must be clear this is the theme-wide reset, not the per-page one.
+    expect(screen.getByText(/Page blocks and uploaded assets are untouched/i)).toBeInTheDocument()
+  })
+
+  it('resets once confirmed', () => {
+    const onResetTokens = vi.fn()
+    renderPanel({ onResetTokens })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    const dialog = screen.getByRole('alertdialog')
+    fireEvent.click(
+      [...dialog.querySelectorAll('button')].find(
+        (button) => button.textContent?.trim() === 'Reset settings',
+      )!,
+    )
+
+    expect(onResetTokens).toHaveBeenCalledTimes(1)
+  })
+
   it('shows an empty state when there are no assets', () => {
     renderPanel()
     expect(screen.getByText('No assets uploaded yet.')).toBeInTheDocument()

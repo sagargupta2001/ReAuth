@@ -203,7 +203,29 @@ button's hard-coded white label. An unresolvable pair reports `n/a` rather than 
 failure. `contrastRatio` resolves `var()` values, so the inspector's per-block
 check now works on token-based colours too (it previously showed "Unavailable").
 
-### 5.4.1 Renderer Defaults Must Follow the Theme
+### 5.4.1 The Two Renderers Share Their Derivation
+
+`FluidCanvas` (builder preview) and `FluidLoginScreen` (runtime) are separate
+components by necessity — one is selectable and inert, the other wires
+react-hook-form, actions, OAuth, and passkeys. What they must *not* duplicate is
+how a node is read.
+
+`lib/nodeVisuals.ts` owns that derivation: `computeNodeVisuals` (alignment,
+sizing, spacing, typography), `resolveDisplayText`, `resolveVisibleFlag`, and
+`resolveRadius`. Both renderers previously held a byte-identical 65-line copy of
+the visuals block, which is precisely why fixes this cycle had to be applied twice
+and why `ProviderButtons` shipped working at runtime and broken in the builder.
+
+Extracting it also exposed a latent divergence: the two copies of
+`resolveVisibleFlag` ended differently — the runtime coerced with
+`Boolean(value)`, the builder returned `true` — so `visible: 0` hid the node in
+production while the preview still showed it. The runtime's reading won.
+
+When adding a node property, put its derivation in `nodeVisuals.ts` and let both
+renderers consume it. Only genuinely behavioural differences belong in the
+components.
+
+### 5.4.2 Renderer Defaults Must Follow the Theme
 
 The seeded blueprints specify almost nothing but text and structure, so nearly
 every visual decision comes from renderer defaults. Five of those defaults were
@@ -254,17 +276,54 @@ actually uses: the prompt and the link have different line heights, so `center`
 aligns their boxes and leaves the text visibly off. The Rust side stores `layout`
 as untyped JSON, so layout keys need no backend change.
 
-### 5.4.2 Changing a Seeded Blueprint
+### 5.4.3 Seed Audit
 
-`ensure_theme_pages` only inserts page keys that are **missing** — it never
-updates an existing page. Editing `theme_pages.rs` therefore has no effect on a
-theme that has already been seeded, and there is no reset-to-default endpoint. To
-see a blueprint change locally, delete `target/debug/data/reauth.db*` and restart;
-that also clears the master admin, so the app returns to first-run setup.
+The seeded blueprints are audited by `theme_pages.rs::seed_audit_tests`, which
+walks every node of every page (children and slots included) and asserts:
 
-A "reset page to default" action would remove this friction and is worth building.
+- each page defines a non-empty `nodes` array
+- every `Input` has a non-empty `placeholder`, `name`, and `label`
+- every `Text` has either `text` or `text_path` — a node with neither renders the
+  literal string "Headline"
+- every `Component` names one the renderers actually switch on (`Input`, `Button`,
+  `Link`, `Divider`, `ProviderButtons`); anything else renders
+  "Unknown component", which is how `ProviderButtons` shipped broken
 
-### 5.4.3 Theme Modes Removed
+The first sweep found 12 inputs across 8 pages with no placeholder, and one
+renderer gap: `FluidCanvas` had no `text_path` handling, so the 9 context-bound
+`Text` nodes across 6 pages all previewed as "Headline". The canvas now renders
+the binding itself (`{message}`, italic and dimmed, with the path in the tooltip)
+because the builder has no auth context to resolve against.
+
+Extend these tests rather than re-auditing by hand — the defects here are all the
+"prop is set and silently does nothing" kind, which reads fine in review.
+
+### 5.4.4 Changing a Seeded Blueprint
+
+`ensure_theme_pages` only inserts page keys that are **missing**, so editing
+`theme_pages.rs` does not rewrite an existing theme's stored page. That does *not*
+mean a DB wipe is needed to see the change.
+
+`list_pages_for_theme` builds its templates from `theme_pages::system_pages()` —
+the blueprints compiled into the running binary — and only appends *custom* pages
+from the database. So `ThemePageTemplate.blueprint` reaching the builder is always
+the current default, and `FluidBuilderPage.handleResetPage` restores it into the
+draft (Save then persists it). The loop for iterating on a seeded blueprint is:
+edit `theme_pages.rs`, restart the backend, open the page, "Restore default", Save.
+
+That handler existed but had no UI: `FluidBuilderHeader` declared `onResetPage` and
+`canResetPage` and never destructured them, so nothing rendered. The header now has
+a "Restore default" button behind a confirm dialog.
+
+Reset semantics differ by theme kind, and both end at the default:
+- system theme — the page's blueprint is replaced with the template's.
+- non-system theme — the page node is *removed* from the draft, and rendering falls
+  back to the template (`activeBlueprint` prefers the node, then the template).
+
+A server-side reset endpoint is therefore unnecessary; the client path also keeps
+the change inside the builder's undo history, which an endpoint could not.
+
+### 5.4.5 Theme Modes Removed
 
 ReAuth has no per-theme light/dark mode. The `appearance.mode` token, its settings
 control, `resolveThemeMode`, and the light/dark substitution branch of
@@ -278,7 +337,51 @@ render exactly what they store instead of following the admin app's mode — whi
 is the intended semantics now that a theme has one appearance. Stored drafts may
 still carry an `appearance` key; it is simply ignored.
 
-### 5.4.4 Side Panel Card Style
+### 5.4.6 Inspector Decomposition
+
+`FluidInspector` was the last god component. It is being taken apart the same way
+as the settings panel: pure logic into `lib/`, cohesive UI into `components/inspector/`.
+
+Extracted so far (1346 → 913 lines):
+
+- `lib/actionBindings.ts` — the action-binding model: payload-path validation, and
+  pure transforms (`patchAction`, `patchActionSignal`, `setPayloadMap`,
+  `appendAction`, `removeActionById`, `rememberActionNodeId`). These encode the
+  semantics worth testing: blank payload keys are dropped, and `payload_map` is
+  deleted rather than persisted as `{}` when it empties.
+- `inspector/ActionsPanel.tsx` — a controlled editor over `InspectorAction[]`.
+  It takes `actions` plus one `onChange` sink instead of eight callbacks, which is
+  what made the extraction tractable.
+- `inspector/IconPicker.tsx` and `inspector/ContrastCard.tsx`.
+
+Still inside the component: the per-node-type property sections (Text, Icon,
+Input, Button, Link, Image, Divider, Box). Those are the remaining bulk and want
+the same treatment as `THEME_SETTINGS_SECTIONS` — a registry keyed by node type or
+component name, so adding a node type is a data change. That needs an inspector
+context first (selected node, props, layout, size, update callback, assets), or
+each panel ends up threading a dozen props.
+
+### 5.4.7 Reset Is Scoped, and Scopes Must Be Visible
+
+There are two independent resets, because a theme has two independent kinds of
+state:
+
+- **Restore page** (builder header) replaces one page's *blocks* with the seeded
+  blueprint. It cannot revert colours, typography, or radius — those are tokens,
+  not page nodes. `background` appears zero times in `theme_pages.rs`.
+- **Reset** (theme settings panel header) restores tokens and layout from
+  `GET /api/realms/{realm}/theme-defaults`, which serves
+  `theme_service::default_draft_settings()`. Page blocks and assets are untouched.
+
+Serving the defaults from the backend removes a duplication that had already
+caused drift: `FluidBuilderPage.fallbackDraft` kept its own copy of the token
+defaults, so removing the `appearance` block meant editing both.
+
+Both are draft edits and need Save, like every other builder change. The first
+version of the page action was labelled just "Restore default", which read as
+theme-wide and left users expecting a colour change to revert.
+
+### 5.4.8 Side Panel Card Style
 
 `components/controls/BuilderPanelCard.tsx` is the single card shell for both side
 panels — elevated `Card`, header with title/description, and an inset

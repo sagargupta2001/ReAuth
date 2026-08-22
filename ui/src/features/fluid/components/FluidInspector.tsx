@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import { Search, X } from 'lucide-react'
-
 import { Button } from '@/components/button'
 import { Input } from '@/components/input'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/popover'
 import { Textarea } from '@/components/textarea'
 import type { ThemeAsset, ThemeNode } from '@/entities/theme/model/types'
 import { createNodeFromDefinition } from '@/features/fluid/lib/nodeUtils'
 import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
-import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { SectionCard } from '@/shared/ui/section-card'
-import { ICON_NAMES, renderIcon } from '@/shared/ui/icon-registry'
 import { Label } from '@/shared/ui/label'
 import {
   Select,
@@ -21,146 +16,15 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import { contrastRatio } from '@/shared/lib/colorUtils'
+import { ActionsPanel } from './inspector/ActionsPanel'
+import { ContrastCard } from './inspector/ContrastCard'
+import { IconPicker } from './inspector/IconPicker'
+import {
+  createActionId,
+  type InspectorAction,
+} from '@/features/fluid/lib/actionBindings'
 import { TypographyControls } from './inspector/TypographyControls'
 import { SpacingControls } from './inspector/SpacingControls'
-
-type InspectorAction = {
-  action_id?: string
-  trigger?: string
-  signal?: {
-    type?: string
-    node_id?: string
-    payload_map?: Record<string, unknown>
-  }
-}
-
-const RECENT_ACTION_NODE_KEY = 'reauth.fluid.action-node-ids'
-const MAX_RECENT_ACTION_NODES = 20
-
-const readRecentActionNodeIds = () => {
-  if (typeof window === 'undefined') return [] as string[]
-  try {
-    const raw = window.localStorage.getItem(RECENT_ACTION_NODE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as string[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-const writeRecentActionNodeIds = (entries: string[]) => {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(RECENT_ACTION_NODE_KEY, JSON.stringify(entries))
-}
-
-const createActionId = () => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-  return `action_${Date.now()}_${Math.random().toString(36).slice(2)}`
-}
-
-const validatePayloadPath = (path: string, inputNames: string[]) => {
-  const trimmed = path.trim()
-  if (!trimmed) return { valid: true, message: '' }
-  if (trimmed.startsWith('inputs.')) {
-    const rest = trimmed.slice('inputs.'.length)
-    const segments = rest.split('.')
-    const name = segments[0]?.trim()
-    if (!name) {
-      return { valid: false, message: 'Select an input name.' }
-    }
-    if (!inputNames.includes(name)) {
-      return { valid: false, message: `Unknown input '${name}'.` }
-    }
-    if (segments.some((segment) => !segment.trim())) {
-      return { valid: false, message: 'Input path segments cannot be empty.' }
-    }
-    return { valid: true, message: '' }
-  }
-  if (trimmed.startsWith('context.')) {
-    const rest = trimmed.slice('context.'.length)
-    const segments = rest.split('.')
-    if (!rest.trim()) {
-      return { valid: false, message: 'Context path is required.' }
-    }
-    if (segments.some((segment) => !segment.trim())) {
-      return { valid: false, message: 'Context path segments cannot be empty.' }
-    }
-    return { valid: true, message: '' }
-  }
-  return { valid: false, message: 'Path must start with inputs. or context.' }
-}
-
-function IconPicker({
-  value,
-  color,
-  onSelect,
-}: {
-  value: string
-  color?: string
-  onSelect: (next: string) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const resolvedColor = color && color.trim() ? color : undefined
-  const filteredIcons = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return ICON_NAMES
-    return ICON_NAMES.filter((name) => name.includes(normalized))
-  }, [query])
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 gap-2 text-xs">
-          {renderIcon(value, { size: 14, color: resolvedColor }) ?? (
-            <Search className="h-3.5 w-3.5" />
-          )}
-          <span>{value || 'Browse'}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[340px] p-3" align="start">
-        <div className="space-y-3">
-          <div className="relative">
-            <Search className="text-muted-foreground/60 absolute left-2.5 top-2.5 h-4 w-4" />
-            <Input
-              placeholder="Search icons..."
-              className="h-8 pl-8 text-xs"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-          <div className="grid max-h-48 grid-cols-4 gap-2 overflow-y-auto pr-1">
-            {filteredIcons.length === 0 && (
-              <div className="text-muted-foreground col-span-4 text-xs">
-                No matching icons.
-              </div>
-            )}
-            {filteredIcons.map((name) => (
-              <button
-                key={name}
-                type="button"
-                className="hover:bg-muted/40 flex flex-col items-center gap-1 rounded-md px-2 py-2 text-[10px]"
-                title={name}
-                onClick={() => {
-                  onSelect(name)
-                  setOpen(false)
-                }}
-              >
-                {renderIcon(name, { size: 16, color: resolvedColor }) ?? (
-                  <span className="text-muted-foreground text-[10px]">?</span>
-                )}
-                <span className="text-muted-foreground truncate">{name}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
 
 interface FluidInspectorProps {
   assets: ThemeAsset[]
@@ -275,85 +139,6 @@ export function FluidInspector({
     }))
     onUpdateSelectedBlock({ props: nextProps })
   }, [selectedBlock, rawActions, actions, selectedProps, onUpdateSelectedBlock])
-
-  const updateAction = (actionId: string, patch: Partial<InspectorAction>) => {
-    const next = actions.map((action) =>
-      action.action_id === actionId ? { ...action, ...patch } : action,
-    )
-    updateActions(next)
-  }
-
-  const updateActionSignal = (
-    actionId: string,
-    patch: Partial<NonNullable<InspectorAction['signal']>>,
-  ) => {
-    const next = actions.map((action) => {
-      if (action.action_id !== actionId) return action
-      const signal = { ...(action.signal ?? {}), ...patch }
-      return { ...action, signal }
-    })
-    updateActions(next)
-  }
-
-  const updatePayloadMap = (actionId: string, entries: Array<{ key: string; path: string }>) => {
-    const payloadMap: Record<string, string> = {}
-    entries.forEach((entry) => {
-      const key = entry.key.trim()
-      const path = entry.path.trim()
-      if (key) {
-        payloadMap[key] = path
-      }
-    })
-    const next = actions.map((action) => {
-      if (action.action_id !== actionId) return action
-      const signal = { ...(action.signal ?? {}) }
-      if (Object.keys(payloadMap).length === 0) {
-        delete signal.payload_map
-      } else {
-        signal.payload_map = payloadMap
-      }
-      return { ...action, signal }
-    })
-    updateActions(next)
-  }
-
-  const addAction = () => {
-    updateActions([
-      ...actions,
-      {
-        action_id: createActionId(),
-        trigger: 'on_click',
-        signal: {
-          type: 'submit_node',
-        },
-      },
-    ])
-  }
-
-  const removeAction = (actionId: string) => {
-    updateActions(
-      actions.filter(
-        (action, index) => (action.action_id ?? `action-${index}`) !== actionId,
-      ),
-    )
-  }
-
-  const [recentActionNodeIds, setRecentActionNodeIds] = useState<string[]>(() =>
-    readRecentActionNodeIds(),
-  )
-
-  const recordRecentNodeId = (value: string) => {
-    const trimmed = value.trim()
-    if (!trimmed) return
-    setRecentActionNodeIds((prev) => {
-      const next = [trimmed, ...prev.filter((entry) => entry !== trimmed)].slice(
-        0,
-        MAX_RECENT_ACTION_NODES,
-      )
-      writeRecentActionNodeIds(next)
-      return next
-    })
-  }
 
   const upsertSlot = (
     key: string,
@@ -1082,206 +867,12 @@ export function FluidInspector({
                 </div>
               </>
             ) : (
-              <div className="space-y-4">
-                <div className="text-muted-foreground text-[11px]">
-                  Actions emit signals from this block into the auth flow.
-                </div>
-                {actions.length === 0 ? (
-                  <div className="text-muted-foreground text-xs">No actions configured yet.</div>
-                ) : (
-                  actions.map((action, index) => {
-                    const signal = action.signal ?? {}
-                    const actionId = action.action_id ?? `action-${index}`
-                    const payloadMap =
-                      signal.payload_map && typeof signal.payload_map === 'object'
-                        ? (signal.payload_map as Record<string, unknown>)
-                        : {}
-                    const entries = Object.entries(payloadMap).map(([key, value]) => ({
-                      key,
-                      path: String(value ?? ''),
-                    }))
-                    return (
-                      <div
-                        key={actionId}
-                        className="space-y-3 rounded-md border p-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs font-semibold">Action {index + 1}</div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => removeAction(actionId)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Trigger</Label>
-                          <Select
-                            value={String(action.trigger || 'on_click')}
-                            onValueChange={(value) =>
-                              updateAction(actionId, { trigger: value })
-                            }
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Select trigger" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="on_click">On Click</SelectItem>
-                              <SelectItem value="on_submit">On Submit</SelectItem>
-                              <SelectItem value="on_change">On Change</SelectItem>
-                              <SelectItem value="on_load">On Load</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Signal Type</Label>
-                          <Select
-                            value={String(signal.type || 'submit_node')}
-                            onValueChange={(value) =>
-                              updateActionSignal(actionId, { type: value })
-                            }
-                          >
-                            <SelectTrigger className="h-8 text-xs">
-                              <SelectValue placeholder="Select signal type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="submit_node">Submit Node</SelectItem>
-                              <SelectItem value="validate_node">Validate Node</SelectItem>
-                              <SelectItem value="call_subflow">Call Subflow</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Node ID (optional)</Label>
-                          <Input
-                            className="h-8 text-xs"
-                            value={String(signal.node_id || '')}
-                            placeholder="e.g. auth-password"
-                            list="recent-action-node-ids"
-                            onChange={(event) =>
-                              updateActionSignal(actionId, { node_id: event.target.value })
-                            }
-                            onBlur={(event) => recordRecentNodeId(event.target.value)}
-                          />
-                          {recentActionNodeIds.length > 0 && (
-                            <datalist id="recent-action-node-ids">
-                              {recentActionNodeIds.map((nodeId) => (
-                                <option key={`recent-node-${nodeId}`} value={nodeId} />
-                              ))}
-                            </datalist>
-                          )}
-                          <p className="text-muted-foreground text-[10px]">
-                            Autocomplete uses recently entered node IDs. Freeform values are
-                            allowed.
-                          </p>
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Payload Map</Label>
-                          <div className="space-y-2">
-                            {entries.length === 0 ? (
-                              <div className="text-muted-foreground text-[11px]">
-                                No payload mapping yet.
-                              </div>
-                            ) : (
-                              entries.map((entry, entryIndex) => {
-                                const validation = validatePayloadPath(entry.path, inputNames)
-                                const pathInvalid = !validation.valid
-                                return (
-                                  <div key={`${entry.key}-${entryIndex}`} className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                      <Input
-                                        className="h-8 text-xs"
-                                        placeholder="payload key"
-                                        value={entry.key}
-                                        onChange={(event) => {
-                                          const next = [...entries]
-                                          next[entryIndex] = {
-                                            ...entry,
-                                            key: event.target.value,
-                                          }
-                                          updatePayloadMap(actionId, next)
-                                        }}
-                                      />
-                                      <Input
-                                        list={`payload-map-${index}-${entryIndex}`}
-                                        className={`h-8 text-xs ${
-                                          pathInvalid ? 'border-red-400 focus-visible:ring-red-400' : ''
-                                        }`}
-                                        placeholder="inputs.email"
-                                        value={entry.path}
-                                        onChange={(event) => {
-                                          const next = [...entries]
-                                          next[entryIndex] = {
-                                            ...entry,
-                                            path: event.target.value,
-                                          }
-                                          updatePayloadMap(actionId, next)
-                                        }}
-                                      />
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={() => {
-                                          const next = entries.filter((_, i) => i !== entryIndex)
-                                          updatePayloadMap(actionId, next)
-                                        }}
-                                      >
-                                        <X className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </div>
-                                    <datalist id={`payload-map-${index}-${entryIndex}`}>
-                                      {inputNames.map((name) => (
-                                        <option key={`input-${name}`} value={`inputs.${name}`} />
-                                      ))}
-                                      {contextSuggestions.map((path) => (
-                                        <option key={`context-${path}`} value={path} />
-                                      ))}
-                                    </datalist>
-                                    {pathInvalid && (
-                                      <div className="text-[10px] text-red-600">
-                                        {validation.message}
-                                      </div>
-                                    )}
-                                  </div>
-                                )
-                              })
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 text-xs"
-                              onClick={() => {
-                                const next = [
-                                  ...entries,
-                                  { key: `payload_${entries.length + 1}`, path: '' },
-                                ]
-                                updatePayloadMap(actionId, next)
-                              }}
-                            >
-                              Add mapping
-                            </Button>
-                            <p className="text-muted-foreground text-[10px]">
-                              Use paths like <code>inputs.email</code> or{' '}
-                              <code>context.client_id</code>.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs"
-                  onClick={addAction}
-                >
-                  Add action
-                </Button>
-              </div>
+              <ActionsPanel
+                actions={actions}
+                inputNames={inputNames}
+                contextSuggestions={contextSuggestions}
+                onChange={updateActions}
+              />
             )}
           </>
         )}
@@ -1301,31 +892,7 @@ export function FluidInspector({
           }}
         />
 
-        {selectedType === 'Text' && (
-          <SectionCard
-            title="Accessibility"
-            description="Basic contrast check for text color."
-            contentClassName="space-y-3 text-xs"
-          >
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Contrast ratio</span>
-                <span className="font-semibold">
-                  {textContrast ? `${textContrast.toFixed(2)}:1` : 'Unavailable'}
-                </span>
-              </div>
-              <p className="text-muted-foreground">
-                AA guidance for normal text is 4.5:1 or higher.
-              </p>
-              {textContrast !== null && textContrast < 4.5 && (
-                <Alert variant="destructive">
-                  <AlertTitle>Low contrast</AlertTitle>
-                  <AlertDescription>
-                    Increase text color contrast or adjust the background color.
-                  </AlertDescription>
-                </Alert>
-              )}
-          </SectionCard>
-        )}
+        {selectedType === 'Text' && <ContrastCard ratio={textContrast} />}
 
         <SpacingControls
           padding={String(selectedProps.padding || '')}

@@ -1,4 +1,9 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+
+import { RotateCcw } from 'lucide-react'
+
+import { Button } from '@/components/button'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 
 import type { ThemeAsset } from '@/entities/theme/model/types'
 import { ThemeSettingsSection } from '@/features/fluid/components/settings/ThemeSettingsSection'
@@ -22,6 +27,16 @@ interface FluidThemeSettingsPanelProps {
   assets: ThemeAsset[]
   onUploadAsset: (file: File) => void
   isUploading?: boolean
+  /**
+   * Restores theme-wide settings to the seeded defaults. Omit to hide the action.
+   *
+   * Distinct from the header's per-page restore: background colour, typography and
+   * radius are tokens, not page blocks, so restoring a page cannot revert them.
+   *
+   * The defaults are fetched by the page, not here — this panel stays
+   * presentational so it renders without a query client.
+   */
+  onResetTokens?: () => void
 }
 
 /**
@@ -38,7 +53,9 @@ export function FluidThemeSettingsPanel({
   assets,
   onUploadAsset,
   isUploading = false,
+  onResetTokens,
 }: FluidThemeSettingsPanelProps) {
+  const [isResetOpen, setIsResetOpen] = useState(false)
   const setToken = useCallback(
     (group: TokenGroup, token: string, value: unknown) => {
       onTokensChange(withTokenValue(tokens, group, token, value))
@@ -69,8 +86,33 @@ export function FluidThemeSettingsPanel({
   return (
     <ThemeSettingsProvider value={settingsContext}>
       <aside className="bg-muted/10 flex w-80 flex-col border-r">
-        <div className="bg-background border-b px-4 py-3">
+        <div className="bg-background flex items-center justify-between border-b px-4 py-3">
           <h3 className="text-sm font-semibold">Theme Settings</h3>
+          {onResetTokens && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-xs"
+                onClick={() => setIsResetOpen(true)}
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+              <ConfirmDialog
+                open={isResetOpen}
+                onOpenChange={setIsResetOpen}
+                title="Reset theme settings to their defaults?"
+                desc="This restores the colours, typography, corner radius, and layout shell that a new theme starts with. Page blocks and uploaded assets are untouched. Like any builder edit it is a draft change, so use Save to persist it."
+                confirmText="Reset settings"
+                destructive
+                handleConfirm={() => {
+                  onResetTokens()
+                  setIsResetOpen(false)
+                }}
+              />
+            </>
+          )}
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-4">

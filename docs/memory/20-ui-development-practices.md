@@ -101,3 +101,17 @@ This document defines the baseline UI engineering practices for ReAuth. Follow t
 - Never gate navigation or other user-visible progress on an animation finishing.
 - A JS timeline recreated on an interval must replace and kill its predecessor;
   collecting them in an array cleared only on unmount leaks one per tick.
+
+## 12. React Query keys
+- Build keys so a short, partially-specified key is a genuine **prefix** of the
+  fully-specified one. React Query matches positionally, so a key ending in
+  explicit `undefined` matches nothing longer:
+  `['theme-preview', realm, id, undefined, undefined]` never matched the live
+  `['theme-preview', realm, id, 'login']`, and eight mutation hooks silently
+  failed to refresh the theme preview after publish, rollback, and
+  start-draft-from-version.
+- Optional trailing segments are trimmed by `withoutTrailingUndefined` in
+  `shared/lib/queryKeys.ts`. Inner positions are preserved so a key specifying
+  only a later argument cannot collide with one specifying an earlier argument.
+- Guarded by `shared/lib/queryKeys.test.ts`, which asserts the prefix property
+  directly rather than snapshotting key shapes.

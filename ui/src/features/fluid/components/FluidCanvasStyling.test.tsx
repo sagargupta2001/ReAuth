@@ -57,6 +57,39 @@ function renderedRow() {
   return document.querySelector<HTMLElement>('.flex.w-full.flex-row[style*="border-radius"]')
 }
 
+describe('FluidCanvas context-bound text', () => {
+  it('shows the binding when a node has only a text_path', () => {
+    renderCanvas([{ id: 't1', type: 'Text', props: { text_path: 'message' } }])
+
+    // The builder cannot resolve context, but falling back to "Headline" made
+    // every bound heading look like an unconfigured node.
+    expect(screen.getByText('{message}')).toBeInTheDocument()
+    expect(screen.queryByText('Headline')).not.toBeInTheDocument()
+  })
+
+  it('marks a binding as distinct from literal copy', () => {
+    renderCanvas([{ id: 't1', type: 'Text', props: { text_path: 'message' } }])
+
+    const bound = screen.getByText('{message}')
+    expect(bound).toHaveClass('italic')
+    expect(bound).toHaveAttribute('title', 'Bound to context: message')
+  })
+
+  it('prefers a literal text over the binding as the design-time preview', () => {
+    renderCanvas([
+      { id: 't1', type: 'Text', props: { text: 'Something went wrong', text_path: 'message' } },
+    ])
+
+    expect(screen.getByText('Something went wrong')).toBeInTheDocument()
+    expect(screen.queryByText('{message}')).not.toBeInTheDocument()
+  })
+
+  it('still falls back to Headline with neither text nor binding', () => {
+    renderCanvas([{ id: 't1', type: 'Text', props: {} }])
+    expect(screen.getByText('Headline')).toBeInTheDocument()
+  })
+})
+
 describe('FluidCanvas boxes', () => {
   it('adds px to a unitless radius so the corners actually round', () => {
     renderCanvas([

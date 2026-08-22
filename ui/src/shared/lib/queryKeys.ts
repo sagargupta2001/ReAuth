@@ -1,3 +1,21 @@
+/**
+ * Drops trailing `undefined` segments from a key.
+ *
+ * React Query matches keys positionally, so a key that ends in explicit
+ * `undefined` is not a prefix of a longer, fully-specified one: invalidating
+ * `['theme-preview', realm, id, undefined, undefined]` never matched the live
+ * `['theme-preview', realm, id, 'login']` query. Trimming makes the short form a
+ * true prefix, so partial invalidation works, while inner positions are kept so
+ * a key with only a later argument cannot collide with an earlier one.
+ */
+function withoutTrailingUndefined(parts: readonly unknown[]): readonly unknown[] {
+  const trimmed = [...parts]
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === undefined) {
+    trimmed.pop()
+  }
+  return trimmed
+}
+
 export const queryKeys = {
   setupStatus: () => ['setup-status'] as const,
   user: (userId: string) => ['user', userId] as const,
@@ -108,11 +126,19 @@ export const queryKeys = {
   themeAssets: (realm: string, themeId: string) => ['themes', realm, themeId, 'assets'] as const,
   themeDraft: (realm: string, themeId: string) => ['themes', realm, themeId, 'draft'] as const,
   themePreview: (realm: string, themeId: string, pageKey?: string, nodeKey?: string) =>
-    ['theme-preview', realm, themeId, pageKey, nodeKey] as const,
+    withoutTrailingUndefined(['theme-preview', realm, themeId, pageKey, nodeKey]),
   themeSnapshot: (
     realm: string,
     params?: { pageKey?: string; nodeKey?: string; clientId?: string | null },
-  ) => ['theme-snapshot', realm, params?.pageKey, params?.nodeKey, params?.clientId] as const,
+  ) =>
+    withoutTrailingUndefined([
+      'theme-snapshot',
+      realm,
+      params?.pageKey,
+      params?.nodeKey,
+      params?.clientId,
+    ]),
+  themeDefaults: (realm: string) => ['theme-defaults', realm] as const,
   themePages: (realm: string, themeId: string) => ['theme-pages', realm, themeId] as const,
   themeBindings: (realm: string, themeId: string) => ['theme-bindings', realm, themeId] as const,
   themeBindingClient: (realm: string, clientId: string) =>
