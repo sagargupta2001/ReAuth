@@ -3,7 +3,7 @@ import { Type } from 'lucide-react'
 import { Input } from '@/components/input'
 import { Label } from '@/shared/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
-import { ColorPicker } from './ColorPicker'
+import { ColorPicker } from '@/features/fluid/components/controls/ColorPicker'
 
 interface TypographyControlsProps {
   fontSize: string
@@ -55,6 +55,7 @@ export function TypographyControls({
           <Label htmlFor="font-color">Color</Label>
           <ColorPicker
             id="font-color"
+            ariaLabel="Font color"
             value={color}
             disabled={disabled}
             onChange={(newColor) => onChange({ color: newColor })}

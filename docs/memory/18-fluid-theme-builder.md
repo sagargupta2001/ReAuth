@@ -127,7 +127,54 @@ The editor and inspector expose props for label, field container, prefix icon, a
 - Displays available primitives and system components.
 - Selecting a block inserts a new node with default layout/size settings.
 
-### 5.4 Diff and Snapshot Viewer
+### 5.4 Panel Composition and Extension Points
+
+Both left-hand panels are schema-driven shells. Their per-item knowledge lives in
+`ui/src/features/fluid/model/`, so extending the builder is a data change rather
+than a component change.
+
+Sections panel (`FluidBlocksPanel`):
+
+- `model/blockCatalog.ts` — `FluidBlockId`, `BlockCategory`,
+  `BLOCK_CATEGORY_ORDER`, and `FLUID_BLOCKS` (node defaults per block), plus the
+  pure `filterBlocks` / `groupBlocksByCategory` / `labelForNode` helpers.
+- `model/sectionTree.ts` — drag MIME type, indent/depth constants, and the
+  non-editable scaffold rows (`Page`, `Layout Container`).
+- `components/blocks/` — `SectionTree` / `SectionTreeNode` (recursive rows),
+  `BlockPicker` + `BlockCatalogList` (search + grouped catalog),
+  `BlockPreview`, `AddBlockButton`, `PageValidationSummary`.
+- `hooks/useBlockPicker.ts` and `hooks/useSectionReorder.ts` own picker anchor
+  state and drag-reorder wiring. Search and hover state stay inside the picker
+  so typing there does not re-render the tree.
+- Tree callbacks travel via `blocks/sectionsPanelContext.ts` instead of being
+  threaded through every recursion level.
+
+To add a block: add its id to `FluidBlockId`, its definition to `FLUID_BLOCKS`,
+and its preview to `BLOCK_PREVIEWS`. The preview registry is keyed by
+`FluidBlockId`, so a missing preview is a compile error.
+
+Theme settings panel (`FluidThemeSettingsPanel`):
+
+- `model/tokens.ts` — token group/key names, theme-mode options, fallbacks.
+- `model/settingsFields.ts` — `SettingsFieldKind` plus the discriminated union of
+  field descriptors.
+- `model/themeSettingsSchema.ts` — `THEME_SETTINGS_SECTIONS`, the declarative
+  description of what the panel renders.
+- `model/layoutShells.ts` — `LayoutShell` ids and gallery options, shared with
+  `FluidLayoutGallery`.
+- `lib/tokenAccess.ts` — `readTokenGroup` / `readTokenString` /
+  `withTokenValue` / `readLayoutShell` / `withLayoutShell`. All token writes go
+  through these so sibling tokens are never dropped.
+- `components/settings/` — `ThemeSettingsSection`, `ThemeSettingsField` (the
+  exhaustive kind switch), and one control per kind under `fields/`. Fields read
+  and write draft state through `settings/themeSettingsContext.ts`.
+
+To add a theme property: add its key to `model/tokens.ts` and a descriptor to
+`THEME_SETTINGS_SECTIONS`. To add a new control type: add a `SettingsFieldKind`
+member, its descriptor to the `SettingsField` union, and a case in
+`ThemeSettingsField` — the union's exhaustiveness check flags the missing case.
+
+### 5.5 Diff and Snapshot Viewer
 
 - History tab allows opening a snapshot dialog.
 - Snapshot dialog shows
