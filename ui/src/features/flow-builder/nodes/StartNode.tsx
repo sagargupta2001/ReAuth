@@ -8,7 +8,7 @@ export function StartNode({ selected }: { selected?: boolean }) {
     <div
       className={cn(
         'bg-card relative min-w-[150px] rounded-md border-2 border-green-500 p-3 shadow-md transition-all',
-        selected && 'ring-2 ring-green-400 ring-offset-2',
+        selected && 'ring-2 ring-green-400 ring-offset-2 ring-offset-background',
       )}
     >
       <div className="flex items-center gap-3">

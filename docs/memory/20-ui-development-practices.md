@@ -44,6 +44,14 @@ This document defines the baseline UI engineering practices for ReAuth. Follow t
 ## 8. UI consistency
 - Use shared UI components from `ui/src/components` and `ui/src/shared/ui`.
 - Avoid custom styling unless necessary; follow theme tokens and Fluid where applicable.
+- Any non-zero `ring-offset-*` must be paired with `ring-offset-background`.
+  Tailwind's `--tw-ring-offset-color` defaults to `#fff`, so a bare offset paints a
+  white ring — unnoticeable on a light theme, glaring on this dark one. Guarded
+  repo-wide by `shared/ui/focus-ring.test.ts`.
+- Note that the shadow tokens in `theme.css` are 1px white-alpha *rings*, not drop
+  shadows (`--shadow-sm: 0 0 0 1px rgba(255,255,255,0.14)`). `shadow-sm` is how
+  inputs get their border, so stacking it inside another bordered container gives
+  a double border — the Fluid renderers pass `shadow-none` for exactly this reason.
 - For a settings/detail card use `SectionCard` (`shared/ui/section-card.tsx`), not
   a hand-assembled `Card` + `CardHeader` + inset `div`. `CardContent` is
   deliberately `p-1`; the inset `bg-primary-foreground rounded-2xl p-4` panel is
