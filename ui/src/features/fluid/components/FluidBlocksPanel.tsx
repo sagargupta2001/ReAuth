@@ -145,7 +145,6 @@ export function FluidBlocksPanel({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
               onClick={() => handleOpenPicker('header', nodes.length)}
             >
               <Plus className="h-4 w-4" />
@@ -218,7 +217,7 @@ export function FluidBlocksPanel({
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
-            <div className="mt-4 max-h-[320px] space-y-4 overflow-y-auto pr-1">
+            <div className="mt-4 max-h-80 space-y-4 overflow-y-auto pr-1">
               {groupedBlocks.map(([category, items]) => (
                 <div key={category} className="space-y-2">
                   <span className="text-muted-foreground text-[10px] font-semibold uppercase tracking-wide">
