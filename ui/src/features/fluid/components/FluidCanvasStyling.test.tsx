@@ -136,6 +136,66 @@ describe('FluidCanvas boxes', () => {
   })
 })
 
+/** The element that actually paints a Box: border, background, radius. */
+function paintedBox() {
+  return document.querySelector<HTMLElement>('.flex[style*="border-style"]')
+}
+
+function boxWrapper() {
+  return paintedBox()?.parentElement as HTMLElement | undefined
+}
+
+describe('FluidCanvas box sizing', () => {
+  const sized = (size: Record<string, unknown>): ThemeNode => ({
+    id: 'b1',
+    type: 'Box',
+    size,
+    props: { border_color: '#fff', border_width: 1 },
+    children: [],
+  })
+
+  it('sizes the wrapper and makes the painted box fill it', () => {
+    renderCanvas([
+      sized({ width: 'fixed', width_value: '240px', height: 'fixed', height_value: '120px' }),
+    ])
+
+    // The wrapper carries the size; without h-full the bordered element stayed at
+    // content height, so a fixed height looked like it did nothing.
+    expect(boxWrapper()).toHaveStyle({ width: '240px', height: '120px' })
+    expect(paintedBox()).toHaveClass('w-full')
+    expect(paintedBox()).toHaveClass('h-full')
+  })
+
+  it('accepts a unitless length, which is invalid CSS on its own', () => {
+    renderCanvas([sized({ width: 'fixed', width_value: '240', height: 'fixed', height_value: '120' })])
+    expect(boxWrapper()).toHaveStyle({ width: '240px', height: '120px' })
+  })
+
+  it('passes a length that already has a unit straight through', () => {
+    renderCanvas([sized({ width: 'fixed', width_value: '50%' })])
+    expect(boxWrapper()).toHaveStyle({ width: '50%' })
+  })
+
+  it('shrink-wraps a hugging box', () => {
+    renderCanvas([sized({ width: 'hug', height: 'hug' })])
+
+    // Previously hard-coded to w-full, so "Hug" had no visible effect.
+    expect(paintedBox()).toHaveClass('w-fit')
+    expect(paintedBox()).not.toHaveClass('w-full')
+  })
+
+  it('fills the height when asked', () => {
+    renderCanvas([sized({ width: 'fill', height: 'fill' })])
+    expect(paintedBox()).toHaveClass('w-full')
+    expect(paintedBox()).toHaveClass('h-full')
+  })
+
+  it('leaves a hugging height unconstrained', () => {
+    renderCanvas([sized({ width: 'fill', height: 'hug' })])
+    expect(paintedBox()).not.toHaveClass('h-full')
+  })
+})
+
 describe('FluidCanvas node spacing', () => {
   it('does not write zero margins, so container rhythm survives', () => {
     renderCanvas([{ id: 't1', type: 'Text', props: { text: 'Heading' } }])

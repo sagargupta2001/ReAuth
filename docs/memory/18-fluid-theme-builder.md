@@ -225,7 +225,32 @@ When adding a node property, put its derivation in `nodeVisuals.ts` and let both
 renderers consume it. Only genuinely behavioural differences belong in the
 components.
 
-### 5.4.2 Renderer Defaults Must Follow the Theme
+### 5.4.2 Sizing: the Wrapper vs the Painted Element
+
+Every node renders as two elements: an outer **wrapper** that carries the node's
+size and selection ring, and an inner element that actually **paints** (border,
+background, radius). Sizing only works if both are considered.
+
+`Box` set its painted element to a hard-coded `flex w-full` with no height, so:
+
+- **Fixed height** did nothing visible. The wrapper became 120px tall while the
+  bordered element stayed at content height inside it.
+- **Hug width** did nothing. The painted element was always `w-full`.
+
+`computeNodeVisuals` now returns `innerWidthClass` / `innerHeightClass` for the
+painted child (`w-fit` when hugging, `h-full` when the height is fixed or
+filled), and `Box` applies them in both renderers.
+
+Separately, `resolveCssLength` coerces a unitless value to `px`. A builder typing
+`240` produced `width: 240`, which the browser drops — the same failure that left
+corner radius inert. Width, height, and radius all go through it now, so the
+coercion happens once at the source rather than per call site.
+
+When adding a sizing control, check what the *painted* element does with it, not
+just the wrapper. A test that only asserts the wrapper's inline style will pass
+while the user sees nothing change.
+
+### 5.4.3 Renderer Defaults Must Follow the Theme
 
 The seeded blueprints specify almost nothing but text and structure, so nearly
 every visual decision comes from renderer defaults. Five of those defaults were
@@ -276,7 +301,7 @@ actually uses: the prompt and the link have different line heights, so `center`
 aligns their boxes and leaves the text visibly off. The Rust side stores `layout`
 as untyped JSON, so layout keys need no backend change.
 
-### 5.4.3 Seed Audit
+### 5.4.4 Seed Audit
 
 The seeded blueprints are audited by `theme_pages.rs::seed_audit_tests`, which
 walks every node of every page (children and slots included) and asserts:
@@ -298,7 +323,7 @@ because the builder has no auth context to resolve against.
 Extend these tests rather than re-auditing by hand — the defects here are all the
 "prop is set and silently does nothing" kind, which reads fine in review.
 
-### 5.4.4 Changing a Seeded Blueprint
+### 5.4.5 Changing a Seeded Blueprint
 
 `ensure_theme_pages` only inserts page keys that are **missing**, so editing
 `theme_pages.rs` does not rewrite an existing theme's stored page. That does *not*
@@ -323,7 +348,7 @@ Reset semantics differ by theme kind, and both end at the default:
 A server-side reset endpoint is therefore unnecessary; the client path also keeps
 the change inside the builder's undo history, which an endpoint could not.
 
-### 5.4.5 Theme Modes Removed
+### 5.4.6 Theme Modes Removed
 
 ReAuth has no per-theme light/dark mode. The `appearance.mode` token, its settings
 control, `resolveThemeMode`, and the light/dark substitution branch of
@@ -337,31 +362,47 @@ render exactly what they store instead of following the admin app's mode — whi
 is the intended semantics now that a theme has one appearance. Stored drafts may
 still carry an `appearance` key; it is simply ignored.
 
-### 5.4.6 Inspector Decomposition
+### 5.4.7 Inspector Decomposition
 
-`FluidInspector` was the last god component. It is being taken apart the same way
-as the settings panel: pure logic into `lib/`, cohesive UI into `components/inspector/`.
+`FluidInspector` went from 1346 lines to 230 and is now schema-driven, the same
+shape as the theme settings panel.
 
-Extracted so far (1346 → 913 lines):
+- `model/inspectorFields.ts` — `FieldTarget` (props / layout / size),
+  `InspectorFieldKind`, the discriminated union of field descriptors, and
+  `NodeMatcher` + `matchesNode`.
+- `model/inspectorSchema.ts` — `INSPECTOR_SECTIONS`: every section, its fields,
+  and the node types it applies to.
+- `components/inspector/` — `InspectorField` (the exhaustive kind switch),
+  `InspectorSectionCard`, `inspectorContext.ts`, plus the bespoke `ActionsPanel`,
+  `InputSlotsPanel`, `IconPicker`, and `ContrastCard`.
+- `lib/actionBindings.ts` — payload-path validation and the pure action
+  transforms.
 
-- `lib/actionBindings.ts` — the action-binding model: payload-path validation, and
-  pure transforms (`patchAction`, `patchActionSignal`, `setPayloadMap`,
-  `appendAction`, `removeActionById`, `rememberActionNodeId`). These encode the
-  semantics worth testing: blank payload keys are dropped, and `payload_map` is
-  deleted rather than persisted as `{}` when it empties.
-- `inspector/ActionsPanel.tsx` — a controlled editor over `InspectorAction[]`.
-  It takes `actions` plus one `onChange` sink instead of eight callbacks, which is
-  what made the extraction tractable.
-- `inspector/IconPicker.tsx` and `inspector/ContrastCard.tsx`.
+Adding a property is an entry in `INSPECTOR_SECTIONS`. Adding a control type is a
+kind, a descriptor, and a case in `InspectorField`. Adding a node type is a
+matcher plus its section.
 
-Still inside the component: the per-node-type property sections (Text, Icon,
-Input, Button, Link, Image, Divider, Box). Those are the remaining bulk and want
-the same treatment as `THEME_SETTINGS_SECTIONS` — a registry keyed by node type or
-component name, so adding a node type is a data change. That needs an inspector
-context first (selected node, props, layout, size, update callback, assets), or
-each panel ends up threading a dozen props.
+Three things the schema fixes structurally rather than by vigilance:
 
-### 5.4.7 Reset Is Scoped, and Scopes Must Be Visible
+1. **A field declares its target.** A node keeps state in three places and the
+   distinction matters: `props.align` is text alignment, `layout.align` is flex
+   cross-axis alignment, `props.padding` is spacing around the block, and
+   `layout.padding` is padding inside it. The old panel labelled both alignment
+   controls "Alignment" and both padding controls "Padding", so they read as
+   broken duplicates. Labels now name what they control, and
+   `inspectorSchema.test.ts` asserts no two fields visible for the same node
+   share a label.
+2. **A section declares applicability.** `appliesTo` replaces inline
+   `selectedType === ...` guards, which is why Typography used to render for a Box
+   and an Image.
+3. **Coverage is checkable.** The audit that found the missing `placeholder`
+   control — inputs had no way to set one from the inspector at all — is now a
+   test rather than a manual read.
+
+`TypographyControls` and `SpacingControls` are gone; their fields are schema
+entries in the `typography` and `spacing` sections.
+
+### 5.4.8 Reset Is Scoped, and Scopes Must Be Visible
 
 There are two independent resets, because a theme has two independent kinds of
 state:
@@ -381,7 +422,7 @@ Both are draft edits and need Save, like every other builder change. The first
 version of the page action was labelled just "Restore default", which read as
 theme-wide and left users expecting a colour change to revert.
 
-### 5.4.8 Side Panel Card Style
+### 5.4.9 Side Panel Card Style
 
 `components/controls/BuilderPanelCard.tsx` is the single card shell for both side
 panels — elevated `Card`, header with title/description, and an inset

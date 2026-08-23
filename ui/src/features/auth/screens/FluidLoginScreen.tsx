@@ -905,6 +905,8 @@ export function FluidLoginScreen({
       heightClass,
       fillWidthClass,
       fillHeightClass,
+      innerWidthClass,
+      innerHeightClass,
       style,
       fontSize,
       fontWeight,
@@ -953,7 +955,10 @@ export function FluidLoginScreen({
           borderRadius: borderRadius || undefined,
         }
         return wrap(
-          <div className={cn('flex w-full', direction)} style={boxStyle}>
+          <div
+            className={cn('flex', direction, innerWidthClass, innerHeightClass)}
+            style={boxStyle}
+          >
             {(node.children ?? []).map((child, childIndex) =>
               renderNode(child, childIndex),
             )}

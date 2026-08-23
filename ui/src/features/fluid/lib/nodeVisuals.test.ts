@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   TEXT_FALLBACK,
   computeNodeVisuals,
+  resolveCssLength,
   resolveDisplayText,
-  resolveRadius,
   resolveVisibleFlag,
 } from './nodeVisuals'
 import type { ThemeNode } from '@/entities/theme/model/types'
@@ -142,20 +142,43 @@ describe('resolveVisibleFlag', () => {
   })
 })
 
-describe('resolveRadius', () => {
+describe('resolveCssLength', () => {
   it('adds px to a unitless value', () => {
-    expect(resolveRadius(12)).toBe('12px')
-    expect(resolveRadius('8')).toBe('8px')
-    expect(resolveRadius(0.5)).toBe('0.5px')
+    expect(resolveCssLength(12)).toBe('12px')
+    expect(resolveCssLength('8')).toBe('8px')
+    expect(resolveCssLength(0.5)).toBe('0.5px')
   })
 
   it('leaves a value that already has a unit alone', () => {
-    expect(resolveRadius('50%')).toBe('50%')
-    expect(resolveRadius('1rem')).toBe('1rem')
+    expect(resolveCssLength('50%')).toBe('50%')
+    expect(resolveCssLength('1rem')).toBe('1rem')
   })
 
   it('returns empty for a missing value', () => {
-    expect(resolveRadius(undefined)).toBe('')
-    expect(resolveRadius('')).toBe('')
+    expect(resolveCssLength(undefined)).toBe('')
+    expect(resolveCssLength('')).toBe('')
+  })
+})
+
+describe('computeNodeVisuals: inner sizing', () => {
+  it('tells a painted child to fill a fixed-height wrapper', () => {
+    const visuals = computeNodeVisuals(
+      node({ size: { width: 'fixed', width_value: '240', height: 'fixed', height_value: '120' } }),
+    )
+    expect(visuals.innerHeightClass).toBe('h-full')
+    expect(visuals.innerWidthClass).toBe('w-full')
+    // Unitless values are coerced at the source, so every consumer gets valid CSS.
+    expect(visuals.style).toMatchObject({ width: '240px', height: '120px' })
+  })
+
+  it('shrink-wraps a hugging node', () => {
+    expect(computeNodeVisuals(node({ size: { width: 'hug' } })).innerWidthClass).toBe('w-fit')
+    // `auto` is outside ThemeNodeSize but can appear in stored blueprint JSON,
+    // which the renderer reads untyped, so it is handled defensively.
+    expect(computeNodeVisuals(node({ props: { width: 'auto' } })).innerWidthClass).toBe('w-fit')
+  })
+
+  it('leaves a hugging height unconstrained', () => {
+    expect(computeNodeVisuals(node({ size: { height: 'hug' } })).innerHeightClass).toBe('')
   })
 })

@@ -24,6 +24,16 @@ export interface NodeVisuals {
   fillWidthClass: string
   /** `h-full` when the node fills or is fixed. */
   fillHeightClass: string
+  /**
+   * Classes for the element that actually paints inside the wrapper.
+   *
+   * The wrapper carries the node's size, so a painted child has to fill it.
+   * Without these a fixed height sized an invisible wrapper while the bordered
+   * element stayed at content height, and "hug" never shrink-wrapped because the
+   * painted element was hard-coded to `w-full`.
+   */
+  innerWidthClass: string
+  innerHeightClass: string
   /** Inline style: spacing, explicit dimensions, and typography overrides. */
   style: CSSProperties
   /** Raw typography props, so callers can tell "set" from "defaulted". */
@@ -56,9 +66,11 @@ export function computeNodeVisuals(node: ThemeNode): NodeVisuals {
   const padding = toNumber(props.padding)
 
   const widthMode = String(node.size?.width || props.width || 'fill')
-  const widthValue = String(node.size?.width_value || props.width_value || '')
+  // Coerced here so every consumer gets a valid CSS length: a bare "240" is
+  // dropped by the browser, which read as the control doing nothing.
+  const widthValue = resolveCssLength(node.size?.width_value ?? props.width_value)
   const heightMode = String(node.size?.height || props.height || 'hug')
-  const heightValue = String(node.size?.height_value || props.height_value || '')
+  const heightValue = resolveCssLength(node.size?.height_value ?? props.height_value)
   const size = String(props.size || 'md')
 
   // Only emit spacing the node actually asks for. Writing `0px` inline beat the
@@ -78,6 +90,11 @@ export function computeNodeVisuals(node: ThemeNode): NodeVisuals {
     heightMode === 'fill' ? 'h-full' : heightMode === 'fixed' ? '' : 'h-auto'
   const fillHeightClass = heightMode === 'fill' || heightMode === 'fixed' ? 'h-full' : ''
   const fillWidthClass = widthMode === 'fill' ? 'w-full' : ''
+  // `hug` must shrink-wrap; every other mode fills the wrapper, whose own width
+  // is either a utility class or the inline value set below.
+  const innerWidthClass =
+    widthMode === 'hug' || widthMode === 'auto' ? 'w-fit' : 'w-full'
+  const innerHeightClass = fillHeightClass
 
   if ((widthMode === 'fixed' || widthMode === 'custom') && widthValue) {
     style.width = widthValue
@@ -104,6 +121,8 @@ export function computeNodeVisuals(node: ThemeNode): NodeVisuals {
     heightClass,
     fillWidthClass,
     fillHeightClass,
+    innerWidthClass,
+    innerHeightClass,
     style,
     fontSize,
     fontWeight,
@@ -159,12 +178,17 @@ export function resolveVisibleFlag(value: unknown): boolean {
 }
 
 /**
- * Emits `border-radius` for a node's radius prop.
+ * Emits a CSS length for a builder-entered value.
  *
- * A bare number is not valid CSS — `border-radius: 12` is dropped — which is why
- * no field ever had rounded corners. Unitless values get `px`.
+ * A bare number is not valid CSS — `width: 240` and `border-radius: 12` are both
+ * dropped by the browser — so a unitless value gets `px`. This is why the fixed
+ * width/height fields and the corner radius all looked inert when someone typed
+ * a plain number.
  */
-export function resolveRadius(value: unknown): string {
+export function resolveCssLength(value: unknown): string {
   const raw = String(value ?? '').trim()
   return /^-?\d*\.?\d+$/.test(raw) ? `${raw}px` : raw
 }
+
+/** @deprecated Prefer {@link resolveCssLength}; kept for the radius call sites. */
+export const resolveRadius = resolveCssLength
