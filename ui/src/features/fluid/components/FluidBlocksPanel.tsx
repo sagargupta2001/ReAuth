@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { Popover } from '@/components/popover'
 import { Separator } from '@/components/separator'
@@ -12,7 +12,8 @@ import {
   type SectionsPanelContextValue,
 } from '@/features/fluid/components/blocks/sectionsPanelContext'
 import { useBlockPicker } from '@/features/fluid/hooks/useBlockPicker'
-import { useSectionReorder } from '@/features/fluid/hooks/useSectionReorder'
+import { useSectionDrag } from '@/features/fluid/hooks/useSectionDrag'
+import type { NodeLocation } from '@/features/fluid/lib/nodeUtils'
 import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
 import { buildValidationIndex } from '@/features/fluid/lib/validationIndex'
 import {
@@ -27,9 +28,9 @@ interface FluidBlocksPanelProps {
   selectedNodeId: string | null
   validationErrors?: ThemeValidationError[]
   onSelectNode: (nodeId: string) => void
-  onInsertNode: (node: ThemeNode, index: number) => void
+  onInsertNode: (node: ThemeNode, location: NodeLocation) => void
   onRemoveNode: (nodeId: string) => void
-  onReorderNodes: (fromIndex: number, toIndex: number) => void
+  onMoveNode: (nodeId: string, location: NodeLocation) => void
 }
 
 /**
@@ -45,10 +46,35 @@ export function FluidBlocksPanel({
   onSelectNode,
   onInsertNode,
   onRemoveNode,
-  onReorderNodes,
+  onMoveNode,
 }: FluidBlocksPanelProps) {
   const picker = useBlockPicker()
-  const reorder = useSectionReorder(onReorderNodes)
+  // Collapse is a way of reading a deep tree, not a property of the page, so it
+  // lives here and never reaches the draft.
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
+
+  const onToggleCollapse = useCallback((nodeId: string) => {
+    setCollapsedNodeIds((previous) => {
+      const next = new Set(previous)
+      if (!next.delete(nodeId)) {
+        next.add(nodeId)
+      }
+      return next
+    })
+  }, [])
+
+  const onExpandNode = useCallback((nodeId: string) => {
+    setCollapsedNodeIds((previous) => {
+      if (!previous.has(nodeId)) return previous
+      const next = new Set(previous)
+      next.delete(nodeId)
+      return next
+    })
+  }, [])
+
+  const drag = useSectionDrag(nodes, onMoveNode, onExpandNode)
   const { byNodeId, pageErrors } = useMemo(
     () => buildValidationIndex(validationErrors),
     [validationErrors],
@@ -57,7 +83,7 @@ export function FluidBlocksPanel({
   const handleSelectBlock = (blockId: FluidBlockId) => {
     const definition = findBlockDefinition(blockId)
     if (!definition) return
-    onInsertNode(buildFluidNode(definition), picker.insertIndex)
+    onInsertNode(buildFluidNode(definition), picker.insertLocation)
     picker.close()
   }
 
@@ -65,13 +91,25 @@ export function FluidBlocksPanel({
     () => ({
       selectedNodeId,
       errorsByNodeId: byNodeId,
+      collapsedNodeIds,
       onSelectNode,
       onRemoveNode,
-      reorder,
+      onToggleCollapse,
+      drag,
       pickerOpenKey: picker.openKey,
       onOpenPicker: picker.open,
     }),
-    [selectedNodeId, byNodeId, onSelectNode, onRemoveNode, reorder, picker.openKey, picker.open],
+    [
+      selectedNodeId,
+      byNodeId,
+      collapsedNodeIds,
+      onSelectNode,
+      onRemoveNode,
+      onToggleCollapse,
+      drag,
+      picker.openKey,
+      picker.open,
+    ],
   )
 
   return (
@@ -87,7 +125,7 @@ export function FluidBlocksPanel({
             <h3 className="text-sm font-semibold">Sections</h3>
             <AddBlockButton
               anchorKey={HEADER_ANCHOR_KEY}
-              insertIndex={nodes.length}
+              location={{ parentId: null, index: nodes.length }}
               iconClassName="h-4 w-4"
             />
           </div>

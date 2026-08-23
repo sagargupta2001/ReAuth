@@ -138,14 +138,15 @@ Sections panel (`FluidBlocksPanel`):
 - `model/blockCatalog.ts` — `FluidBlockId`, `BlockCategory`,
   `BLOCK_CATEGORY_ORDER`, and `FLUID_BLOCKS` (node defaults per block), plus the
   pure `filterBlocks` / `groupBlocksByCategory` / `labelForNode` helpers.
-- `model/sectionTree.ts` — drag MIME type, indent/depth constants, and the
-  non-editable scaffold rows (`Page`, `Layout Container`).
+- `model/sectionTree.ts` — drag MIME type, indent/depth constants,
+  `MAX_NESTING_DEPTH`, the drop-zone thresholds, and the non-editable scaffold
+  rows (`Page`, `Layout Container`).
 - `components/blocks/` — `SectionTree` / `SectionTreeNode` (recursive rows),
   `BlockPicker` + `BlockCatalogList` (search + grouped catalog),
   `BlockPreview`, `AddBlockButton`, `PageValidationSummary`.
-- `hooks/useBlockPicker.ts` and `hooks/useSectionReorder.ts` own picker anchor
-  state and drag-reorder wiring. Search and hover state stay inside the picker
-  so typing there does not re-render the tree.
+- `hooks/useBlockPicker.ts` and `hooks/useSectionDrag.ts` own picker anchor
+  state and the drag/drop/keyboard wiring (§5.4.10). Search and hover state stay
+  inside the picker so typing there does not re-render the tree.
 - Tree callbacks travel via `blocks/sectionsPanelContext.ts` instead of being
   threaded through every recursion level.
 
@@ -431,6 +432,77 @@ card pattern (e.g. "General Settings" in `FlowDetailsSettingsTab`) so the builde
 does not look like a different app. `components/controls/FieldLabel.tsx` gives both
 panels the same label treatment. Both sidebars and the sections panel are `w-80`,
 so switching left panels does not shift the canvas.
+
+### 5.4.10 Structural Editing Is Id-Addressed and Validated Once
+
+The sections tree is the structural editor: blocks nest, reorder, and reparent
+there, not on the canvas. Three rules shape how it is built.
+
+**Ids, never indices or paths.** Every structural operation takes a node id plus
+a `NodeLocation` (`{ parentId, index }`, `parentId: null` meaning the page root).
+An index is stale the moment a sibling moves, and a path captured at drag start
+is stale by the time the drop fires. The drag payload is the node's id for the
+same reason — the old `useSectionReorder` transferred a root index, which is why
+it could only ever permute root siblings.
+
+**Validity is computed once, in `lib/nodeUtils.ts`.** `resolveDrop` turns
+"this node, onto that row, this way" into either a location or a typed rejection
+(`cycle`, `depth-limit`, `unknown-node`, `no-op`). Rejections are values, not
+thrown errors, because every one of them is something the UI has to show: the
+not-allowed cursor during the drag, and the reason on drop. `useSectionDrag`
+calls it for the hover preview, for the drop, and for the keyboard commands, so
+those three paths cannot drift — the keyboard `Tab` indent is literally the same
+`{ targetId, intent: 'inside' }` request the drag makes.
+
+Two subtleties worth keeping:
+
+- Locations are expressed against the tree *before* the node is detached.
+  `moveNode` owns the index shift (`adjustForRemoval`), and `resolveDrop` uses
+  the same helper to recognise a no-op. Without that, dropping a node one slot
+  further down in its own parent lands it one place short.
+- The depth check measures the dragged **subtree**, not the dragged node. A
+  two-level box dropped into a container near `MAX_NESTING_DEPTH` would
+  otherwise slip past a check on the node alone.
+
+**The structural helpers walk `children` only, never `slots`.** `findNodePath`
+returns `null` for a slot-owned node, which is what makes every operation refuse
+slots without each call site re-checking — rule 5 of the spec enforced in one
+place. Slot rows stay visible and selectable; they are simply not draggable, not
+drop targets, and have no insertion affordance.
+
+`acceptsChildren` lives on `FluidBlockDefinition` in `model/blockCatalog.ts`, so
+adding a `Grid` or `Columns` container later is a data change. `canAcceptChildren`
+answers `false` for an unrecognised node key rather than defaulting open — a
+hand-edited blueprint should not open a nesting hole. `nodeUtils` takes the
+predicate as an argument instead of importing the catalog, because the catalog
+already imports `nodeUtils`.
+
+Drop zones are geometric: the top and bottom `DROP_EDGE_RATIO` of a row are
+before/after, and the middle band nests — but only on rows that accept children,
+where a non-container splits cleanly in half instead. An unmeasurable row (zero
+height, or a pointer position the environment did not report, which is every
+event in jsdom) resolves to the row's whole-row intent rather than pretending
+the pointer is at an edge. Tests that care which third of a row they are aiming
+at have to stub `getBoundingClientRect` *and* define `clientY` on the native
+event: jsdom has no `DragEvent`, so `fireEvent.dragOver(el, { clientY })` drops
+the coordinate silently, and the assertion then passes or fails for the wrong
+reason.
+
+Collapse state is view-only. It lives in `FluidBlocksPanel` and never reaches
+the draft, so collapsing a box is not an edit and does not dirty the page.
+Hovering a collapsed container during a drag auto-expands it once, so no drop
+lands out of sight.
+
+`Tab` / `Shift+Tab` indent and outdent, but only when the move is possible — a
+row with no preceding container, or a root row on `Shift+Tab`, falls through to
+normal focus movement. Consuming them unconditionally would make the panel a
+keyboard trap with no way out. `Alt+Up` / `Alt+Down` reorder within the current
+parent and are never ambiguous.
+
+`FluidRendererParity.test.tsx` renders the same three-level tree through
+`FluidCanvas` and through `FluidLoginScreen` (with `useThemeSnapshot` mocked) and
+compares the nesting chain and its layout derivation. That is §5.4.1's rule made
+executable for the one case nesting makes easy to break.
 
 ### 5.5 Diff and Snapshot Viewer
 

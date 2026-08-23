@@ -13,9 +13,12 @@ import type {
 import {
   extractNodesFromBlueprint,
   findNodeById,
+  insertNodeAt,
+  moveNode,
   removeNodeById,
   updateNodeById,
   updateBlueprintWithNodes,
+  type NodeLocation,
 } from '@/features/fluid/lib/nodeUtils'
 import { useTheme } from '@/features/theme/api/useTheme'
 import { useThemePages } from '@/features/theme/api/useThemePages'
@@ -465,10 +468,8 @@ export function FluidBuilderPage() {
     })
   }
 
-  const handleInsertNode = (node: ThemeNode, index: number) => {
-    const nextNodes = [...activeNodes]
-    nextNodes.splice(index, 0, node)
-    setNodes(nextNodes)
+  const handleInsertNode = (node: ThemeNode, location: NodeLocation) => {
+    setNodes(insertNodeAt(activeNodes, node, location))
     setSelectedNodeId(node.id)
   }
 
@@ -480,10 +481,13 @@ export function FluidBuilderPage() {
     }
   }
 
-  const handleReorderNodes = (fromIndex: number, toIndex: number) => {
-    const updated = [...activeNodes]
-    const [moved] = updated.splice(fromIndex, 1)
-    updated.splice(toIndex, 0, moved)
+  /**
+   * Reparents or reorders a node. The location is expressed against the current
+   * tree, so `moveNode` owns the index shift that detaching the node causes.
+   */
+  const handleMoveNode = (nodeId: string, location: NodeLocation) => {
+    const updated = moveNode(activeNodes, nodeId, location)
+    if (updated === activeNodes) return
     setNodes(updated)
   }
 
@@ -615,7 +619,7 @@ export function FluidBuilderPage() {
             onSelectNode={setSelectedNodeId}
             onInsertNode={handleInsertNode}
             onRemoveNode={handleRemoveNode}
-            onReorderNodes={handleReorderNodes}
+            onMoveNode={handleMoveNode}
           />
         ) : (
           <FluidThemeSettingsPanel

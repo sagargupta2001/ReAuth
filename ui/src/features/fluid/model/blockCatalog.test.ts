@@ -5,6 +5,7 @@ import {
   FLUID_BLOCKS,
   FluidBlockId,
   buildFluidNode,
+  canAcceptChildren,
   filterBlocks,
   findBlockDefinition,
   groupBlocksByCategory,
@@ -26,6 +27,26 @@ describe('FLUID_BLOCKS', () => {
     FLUID_BLOCKS.forEach((block) => {
       expect(BLOCK_CATEGORY_ORDER).toContain(block.category)
     })
+  })
+})
+
+describe('canAcceptChildren', () => {
+  it('accepts children for Box and nothing else in this slice', () => {
+    const containers = FLUID_BLOCKS.filter((block) => block.acceptsChildren).map(
+      (block) => block.id,
+    )
+    expect(containers).toEqual([FluidBlockId.Box])
+  })
+
+  it('answers from the rendered node, by component name or type', () => {
+    expect(canAcceptChildren({ type: 'Box' })).toBe(true)
+    expect(canAcceptChildren({ type: 'Text' })).toBe(false)
+    expect(canAcceptChildren({ type: 'Component', component: 'Input' })).toBe(false)
+    expect(canAcceptChildren({ type: 'Component', component: 'Link' })).toBe(false)
+  })
+
+  it('refuses an unrecognised node rather than opening a nesting hole', () => {
+    expect(canAcceptChildren({ type: 'Component', component: 'Unknown' })).toBe(false)
   })
 })
 

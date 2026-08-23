@@ -59,6 +59,12 @@ export interface FluidBlockDefinition {
   description: string
   icon: LucideIcon
   category: BlockCategory
+  /**
+   * Whether this block can contain other blocks. Declared here so a future
+   * container type (Grid, Stack, Columns) is a data change, the same way the
+   * inspector schema and the theme settings schema already work.
+   */
+  acceptsChildren: boolean
   node: ThemeNodeDefinition
 }
 
@@ -69,6 +75,7 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Container with auto-layout',
     icon: LayoutTemplate,
     category: BlockCategory.Layout,
+    acceptsChildren: true,
     node: {
       type: 'Box',
       size: { width: 'fill', height: 'hug' },
@@ -82,6 +89,7 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Headings, labels, hints',
     icon: Type,
     category: BlockCategory.Text,
+    acceptsChildren: false,
     node: {
       type: 'Text',
       size: { width: 'fill', height: 'hug' },
@@ -94,6 +102,7 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Email, password, custom',
     icon: LayoutTemplate,
     category: BlockCategory.FormElements,
+    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'Input',
@@ -119,6 +128,7 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Primary, secondary actions',
     icon: MousePointer2,
     category: BlockCategory.Actions,
+    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'Button',
@@ -132,6 +142,7 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Buttons for the realm’s enabled providers',
     icon: Fingerprint,
     category: BlockCategory.Actions,
+    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'ProviderButtons',
@@ -146,6 +157,7 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Section separators',
     icon: Minus,
     category: BlockCategory.Layout,
+    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'Divider',
@@ -159,6 +171,7 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Inline navigation or legal links',
     icon: Type,
     category: BlockCategory.Text,
+    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'Link',
@@ -172,6 +185,7 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Brand or hero image',
     icon: Image,
     category: BlockCategory.Media,
+    acceptsChildren: false,
     node: {
       type: 'Image',
       size: { width: 'fill', height: 'hug' },
@@ -185,6 +199,11 @@ export const BLOCK_LABEL_BY_NODE_KEY: ReadonlyMap<string, string> = new Map(
   FLUID_BLOCKS.map((block) => [block.node.component ?? block.node.type, block.label]),
 )
 
+/** Whether a rendered node's block declares that it accepts children. */
+export const BLOCK_ACCEPTS_CHILDREN_BY_NODE_KEY: ReadonlyMap<string, boolean> = new Map(
+  FLUID_BLOCKS.map((block) => [block.node.component ?? block.node.type, block.acceptsChildren]),
+)
+
 export function findBlockDefinition(id: FluidBlockId): FluidBlockDefinition | undefined {
   return FLUID_BLOCKS.find((block) => block.id === id)
 }
@@ -192,6 +211,16 @@ export function findBlockDefinition(id: FluidBlockId): FluidBlockDefinition | un
 export function labelForNode(node: Pick<ThemeNode, 'type' | 'component'>): string {
   const key = node.component ?? node.type
   return BLOCK_LABEL_BY_NODE_KEY.get(key) ?? key
+}
+
+/**
+ * Whether a node may contain children.
+ *
+ * Unknown node keys answer `false`: an unrecognised block is never a drop
+ * target, which keeps a hand-edited blueprint from opening a nesting hole.
+ */
+export function canAcceptChildren(node: Pick<ThemeNode, 'type' | 'component'>): boolean {
+  return BLOCK_ACCEPTS_CHILDREN_BY_NODE_KEY.get(node.component ?? node.type) ?? false
 }
 
 export function filterBlocks(query: string): readonly FluidBlockDefinition[] {

@@ -1,11 +1,56 @@
-/** Custom drag payload used for reordering root-level section nodes. */
-export const SECTION_REORDER_MIME_TYPE = 'application/reauth-fluid-reorder'
+import type { NodeDropIntent } from '@/features/fluid/lib/nodeUtils'
+
+/**
+ * Custom drag payload for the sections tree. The transferred value is the
+ * dragged node's **id** — indices shift the moment a sibling moves, and a path
+ * captured at drag start is stale by the time the drop fires.
+ */
+export const SECTION_DRAG_MIME_TYPE = 'application/reauth-fluid-node'
 
 /** Left indent applied per tree depth, in pixels. */
 export const SECTION_TREE_INDENT_PX = 12
 
 /** Depth at which the page's root nodes are rendered. */
 export const SECTION_TREE_NODE_DEPTH = 2
+
+/**
+ * Maximum number of levels in the authored tree; root nodes are level 1.
+ *
+ * Six covers realistic auth pages while keeping the recursive renderers and the
+ * tree readable. It constrains new operations only — a blueprint loaded from an
+ * older version, or hand-edited, renders as authored however deep it is.
+ */
+export const MAX_NESTING_DEPTH = 6
+
+/**
+ * Fraction of a row's height, at each end, that means "drop as a sibling".
+ * The remaining middle band nests, on rows that accept children.
+ */
+export const DROP_EDGE_RATIO = 0.25
+
+/**
+ * Which drop a pointer position over a row means.
+ *
+ * A row that cannot contain children has no middle band at all, so the two
+ * halves split cleanly into before/after. An unmeasurable row — no height, or a
+ * pointer position the environment did not report — resolves to the row's
+ * whole-row intent rather than pretending the pointer is at a particular edge.
+ */
+export function dropIntentForOffset(
+  offsetY: number,
+  height: number,
+  acceptsChildren: boolean,
+): NodeDropIntent {
+  if (!Number.isFinite(height) || height <= 0 || !Number.isFinite(offsetY)) {
+    return acceptsChildren ? 'inside' : 'after'
+  }
+  if (!acceptsChildren) {
+    return offsetY < height / 2 ? 'before' : 'after'
+  }
+  if (offsetY < height * DROP_EDGE_RATIO) return 'before'
+  if (offsetY > height * (1 - DROP_EDGE_RATIO)) return 'after'
+  return 'inside'
+}
 
 /**
  * Non-editable rows shown above the page's nodes. They exist to communicate the
@@ -28,4 +73,9 @@ export const HEADER_ANCHOR_KEY = 'header'
 /** Anchor key for the picker opened from a node row. */
 export function nodeAnchorKey(nodeId: string): string {
   return `node-${nodeId}`
+}
+
+/** Anchor key for the picker that adds a block *inside* a container row. */
+export function insideAnchorKey(nodeId: string): string {
+  return `inside-${nodeId}`
 }

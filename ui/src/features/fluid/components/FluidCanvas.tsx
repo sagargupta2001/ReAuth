@@ -55,7 +55,7 @@ export function FluidCanvas({
   selectedNodeId,
   providers = [],
   isInspecting = false,
-  showChrome = true,
+  showChrome = false,
   onSelectNode,
 }: FluidCanvasProps) {
   const form = useForm<{ username: string; password: string }>({

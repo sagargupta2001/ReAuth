@@ -17,7 +17,7 @@ export function SectionTree({ nodes }: SectionTreeProps) {
   return (
     <div className="space-y-3 text-xs">
       {SECTION_TREE_SCAFFOLD.map((row) => (
-        <ScaffoldRow key={row.key} row={row} insertIndex={nodes.length} />
+        <ScaffoldRow key={row.key} row={row} rootCount={nodes.length} />
       ))}
       <div className="space-y-1">
         {nodes.length === 0 && (
@@ -30,8 +30,8 @@ export function SectionTree({ nodes }: SectionTreeProps) {
             key={node.id}
             node={node}
             depth={SECTION_TREE_NODE_DEPTH}
+            parentId={null}
             index={index}
-            isRoot
           />
         ))}
       </div>
@@ -41,10 +41,10 @@ export function SectionTree({ nodes }: SectionTreeProps) {
 
 function ScaffoldRow({
   row,
-  insertIndex,
+  rootCount,
 }: {
   row: SectionScaffoldRow
-  insertIndex: number
+  rootCount: number
 }) {
   return (
     <div
@@ -56,7 +56,7 @@ function ScaffoldRow({
       <span>{row.label}</span>
       <AddBlockButton
         anchorKey={row.key}
-        insertIndex={insertIndex}
+        location={{ parentId: null, index: rootCount }}
         label={`Add block to ${row.label}`}
         className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100"
       />

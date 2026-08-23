@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react'
 
-import type { SectionReorderHandlers } from '@/features/fluid/hooks/useSectionReorder'
+import type { SectionDragHandlers } from '@/features/fluid/hooks/useSectionDrag'
+import type { NodeLocation } from '@/features/fluid/lib/nodeUtils'
 import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
 
 /**
@@ -12,12 +13,15 @@ import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
 export interface SectionsPanelContextValue {
   selectedNodeId: string | null
   errorsByNodeId: ReadonlyMap<string, ThemeValidationError[]>
+  /** View-only, and deliberately not persisted to the draft. */
+  collapsedNodeIds: ReadonlySet<string>
   onSelectNode: (nodeId: string) => void
   onRemoveNode: (nodeId: string) => void
-  reorder: SectionReorderHandlers
+  onToggleCollapse: (nodeId: string) => void
+  drag: SectionDragHandlers
   /** Anchor key the block picker is currently attached to. */
   pickerOpenKey: string | null
-  onOpenPicker: (anchorKey: string, insertIndex: number) => void
+  onOpenPicker: (anchorKey: string, location: NodeLocation) => void
 }
 
 const SectionsPanelContext = createContext<SectionsPanelContextValue | null>(null)

@@ -33,6 +33,7 @@ Each spec should define:
 
 ## Index
 
+- `fluid-nested-sections.md`
 - `magic-link-builtins.md`
 - `oauth-inbound-identity-brokering.md`
 - `passkey-first-auth.md`
