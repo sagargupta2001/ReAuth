@@ -62,6 +62,10 @@ pub fn create_router(app_state: AppState) -> Router {
             webhook_routes(app_state.clone()),
         )
         .route(
+            "/realms/{realm}/theme-defaults",
+            get(theme_handler::get_theme_defaults_handler),
+        )
+        .route(
             "/realms/{realm}/search",
             get(search_handler::omni_search_handler),
         )

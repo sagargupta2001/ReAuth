@@ -1,11 +1,10 @@
-import { useState } from 'react'
-
 import { History, Layout, Loader2, Settings } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useRoutedTab } from '@/entities/realm/lib/useRoutedTab'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useTheme } from '@/features/theme/api/useTheme'
 import { ThemeDetailsOverviewTab } from '@/features/theme/components/ThemeDetailsOverviewTab'
@@ -14,10 +13,17 @@ import { ThemeHeader } from '@/features/theme/components/ThemeHeader'
 import { ThemeHistoryTab } from '@/features/theme/components/ThemeHistoryTab'
 import { ThemeTabLayout } from '@/features/theme/components/ThemeTabLayout'
 
+/** Tab slugs, in display order. The first is the default. */
+const THEME_TABS = ['overview', 'history', 'settings'] as const
+
 export function ThemeDetailsPage() {
-  const { themeId } = useParams()
+  const { themeId } = useParams<{ themeId: string }>()
   const navigate = useRealmNavigate()
-  const [activeTab, setActiveTab] = useState('overview')
+  const { activeTab, onTabChange } = useRoutedTab({
+    tabs: THEME_TABS,
+    basePath: `/themes/${themeId}`,
+    enabled: Boolean(themeId),
+  })
 
   const { data, isLoading, isError } = useTheme(themeId)
 
@@ -49,7 +55,7 @@ export function ThemeDetailsPage() {
 
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={onTabChange}
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 border-b px-6 pt-2">

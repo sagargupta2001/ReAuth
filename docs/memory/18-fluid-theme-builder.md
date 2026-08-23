@@ -127,7 +127,312 @@ The editor and inspector expose props for label, field container, prefix icon, a
 - Displays available primitives and system components.
 - Selecting a block inserts a new node with default layout/size settings.
 
-### 5.4 Diff and Snapshot Viewer
+### 5.4 Panel Composition and Extension Points
+
+Both left-hand panels are schema-driven shells. Their per-item knowledge lives in
+`ui/src/features/fluid/model/`, so extending the builder is a data change rather
+than a component change.
+
+Sections panel (`FluidBlocksPanel`):
+
+- `model/blockCatalog.ts` — `FluidBlockId`, `BlockCategory`,
+  `BLOCK_CATEGORY_ORDER`, and `FLUID_BLOCKS` (node defaults per block), plus the
+  pure `filterBlocks` / `groupBlocksByCategory` / `labelForNode` helpers.
+- `model/sectionTree.ts` — drag MIME type, indent/depth constants, and the
+  non-editable scaffold rows (`Page`, `Layout Container`).
+- `components/blocks/` — `SectionTree` / `SectionTreeNode` (recursive rows),
+  `BlockPicker` + `BlockCatalogList` (search + grouped catalog),
+  `BlockPreview`, `AddBlockButton`, `PageValidationSummary`.
+- `hooks/useBlockPicker.ts` and `hooks/useSectionReorder.ts` own picker anchor
+  state and drag-reorder wiring. Search and hover state stay inside the picker
+  so typing there does not re-render the tree.
+- Tree callbacks travel via `blocks/sectionsPanelContext.ts` instead of being
+  threaded through every recursion level.
+
+To add a block: add its id to `FluidBlockId`, its definition to `FLUID_BLOCKS`,
+and its preview to `BLOCK_PREVIEWS`. The preview registry is keyed by
+`FluidBlockId`, so a missing preview is a compile error.
+
+A block whose component is rendered by an inline `case` (rather than by
+`componentRegistry` expansion) must be handled in **both** `FluidCanvas` (builder
+preview) and `FluidLoginScreen` (runtime). `ProviderButtons` is seeded by
+`theme_pages.rs` but was only handled at runtime, so the canvas rendered
+"Unknown component: ProviderButtons". The canvas now previews it from the realm's
+own providers (`model/providerPreview.ts`, fed by `useIdentityProviders` in
+`FluidBuilderPage`) and falls back to a visible placeholder when the realm has
+none — the runtime hides the block in that case, but the builder needs the node
+to stay selectable.
+
+Theme settings panel (`FluidThemeSettingsPanel`):
+
+- `model/tokens.ts` — token group/key names and fallbacks.
+- `model/settingsFields.ts` — `SettingsFieldKind` plus the discriminated union of
+  field descriptors.
+- `model/themeSettingsSchema.ts` — `THEME_SETTINGS_SECTIONS`, the declarative
+  description of what the panel renders.
+- `model/layoutShells.ts` — `LayoutShell` ids and gallery options, shared with
+  `FluidLayoutGallery`.
+- `lib/tokenAccess.ts` — `readTokenGroup` / `readTokenString` /
+  `withTokenValue` / `readLayoutShell` / `withLayoutShell`. All token writes go
+  through these so sibling tokens are never dropped.
+- `components/settings/` — `ThemeSettingsSection`, `ThemeSettingsField` (the
+  exhaustive kind switch), and one control per kind under `fields/`. Fields read
+  and write draft state through `settings/themeSettingsContext.ts`.
+
+To add a theme property: add its key to `model/tokens.ts` and a descriptor to
+`THEME_SETTINGS_SECTIONS`. To add a new control type: add a `SettingsFieldKind`
+member, its descriptor to the `SettingsField` union, and a case in
+`ThemeSettingsField` — the union's exhaustiveness check flags the missing case.
+
+Rule for the schema: only expose a token that a renderer actually reads. The
+renderers consume exactly `colors.{primary,background,text,surface}`,
+`typography.{font_family,base_size}` and `radius.base`. A control for anything
+else is a control that silently does nothing — the old disabled "Shadow: Soft"
+field was exactly that, and has been removed.
+
+Colours may hold either a design-token reference (`var(--primary)`) or a literal
+value. `model/designTokens.ts` lists the referenceable tokens and
+`controls/ThemeColorControl.tsx` makes the two an explicit choice, previewing a
+token's real colour via `resolveCssColor` (`shared/lib/colorUtils.ts`, which reads
+custom properties off the document root). Seeded themes reference tokens, so a new
+theme inherits the product palette until someone pins a literal.
+
+The `ColorContrast` field kind is read-only and reports WCAG ratios for
+`CONTRAST_PAIRS` — the pairs the renderers actually paint, including the primary
+button's hard-coded white label. An unresolvable pair reports `n/a` rather than a
+failure. `contrastRatio` resolves `var()` values, so the inspector's per-block
+check now works on token-based colours too (it previously showed "Unavailable").
+
+### 5.4.1 The Two Renderers Share Their Derivation
+
+`FluidCanvas` (builder preview) and `FluidLoginScreen` (runtime) are separate
+components by necessity — one is selectable and inert, the other wires
+react-hook-form, actions, OAuth, and passkeys. What they must *not* duplicate is
+how a node is read.
+
+`lib/nodeVisuals.ts` owns that derivation: `computeNodeVisuals` (alignment,
+sizing, spacing, typography), `resolveDisplayText`, `resolveVisibleFlag`, and
+`resolveRadius`. Both renderers previously held a byte-identical 65-line copy of
+the visuals block, which is precisely why fixes this cycle had to be applied twice
+and why `ProviderButtons` shipped working at runtime and broken in the builder.
+
+Extracting it also exposed a latent divergence: the two copies of
+`resolveVisibleFlag` ended differently — the runtime coerced with
+`Boolean(value)`, the builder returned `true` — so `visible: 0` hid the node in
+production while the preview still showed it. The runtime's reading won.
+
+When adding a node property, put its derivation in `nodeVisuals.ts` and let both
+renderers consume it. Only genuinely behavioural differences belong in the
+components.
+
+### 5.4.2 Sizing: the Wrapper vs the Painted Element
+
+Every node renders as two elements: an outer **wrapper** that carries the node's
+size and selection ring, and an inner element that actually **paints** (border,
+background, radius). Sizing only works if both are considered.
+
+`Box` set its painted element to a hard-coded `flex w-full` with no height, so:
+
+- **Fixed height** did nothing visible. The wrapper became 120px tall while the
+  bordered element stayed at content height inside it.
+- **Hug width** did nothing. The painted element was always `w-full`.
+
+`computeNodeVisuals` now returns `innerWidthClass` / `innerHeightClass` for the
+painted child (`w-fit` when hugging, `h-full` when the height is fixed or
+filled), and `Box` applies them in both renderers.
+
+Separately, `resolveCssLength` coerces a unitless value to `px`. A builder typing
+`240` produced `width: 240`, which the browser drops — the same failure that left
+corner radius inert. Width, height, and radius all go through it now, so the
+coercion happens once at the source rather than per call site.
+
+When adding a sizing control, check what the *painted* element does with it, not
+just the wrapper. A test that only asserts the wrapper's inline style will pass
+while the user sees nothing change.
+
+### 5.4.3 Renderer Defaults Must Follow the Theme
+
+The seeded blueprints specify almost nothing but text and structure, so nearly
+every visual decision comes from renderer defaults. Five of those defaults were
+wrong in ways that no blueprint could override, and all five produced the same
+symptom — a prop that appeared to be set but did nothing on screen:
+
+- `Text` nodes rendered `<p class="text-lg font-semibold">`. A utility class beats
+  the inherited inline style from the wrapper, so `font_size` and `font_weight`
+  were dead props. The heading defaults now apply only when the node sets neither.
+- The `Input` expansion hard-coded `#ffffff` field backgrounds and `#e2e8f0`
+  borders, so every input was a solid white box on a dark theme. Field border and
+  label colour now derive from the theme's own text colour via `withAlpha`
+  (`ComponentThemeContext` in `lib/componentRegistry.ts`), and the field is
+  transparent so it sits on the theme surface.
+- Primary buttons hard-coded a white label. With the seeded `var(--primary)`
+  resolving to white, the label was invisible. `readableTextOn` now picks black or
+  white by luminance.
+- `Box` radius was emitted as a bare number. `border-radius: 12` is invalid CSS
+  and was dropped, so no field ever had rounded corners. Unitless values get `px`.
+- `Link` put its alignment class on the inline `<a>`, where `text-right` has no
+  effect, so the seeded right-aligned "Forgot password?" rendered left. The class
+  now goes on the block wrapper.
+
+`PasswordInput` also gained `inputClassName`: `className` styles its wrapper, so
+the Fluid renderers' `border-0` never reached the inner input and password fields
+drew a second border inside the field container.
+
+Two more of the same shape:
+
+- Every node emitted `margin-top: 0px; margin-bottom: 0px; padding: 0px` inline.
+  Inline styles beat Tailwind's class-based margins, so the form's `space-y-*`
+  was dead on every page and the only visible gaps were incidental (`py-1` on
+  text, field padding). Spacing is now emitted only when a node asks for it.
+- The password branch of the `Input` case dropped `placeholder`, so password
+  fields never showed one even when the blueprint set it.
+
+Rule of thumb: a default that names a colour or a length literally will be wrong
+for some theme. Derive it from a token, or take it from `ComponentThemeContext`.
+Both renderers must be changed together — `FluidCanvas` is the preview and
+`FluidLoginScreen` is what users get, and they duplicate this logic.
+
+`ThemeNodeLayout` gained `justify` (main-axis distribution) alongside `align`
+(cross-axis), and `align` gained `baseline`; the mapping lives in
+`lib/flexLayout.ts` and is shared by both renderers. Without `justify` a
+horizontally-centred row was not expressible, which is what the login page's
+"New on our platform? / Create an account" line needs. `baseline` is what that row
+actually uses: the prompt and the link have different line heights, so `center`
+aligns their boxes and leaves the text visibly off. The Rust side stores `layout`
+as untyped JSON, so layout keys need no backend change.
+
+### 5.4.4 Seed Audit
+
+The seeded blueprints are audited by `theme_pages.rs::seed_audit_tests`, which
+walks every node of every page (children and slots included) and asserts:
+
+- each page defines a non-empty `nodes` array
+- every `Input` has a non-empty `placeholder`, `name`, and `label`
+- every `Text` has either `text` or `text_path` — a node with neither renders the
+  literal string "Headline"
+- every `Component` names one the renderers actually switch on (`Input`, `Button`,
+  `Link`, `Divider`, `ProviderButtons`); anything else renders
+  "Unknown component", which is how `ProviderButtons` shipped broken
+
+The first sweep found 12 inputs across 8 pages with no placeholder, and one
+renderer gap: `FluidCanvas` had no `text_path` handling, so the 9 context-bound
+`Text` nodes across 6 pages all previewed as "Headline". The canvas now renders
+the binding itself (`{message}`, italic and dimmed, with the path in the tooltip)
+because the builder has no auth context to resolve against.
+
+Extend these tests rather than re-auditing by hand — the defects here are all the
+"prop is set and silently does nothing" kind, which reads fine in review.
+
+### 5.4.5 Changing a Seeded Blueprint
+
+`ensure_theme_pages` only inserts page keys that are **missing**, so editing
+`theme_pages.rs` does not rewrite an existing theme's stored page. That does *not*
+mean a DB wipe is needed to see the change.
+
+`list_pages_for_theme` builds its templates from `theme_pages::system_pages()` —
+the blueprints compiled into the running binary — and only appends *custom* pages
+from the database. So `ThemePageTemplate.blueprint` reaching the builder is always
+the current default, and `FluidBuilderPage.handleResetPage` restores it into the
+draft (Save then persists it). The loop for iterating on a seeded blueprint is:
+edit `theme_pages.rs`, restart the backend, open the page, "Restore default", Save.
+
+That handler existed but had no UI: `FluidBuilderHeader` declared `onResetPage` and
+`canResetPage` and never destructured them, so nothing rendered. The header now has
+a "Restore default" button behind a confirm dialog.
+
+Reset semantics differ by theme kind, and both end at the default:
+- system theme — the page's blueprint is replaced with the template's.
+- non-system theme — the page node is *removed* from the draft, and rendering falls
+  back to the template (`activeBlueprint` prefers the node, then the template).
+
+A server-side reset endpoint is therefore unnecessary; the client path also keeps
+the change inside the builder's undo history, which an endpoint could not.
+
+### 5.4.6 Theme Modes Removed
+
+ReAuth has no per-theme light/dark mode. The `appearance.mode` token, its settings
+control, `resolveThemeMode`, and the light/dark substitution branch of
+`resolveThemeColor` are all gone, along with the seeded `appearance` block in
+`theme_service.rs::default_tokens` and the UI fallback drafts.
+
+`resolveThemeColor(value, fallback)` now honours a literal value verbatim. It used
+to swap known light hexes (`#ffffff`, `#f8fafc`, `#0f172a`, …) for CSS variables
+when the resolved mode was dark. Existing themes storing those literals therefore
+render exactly what they store instead of following the admin app's mode — which
+is the intended semantics now that a theme has one appearance. Stored drafts may
+still carry an `appearance` key; it is simply ignored.
+
+### 5.4.7 Inspector Decomposition
+
+`FluidInspector` went from 1346 lines to 230 and is now schema-driven, the same
+shape as the theme settings panel.
+
+- `model/inspectorFields.ts` — `FieldTarget` (props / layout / size),
+  `InspectorFieldKind`, the discriminated union of field descriptors, and
+  `NodeMatcher` + `matchesNode`.
+- `model/inspectorSchema.ts` — `INSPECTOR_SECTIONS`: every section, its fields,
+  and the node types it applies to.
+- `components/inspector/` — `InspectorField` (the exhaustive kind switch),
+  `InspectorSectionCard`, `inspectorContext.ts`, plus the bespoke `ActionsPanel`,
+  `InputSlotsPanel`, `IconPicker`, and `ContrastCard`.
+- `lib/actionBindings.ts` — payload-path validation and the pure action
+  transforms.
+
+Adding a property is an entry in `INSPECTOR_SECTIONS`. Adding a control type is a
+kind, a descriptor, and a case in `InspectorField`. Adding a node type is a
+matcher plus its section.
+
+Three things the schema fixes structurally rather than by vigilance:
+
+1. **A field declares its target.** A node keeps state in three places and the
+   distinction matters: `props.align` is text alignment, `layout.align` is flex
+   cross-axis alignment, `props.padding` is spacing around the block, and
+   `layout.padding` is padding inside it. The old panel labelled both alignment
+   controls "Alignment" and both padding controls "Padding", so they read as
+   broken duplicates. Labels now name what they control, and
+   `inspectorSchema.test.ts` asserts no two fields visible for the same node
+   share a label.
+2. **A section declares applicability.** `appliesTo` replaces inline
+   `selectedType === ...` guards, which is why Typography used to render for a Box
+   and an Image.
+3. **Coverage is checkable.** The audit that found the missing `placeholder`
+   control — inputs had no way to set one from the inspector at all — is now a
+   test rather than a manual read.
+
+`TypographyControls` and `SpacingControls` are gone; their fields are schema
+entries in the `typography` and `spacing` sections.
+
+### 5.4.8 Reset Is Scoped, and Scopes Must Be Visible
+
+There are two independent resets, because a theme has two independent kinds of
+state:
+
+- **Restore page** (builder header) replaces one page's *blocks* with the seeded
+  blueprint. It cannot revert colours, typography, or radius — those are tokens,
+  not page nodes. `background` appears zero times in `theme_pages.rs`.
+- **Reset** (theme settings panel header) restores tokens and layout from
+  `GET /api/realms/{realm}/theme-defaults`, which serves
+  `theme_service::default_draft_settings()`. Page blocks and assets are untouched.
+
+Serving the defaults from the backend removes a duplication that had already
+caused drift: `FluidBuilderPage.fallbackDraft` kept its own copy of the token
+defaults, so removing the `appearance` block meant editing both.
+
+Both are draft edits and need Save, like every other builder change. The first
+version of the page action was labelled just "Restore default", which read as
+theme-wide and left users expecting a colour change to revert.
+
+### 5.4.9 Side Panel Card Style
+
+`components/controls/BuilderPanelCard.tsx` is the single card shell for both side
+panels — elevated `Card`, header with title/description, and an inset
+`bg-primary-foreground rounded-2xl p-4` content panel. It mirrors the settings-page
+card pattern (e.g. "General Settings" in `FlowDetailsSettingsTab`) so the builder
+does not look like a different app. `components/controls/FieldLabel.tsx` gives both
+panels the same label treatment. Both sidebars and the sections panel are `w-80`,
+so switching left panels does not shift the canvas.
+
+### 5.5 Diff and Snapshot Viewer
 
 - History tab allows opening a snapshot dialog.
 - Snapshot dialog shows

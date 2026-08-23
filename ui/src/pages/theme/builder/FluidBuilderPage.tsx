@@ -25,6 +25,9 @@ import { useThemeAssets } from '@/features/theme/api/useThemeAssets'
 import { useThemeDraft } from '@/features/theme/api/useThemeDraft'
 import { useUploadThemeAsset } from '@/features/theme/api/useUploadThemeAsset'
 import { useThemeTemplateGaps } from '@/features/theme/api/useThemeTemplateGaps'
+import { useThemeDefaults } from '@/features/theme/api/useThemeDefaults'
+import { useIdentityProviders } from '@/features/identity-provider/api/useIdentityProviders'
+import { toProviderPreviews } from '@/features/fluid/model/providerPreview'
 import { FluidBlocksPanel } from '@/features/fluid/components/FluidBlocksPanel'
 import { FluidBuilderHeader } from '@/features/fluid/components/FluidBuilderHeader'
 import { FluidCanvas } from '@/features/fluid/components/FluidCanvas'
@@ -47,9 +50,6 @@ const fallbackDraft: ThemeDraft = {
       background: 'var(--background)',
       text: 'var(--foreground)',
       surface: 'var(--card)',
-    },
-    appearance: {
-      mode: 'auto',
     },
     typography: {
       font_family: 'system-ui',
@@ -261,6 +261,12 @@ export function FluidBuilderPage() {
   const { mutateAsync: publishTheme, isPending: isPublishing } = usePublishTheme(themeId || '')
   const { data: assets = [] } = useThemeAssets(themeId)
   const { mutateAsync: uploadAsset, isPending: isUploading } = useUploadThemeAsset(themeId || '')
+  const { data: identityProviders = [] } = useIdentityProviders()
+  const { data: themeDefaults } = useThemeDefaults()
+  const providerPreviews = useMemo(
+    () => toProviderPreviews(identityProviders),
+    [identityProviders],
+  )
   const validationErrors = useMemo(
     () => validateThemeDraft(draftState),
     [draftState],
@@ -287,12 +293,28 @@ export function FluidBuilderPage() {
     await publishTheme()
   }
 
+  /**
+   * Restores the active page from the seeded template.
+   *
+   * Like every other builder edit this only touches the draft — the change is
+   * persisted by Save, not by this action. It deliberately makes no request.
+   */
   const handleResetPage = () => {
     if (!activePageKey) return
     setSelectedNodeId(null)
 
     if (data?.theme.is_system) {
-      if (!activePageTemplate) return
+      if (!activePageTemplate) {
+        toast.error('No default blueprint is available for this page.')
+        return
+      }
+      // The template comes from the running backend binary, so if the seeds were
+      // edited without restarting it, this restores the *old* default.
+      const isUnchanged =
+        JSON.stringify(
+          history.present.nodes.find((node) => node.node_key === activePageKey)?.blueprint,
+        ) === JSON.stringify(activePageTemplate.blueprint)
+
       commitDraft((prev) => {
         const index = prev.nodes.findIndex((node) => node.node_key === activePageKey)
         if (index >= 0) {
@@ -318,13 +340,27 @@ export function FluidBuilderPage() {
           ],
         }
       })
+
+      toast.success(
+        isUnchanged
+          ? 'This page already matches its default.'
+          : 'Page restored to its default. Save to persist it.',
+      )
       return
     }
 
+    const hadOverride = history.present.nodes.some(
+      (node) => node.node_key === activePageKey,
+    )
     commitDraft((prev) => ({
       ...prev,
       nodes: prev.nodes.filter((node) => node.node_key !== activePageKey),
     }))
+    toast.success(
+      hadOverride
+        ? 'Page override removed; it now follows the default. Save to persist it.'
+        : 'This page already follows the default.',
+    )
   }
 
   const handleCreatePage = (label: string) => {
@@ -600,6 +636,18 @@ export function FluidBuilderPage() {
               }))
             }
             onUploadAsset={(file) => void uploadAsset(file)}
+            onResetTokens={
+              themeDefaults
+                ? () => {
+                    commitDraft((prev) => ({
+                      ...prev,
+                      tokens: themeDefaults.tokens,
+                      layout: themeDefaults.layout,
+                    }))
+                    toast.success('Theme settings reset to defaults. Save to persist them.')
+                  }
+                : undefined
+            }
           />
         )}
         <FluidCanvas
@@ -608,6 +656,7 @@ export function FluidBuilderPage() {
           blocks={activeNodes}
           assets={assets}
           selectedNodeId={selectedNodeId}
+          providers={providerPreviews}
           isInspecting={isInspecting}
           onSelectNode={setSelectedNodeId}
         />

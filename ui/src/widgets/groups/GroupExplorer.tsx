@@ -1,4 +1,3 @@
-import { useEffect, useMemo } from 'react'
 
 import { Loader2 } from 'lucide-react'
 
@@ -6,6 +5,7 @@ import groupHierarchyEmpty from '@/assets/group-hierarchy-empty.svg'
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useRoutedTab } from '@/entities/realm/lib/useRoutedTab'
 import { useGroup } from '@/features/group/api/useGroup'
 import { GroupChildrenTab } from '@/features/group/components/GroupChildrenTab'
 import { GroupHeader } from '@/features/group/components/GroupHeader'
@@ -15,28 +15,24 @@ import { GroupSettingsTab } from '@/features/group/components/GroupSettingsTab'
 
 interface GroupExplorerProps {
   groupId?: string
-  tab?: string
 }
 
-const validTabs = ['settings', 'members', 'roles', 'children']
+/** Tab slugs, in display order. The first is the default. */
+const GROUP_TABS = ['settings', 'members', 'roles', 'children'] as const
 
-export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
+export function GroupExplorer({ groupId }: GroupExplorerProps) {
   const navigate = useRealmNavigate()
-
-  const activeTab = useMemo(() => {
-    if (!groupId) return 'settings'
-    return validTabs.includes(tab || '') ? (tab as string) : 'settings'
-  }, [groupId, tab])
+  // Also rendered from the groups list with no group selected, where there is no
+  // tab segment to read or redirect to.
+  const { activeTab, onTabChange } = useRoutedTab({
+    tabs: GROUP_TABS,
+    basePath: `/groups/${groupId}`,
+    enabled: Boolean(groupId),
+  })
 
   const { data: group, isLoading, isError } = useGroup(groupId || '', {
     enabled: !!groupId,
   })
-
-  useEffect(() => {
-    if (groupId && !tab) {
-      navigate(`/groups/${groupId}/settings`, { replace: true })
-    }
-  }, [groupId, navigate, tab])
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
@@ -62,7 +58,7 @@ export function GroupExplorer({ groupId, tab }: GroupExplorerProps) {
 
           <Tabs
             value={activeTab}
-            onValueChange={(value) => navigate(`/groups/${group.id}/${value}`)}
+            onValueChange={onTabChange}
             className="flex flex-1 flex-col overflow-hidden"
           >
             <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">

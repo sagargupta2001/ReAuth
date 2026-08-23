@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 
 import { format } from 'date-fns'
 import { KeyRound, Settings, ShieldCheck, UserRound, UserRoundPen } from 'lucide-react'
@@ -7,6 +6,7 @@ import { useParams } from 'react-router-dom'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useRoutedTab } from '@/entities/realm/lib/useRoutedTab'
 import { useUser } from '@/features/user/api/useUser.ts'
 import { UserTabLayout } from '@/features/user/components/UserTabLayout'
 import { UserCredentialsTab } from '@/features/user/components/UserCredentialsTab'
@@ -15,23 +15,24 @@ import { UserSettingsTab } from '@/features/user/components/UserSettingsTab'
 import { UseProfileTab } from '@/features/user/components/UseProfileTab.tsx'
 import { Skeleton } from '@/shared/ui/skeleton.tsx'
 
+/** Tab slugs, in display order. The first is the default. */
+const USER_TABS = ['profile', 'roles', 'credentials', 'settings'] as const
+
 export function EditUserPage() {
-  const { userId, tab } = useParams<{ userId: string; tab?: string }>()
+  const { userId } = useParams<{ userId: string }>()
   const navigate = useRealmNavigate()
+  const { activeTab, onTabChange } = useRoutedTab({
+    tabs: USER_TABS,
+    basePath: `/users/${userId}`,
+    enabled: Boolean(userId),
+  })
 
   const { data: user, isLoading: isUserLoading } = useUser(userId as string)
 
   // Surface the user's name in the header breadcrumb (falls back to id while loading).
   useSetBreadcrumb({ [userId ?? '']: user?.username ?? '' })
 
-  const validTabs = ['profile', 'roles', 'credentials', 'settings']
-  const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'profile'
 
-  const handleTabChange = (newTab: string) => userId && navigate(`/users/${userId}/${newTab}`)
-
-  useEffect(() => {
-    if (!tab && userId) navigate(`/users/${userId}/profile`, { replace: true })
-  }, [tab, userId, navigate])
 
   if (!userId) return null
 
@@ -74,7 +75,7 @@ export function EditUserPage() {
 
       <Tabs
         value={activeTab}
-        onValueChange={handleTabChange}
+        onValueChange={onTabChange}
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 px-6 pt-2">

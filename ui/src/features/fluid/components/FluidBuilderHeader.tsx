@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 
-import { ArrowLeft, Check, ChevronDown, CloudUpload, Loader2, Plus } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, CloudUpload, Loader2, Plus, RotateCcw } from 'lucide-react'
 
 import { Badge } from '@/components/badge'
 import { Button } from '@/components/button'
@@ -24,6 +24,7 @@ import {
 import { Input } from '@/components/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/popover'
 import { Separator } from '@/components/separator'
+import { ConfirmDialog } from '@/shared/ui/confirm-dialog'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
 import type { ThemePageTemplate } from '@/entities/theme/model/types'
 
@@ -47,15 +48,18 @@ export function FluidBuilderHeader({
   activePageKey,
   onSelectPage,
   onCreatePage,
+  onResetPage,
   onPublish,
   isSaving,
   isPublishing,
+  canResetPage = true,
 }: FluidBuilderHeaderProps) {
   const navigate = useRealmNavigate()
   const isBusy = Boolean(isSaving || isPublishing)
   const activePage = pages.find((page) => page.key === activePageKey)
   const [isPageOpen, setIsPageOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isResetOpen, setIsResetOpen] = useState(false)
   const [newPageName, setNewPageName] = useState('')
 
   const handleCreate = () => {
@@ -91,7 +95,7 @@ export function FluidBuilderHeader({
       <div className="flex flex-1 items-center justify-center">
         <Popover open={isPageOpen} onOpenChange={setIsPageOpen}>
           <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
+            <Button variant="secondary" size="sm" className="gap-2">
               <span className="text-xs font-semibold">{activePage?.label ?? 'Select Page'}</span>
               <ChevronDown className="text-muted-foreground h-3.5 w-3.5" />
             </Button>
@@ -141,6 +145,32 @@ export function FluidBuilderHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        {onResetPage && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2"
+              disabled={isBusy || !canResetPage}
+              onClick={() => setIsResetOpen(true)}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Restore page
+            </Button>
+            <ConfirmDialog
+              open={isResetOpen}
+              onOpenChange={setIsResetOpen}
+              title={`Restore the ${activePage?.label ?? 'current'} page to its default?`}
+              desc="This replaces this page's blocks with the shipped default, discarding your edits to it. It does not touch theme-wide settings such as colours, typography, or radius — reset those from the Theme Settings panel. Like any builder edit it is a draft change, so use Save to persist it."
+              confirmText="Restore page"
+              destructive
+              handleConfirm={() => {
+                onResetPage()
+                setIsResetOpen(false)
+              }}
+            />
+          </>
+        )}
         <Button size="sm" className="gap-2" onClick={onPublish} disabled={isBusy}>
           {isPublishing ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />

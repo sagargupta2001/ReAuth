@@ -105,6 +105,39 @@
     animation: slideUp 300ms ease-out;
 }
 
+@keyframes pulseGlow {
+    0%,
+    100% {
+        opacity: 0.45;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.15);
+    }
+}
+
+/*
+ * Slow, low-opacity violet wash for full-page screens. Purely decorative, so
+ * pair it with aria-hidden and pointer-events-none. Animates only opacity and
+ * transform, so it stays on the compositor.
+ */
+@utility pulse-glow {
+    background-image: radial-gradient(
+        55% 55% at 50% 45%,
+        var(--glow-violet) 0%,
+        transparent 70%
+    );
+    animation: pulseGlow 8s ease-in-out infinite;
+    will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pulse-glow {
+        animation: none;
+    }
+}
+
 @utility dot-grid {
     background-image: radial-gradient(circle, currentColor 1px, transparent 1px);
     background-size: 24px 24px;

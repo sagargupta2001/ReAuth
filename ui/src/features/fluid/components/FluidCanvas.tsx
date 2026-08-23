@@ -14,13 +14,24 @@ import type { ThemeAsset, ThemeNode } from '@/entities/theme/model/types'
 import { renderIcon } from '@/shared/ui/icon-registry'
 import { PasswordInput } from '@/shared/ui/password-input'
 import { cn } from '@/lib/utils'
-import { expandComponentNode } from '@/features/fluid/lib/componentRegistry'
+import {
+  expandComponentNode,
+  type ComponentThemeContext,
+} from '@/features/fluid/lib/componentRegistry'
+import { readableTextOn } from '@/lib/colorUtils'
+import { alignItemsFor, justifyContentFor } from '@/features/fluid/lib/flexLayout'
 import {
   getNestedRecord,
   resolveInputType,
   resolveThemeColor,
-  resolveThemeMode,
 } from '@/features/fluid/lib/themeUtils'
+import {
+  computeNodeVisuals,
+  resolveDisplayText,
+  resolveRadius,
+  resolveVisibleFlag,
+} from '@/features/fluid/lib/nodeVisuals'
+import type { ProviderPreview } from '@/features/fluid/model/providerPreview'
 
 interface FluidCanvasProps {
   tokens: Record<string, unknown>
@@ -28,6 +39,8 @@ interface FluidCanvasProps {
   blocks: ThemeNode[]
   assets: ThemeAsset[]
   selectedNodeId: string | null
+  /** Realm providers, so `ProviderButtons` previews what users will see. */
+  providers?: ProviderPreview[]
   isInspecting?: boolean
   showChrome?: boolean
   onSelectNode: (nodeId: string) => void
@@ -40,6 +53,7 @@ export function FluidCanvas({
   blocks,
   assets,
   selectedNodeId,
+  providers = [],
   isInspecting = false,
   showChrome = true,
   onSelectNode,
@@ -50,7 +64,6 @@ export function FluidCanvas({
   const colors = getNestedRecord(tokens, 'colors')
   const typography = getNestedRecord(tokens, 'typography')
   const radius = getNestedRecord(tokens, 'radius')
-  const appearance = getNestedRecord(tokens, 'appearance')
 
   const rawBackground = String(colors.background || '')
   const rawText = String(colors.text || '')
@@ -60,29 +73,12 @@ export function FluidCanvas({
   const shell = typeof layout.shell === 'string' ? layout.shell : 'CenteredCard'
   const assetMap = new Map(assets.map((asset) => [asset.id, asset]))
   const [hoveredIndex, setHoveredIndex] = useState<string | null>(null)
-  const mode = String(appearance.mode || 'auto')
-  const resolvedMode = resolveThemeMode(mode)
-  const themeClass = resolvedMode === 'dark' ? 'dark' : resolvedMode === 'light' ? 'light' : ''
 
-  const background = resolveThemeColor(
-    rawBackground,
-    resolvedMode,
-    'var(--background)',
-    ['#ffffff', '#fff', '#f8fafc'],
-  )
-  const text = resolveThemeColor(
-    rawText,
-    resolvedMode,
-    'var(--foreground)',
-    ['#0f172a', '#111827'],
-  )
-  const surface = resolveThemeColor(
-    rawSurface,
-    resolvedMode,
-    'var(--card)',
-    ['#ffffff', '#fff'],
-  )
+  const background = resolveThemeColor(rawBackground, 'var(--background)')
+  const text = resolveThemeColor(rawText, 'var(--foreground)')
+  const surface = resolveThemeColor(rawSurface, 'var(--card)')
   const primary = rawPrimary.trim() || 'var(--primary)'
+  const componentTheme: ComponentThemeContext = { text, radius: radiusBase }
   const fontFamily = String(typography.font_family || 'system-ui')
   const baseSize = Number.parseFloat(String(typography.base_size || '16')) || 16
   const containerStyle: CSSProperties = {
@@ -96,75 +92,26 @@ export function FluidCanvas({
     node: ThemeNode,
     options?: { wrapperClass?: string; disableSelection?: boolean },
   ): ReactNode => {
-    const isVisible = (() => {
-      const value = node.props?.visible
-      if (value === undefined) return true
-      if (typeof value === 'boolean') return value
-      if (typeof value === 'string') return value.toLowerCase() !== 'false'
-      return true
-    })()
-    if (!isVisible) {
+    if (!resolveVisibleFlag(node.props?.visible)) {
       return null
     }
-    const props = node.props ?? {}
-    const align = String(props.align || 'left')
-    const alignClass =
-      align === 'center'
-        ? 'text-center'
-        : align === 'right'
-          ? 'text-right'
-          : 'text-left'
-    const fontSize = String(props.font_size || '')
-    const fontWeight = String(props.font_weight || '')
-    const fontColor = String(props.color || '')
-    const marginTop = Number.parseFloat(String(props.margin_top || '0')) || 0
-    const marginBottom = Number.parseFloat(String(props.margin_bottom || '0')) || 0
-    const padding = Number.parseFloat(String(props.padding || '0')) || 0
-    const widthMode = String(node.size?.width || props.width || 'fill')
-    const widthValue = String(node.size?.width_value || props.width_value || '')
-    const heightMode = String(node.size?.height || props.height || 'hug')
-    const heightValue = String(node.size?.height_value || props.height_value || '')
-    const size = String(props.size || 'md')
-    const style: CSSProperties = {
-      marginTop: `${marginTop}px`,
-      marginBottom: `${marginBottom}px`,
-      padding: `${padding}px`,
-    }
-    const widthClass =
-      widthMode === 'hug' || widthMode === 'auto'
-        ? 'w-auto'
-        : widthMode === 'fixed' || widthMode === 'custom'
-          ? ''
-          : 'w-full'
-    const heightClass =
-      heightMode === 'fill'
-        ? 'h-full'
-        : heightMode === 'fixed'
-          ? ''
-          : 'h-auto'
-    const fillHeightClass =
-      heightMode === 'fill' || heightMode === 'fixed' ? 'h-full' : ''
-    const fillWidthClass = widthMode === 'fill' ? 'w-full' : ''
-    if ((widthMode === 'fixed' || widthMode === 'custom') && widthValue) {
-      style.width = widthValue
-    }
-    if (heightMode === 'fixed' && heightValue) {
-      style.height = heightValue
-    }
-
-    if (fontSize) {
-      style.fontSize = fontSize
-    }
-    if (fontWeight) {
-      const numeric = Number.parseInt(fontWeight, 10)
-      style.fontWeight = Number.isNaN(numeric) ? fontWeight : numeric
-    }
-    if (fontColor) {
-      style.color = fontColor
-    }
-
-    const sizeClass =
-      size === 'sm' ? 'h-8 text-xs' : size === 'lg' ? 'h-11 text-base' : 'h-9 text-sm'
+    const {
+      props,
+      alignClass,
+      sizeClass,
+      widthClass,
+      heightClass,
+      fillWidthClass,
+      fillHeightClass,
+      innerWidthClass,
+      innerHeightClass,
+      style,
+      fontSize,
+      fontWeight,
+      size,
+      heightMode,
+      heightValue,
+    } = computeNodeVisuals(node)
     const isSelected = selectedNodeId === node.id
     const isHoverable = isInspecting && !options?.disableSelection
     const handleSelect = (event: MouseEvent<HTMLDivElement>) => {
@@ -208,24 +155,19 @@ export function FluidCanvas({
         const layout = node.layout ?? {}
         const direction = layout.direction === 'row' ? 'flex-row' : 'flex-col'
         const gap = typeof layout.gap === 'number' ? `${layout.gap}px` : undefined
-        const alignItems =
-          layout.align === 'center'
-            ? 'center'
-            : layout.align === 'end'
-              ? 'flex-end'
-              : layout.align === 'start'
-                ? 'flex-start'
-                : 'stretch'
+        const alignItems = alignItemsFor(layout)
+        const justifyContent = justifyContentFor(layout)
         const paddingValue = Array.isArray(layout.padding)
           ? layout.padding.map((value) => `${value}px`).join(' ')
           : undefined
         const borderColor = String(props.border_color || '')
         const borderWidth = Number.parseFloat(String(props.border_width || ''))
-        const borderRadius = String(props.radius || '')
+        const borderRadius = resolveRadius(props.radius)
         const background = String(props.background || '')
         const boxStyle: CSSProperties = {
           gap,
           alignItems,
+          justifyContent,
           padding: paddingValue,
           backgroundColor: background || undefined,
           borderColor: borderColor || undefined,
@@ -234,7 +176,10 @@ export function FluidCanvas({
           borderRadius: borderRadius || undefined,
         }
         return wrap(
-          <div className={cn('flex w-full', direction)} style={boxStyle}>
+          <div
+            className={cn('flex', direction, innerWidthClass, innerHeightClass)}
+            style={boxStyle}
+          >
             {(node.children ?? []).map((child) =>
               renderNode(child, { disableSelection: options?.disableSelection }),
             )}
@@ -242,13 +187,27 @@ export function FluidCanvas({
           undefined,
         )
       }
-      case 'Text':
+      case 'Text': {
+        const { text: displayText, isBinding } = resolveDisplayText(props)
+        // The wrapper already carries font_size/font_weight/color from props, so
+        // only apply the heading defaults when the node does not set them —
+        // a utility class here would override the inherited inline style.
         return wrap(
           <div className={cn('py-1', alignClass)}>
-            <p className="text-lg font-semibold">{String(props.text || 'Headline')}</p>
+            <p
+              className={cn(
+                !fontSize && 'text-lg',
+                !fontWeight && 'font-semibold',
+                isBinding && 'italic opacity-60',
+              )}
+              title={isBinding ? `Bound to context: ${String(props.text_path)}` : undefined}
+            >
+              {displayText}
+            </p>
           </div>,
           undefined,
         )
+      }
       case 'Icon': {
         const name = String(props.name || '')
         const color = String(props.color || '')
@@ -276,7 +235,9 @@ export function FluidCanvas({
         const placeholder = String(props.placeholder || '')
         const inputClass = cn(
           sizeClass,
-          'flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0',
+          // h-auto: the expanded field container supplies the height via its
+          // padding, so the input must not add its own.
+          'h-auto flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0',
           fillHeightClass,
         )
         if (isInspecting) {
@@ -294,7 +255,12 @@ export function FluidCanvas({
         }
         return wrap(
           inputType === 'password' ? (
-            <PasswordInput className={inputClass} disabled />
+            <PasswordInput
+              className="flex-1"
+              inputClassName={inputClass}
+              placeholder={placeholder}
+              disabled
+            />
           ) : (
             <Input className={inputClass} placeholder={placeholder} type={inputType} disabled />
           ),
@@ -302,7 +268,7 @@ export function FluidCanvas({
         )
       }
       case 'Component': {
-        const expanded = expandComponentNode(node)
+        const expanded = expandComponentNode(node, componentTheme)
         if (expanded) {
           return wrap(renderNode(expanded, { disableSelection: true }), options?.wrapperClass)
         }
@@ -314,12 +280,13 @@ export function FluidCanvas({
             variant === 'secondary' ? 'secondary' : variant === 'outline' ? 'outline' : 'default'
           const buttonStyle: CSSProperties = {}
           if (variant === 'primary') {
-            buttonStyle.backgroundColor = String(colors.primary || 'var(--primary)')
-            buttonStyle.color = '#ffffff'
+            buttonStyle.backgroundColor = primary
+            // Derived, not hard-coded: a white label on a light primary is invisible.
+            buttonStyle.color = readableTextOn(primary)
           }
           if (variant === 'outline') {
-            buttonStyle.borderColor = String(colors.primary || 'var(--primary)')
-            buttonStyle.color = String(colors.primary || 'var(--primary)')
+            buttonStyle.borderColor = primary
+            buttonStyle.color = primary
           }
           return wrap(
             <Button
@@ -346,18 +313,49 @@ export function FluidCanvas({
               href={href}
               target={target}
               rel={isExternal ? 'noreferrer' : undefined}
-              className={cn('text-xs underline', alignClass)}
+              className="text-xs underline underline-offset-2"
               style={{ color: fontColor || primary }}
               onClick={(event) => event.preventDefault()}
             >
               {label}
             </a>,
-            undefined,
+            alignClass,
           )
         }
 
         if (component.toLowerCase() === 'divider') {
           return wrap(<Separator />, cn('py-2'))
+        }
+
+        if (component.toLowerCase() === 'providerbuttons') {
+          // The runtime hides this block when no providers are enabled. The
+          // builder keeps a placeholder so the node stays visible and selectable.
+          return wrap(
+            providers.length === 0 ? (
+              <div className="text-muted-foreground rounded-md border border-dashed px-3 py-4 text-center text-xs">
+                No sign-in providers enabled for this realm.
+              </div>
+            ) : (
+              <div className="flex w-full flex-col gap-3">
+                {providers.map((provider) => {
+                  const accent = provider.button_color || primary
+                  return (
+                    <Button
+                      key={provider.alias}
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-center"
+                      style={{ borderColor: accent, color: accent }}
+                      disabled
+                    >
+                      {provider.display_name}
+                    </Button>
+                  )
+                })}
+              </div>
+            ),
+            options?.wrapperClass,
+          )
         }
 
         return wrap(
@@ -411,9 +409,9 @@ export function FluidCanvas({
   )
 
   return (
-    <section className={cn('flex h-full flex-1 flex-col', themeClass)}>
+    <section className="flex h-full flex-1 flex-col">
       {showChrome && (
-        <div className="bg-background flex items-center justify-between border-b px-4 py-2">
+        <div className="bg-background flex items-center justify-between  px-4 py-2">
           <Tabs defaultValue="desktop" className="w-auto">
             <TabsList className="h-8">
               <TabsTrigger value="desktop" className="gap-2 text-xs">
@@ -459,7 +457,7 @@ export function FluidCanvas({
             </div>
             <div className="p-8" style={{ backgroundColor: background, color: text }}>
               <Form {...form}>
-                <form className="space-y-3" onSubmit={(event) => event.preventDefault()}>
+                <form className="space-y-4" onSubmit={(event) => event.preventDefault()}>
                   {formBlocks.length === 0 ? (
                     <div className="text-muted-foreground text-sm">
                       Add blocks to build this page.
@@ -484,7 +482,7 @@ export function FluidCanvas({
             }}
           >
             <Form {...form}>
-              <form className="space-y-3" onSubmit={(event) => event.preventDefault()}>
+              <form className="space-y-4" onSubmit={(event) => event.preventDefault()}>
                 {nonSplitBlocks.length === 0 ? (
                   <div className="text-muted-foreground text-sm">
                     Add blocks to build this page.

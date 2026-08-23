@@ -220,7 +220,7 @@ export const staticRoutes: RouteConfig[] = [
     isProtected: true,
   },
   {
-    path: '/:realm/themes/:themeId',
+    path: '/:realm/themes/:themeId/:tab?',
     element: ThemeDetailsPage,
     layout: AuthenticatedLayout,
     isProtected: true,

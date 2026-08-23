@@ -1,11 +1,10 @@
-import { useEffect } from 'react'
-
 import { History, Layout, Loader2, Settings } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useRoutedTab } from '@/entities/realm/lib/useRoutedTab'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useFlowDraft } from '@/features/flow-builder/api/useFlowDraft'
 import { FlowDetailsOverviewTab } from '@/features/flow/components/FlowDetailsOverviewTab.tsx'
@@ -15,22 +14,21 @@ import { FlowHeader } from '@/features/flow/components/FlowHeader.tsx'
 import { FlowHistoryTab } from '@/features/flow/components/FlowHistoryTab.tsx'
 import { FlowTabLayout } from '@/features/flow/components/FlowTabLayout.tsx'
 
+/** Tab slugs, in display order. The first is the default. */
+const FLOW_TABS = ['overview', 'history', 'settings'] as const
+
 export function FlowDetailsPage() {
-  const { flowId, tab } = useParams<{ flowId: string; tab?: string }>()
+  const { flowId } = useParams<{ flowId: string }>()
   const navigate = useRealmNavigate()
+  const { activeTab, onTabChange } = useRoutedTab({
+    tabs: FLOW_TABS,
+    basePath: `/flows/${flowId}`,
+    enabled: Boolean(flowId),
+  })
 
   const { data: draft, isLoading, isError } = useFlowDraft(flowId!)
 
   useSetBreadcrumb({ [flowId ?? '']: draft?.name ?? '' })
-
-  const validTabs = ['overview', 'history', 'settings']
-  const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'overview'
-
-  const handleTabChange = (newTab: string) => flowId && navigate(`/flows/${flowId}/${newTab}`)
-
-  useEffect(() => {
-    if (!tab && flowId) navigate(`/flows/${flowId}/overview`, { replace: true })
-  }, [tab, flowId, navigate])
 
   if (isLoading) {
     return (
@@ -58,7 +56,7 @@ export function FlowDetailsPage() {
 
       <Tabs
         value={activeTab}
-        onValueChange={handleTabChange}
+        onValueChange={onTabChange}
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 border-b px-6 pt-2">

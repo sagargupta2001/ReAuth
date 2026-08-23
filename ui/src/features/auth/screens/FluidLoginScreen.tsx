@@ -18,13 +18,22 @@ import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
 import { cn } from '@/lib/utils'
 import { UsernamePasswordScreen } from '@/features/auth/screens/UsernamePasswordScreen'
 import { renderIcon } from '@/shared/ui/icon-registry'
-import { expandComponentNode } from '@/features/fluid/lib/componentRegistry'
+import {
+  expandComponentNode,
+  type ComponentThemeContext,
+} from '@/features/fluid/lib/componentRegistry'
+import { readableTextOn } from '@/lib/colorUtils'
+import { alignItemsFor, justifyContentFor } from '@/features/fluid/lib/flexLayout'
 import {
   getNestedRecord,
   resolveInputType,
   resolveThemeColor,
-  resolveThemeMode,
 } from '@/features/fluid/lib/themeUtils'
+import {
+  computeNodeVisuals,
+  resolveRadius,
+  resolveVisibleFlag,
+} from '@/features/fluid/lib/nodeVisuals'
 
 type LoginFormValues = Record<string, string>
 type IdentityProviderOption = {
@@ -297,7 +306,6 @@ export function FluidLoginScreen({
   const colors = getNestedRecord(tokens, 'colors')
   const typography = getNestedRecord(tokens, 'typography')
   const radius = getNestedRecord(tokens, 'radius')
-  const appearance = getNestedRecord(tokens, 'appearance')
 
   const rawBackground = String(colors.background || '')
   const rawText = String(colors.text || '')
@@ -308,29 +316,11 @@ export function FluidLoginScreen({
   const baseSize = Number.parseFloat(String(typography.base_size || '16')) || 16
   const shell = typeof layout.shell === 'string' ? layout.shell : 'CenteredCard'
   const assetMap = new Map(assets.map((asset) => [asset.id, asset]))
-  const themeMode = String(appearance.mode || 'auto')
-  const resolvedMode = resolveThemeMode(themeMode)
-  const themeClass = resolvedMode === 'dark' ? 'dark' : resolvedMode === 'light' ? 'light' : ''
-
-  const background = resolveThemeColor(
-    rawBackground,
-    resolvedMode,
-    'var(--background)',
-    ['#ffffff', '#fff', '#f8fafc'],
-  )
-  const text = resolveThemeColor(
-    rawText,
-    resolvedMode,
-    'var(--foreground)',
-    ['#0f172a', '#111827'],
-  )
+  const background = resolveThemeColor(rawBackground, 'var(--background)')
+  const text = resolveThemeColor(rawText, 'var(--foreground)')
   const primary = rawPrimary.trim() || 'var(--primary)'
-  const surface = resolveThemeColor(
-    rawSurface,
-    resolvedMode,
-    'var(--card)',
-    ['#ffffff', '#fff'],
-  )
+  const surface = resolveThemeColor(rawSurface, 'var(--card)')
+  const componentTheme: ComponentThemeContext = { text, radius: radiusBase }
 
   const formBlocks = useMemo(
     () =>
@@ -599,13 +589,6 @@ export function FluidLoginScreen({
       if (normalized === 'true') return true
       return true
     }
-    return Boolean(value)
-  }
-
-  const resolveVisibleFlag = (value: unknown): boolean => {
-    if (value === undefined) return true
-    if (typeof value === 'boolean') return value
-    if (typeof value === 'string') return value.toLowerCase() !== 'false'
     return Boolean(value)
   }
 
@@ -909,69 +892,29 @@ export function FluidLoginScreen({
     options?: { wrapperClass?: string },
   ): ReactNode => {
     const props = node.props ?? {}
+    // Runtime-only gate: the builder shows every node so it stays editable.
     const isVisible =
       resolveVisibleFlag(props.visible) && resolveVisibleIf(props.visible_if)
     if (!isVisible) {
       return null
     }
-    const align = String(props.align || 'left')
-    const alignClass =
-      align === 'center'
-        ? 'text-center'
-        : align === 'right'
-          ? 'text-right'
-          : 'text-left'
-    const fontSize = String(props.font_size || '')
-    const fontWeight = String(props.font_weight || '')
-    const fontColor = String(props.color || '')
-    const marginTop = Number.parseFloat(String(props.margin_top || '0')) || 0
-    const marginBottom = Number.parseFloat(String(props.margin_bottom || '0')) || 0
-    const padding = Number.parseFloat(String(props.padding || '0')) || 0
-    const widthMode = String(node.size?.width || props.width || 'fill')
-    const widthValue = String(node.size?.width_value || props.width_value || '')
-    const heightMode = String(node.size?.height || props.height || 'hug')
-    const heightValue = String(node.size?.height_value || props.height_value || '')
-    const size = String(props.size || 'md')
-    const style: CSSProperties = {
-      marginTop: `${marginTop}px`,
-      marginBottom: `${marginBottom}px`,
-      padding: `${padding}px`,
-    }
-    const widthClass =
-      widthMode === 'hug' || widthMode === 'auto'
-        ? 'w-auto'
-        : widthMode === 'fixed' || widthMode === 'custom'
-          ? ''
-          : 'w-full'
-    const heightClass =
-      heightMode === 'fill'
-        ? 'h-full'
-        : heightMode === 'fixed'
-          ? ''
-          : 'h-auto'
-    const fillHeightClass =
-      heightMode === 'fill' || heightMode === 'fixed' ? 'h-full' : ''
-    const fillWidthClass = widthMode === 'fill' ? 'w-full' : ''
-    if ((widthMode === 'fixed' || widthMode === 'custom') && widthValue) {
-      style.width = widthValue
-    }
-    if (heightMode === 'fixed' && heightValue) {
-      style.height = heightValue
-    }
-
-    if (fontSize) {
-      style.fontSize = fontSize
-    }
-    if (fontWeight) {
-      const numeric = Number.parseInt(fontWeight, 10)
-      style.fontWeight = Number.isNaN(numeric) ? fontWeight : numeric
-    }
-    if (fontColor) {
-      style.color = fontColor
-    }
-
-    const sizeClass =
-      size === 'sm' ? 'h-8 text-xs' : size === 'lg' ? 'h-11 text-base' : 'h-9 text-sm'
+    const {
+      alignClass,
+      sizeClass,
+      widthClass,
+      heightClass,
+      fillWidthClass,
+      fillHeightClass,
+      innerWidthClass,
+      innerHeightClass,
+      style,
+      fontSize,
+      fontWeight,
+      fontColor,
+      size,
+      heightMode,
+      heightValue,
+    } = computeNodeVisuals(node)
 
     const sizeClassName = cn(widthClass, heightClass)
     const wrap = (content: ReactNode, className?: string) => (
@@ -989,24 +932,21 @@ export function FluidLoginScreen({
         const layout = node.layout ?? {}
         const direction = layout.direction === 'row' ? 'flex-row' : 'flex-col'
         const gap = typeof layout.gap === 'number' ? `${layout.gap}px` : undefined
-        const alignItems =
-          layout.align === 'center'
-            ? 'center'
-            : layout.align === 'end'
-              ? 'flex-end'
-              : layout.align === 'start'
-                ? 'flex-start'
-                : 'stretch'
+        const alignItems = alignItemsFor(layout)
+        const justifyContent = justifyContentFor(layout)
         const paddingValue = Array.isArray(layout.padding)
           ? layout.padding.map((value) => `${value}px`).join(' ')
           : undefined
         const borderColor = String(props.border_color || '')
         const borderWidth = Number.parseFloat(String(props.border_width || ''))
-        const borderRadius = String(props.radius || '')
+        // A bare number is not valid CSS ("border-radius: 12" is dropped), so
+        // unitless values get px.
+        const borderRadius = resolveRadius(props.radius)
         const background = String(props.background || '')
         const boxStyle: CSSProperties = {
           gap,
           alignItems,
+          justifyContent,
           padding: paddingValue,
           backgroundColor: background || undefined,
           borderColor: borderColor || undefined,
@@ -1015,7 +955,10 @@ export function FluidLoginScreen({
           borderRadius: borderRadius || undefined,
         }
         return wrap(
-          <div className={cn('flex w-full', direction)} style={boxStyle}>
+          <div
+            className={cn('flex', direction, innerWidthClass, innerHeightClass)}
+            style={boxStyle}
+          >
             {(node.children ?? []).map((child, childIndex) =>
               renderNode(child, childIndex),
             )}
@@ -1028,9 +971,14 @@ export function FluidLoginScreen({
           const textPath = String(props.text_path || '').trim()
           const resolved = textPath ? resolveContextValue(textPath) : undefined
           const textValue = resolved ?? props.text ?? 'Headline'
+          // The wrapper already carries font_size/font_weight/color from props, so
+          // only apply the heading defaults when the node does not set them —
+          // a utility class here would override the inherited inline style.
           return wrap(
             <div className={cn('py-1', alignClass)}>
-              <p className="text-lg font-semibold">{String(textValue)}</p>
+              <p className={cn(!fontSize && 'text-lg', !fontWeight && 'font-semibold')}>
+                {String(textValue)}
+              </p>
             </div>,
             options?.wrapperClass,
           )
@@ -1062,7 +1010,9 @@ export function FluidLoginScreen({
         const placeholder = String(props.placeholder || '')
         const inputClass = cn(
           sizeClass,
-          'flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0',
+          // h-auto: the expanded field container supplies the height via its
+          // padding, so the input must not add its own.
+          'h-auto flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0',
           fillHeightClass,
         )
         return wrap(
@@ -1074,7 +1024,8 @@ export function FluidLoginScreen({
                 inputType === 'password' ? (
                   <PasswordInput
                     {...field}
-                    className={inputClass}
+                    className="flex-1"
+                    inputClassName={inputClass}
                     placeholder={placeholder}
                     disabled={isLoading}
                   />
@@ -1090,7 +1041,12 @@ export function FluidLoginScreen({
               }
             />
           ) : inputType === 'password' ? (
-            <PasswordInput className={inputClass} disabled={isLoading} />
+            <PasswordInput
+              className="flex-1"
+              inputClassName={inputClass}
+              placeholder={placeholder}
+              disabled={isLoading}
+            />
           ) : (
             <Input
               className={inputClass}
@@ -1103,7 +1059,7 @@ export function FluidLoginScreen({
         )
       }
       case 'Component': {
-        const expanded = expandComponentNode(node)
+        const expanded = expandComponentNode(node, componentTheme)
         if (expanded) {
           return wrap(renderNode(expanded, index), options?.wrapperClass)
         }
@@ -1124,7 +1080,8 @@ export function FluidLoginScreen({
           const buttonStyle: React.CSSProperties = {}
           if (variant === 'primary') {
             buttonStyle.backgroundColor = primary
-            buttonStyle.color = '#ffffff'
+            // Derived, not hard-coded: a white label on a light primary is invisible.
+            buttonStyle.color = readableTextOn(primary)
           }
           if (variant === 'outline') {
             buttonStyle.borderColor = primary
@@ -1184,12 +1141,12 @@ export function FluidLoginScreen({
               href={href}
               target={target}
               rel={isExternal ? 'noreferrer' : undefined}
-              className={cn('text-xs underline', alignClass)}
+              className="text-xs underline underline-offset-2"
               style={{ color: fontColor || primary }}
             >
               {label}
             </a>,
-            options?.wrapperClass,
+            cn(alignClass, options?.wrapperClass),
           )
         }
 
@@ -1290,7 +1247,7 @@ export function FluidLoginScreen({
 
   if (isPasskeyEnrollScreen) {
     return (
-      <div className={cn('min-h-svh w-full', themeClass)} style={{ backgroundColor: background, color: text }}>
+      <div className="min-h-svh w-full" style={{ backgroundColor: background, color: text }}>
         <div className="flex min-h-svh w-full items-center justify-center p-8">
           <div
             className="w-full max-w-md border p-8 shadow-lg"
@@ -1355,7 +1312,7 @@ export function FluidLoginScreen({
 
   if (isPasskeyAssertScreen) {
     return (
-      <div className={cn('min-h-svh w-full', themeClass)} style={{ backgroundColor: background, color: text }}>
+      <div className="min-h-svh w-full" style={{ backgroundColor: background, color: text }}>
         <div className="flex min-h-svh w-full items-center justify-center p-8">
           <div
             className="w-full max-w-md border p-8 shadow-lg"
@@ -1439,7 +1396,7 @@ export function FluidLoginScreen({
   }
 
   return (
-    <div className={cn('min-h-svh w-full', themeClass)} style={containerStyle}>
+    <div className="min-h-svh w-full" style={containerStyle}>
       <div className="flex min-h-svh w-full items-center justify-center p-8">
         {shell === 'SplitScreen' ? (
           <div
@@ -1466,7 +1423,7 @@ export function FluidLoginScreen({
             </div>
             <div className="p-8" style={{ backgroundColor: background, color: text }}>
               <Form {...form}>
-                <form onSubmit={handleSubmit} className="space-y-3">
+                <form onSubmit={handleSubmit} className="space-y-4">
                   {templateKey === 'consent' ? (
                     <input type="hidden" {...form.register('decision')} />
                   ) : null}
@@ -1508,7 +1465,7 @@ export function FluidLoginScreen({
             }}
           >
             <Form {...form}>
-              <form onSubmit={handleSubmit} className="space-y-3">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 {templateKey === 'consent' ? (
                   <input type="hidden" {...form.register('decision')} />
                 ) : null}

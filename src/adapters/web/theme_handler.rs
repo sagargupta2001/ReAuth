@@ -1048,6 +1048,24 @@ pub async fn save_theme_draft_handler(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Serialize)]
+pub struct ThemeDefaultsResponse {
+    pub tokens: Value,
+    pub layout: Value,
+}
+
+/// The tokens and layout a freshly seeded theme starts from, so the builder can
+/// offer a reset without duplicating these values in the UI.
+pub async fn get_theme_defaults_handler(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse> {
+    let (tokens, layout) = state.theme_service.default_draft_settings();
+    Ok((
+        StatusCode::OK,
+        Json(ThemeDefaultsResponse { tokens, layout }),
+    ))
+}
+
 pub async fn publish_theme_handler(
     State(state): State<AppState>,
     Path((realm_name, theme_id)): Path<(String, String)>,

@@ -19,4 +19,13 @@ describe('Input', () => {
     render(<Input disabled placeholder="Test Input" />)
     expect(screen.getByPlaceholderText('Test Input')).toBeDisabled()
   })
+
+  it('paints its focus ring offset in the background colour', () => {
+    render(<Input placeholder="Test Input" />)
+    // Tailwind's --tw-ring-offset-color defaults to #fff, so a bare
+    // ring-offset-* draws a white ring on this dark theme.
+    expect(screen.getByPlaceholderText('Test Input')).toHaveClass(
+      'focus-visible:ring-offset-background',
+    )
+  })
 })

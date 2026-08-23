@@ -1249,6 +1249,14 @@ impl ThemeResolverService {
         Ok(())
     }
 
+    /// The tokens and layout a freshly seeded theme starts from.
+    ///
+    /// Exposed so the builder can offer "reset to defaults" without the UI
+    /// keeping its own copy of these values — the two had already drifted once.
+    pub fn default_draft_settings(&self) -> (Value, Value) {
+        (default_tokens(), default_layout())
+    }
+
     async fn ensure_theme_pages(&self, theme_id: Uuid) -> Result<()> {
         let existing = self.repo.list_nodes(&theme_id).await?;
         let existing_keys: std::collections::HashSet<String> =
@@ -1609,9 +1617,6 @@ fn default_tokens() -> Value {
             "background": "var(--background)",
             "text": "var(--foreground)",
             "surface": "var(--card)"
-        },
-        "appearance": {
-            "mode": "auto"
         },
         "typography": {
             "font_family": "system-ui",

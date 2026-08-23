@@ -8,7 +8,7 @@ export function ButtonGroup({ className, ...props }: ButtonGroupProps) {
     <div
       className={cn(
         'flex w-fit items-center rounded-md',
-        'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1',
+        'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background',
         '[&>button]:rounded-none [&>button:first-child]:rounded-l-md [&>button:last-child]:rounded-r-md',
         '[&>input]:rounded-none [&>input:first-child]:rounded-l-md [&>input:last-child]:rounded-r-md',
         '[&>input]:focus-visible:ring-0 [&>input]:border-r-0',

@@ -44,6 +44,31 @@ This document defines the baseline UI engineering practices for ReAuth. Follow t
 ## 8. UI consistency
 - Use shared UI components from `ui/src/components` and `ui/src/shared/ui`.
 - Avoid custom styling unless necessary; follow theme tokens and Fluid where applicable.
+- Any non-zero `ring-offset-*` must be paired with `ring-offset-background`.
+  Tailwind's `--tw-ring-offset-color` defaults to `#fff`, so a bare offset paints a
+  white ring — unnoticeable on a light theme, glaring on this dark one. Guarded
+  repo-wide by `shared/ui/focus-ring.test.ts`.
+- Note that the shadow tokens in `theme.css` are 1px white-alpha *rings*, not drop
+  shadows (`--shadow-sm: 0 0 0 1px rgba(255,255,255,0.14)`). `shadow-sm` is how
+  inputs get their border, so stacking it inside another bordered container gives
+  a double border — the Fluid renderers pass `shadow-none` for exactly this reason.
+- For a settings/detail card use `SectionCard` (`shared/ui/section-card.tsx`), not
+  a hand-assembled `Card` + `CardHeader` + inset `div`. `CardContent` is
+  deliberately `p-1`; the inset `bg-primary-foreground rounded-2xl p-4` panel is
+  what supplies the content padding, so writing the card by hand and forgetting
+  the panel leaves the content at a different inset from the title. That is
+  exactly the bug the setup page shipped with.
+- `SetupPage` is a deliberate exception: it is a centred *hero* card (logo, centred
+  title/description, single surface with no inset panel), which is a different
+  archetype from a settings card. It composes the `Card` primitives directly and
+  pays for its own `CardContent` padding. Do not "fix" it back to `SectionCard`.
+  If a second hero card appears, promote that shape rather than adding
+  align/media/flush variants to `SectionCard` — the inset panel is the defining
+  feature of `SectionCard`, and a `flush` flag would negate it.
+- Known duplication: `features/realm/components/RealmSettingsCard.tsx` predates
+  `SectionCard` and implements the same pattern, and roughly a dozen settings tabs
+  (client, events, user, group, roles) still hand-write the inset panel. Migrate
+  them to `SectionCard` when touching those files.
 
 ## 9. Testing and linting
 - Update or add tests for any new hooks or API behavior.
@@ -57,3 +82,62 @@ This document defines the baseline UI engineering practices for ReAuth. Follow t
 - [ ] Realm scoping is correct.
 - [ ] Types are updated.
 - [ ] Lint and build pass.
+
+## 11. Animation
+- JS-driven animation goes through the engine in `shared/lib/animations`
+  (`fadeSlideIn`, `fadeSlideOut`, `highlight`, `morphSize`). Do not import `gsap`
+  directly in a component — the engine indirection is what makes the library
+  swappable.
+- Prefer CSS for ambient decoration. A looping background effect is a
+  `@keyframes` plus an `@utility` in `app/style/index.css` (see `pulse-glow`),
+  which costs no JS and stays on the compositor. Reach for the JS engine only
+  when the animation needs to react to component state.
+- Animate only `opacity` and `transform` for ambient effects, and disable them
+  under `@media (prefers-reduced-motion: reduce)`. For JS-driven cases use
+  `prefersReducedMotion()` (`shared/lib/animations/prefersReducedMotion.ts`).
+- Decorative layers are `aria-hidden="true"` and `pointer-events-none`, and take
+  their colours from CSS custom properties (e.g. `--glow-violet`) rather than
+  literals.
+- Never gate navigation or other user-visible progress on an animation finishing.
+- A JS timeline recreated on an interval must replace and kill its predecessor;
+  collecting them in an array cleared only on unmount leaks one per tick.
+
+## 12. React Query keys
+- Build keys so a short, partially-specified key is a genuine **prefix** of the
+  fully-specified one. React Query matches positionally, so a key ending in
+  explicit `undefined` matches nothing longer:
+  `['theme-preview', realm, id, undefined, undefined]` never matched the live
+  `['theme-preview', realm, id, 'login']`, and eight mutation hooks silently
+  failed to refresh the theme preview after publish, rollback, and
+  start-draft-from-version.
+- Optional trailing segments are trimmed by `withoutTrailingUndefined` in
+  `shared/lib/queryKeys.ts`. Inner positions are preserved so a key specifying
+  only a later argument cannot collide with one specifying an earlier argument.
+- Guarded by `shared/lib/queryKeys.test.ts`, which asserts the prefix property
+  directly rather than snapshotting key shapes.
+
+## 13. Detail-page tabs
+- Tabs on a detail page are **routes**, not local state: the route carries a
+  `:tab?` segment so each tab is linkable, bookmarkable, and reachable with the
+  back button. Holding the active tab in `useState` (as the theme page did) loses
+  all three.
+- Use `useRoutedTab` (`entities/realm/lib/useRoutedTab.ts`) rather than repeating
+  the param/validate/redirect block. Pass the tab slugs in display order — the
+  first is the default — plus the realm-relative `basePath`. It also canonicalises
+  an unknown slug, instead of rendering default content under a URL that does not
+  describe it.
+- It lives in `entities/realm` rather than `shared` because it depends on
+  realm-scoped navigation, and `shared` must not import from `entities`.
+- Adding a tabbed detail page means touching **two** places: the `:tab?` route in
+  `app/routerConfig.tsx` and the `TAB_GROUPS` entry in
+  `features/breadcrumb/config/breadcrumb-config.ts`, which drives the breadcrumb's
+  tab dropdown. The theme page had neither.
+- A sibling static route (`/themes/:id/fluid`, `/flows/:id/builder`) coexists with
+  `:tab?` safely: React Router ranks static segments above dynamic ones.
+- Every tabbed page now uses the hook: theme, flow, client, user, role,
+  webhook-target, and `GroupExplorer`. `routedTabs.test.ts` guards both halves —
+  that each `:tab?` route has a `TAB_GROUPS` entry, and that no page reintroduces
+  a local `validTabs` / `handleTabChange` block.
+- `GroupExplorer` is the one widget rather than page: it renders both with and
+  without a selected group, which is what `enabled` is for — with no group there
+  is no tab segment to read or redirect to.

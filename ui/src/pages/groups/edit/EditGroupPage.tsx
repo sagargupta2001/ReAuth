@@ -6,14 +6,14 @@ import { GroupExplorer } from '@/widgets/groups/GroupExplorer'
 import { Main } from '@/widgets/Layout/Main.tsx'
 
 export function EditGroupPage() {
-  const { groupId, tab } = useParams<{ groupId: string; tab?: string }>()
+  const { groupId } = useParams<{ groupId: string }>()
 
   const { data: group } = useGroup(groupId ?? '', { enabled: !!groupId })
   useSetBreadcrumb({ [groupId ?? '']: group?.name ?? '' })
 
   return (
     <Main fixed className="flex flex-1 flex-col p-0">
-      <GroupExplorer groupId={groupId} tab={tab} />
+      <GroupExplorer groupId={groupId} />
     </Main>
   )
 }

@@ -1,5 +1,3 @@
-import { useEffect } from 'react'
-
 import { Layers, Loader2, Settings, ShieldCheck, Users } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
@@ -7,6 +5,7 @@ import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useRoutedTab } from '@/entities/realm/lib/useRoutedTab'
 import { useClient } from '@/features/client/api/useClient'
 import { useRole } from '@/features/roles/api/useRole'
 import { RoleHeader } from '@/features/roles/components/RoleHeader'
@@ -16,11 +15,13 @@ import { RolePermissionsTab } from '@/features/roles/components/RolePermissionsT
 import { RoleSettingsTab } from '@/features/roles/components/RoleSettingsTab'
 import { RoleTabLayout } from '@/features/roles/components/RoleTabLayout'
 
+/** Tab slugs, in display order. The first is the default. */
+const ROLE_TABS = ['settings', 'permissions', 'composites', 'members'] as const
+
 export function EditRolePage() {
-  const { roleId, clientId, tab } = useParams<{
+  const { roleId, clientId } = useParams<{
     roleId: string
     clientId?: string
-    tab?: string
   }>()
   const navigate = useRealmNavigate()
 
@@ -32,24 +33,17 @@ export function EditRolePage() {
   // Base path is context-aware so tab switches / redirects stay nested when the
   // role was opened from a client.
   const basePath = clientId ? `/clients/${clientId}/roles/${roleId}` : `/roles/${roleId}`
+  const { activeTab, onTabChange } = useRoutedTab({
+    tabs: ROLE_TABS,
+    basePath,
+    enabled: Boolean(roleId),
+  })
   const rolesListPath = clientId ? `/clients/${clientId}/roles` : '/roles'
 
   useSetBreadcrumb({
     [roleId ?? '']: role?.name ?? '',
     ...(clientId ? { [clientId]: client?.client_id ?? '' } : {}),
   })
-
-  const validTabs = ['settings', 'permissions', 'composites', 'members']
-  const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
-
-  useEffect(() => {
-    if (!tab) {
-      navigate(`${basePath}/settings`, { replace: true })
-    }
-  }, [tab, basePath, navigate])
-
-  const handleTabChange = (newTab: string) =>
-    navigate(`${basePath}/${newTab}`)
 
 
   if (isLoading)
@@ -79,7 +73,7 @@ export function EditRolePage() {
 
       <Tabs
         value={activeTab}
-        onValueChange={handleTabChange}
+        onValueChange={onTabChange}
         className="flex flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">

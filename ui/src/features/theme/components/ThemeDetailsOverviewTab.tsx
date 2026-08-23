@@ -43,9 +43,6 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
       text: 'var(--foreground)',
       surface: 'var(--card)',
     },
-    appearance: {
-      mode: 'auto',
-    },
     radius: {
       base: 12,
     },
@@ -65,7 +62,7 @@ export function ThemeDetailsOverviewTab({ theme }: ThemeDetailsOverviewTabProps)
           <div className="mt-3">
             <Popover open={open} onOpenChange={setOpen}>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button variant="secondary" size="sm" className="gap-2">
                   <span className="text-xs font-semibold">
                     {activePage?.label ?? activePageKey}
                   </span>

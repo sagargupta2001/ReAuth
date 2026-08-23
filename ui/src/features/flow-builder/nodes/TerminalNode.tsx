@@ -25,7 +25,7 @@ export function TerminalNode({ data, selected, type }: NodeProps) {
       className={cn(
         'bg-card relative min-w-[150px] rounded-md border-2 p-3 shadow-md transition-all',
         borderColor,
-        selected && 'ring-2 ring-offset-2',
+        selected && 'ring-2 ring-offset-2 ring-offset-background',
         selected && (isAllow ? 'ring-blue-400' : 'ring-red-400'),
       )}
     >

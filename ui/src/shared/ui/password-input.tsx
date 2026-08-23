@@ -8,16 +8,30 @@ import { cn } from '@/lib/utils'
 
 type PasswordInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
   ref?: Ref<HTMLInputElement>
+  /**
+   * Classes for the inner `<input>`. `className` styles the wrapper, so callers
+   * that need to strip the input's own border or padding must use this.
+   */
+  inputClassName?: string
 }
 
-export function PasswordInput({ className, disabled, ref, ...props }: PasswordInputProps) {
+export function PasswordInput({
+  className,
+  inputClassName,
+  disabled,
+  ref,
+  ...props
+}: PasswordInputProps) {
   const [showPassword, setShowPassword] = React.useState(false)
 
   return (
     <div className={cn('relative rounded-md', className)}>
       <input
         type={showPassword ? 'text' : 'password'}
-        className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-1 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+        className={cn(
+          'border-input placeholder:text-muted-foreground focus-visible:ring-ring flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-1 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50',
+          inputClassName,
+        )}
         ref={ref}
         disabled={disabled}
         {...props}

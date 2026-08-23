@@ -50,6 +50,9 @@
     --color-preview-pink: #de1d8d;
     --color-develop-blue: #0a72ef;
 
+    /* Ambient purple wash behind full-page auth screens (see .pulse-glow). */
+    --glow-violet: rgba(139, 92, 246, 0.26);
+
     --shadow-2xs: 0 0 0 1px rgba(255,255,255,0.14);
     --shadow-xs: 0 0 0 1px rgba(255,255,255,0.14);
     --shadow-sm: 0 0 0 1px rgba(255,255,255,0.14);

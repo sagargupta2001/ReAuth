@@ -1,11 +1,10 @@
-import { useEffect } from 'react'
-
 import { Loader2, Settings, Shield } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { Button } from '@/components/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs'
 import { useRealmNavigate } from '@/entities/realm/lib/navigation.logic'
+import { useRoutedTab } from '@/entities/realm/lib/useRoutedTab'
 import { useSetBreadcrumb } from '@/features/breadcrumb/model/useBreadcrumbStore'
 import { useClient } from '@/features/client/api/useClient'
 import { ClientHeader } from '@/features/client/components/ClientHeader.tsx'
@@ -13,25 +12,21 @@ import { ClientRolesTab } from '@/features/client/components/ClientRolesTab.tsx'
 import { ClientSettingsTab } from '@/features/client/components/ClientSettingsTab.tsx'
 import { ClientTabLayout } from '@/features/client/components/ClientTabLayout.tsx'
 
+/** Tab slugs, in display order. The first is the default. */
+const CLIENT_TABS = ['settings', 'roles', 'advanced'] as const
+
 export function EditClientPage() {
-  const { clientId, tab } = useParams<{ clientId: string; tab?: string }>()
+  const { clientId } = useParams<{ clientId: string }>()
   const navigate = useRealmNavigate()
-  const validTabs = ['settings', 'roles', 'advanced']
-  const activeTab = validTabs.includes(tab || '') ? (tab as string) : 'settings'
+  const { activeTab, onTabChange } = useRoutedTab({
+    tabs: CLIENT_TABS,
+    basePath: `/clients/${clientId}`,
+    enabled: Boolean(clientId),
+  })
 
   const { data: client, isLoading, isError } = useClient(clientId!)
 
   useSetBreadcrumb({ [clientId ?? '']: client?.client_id ?? '' })
-
-  const handleTabChange = (newTab: string) =>
-    navigate(`/clients/${clientId}/${newTab}`)
-
-
-  useEffect(() => {
-    if (!tab) {
-      navigate(`/clients/${clientId}/settings`, { replace: true })
-    }
-  }, [tab, clientId, navigate])
 
   if (isLoading)
     return (
@@ -61,7 +56,7 @@ export function EditClientPage() {
 
       <Tabs
         value={activeTab}
-        onValueChange={handleTabChange}
+        onValueChange={onTabChange}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
         <div className="bg-muted/5 shrink-0 border-b px-6 pt-2">

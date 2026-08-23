@@ -1,22 +1,47 @@
 import type { ThemeNode } from '@/entities/theme/model/types'
+import { withAlpha } from '@/lib/colorUtils'
 
 const DEFAULT_LABEL_SIZE = '12px'
 const DEFAULT_LABEL_WEIGHT = '600'
-const DEFAULT_LABEL_COLOR = 'var(--muted-foreground)'
 const DEFAULT_ERROR_SIZE = '12px'
 const DEFAULT_ERROR_WEIGHT = '400'
 const DEFAULT_ERROR_COLOR = '#ef4444'
-const DEFAULT_FIELD_BORDER_COLOR = '#e2e8f0'
 const DEFAULT_FIELD_BORDER_WIDTH = 1
 const DEFAULT_FIELD_RADIUS = 8
-const DEFAULT_FIELD_BACKGROUND = '#ffffff'
-const DEFAULT_FIELD_PADDING = 8
+const DEFAULT_FIELD_PADDING = 10
 const DEFAULT_FIELD_GAP = 8
 const DEFAULT_STACK_GAP = 0
 
+/** Alpha applied to the theme's text colour to derive a field border. */
+const BORDER_ALPHA = 0.22
+/** Alpha applied to the theme's text colour to derive secondary label text. */
+const LABEL_ALPHA = 0.7
+
+/**
+ * Theme colours a component expansion needs for the parts the blueprint does not
+ * specify.
+ *
+ * Without this the expansion has to hard-code values, which is how inputs ended
+ * up rendering as solid white boxes on dark themes.
+ */
+export interface ComponentThemeContext {
+  /** The theme's text colour; borders and label text are derived from it. */
+  text?: string
+  /** Base corner radius, in pixels. */
+  radius?: number
+}
+
+function fieldBorderColor(theme?: ComponentThemeContext) {
+  return theme?.text ? withAlpha(theme.text, BORDER_ALPHA) : `rgba(127, 127, 127, ${BORDER_ALPHA})`
+}
+
+function labelColor(theme?: ComponentThemeContext) {
+  return theme?.text ? withAlpha(theme.text, LABEL_ALPHA) : 'var(--muted-foreground)'
+}
+
 type ComponentDefinition = {
   id: string
-  expand: (node: ThemeNode) => ThemeNode | null
+  expand: (node: ThemeNode, theme?: ComponentThemeContext) => ThemeNode | null
 }
 
 const parseNumber = (value: unknown, fallback: number) => {
@@ -35,7 +60,7 @@ const normalizeSlotNode = (slot: ThemeNode, fallbackId: string) => ({
 
 const inputComponent: ComponentDefinition = {
   id: 'Input',
-  expand: (node) => {
+  expand: (node, theme) => {
     const props = node.props ?? {}
     const baseId = node.id ?? 'input'
     const labelText = String(props.label ?? '')
@@ -48,7 +73,7 @@ const inputComponent: ComponentDefinition = {
         text: labelText,
         font_size: String(props.label_size || DEFAULT_LABEL_SIZE),
         font_weight: String(props.label_weight || DEFAULT_LABEL_WEIGHT),
-        color: String(props.label_color || DEFAULT_LABEL_COLOR),
+        color: String(props.label_color || labelColor(theme)),
         margin_bottom: labelSpacing,
         align: props.align,
         visible: labelText.trim().length > 0,
@@ -67,10 +92,11 @@ const inputComponent: ComponentDefinition = {
         padding: [fieldPadding, fieldPadding, fieldPadding, fieldPadding],
       },
       props: {
-        border_color: String(props.field_border_color || DEFAULT_FIELD_BORDER_COLOR),
+        border_color: String(props.field_border_color || fieldBorderColor(theme)),
         border_width: parseNumber(props.field_border_width, DEFAULT_FIELD_BORDER_WIDTH),
-        radius: parseNumber(props.field_radius, DEFAULT_FIELD_RADIUS),
-        background: String(props.field_background || DEFAULT_FIELD_BACKGROUND),
+        radius: parseNumber(props.field_radius, theme?.radius ?? DEFAULT_FIELD_RADIUS),
+        // Transparent by default so the field sits on the theme's own surface.
+        background: String(props.field_background || 'transparent'),
       },
       children: [],
     }
@@ -134,9 +160,12 @@ const COMPONENTS: Record<string, ComponentDefinition> = {
   Input: inputComponent,
 }
 
-export function expandComponentNode(node: ThemeNode): ThemeNode | null {
+export function expandComponentNode(
+  node: ThemeNode,
+  theme?: ComponentThemeContext,
+): ThemeNode | null {
   if (node.type !== 'Component' || !node.component) return null
   const definition = COMPONENTS[node.component]
   if (!definition) return null
-  return definition.expand(node)
+  return definition.expand(node, theme)
 }

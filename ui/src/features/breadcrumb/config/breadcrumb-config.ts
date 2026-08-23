@@ -100,6 +100,11 @@ export const TAB_GROUPS: Record<string, TabDef[]> = {
     { slug: 'history', label: 'Version History', icon: History },
     { slug: 'settings', label: 'Settings', icon: Settings },
   ],
+  themes: [
+    { slug: 'overview', label: 'Overview', icon: Layout },
+    { slug: 'history', label: 'Version History', icon: History },
+    { slug: 'settings', label: 'Settings', icon: Settings },
+  ],
   // /events/webhooks/:id/:tab — owning section is "webhooks".
   webhooks: [
     { slug: 'configure', label: 'Configure', icon: SlidersHorizontal },
