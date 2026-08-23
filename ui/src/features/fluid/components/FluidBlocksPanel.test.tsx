@@ -49,6 +49,45 @@ describe('FluidBlocksPanel', () => {
     expect(screen.getByText('Icon')).toBeInTheDocument()
   })
 
+  it('indents a child deeper than its parent', () => {
+    renderPanel({
+      nodes: [
+        {
+          id: 'node-box',
+          type: 'Box',
+          children: [{ id: 'node-child', type: 'Text', props: { text: 'Inner' } }],
+        },
+      ],
+    })
+
+    const indentOf = (label: string) => {
+      const row = screen.getByText(label).closest('[style*="padding-left"]') as HTMLElement
+      return Number.parseFloat(row.style.paddingLeft)
+    }
+
+    // The grip used to render only on root rows, stripping ~22px from child
+    // rows, so children appeared further left than their parent.
+    expect(indentOf('Text')).toBeGreaterThan(indentOf('Box'))
+  })
+
+  it('reserves the grip column on child rows so indentation reads correctly', () => {
+    renderPanel({
+      nodes: [
+        {
+          id: 'node-box',
+          type: 'Box',
+          children: [{ id: 'node-child', type: 'Text', props: { text: 'Inner' } }],
+        },
+      ],
+    })
+
+    const labelOffset = (label: string) =>
+      screen.getByText(label).closest('button')?.previousElementSibling
+    // Every row has the reserved slot, draggable or not.
+    expect(labelOffset('Box')).not.toBeNull()
+    expect(labelOffset('Text')).not.toBeNull()
+  })
+
   it('shows an empty state when the page has no nodes', () => {
     renderPanel({ nodes: [] })
     expect(screen.getByText('Add blocks to build this page.')).toBeInTheDocument()

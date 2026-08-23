@@ -53,7 +53,15 @@ export function SectionTreeNode({ node, depth, index, isRoot = false }: SectionT
         onDragOver={dragIndex === null ? undefined : reorder.onDragOver}
         onDrop={dragIndex === null ? undefined : (event) => reorder.onDrop(event, dragIndex)}
       >
-        {isRoot && <GripVertical className="text-muted-foreground/60 h-3.5 w-3.5" />}
+        {/*
+          The grip column is reserved on every row, not just draggable ones.
+          Rendering it conditionally removed ~22px of leading space from child
+          rows, so a child's label sat further left than its parent's and the
+          nesting read backwards.
+        */}
+        <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+          {isRoot && <GripVertical className="text-muted-foreground/60 h-3.5 w-3.5" />}
+        </span>
         <button
           type="button"
           className="flex flex-1 items-center gap-2 text-left"
