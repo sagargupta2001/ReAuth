@@ -1,3 +1,4 @@
+import { TOKEN_FALLBACK } from '@/features/fluid/model/tokens'
 import {
   CustomInspectorPanel,
   FieldTarget,
@@ -118,12 +119,12 @@ export const INSPECTOR_SECTIONS: readonly InspectorSection[] = [
         placeholder: 'e.g. 16',
       },
       {
-        kind: InspectorFieldKind.Text,
+        kind: InspectorFieldKind.Color,
         id: 'icon-color',
         label: 'Color',
         target: FieldTarget.Props,
         key: 'color',
-        placeholder: 'e.g. #94a3b8',
+        fallback: TOKEN_FALLBACK.text,
       },
       {
         kind: InspectorFieldKind.Textarea,
@@ -211,11 +212,12 @@ export const INSPECTOR_SECTIONS: readonly InspectorSection[] = [
         placeholder: 'e.g. 600',
       },
       {
-        kind: InspectorFieldKind.Text,
+        kind: InspectorFieldKind.Color,
         id: 'label-color',
         label: 'Label Color',
         target: FieldTarget.Props,
         key: 'label_color',
+        fallback: TOKEN_FALLBACK.text,
       },
       {
         kind: InspectorFieldKind.Number,
@@ -235,18 +237,20 @@ export const INSPECTOR_SECTIONS: readonly InspectorSection[] = [
     appliesTo: { components: ['Input'] },
     fields: [
       {
-        kind: InspectorFieldKind.Text,
+        kind: InspectorFieldKind.Color,
         id: 'field-background',
         label: 'Background',
         target: FieldTarget.Props,
         key: 'field_background',
+        fallback: TOKEN_FALLBACK.surface,
       },
       {
-        kind: InspectorFieldKind.Text,
+        kind: InspectorFieldKind.Color,
         id: 'field-border-color',
         label: 'Border Color',
         target: FieldTarget.Props,
         key: 'field_border_color',
+        fallback: TOKEN_FALLBACK.text,
       },
       {
         kind: InspectorFieldKind.Number,
@@ -433,22 +437,22 @@ export const INSPECTOR_SECTIONS: readonly InspectorSection[] = [
     appliesTo: { types: ['Box'] },
     fields: [
       {
-        kind: InspectorFieldKind.Text,
+        kind: InspectorFieldKind.Color,
         id: 'box-background',
         label: 'Background',
         hint: 'A colour, or a token reference like var(--card).',
         target: FieldTarget.Props,
         key: 'background',
-        placeholder: 'e.g. #0f172a or var(--card)',
+        fallback: TOKEN_FALLBACK.surface,
       },
       {
-        kind: InspectorFieldKind.Text,
+        kind: InspectorFieldKind.Color,
         id: 'box-border-color',
         label: 'Border Color',
         hint: 'Setting either border field draws the outline.',
         target: FieldTarget.Props,
         key: 'border_color',
-        placeholder: 'e.g. #1e293b or var(--border)',
+        fallback: TOKEN_FALLBACK.text,
       },
       {
         kind: InspectorFieldKind.Number,
@@ -560,11 +564,12 @@ export const INSPECTOR_SECTIONS: readonly InspectorSection[] = [
         placeholder: 'e.g. 600 or bold',
       },
       {
-        kind: InspectorFieldKind.Text,
+        kind: InspectorFieldKind.Color,
         id: 'font-color',
         label: 'Color',
         target: FieldTarget.Props,
         key: 'color',
+        fallback: TOKEN_FALLBACK.text,
       },
     ],
   },

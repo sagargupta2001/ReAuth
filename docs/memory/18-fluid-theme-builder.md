@@ -211,6 +211,11 @@ check now works on token-based colours too (it previously showed "Unavailable").
 
 ### 5.4.1 The Two Renderers Share Their Derivation
 
+> Superseded in part by §5.4.11: the two renderers now share the whole tree
+> walk, not just the derivation. The reasoning below is why, and still governs
+> what may live in a host.
+
+
 `FluidCanvas` (builder preview) and `FluidLoginScreen` (runtime) are separate
 components by necessity — one is selectable and inert, the other wires
 react-hook-form, actions, OAuth, and passkeys. What they must *not* duplicate is
@@ -508,6 +513,63 @@ parent and are never ambiguous.
 `FluidCanvas` and through `FluidLoginScreen` (with `useThemeSnapshot` mocked) and
 compares the nesting chain and its layout derivation. That is §5.4.1's rule made
 executable for the one case nesting makes easy to break.
+
+### 5.4.11 One Walker, Two Hosts
+
+`lib/nodeVisuals.ts` removed the duplicated *derivation*; the duplicated *tree
+walk* survived it. `FluidCanvas.renderNode` was 312 lines and
+`FluidLoginScreen.renderNode` was 352, of which **233 were byte-identical** —
+about 70%. Three shipped bugs came out of that one fact: the `ProviderButtons`
+canvas gap, the two `resolveVisibleFlag` copies that disagreed on `visible: 0`,
+and the five renderer defaults in §5.4.3 that had to be fixed twice.
+
+`lib/renderFluidNode.tsx` is now the only walker. Both components drive it with
+a `FluidHost`, which carries the four things that genuinely differ and nothing
+else:
+
+| Host method | `FluidCanvas` | `FluidLoginScreen` |
+|---|---|---|
+| `isVisible` | always true, so a hidden node stays editable | gates on `visible` / `visible_if` |
+| `wrap` | selection ring and click target | plain sized wrapper |
+| `renderText` | shows the binding, dimmed | resolves it against auth context |
+| `renderInput` | inert, or a placeholder in inspect mode | `FormField`-wired |
+| `renderButton` | disabled | actions, OAuth, resend, submit |
+| `renderProviders` | preview, or a placeholder when the realm has none | live buttons, or hides the block |
+| `linkProps` | `preventDefault` | — |
+
+Three things this structurally fixes rather than fixing by vigilance:
+
+1. **A branch cannot drop the caller's wrapper class.** `wrap` merges
+   `options.wrapperClass` centrally. Four branches used to merge it by hand and
+   forgot, so brand-slot `text-white` reached Text at runtime but not in the
+   builder. `renderFluidNode.test.tsx` asserts it for every node type.
+2. **The Divider and Image wrappers had diverged.** The builder added `py-2` to
+   a Divider the runtime did not, and applied `alignClass` to an Image the
+   runtime ignored — so `align` on an Image was a control that worked only in
+   the preview. Unifying forced a choice each way, recorded in that test.
+3. **Component rendering is enumerable.** `COMPONENT_RENDERERS` is a map keyed
+   by lowercased component name, so adding a component block is an entry, and
+   the capability matrix imports `RENDERED_COMPONENTS` rather than
+   pattern-matching source for branches.
+
+`components/FluidShell.tsx` did the same for the page shell, which was written
+three times: once in the canvas and twice in the runtime, whose `SplitScreen`
+and `CenteredCard` arms each repeated the error banner and the developer
+warning. `lib/shellBlocks.ts` owns the `props.slot` partitioning that all three
+copies had re-implemented.
+
+Net: `FluidCanvas` 506 → 290 lines, `FluidLoginScreen` 1500 → 1251, with 331
+shared lines replacing ~660 duplicated ones.
+
+Rules for keeping it that way:
+
+- A new block or a render-level styling prop is **one** change, in the walker.
+  If you find yourself editing both hosts, the thing you are adding is probably
+  structural and belongs in the walker.
+- A host method is for behaviour, not styling. Adding a class in a host is how
+  the drift starts again.
+- `capabilityMatrix.test.ts` asserts the hosts contain no node `switch`. That
+  test failing means the duplication is coming back.
 
 ### 5.5 Diff and Snapshot Viewer
 

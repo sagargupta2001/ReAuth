@@ -29,6 +29,8 @@ export const InspectorFieldKind = {
   Number: 'number',
   Textarea: 'textarea',
   Select: 'select',
+  /** A design-token reference or a literal colour, as an explicit choice. */
+  Color: 'color',
   /** Read-only display, e.g. the node's type. */
   Readonly: 'readonly',
   /** Icon name plus a searchable picker. */
@@ -90,6 +92,12 @@ export interface SelectInspectorField extends TargetedField {
   fallback: string
 }
 
+export interface ColorInspectorField extends TargetedField {
+  kind: typeof InspectorFieldKind.Color
+  /** Swatch colour shown while the value is empty or unparseable. */
+  fallback: string
+}
+
 export interface ReadonlyInspectorField extends FieldBase {
   kind: typeof InspectorFieldKind.Readonly
   /** Derives the displayed text from the selected node. */
@@ -139,6 +147,7 @@ export type InspectorField =
   | NumberInspectorField
   | TextareaInspectorField
   | SelectInspectorField
+  | ColorInspectorField
   | ReadonlyInspectorField
   | IconInspectorField
   | AssetInspectorField

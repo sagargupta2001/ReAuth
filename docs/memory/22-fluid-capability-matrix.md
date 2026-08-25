@@ -59,7 +59,7 @@ Applies to: Icon (slot-only).
 |---|---|---|
 | Icon Name | `props.name` | `icon` |
 | Size | `props.size` | `text` |
-| Color | `props.color` | `text` |
+| Color | `props.color` | `color` |
 | Custom SVG | `props.svg_path` | `textarea` |
 | ViewBox | `props.svg_viewbox` | `text` |
 
@@ -83,7 +83,7 @@ Applies to: Input.
 |---|---|---|
 | Label Size | `props.label_size` | `text` |
 | Label Weight | `props.label_weight` | `text` |
-| Label Color | `props.label_color` | `text` |
+| Label Color | `props.label_color` | `color` |
 | Label Spacing | `props.label_spacing` | `number` |
 
 ### Field
@@ -92,8 +92,8 @@ Applies to: Input.
 
 | Field | Writes | Control |
 |---|---|---|
-| Background | `props.field_background` | `text` |
-| Border Color | `props.field_border_color` | `text` |
+| Background | `props.field_background` | `color` |
+| Border Color | `props.field_border_color` | `color` |
 | Border Width | `props.field_border_width` | `number` |
 | Corner Radius | `props.field_radius` | `number` |
 | Inner Padding | `props.field_padding` | `number` |
@@ -145,8 +145,8 @@ Applies to: Box.
 
 | Field | Writes | Control |
 |---|---|---|
-| Background | `props.background` | `text` |
-| Border Color | `props.border_color` | `text` |
+| Background | `props.background` | `color` |
+| Border Color | `props.border_color` | `color` |
 | Border Width | `props.border_width` | `number` |
 | Corner Radius | `props.radius` | `number` |
 
@@ -177,7 +177,7 @@ Applies to: Text, Button, Link.
 |---|---|---|
 | Font Size | `props.font_size` | `text` |
 | Font Weight | `props.font_weight` | `text` |
-| Color | `props.color` | `text` |
+| Color | `props.color` | `color` |
 
 ### Spacing
 
@@ -230,20 +230,35 @@ Theme-wide tokens, edited in the theme settings panel and inherited by every pag
 
 ## 4. Renderer coverage
 
-`FluidCanvas` is the builder preview and `FluidLoginScreen` is what users get.
-A block handled by only one of them looks fine in review and is broken in
-production, or the reverse — which is exactly how `ProviderButtons` shipped.
+There is one tree walker, `lib/renderFluidNode.tsx`. `FluidCanvas` (builder
+preview) and `FluidLoginScreen` (runtime) drive it with a `FluidHost` each,
+supplying only what genuinely differs: wrapping, visibility, and the
+interactive leaves. Structure and styling are shared, so a block cannot
+render in one and not the other — which is how `ProviderButtons` once
+shipped broken in the builder.
 
-| Block | Handled by | FluidCanvas | FluidLoginScreen |
-|---|---|---|---|
-| Box | inline `case` | yes | yes |
-| Text | inline `case` | yes | yes |
-| Input Field | `componentRegistry` expansion | yes | yes |
-| Button | inline `case` | yes | yes |
-| Sign-in Providers | inline `case` | yes | yes |
-| Divider | inline `case` | yes | yes |
-| Link | inline `case` | yes | yes |
-| Image | inline `case` | yes | yes |
+| Block | Handled by |
+|---|---|
+| Box | walker node-type branch |
+| Text | walker node-type branch |
+| Input Field | `componentRegistry` expansion |
+| Button | `COMPONENT_RENDERERS` entry |
+| Sign-in Providers | `COMPONENT_RENDERERS` entry |
+| Divider | `COMPONENT_RENDERERS` entry |
+| Link | `COMPONENT_RENDERERS` entry |
+| Image | walker node-type branch |
+
+Host responsibilities, and nothing else:
+
+| Host method | FluidCanvas | FluidLoginScreen |
+|---|---|---|
+| `isVisible` | always true, so hidden nodes stay editable | gates on `visible` / `visible_if` |
+| `wrap` | selection ring + click target | plain sized wrapper |
+| `renderText` | shows the binding, dimmed | resolves it against auth context |
+| `renderInput` | inert or placeholder | `FormField`-wired input |
+| `renderButton` | disabled | actions, OAuth, resend, submit |
+| `renderProviders` | preview, or a placeholder when none | live buttons, or hides the block |
+| `linkProps` | `preventDefault` | — (navigates) |
 
 ## 5. Derived gaps
 

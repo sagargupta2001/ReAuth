@@ -254,17 +254,26 @@ Add `InspectorFieldKind.Color` (a kind, a descriptor, a case in
   propagates instead of being pinned per block. Directly serves the "brand
   alignment" use case above.
 
-### R3 — A block registry instead of a central switch (after R1)
+### R3 — A component registry instead of a dispatch chain (after R1) — **done, scoped down**
 
-Adding a block today touches `FluidBlockId`, `FLUID_BLOCKS`, `BLOCK_PREVIEWS`,
-`INSPECTOR_SECTIONS`, and — unless the component registry expands it — both
-renderers. After R1, collapse that to one registry entry per block colocating
-its definition, preview, inspector section, and render.
+Proposed as "one registry entry per block, colocating definition, preview,
+inspector section, and render". Two thirds of that did not survive contact with
+the code and were deliberately dropped:
 
-- Payoff: a block becomes one new file, and the shared files stop being
-  merge-conflict hotspots once there are twenty of them.
-- Do **not** do this before R1: restructuring dispatch while it is duplicated
-  means doing it twice.
+- **Preview stays in `BLOCK_PREVIEWS`.** It is already a
+  `Record<FluidBlockId, …>`, so a missing preview is a compile error and the bug
+  it would prevent cannot occur. Merging it into `FLUID_BLOCKS` would only move
+  JSX into `model/`, which is where the per-item *data* lives.
+- **Inspector sections stay section-oriented.** They are cross-cutting —
+  Typography applies to Text, Button, and Link — so a per-block layout would
+  either duplicate them or reinvent `appliesTo` under another name. Declaring
+  applicability on the section is already the right model.
+
+What shipped is the part with a real payoff: the component `if` chain in the
+walker became `COMPONENT_RENDERERS`, a map keyed by lowercased component name.
+Adding a component block is an entry, and — the reason it is worth doing — the
+set is now **enumerable**, so the capability matrix imports `RENDERED_COMPONENTS`
+instead of pattern-matching the renderer's source for branches.
 
 ### R4 — Grouped style objects instead of a flat prop bag (largest; own spec)
 
@@ -371,10 +380,10 @@ Sequence: **R1 → R2 (independent, can run in parallel) → R3 → R4**.
 - [x] Nested section editing: drag into containers, indent/outdent, depth limit, empty-container targets (`fluid-nested-sections.md`).
 - [x] Generate the capability matrix (blocks, styling options, tokens, gaps) from the schemas.
 - [x] Expose Box surface props (background, border colour/width, corner radius) in the inspector.
-- [ ] R1: collapse the two `renderNode` switches into one host-driven tree walker.
-- [ ] R2: add an inspector colour control with design-token references.
-- [ ] R3: colocate block definition, preview, inspector section, and render in one registry entry.
-- [ ] R4: grouped style objects on nodes, replacing prefixed slot-styling props.
+- [x] R1: collapse the two `renderNode` switches into one host-driven tree walker (`lib/renderFluidNode.tsx` + `FluidShell`).
+- [x] R2: add an inspector colour control with design-token references.
+- [x] R3: make component rendering a registry (`COMPONENT_RENDERERS`) the matrix can enumerate.
+- [ ] R4: grouped style objects on nodes — specced in `docs/specs/fluid-style-groups.md`, awaiting approval.
 
 ## Upcoming integration (Flow Builder ↔ Fluid)
 - Add a **Template Selector** per Flow Node (bind node → page key).

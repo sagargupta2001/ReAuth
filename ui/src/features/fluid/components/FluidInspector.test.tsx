@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { FluidInspector } from './FluidInspector'
@@ -101,11 +101,35 @@ describe('FluidInspector', () => {
 
     expect(screen.getByText('Appearance')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Background'), { target: { value: 'var(--card)' } })
-    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({ props: { background: 'var(--card)' } })
+    fireEvent.change(screen.getByLabelText('Background'), { target: { value: '#101828' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({ props: { background: '#101828' } })
 
     fireEvent.change(screen.getByLabelText('Corner Radius'), { target: { value: '16' } })
     expect(onUpdateSelectedBlock).toHaveBeenCalledWith({ props: { radius: 16 } })
+  })
+
+  it('offers block colours as a design token or a literal, not a raw string', () => {
+    // Every inspector colour used to be a plain text input, so a block colour
+    // could only ever be pinned to a literal. Referencing a token is what lets
+    // a palette change propagate.
+    renderInspector({
+      id: 'b2',
+      type: 'Box',
+      props: { background: 'var(--card)' },
+      children: [],
+    })
+
+    const source = screen.getByRole('group', { name: 'Background source' })
+    expect(source).toBeInTheDocument()
+
+    // A token-valued colour resolves to the token picker rather than a swatch
+    // showing an unrelated fallback.
+    const tokenButton = within(source).getByRole('button', { name: 'Design token' })
+    expect(tokenButton).toHaveAttribute('aria-pressed', 'true')
+    expect(within(source).getByRole('button', { name: 'Custom' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 
   it('does not offer box surface props on a Text node', () => {

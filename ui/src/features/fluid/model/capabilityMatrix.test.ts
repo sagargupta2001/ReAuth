@@ -6,6 +6,10 @@ import { describe, expect, it } from 'vitest'
 
 import type { ThemeNode } from '@/entities/theme/model/types'
 import { EXPANDED_COMPONENTS } from '@/features/fluid/lib/componentRegistry'
+import {
+  RENDERED_COMPONENTS,
+  RENDERED_NODE_TYPES,
+} from '@/features/fluid/lib/renderFluidNode'
 import { FLUID_BLOCKS, type FluidBlockDefinition } from '@/features/fluid/model/blockCatalog'
 import {
   FieldTarget,
@@ -34,16 +38,22 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(HERE, '../../../../..')
 const DOC_PATH = resolve(REPO_ROOT, 'docs/memory/22-fluid-capability-matrix.md')
 
-const RENDERER_SOURCES = {
+/** The single tree walker both renderers drive; it reads `props` on their behalf. */
+const RENDER_WALKER = 'ui/src/features/fluid/lib/renderFluidNode.tsx'
+
+/** The two hosts that supply the walker's behavioural differences. */
+const HOST_SOURCES = {
   FluidCanvas: 'ui/src/features/fluid/components/FluidCanvas.tsx',
   FluidLoginScreen: 'ui/src/features/auth/screens/FluidLoginScreen.tsx',
 } as const
 
-/** Files that consume `node.props` on behalf of one or both renderers. */
+/** Files that consume `node.props` on behalf of the renderers. */
 const PROP_CONSUMERS = [
-  ...Object.values(RENDERER_SOURCES),
+  RENDER_WALKER,
+  ...Object.values(HOST_SOURCES),
   'ui/src/features/fluid/lib/nodeVisuals.ts',
   'ui/src/features/fluid/lib/componentRegistry.ts',
+  'ui/src/features/fluid/lib/shellBlocks.ts',
 ]
 
 /**
@@ -177,10 +187,6 @@ function table(headers: string[], rows: string[][]): string {
 }
 
 function buildMatrix(): string {
-  const sources = Object.fromEntries(
-    Object.entries(RENDERER_SOURCES).map(([name, path]) => [name, readSource(path)]),
-  ) as Record<keyof typeof RENDERER_SOURCES, string>
-
   const rendererProps = new Set<string>()
   for (const path of PROP_CONSUMERS) {
     for (const prop of propsReadBy(readSource(path))) rendererProps.add(prop)
@@ -281,27 +287,45 @@ function buildMatrix(): string {
   out.push('## 4. Renderer coverage')
   out.push('')
   out.push(
-    '`FluidCanvas` is the builder preview and `FluidLoginScreen` is what users get.',
-    'A block handled by only one of them looks fine in review and is broken in',
-    'production, or the reverse — which is exactly how `ProviderButtons` shipped.',
+    'There is one tree walker, `lib/renderFluidNode.tsx`. `FluidCanvas` (builder',
+    'preview) and `FluidLoginScreen` (runtime) drive it with a `FluidHost` each,',
+    'supplying only what genuinely differs: wrapping, visibility, and the',
+    'interactive leaves. Structure and styling are shared, so a block cannot',
+    'render in one and not the other — which is how `ProviderButtons` once',
+    'shipped broken in the builder.',
   )
   out.push('')
   out.push(
     table(
-      ['Block', 'Handled by', 'FluidCanvas', 'FluidLoginScreen'],
+      ['Block', 'Handled by'],
       FLUID_BLOCKS.map((block) => {
         const target = renderTargetOf(block)
-        const expanded = EXPANDED_COMPONENTS.includes(target)
-        const handledBy = expanded ? '`componentRegistry` expansion' : 'inline `case`'
-        const check = (source: string) =>
-          expanded || rendererHandles(source, block) ? 'yes' : '**no**'
+        if (EXPANDED_COMPONENTS.includes(target)) {
+          return [block.label, '`componentRegistry` expansion']
+        }
+        if (!walkerHandles(block)) return [block.label, '**missing branch**']
         return [
           block.label,
-          handledBy,
-          check(sources.FluidCanvas),
-          check(sources.FluidLoginScreen),
+          block.node.component ? '`COMPONENT_RENDERERS` entry' : 'walker node-type branch',
         ]
       }),
+    ),
+  )
+  out.push('')
+  out.push('Host responsibilities, and nothing else:')
+  out.push('')
+  out.push(
+    table(
+      ['Host method', 'FluidCanvas', 'FluidLoginScreen'],
+      [
+        ['`isVisible`', 'always true, so hidden nodes stay editable', 'gates on `visible` / `visible_if`'],
+        ['`wrap`', 'selection ring + click target', 'plain sized wrapper'],
+        ['`renderText`', 'shows the binding, dimmed', 'resolves it against auth context'],
+        ['`renderInput`', 'inert or placeholder', '`FormField`-wired input'],
+        ['`renderButton`', 'disabled', 'actions, OAuth, resend, submit'],
+        ['`renderProviders`', 'preview, or a placeholder when none', 'live buttons, or hides the block'],
+        ['`linkProps`', '`preventDefault`', '— (navigates)'],
+      ],
     ),
   )
   out.push('')
@@ -352,12 +376,17 @@ function buildMatrix(): string {
   return `${out.join('\n')}`
 }
 
-/** Whether a renderer has an inline branch for this block. */
-function rendererHandles(source: string, block: FluidBlockDefinition): boolean {
+/**
+ * Whether the shared walker renders this block.
+ *
+ * Read from the walker's own exports rather than by pattern-matching its
+ * source: `COMPONENT_RENDERERS` is a map, so its coverage is a real lookup.
+ */
+function walkerHandles(block: FluidBlockDefinition): boolean {
   if (block.node.component) {
-    return source.includes(`=== '${block.node.component.toLowerCase()}'`)
+    return RENDERED_COMPONENTS.includes(block.node.component.toLowerCase())
   }
-  return source.includes(`case '${block.node.type}'`)
+  return RENDERED_NODE_TYPES.includes(block.node.type)
 }
 
 describe('fluid capability matrix', () => {
@@ -365,16 +394,23 @@ describe('fluid capability matrix', () => {
     await expect(buildMatrix()).toMatchFileSnapshot(DOC_PATH)
   })
 
-  it('renders every block in both the builder preview and the runtime', () => {
-    const canvas = readSource(RENDERER_SOURCES.FluidCanvas)
-    const runtime = readSource(RENDERER_SOURCES.FluidLoginScreen)
-
+  it('gives every block a branch in the shared walker', () => {
     const unhandled = FLUID_BLOCKS.filter((block) => {
       if (EXPANDED_COMPONENTS.includes(renderTargetOf(block))) return false
-      return !rendererHandles(canvas, block) || !rendererHandles(runtime, block)
+      return !walkerHandles(block)
     }).map((block) => block.label)
 
     expect(unhandled).toEqual([])
+  })
+
+  it('keeps the hosts free of their own node switch', () => {
+    // The whole point of the walker is that neither host dispatches on node
+    // type. A `case 'Box'` reappearing in a host is the duplication coming back.
+    const offenders = Object.entries(HOST_SOURCES)
+      .filter(([, path]) => /case '(Box|Text|Icon|Input|Image|Component)'/.test(readSource(path)))
+      .map(([name]) => name)
+
+    expect(offenders).toEqual([])
   })
 
   it('keeps every unexposed-prop annotation pointing at a real gap', () => {

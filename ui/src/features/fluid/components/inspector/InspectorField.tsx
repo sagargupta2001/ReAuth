@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import { FieldLabel } from '@/features/fluid/components/controls/FieldLabel'
+import { ThemeColorControl } from '@/features/fluid/components/controls/ThemeColorControl'
 import { IconPicker } from '@/features/fluid/components/inspector/IconPicker'
 import { InputSlotsPanel } from '@/features/fluid/components/inspector/InputSlotsPanel'
 import { useInspector } from '@/features/fluid/components/inspector/inspectorContext'
@@ -97,6 +98,19 @@ export function InspectorField({ field }: { field: Field }) {
               ))}
             </SelectContent>
           </Select>
+        </Labelled>
+      )
+
+    case InspectorFieldKind.Color:
+      return (
+        <Labelled field={field}>
+          <ThemeColorControl
+            id={field.id}
+            value={asText(read(field.target, field.key))}
+            fallback={field.fallback}
+            ariaLabel={field.label}
+            onChange={(next) => write(field.target, field.key, next)}
+          />
         </Labelled>
       )
 

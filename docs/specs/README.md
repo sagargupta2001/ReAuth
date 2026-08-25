@@ -34,6 +34,7 @@ Each spec should define:
 ## Index
 
 - `fluid-nested-sections.md`
+- `fluid-style-groups.md`
 - `magic-link-builtins.md`
 - `oauth-inbound-identity-brokering.md`
 - `passkey-first-auth.md`
