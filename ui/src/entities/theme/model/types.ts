@@ -57,6 +57,64 @@ export interface ThemeNodeSize {
   height_value?: number | string
 }
 
+/**
+ * Grouped styling a node carries.
+ *
+ * Replaces the flat `props` bag for anything visual. `props` keeps *content*
+ * (`text`, `label`, `href`, `name`, `placeholder`) and *behaviour* (`visible`,
+ * `visible_if`, `slot`); `layout` and `size` stay separate because they
+ * describe how a node arranges children and how it occupies space, not how it
+ * paints.
+ *
+ * Every group is available on every node type. A group a renderer cannot apply
+ * to that type is ignored rather than being an error, so a styling capability
+ * is added once instead of once per block.
+ */
+export interface FillStyle {
+  /** Literal colour or a design-token reference. */
+  color?: string
+}
+
+export interface StrokeStyle {
+  color?: string
+  width?: number
+}
+
+export interface CornerStyle {
+  radius?: number | string
+}
+
+export interface SpacingStyle {
+  /** Space around the block. Distinct from a container's inner padding. */
+  padding?: number
+  margin_top?: number
+  margin_bottom?: number
+}
+
+export interface TypographyStyle {
+  size?: string
+  weight?: string
+  color?: string
+  align?: 'left' | 'center' | 'right'
+}
+
+export interface NodeStyle {
+  fill?: FillStyle
+  stroke?: StrokeStyle
+  corners?: CornerStyle
+  spacing?: SpacingStyle
+  typography?: TypographyStyle
+  /**
+   * Styling for the parts a composed component expands into, keyed by part
+   * name (an `Input`'s `label` and `field`).
+   *
+   * Parts are addressable for styling but not for composition — they are
+   * render-time nodes and never appear in the authored tree. This is what
+   * replaces the nine `label_*` / `field_*` props.
+   */
+  parts?: Record<string, NodeStyle>
+}
+
 export interface ThemeNode {
   id: string
   type: ThemeNodeType
@@ -64,6 +122,7 @@ export interface ThemeNode {
   props?: Record<string, unknown>
   layout?: ThemeNodeLayout
   size?: ThemeNodeSize
+  style?: NodeStyle
   children?: ThemeNode[]
   slots?: Record<string, ThemeNode>
 }

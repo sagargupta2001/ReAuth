@@ -10,7 +10,11 @@ import {
   RENDERED_COMPONENTS,
   RENDERED_NODE_TYPES,
 } from '@/features/fluid/lib/renderFluidNode'
-import { FLUID_BLOCKS, type FluidBlockDefinition } from '@/features/fluid/model/blockCatalog'
+import {
+  FLUID_BLOCKS,
+  canAcceptChildren,
+  type FluidBlockDefinition,
+} from '@/features/fluid/model/blockCatalog'
 import {
   FieldTarget,
   InspectorFieldKind,
@@ -18,6 +22,10 @@ import {
   type InspectorField,
   type InspectorSection,
 } from '@/features/fluid/model/inspectorFields'
+import {
+  LEGACY_PART_PROPS,
+  LEGACY_STYLE_PROPS,
+} from '@/features/fluid/lib/nodeStyle'
 import { INSPECTOR_SECTIONS } from '@/features/fluid/model/inspectorSchema'
 import { SettingsFieldKind } from '@/features/fluid/model/settingsFields'
 import { THEME_SETTINGS_SECTIONS } from '@/features/fluid/model/themeSettingsSchema'
@@ -116,8 +124,56 @@ function writeTargetOf(field: InspectorField): string {
     case InspectorFieldKind.Dimension:
       return `\`size.${field.axis}\` + \`size.${field.axis}_value\``
     default:
+      if (field.target === FieldTarget.Style) {
+        const path = field.part
+          ? `style.parts.${field.part}.${field.group}.${field.key}`
+          : `style.${field.group}.${field.key}`
+        return `\`${path}\``
+      }
       return `\`${field.target}.${field.key}\``
   }
+}
+
+/** Style paths the inspector can write, as `group.key` and `part/group.key`. */
+function stylePathsWrittenByInspector(): Set<string> {
+  const written = new Set<string>()
+  for (const section of INSPECTOR_SECTIONS) {
+    for (const field of section.fields) {
+      if (
+        field.kind === InspectorFieldKind.Readonly ||
+        field.kind === InspectorFieldKind.Custom ||
+        field.kind === InspectorFieldKind.PaddingBox ||
+        field.kind === InspectorFieldKind.Dimension
+      ) {
+        continue
+      }
+      if (field.target !== FieldTarget.Style || !field.group) continue
+      written.add(field.part ? `${field.part}/${field.group}.${field.key}` : `${field.group}.${field.key}`)
+    }
+  }
+  return written
+}
+
+/**
+ * Legacy styling props that are still read for compatibility but *are*
+ * controllable — through the style group they were folded into. Without this
+ * they would read as gaps, when in fact they are the old spelling of a
+ * capability the inspector still exposes.
+ */
+function legacyPropsCoveredByStyle(): Map<string, string> {
+  const stylePaths = stylePathsWrittenByInspector()
+  const covered = new Map<string, string>()
+  for (const [prop, [group, key]] of Object.entries(LEGACY_STYLE_PROPS)) {
+    if (stylePaths.has(`${group}.${key}`)) {
+      covered.set(prop, `Legacy spelling of \`style.${group}.${key}\`.`)
+    }
+  }
+  for (const [prop, [part, group, key]] of Object.entries(LEGACY_PART_PROPS)) {
+    if (stylePaths.has(`${part}/${group}.${key}`)) {
+      covered.set(prop, `Legacy spelling of \`style.parts.${part}.${group}.${key}\`.`)
+    }
+  }
+  return covered
 }
 
 function fieldLabelOf(field: InspectorField): string {
@@ -191,7 +247,13 @@ function buildMatrix(): string {
   for (const path of PROP_CONSUMERS) {
     for (const prop of propsReadBy(readSource(path))) rendererProps.add(prop)
   }
+  // Legacy styling props are read through `resolveNodeStyle`'s mapping tables
+  // rather than as literal `props.<key>` expressions, so the source scan cannot
+  // see them. They are read, permanently, and belong in this set.
+  for (const prop of Object.keys(LEGACY_STYLE_PROPS)) rendererProps.add(prop)
+  for (const prop of Object.keys(LEGACY_PART_PROPS)) rendererProps.add(prop)
   const inspectorProps = propsWrittenByInspector()
+  const legacyCovered = legacyPropsCoveredByStyle()
 
   const out: string[] = []
 
@@ -223,7 +285,7 @@ function buildMatrix(): string {
         `\`${block.id}\``,
         `\`${block.node.type}\`${block.node.component ? ` / \`${block.node.component}\`` : ''}`,
         block.category,
-        block.acceptsChildren ? 'yes' : 'no',
+        canAcceptChildren(sampleNodeFor(block)) ? 'yes' : 'no',
         sectionsFor(block)
           .map((section) => section.title)
           .join(', '),
@@ -233,8 +295,10 @@ function buildMatrix(): string {
   out.push('')
   out.push(
     'Adding a block: an id in `FluidBlockId`, a definition in `FLUID_BLOCKS`, a',
-    'preview in `BLOCK_PREVIEWS` (compile-enforced), and — unless the registry',
-    'expands it — a `case` in **both** renderers.',
+    'preview in `BLOCK_PREVIEWS` (compile-enforced), and a render target in',
+    '`RENDER_TARGETS`. A block reusing an existing target — Columns is a `Box`',
+    'preset — needs nothing else. A new target needs one `COMPONENT_RENDERERS`',
+    'entry in the shared walker, not a branch per renderer.',
   )
   out.push('')
 
@@ -361,7 +425,9 @@ function buildMatrix(): string {
       ['Prop', 'Status'],
       readButUnexposed.map((prop) => [
         `\`props.${prop}\``,
-        UNEXPOSED_BY_DESIGN[prop] ?? '**Unexposed — candidate for a control.**',
+        legacyCovered.get(prop) ??
+          UNEXPOSED_BY_DESIGN[prop] ??
+          '**Unexposed — candidate for a control.**',
       ]),
     ),
   )

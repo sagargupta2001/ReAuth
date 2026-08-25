@@ -7,6 +7,7 @@ import { Monitor, Smartphone, Tablet } from 'lucide-react'
 
 import { Button } from '@/components/button'
 import { Form } from '@/components/form'
+import { Checkbox } from '@/components/checkbox'
 import { Input } from '@/components/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/tabs'
 import type { ThemeAsset, ThemeNode } from '@/entities/theme/model/types'
@@ -179,6 +180,16 @@ export function FluidCanvas({
         <Button type="button" variant={buttonVariant} className={className} style={style} disabled>
           {defaultLabel}
         </Button>
+      ),
+      renderCheckbox: (_node, { label, defaultChecked, controlId }) => (
+        <div className="flex items-center gap-2">
+          <Checkbox id={controlId} checked={defaultChecked} disabled />
+          {label && (
+            <label htmlFor={controlId} className="text-sm">
+              {label}
+            </label>
+          )}
+        </div>
       ),
       renderProviders: () =>
         providers.length === 0 ? (

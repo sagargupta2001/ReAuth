@@ -108,6 +108,17 @@ pub struct ThemeBinding {
     pub updated_at: String,
 }
 
+/// A node inside a page blueprint.
+///
+/// This is a *typed* view of blueprint JSON, which means any key it does not
+/// name is dropped when a blueprint is parsed and re-serialised on the resolve
+/// path. That is how grouped `style` initially vanished between the builder
+/// (which edits the draft as opaque JSON and kept it) and both the preview and
+/// the runtime login page (which go through here and did not).
+///
+/// `extra` exists so the next field the UI adds survives rather than being
+/// silently deleted. Add a named field when the backend needs to reason about
+/// it; otherwise `extra` carries it through untouched.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeNodeInstance {
     pub id: Option<String>,
@@ -121,10 +132,17 @@ pub struct ThemeNodeInstance {
     pub layout: Option<serde_json::Value>,
     #[serde(default)]
     pub size: Option<serde_json::Value>,
+    /// Grouped styling: `fill`, `stroke`, `corners`, `spacing`, `typography`,
+    /// plus `parts` for a composed component's expansion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style: Option<serde_json::Value>,
     #[serde(default)]
     pub children: Vec<ThemeNodeInstance>,
     #[serde(default)]
     pub slots: std::collections::HashMap<String, ThemeNodeInstance>,
+    /// Blueprint keys this struct does not name, preserved across a round trip.
+    #[serde(flatten, default)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

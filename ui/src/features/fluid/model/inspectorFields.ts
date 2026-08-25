@@ -1,4 +1,5 @@
 import type { ThemeNode } from '@/entities/theme/model/types'
+import type { StyleGroup } from '@/features/fluid/lib/nodeStyle'
 
 /**
  * Where a field writes. A node keeps its state in three separate places and the
@@ -13,6 +14,13 @@ export const FieldTarget = {
   Layout: 'layout',
   /** `node.size` — width/height modes and explicit values. */
   Size: 'size',
+  /**
+   * `node.style` — grouped styling, available on every node type.
+   *
+   * A `Style` field must also declare `group`, and may declare `part` to style
+   * one of a composed component's expansion parts rather than the node itself.
+   */
+  Style: 'style',
 } as const
 
 export type FieldTarget = (typeof FieldTarget)[keyof typeof FieldTarget]
@@ -63,8 +71,12 @@ interface FieldBase {
 
 interface TargetedField extends FieldBase {
   target: FieldTarget
-  /** Key within the target record. */
+  /** Key within the target record, or within the style group. */
   key: string
+  /** Required when `target` is `Style`. */
+  group?: StyleGroup
+  /** Names a composed component's part, e.g. an Input's `label` or `field`. */
+  part?: string
 }
 
 export interface TextInspectorField extends TargetedField {

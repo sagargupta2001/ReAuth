@@ -281,3 +281,135 @@ describe('FluidCanvas links', () => {
     expect(anchor.closest('.text-right')).not.toBeNull()
   })
 })
+
+
+/**
+ * The compatibility guarantee: a stored blueprint written before style groups
+ * existed must render byte-identically to the same design expressed as groups.
+ *
+ * Comparing rendered markup rather than resolved values is deliberate — a
+ * mapping bug that swapped two keys would still resolve to *something*, and only
+ * a whole-output comparison catches it.
+ */
+describe('legacy props and style groups render identically', () => {
+  function markupFor(blocks: ThemeNode[]) {
+    const { container, unmount } = render(
+      <FluidCanvas
+        tokens={{ colors: { primary: '#3355ff' } }}
+        layout={{ shell: 'CenteredCard' }}
+        blocks={blocks}
+        assets={[]}
+        selectedNodeId={null}
+        showChrome={false}
+        onSelectNode={vi.fn()}
+      />,
+    )
+    const html = container.innerHTML
+    unmount()
+    return html
+  }
+
+  it('matches for a styled Box', () => {
+    const legacy = markupFor([
+      {
+        id: 'b1',
+        type: 'Box',
+        props: {
+          background: '#101828',
+          border_color: '#334155',
+          border_width: 2,
+          radius: 12,
+          padding: 8,
+          margin_top: 4,
+          margin_bottom: 6,
+        },
+        children: [],
+      },
+    ])
+    const grouped = markupFor([
+      {
+        id: 'b1',
+        type: 'Box',
+        style: {
+          fill: { color: '#101828' },
+          stroke: { color: '#334155', width: 2 },
+          corners: { radius: 12 },
+          spacing: { padding: 8, margin_top: 4, margin_bottom: 6 },
+        },
+        children: [],
+      },
+    ])
+
+    expect(grouped).toBe(legacy)
+  })
+
+  it('matches for styled text', () => {
+    const legacy = markupFor([
+      {
+        id: 't1',
+        type: 'Text',
+        props: { text: 'Hello', font_size: '13px', font_weight: '500', color: '#abcdef', align: 'right' },
+      },
+    ])
+    const grouped = markupFor([
+      {
+        id: 't1',
+        type: 'Text',
+        props: { text: 'Hello' },
+        style: {
+          typography: { size: '13px', weight: '500', color: '#abcdef', align: 'right' },
+        },
+      },
+    ])
+
+    expect(grouped).toBe(legacy)
+  })
+
+  it('matches for an Input whose parts are styled', () => {
+    const legacy = markupFor([
+      {
+        id: 'i1',
+        type: 'Component',
+        component: 'Input',
+        props: {
+          label: 'Email',
+          name: 'email',
+          placeholder: 'you@example.com',
+          label_color: '#8899aa',
+          label_size: '11px',
+          label_weight: '500',
+          label_spacing: 6,
+          field_background: '#0b1120',
+          field_border_color: '#1e293b',
+          field_border_width: 2,
+          field_radius: 6,
+          field_padding: 12,
+        },
+      },
+    ])
+    const grouped = markupFor([
+      {
+        id: 'i1',
+        type: 'Component',
+        component: 'Input',
+        props: { label: 'Email', name: 'email', placeholder: 'you@example.com' },
+        style: {
+          parts: {
+            label: {
+              typography: { color: '#8899aa', size: '11px', weight: '500' },
+              spacing: { margin_bottom: 6 },
+            },
+            field: {
+              fill: { color: '#0b1120' },
+              stroke: { color: '#1e293b', width: 2 },
+              corners: { radius: 6 },
+              spacing: { padding: 12 },
+            },
+          },
+        },
+      },
+    ])
+
+    expect(grouped).toBe(legacy)
+  })
+})

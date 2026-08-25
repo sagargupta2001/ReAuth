@@ -1,4 +1,5 @@
 import type { ThemeNode } from '@/entities/theme/model/types'
+import { resolvePartStyle } from '@/features/fluid/lib/nodeStyle'
 import { withAlpha } from '@/lib/colorUtils'
 
 const DEFAULT_LABEL_SIZE = '12px'
@@ -64,23 +65,32 @@ const inputComponent: ComponentDefinition = {
     const props = node.props ?? {}
     const baseId = node.id ?? 'input'
     const labelText = String(props.label ?? '')
-    const labelSpacing = parseNumber(props.label_spacing, 4)
+    // Part styling comes from `style.parts.label`, with the legacy `label_*`
+    // props folded in for blueprints that predate style groups.
+    const labelStyle = resolvePartStyle(node, 'label')
     const labelNode: ThemeNode = {
       id: `${baseId}-label`,
       type: 'Text',
       size: { width: 'fill', height: 'hug' },
       props: {
         text: labelText,
-        font_size: String(props.label_size || DEFAULT_LABEL_SIZE),
-        font_weight: String(props.label_weight || DEFAULT_LABEL_WEIGHT),
-        color: String(props.label_color || labelColor(theme)),
-        margin_bottom: labelSpacing,
         align: props.align,
         visible: labelText.trim().length > 0,
       },
+      style: {
+        typography: {
+          size: String(labelStyle.typography.size || DEFAULT_LABEL_SIZE),
+          weight: String(labelStyle.typography.weight || DEFAULT_LABEL_WEIGHT),
+          color: String(labelStyle.typography.color || labelColor(theme)),
+        },
+        spacing: { margin_bottom: parseNumber(labelStyle.spacing.margin_bottom, 4) },
+      },
     }
 
-    const fieldPadding = parseNumber(props.field_padding, DEFAULT_FIELD_PADDING)
+    const fieldStyle = resolvePartStyle(node, 'field')
+    // Spacing on the field part means the padding *inside* the box, which is a
+    // container concern the expansion owns rather than a wrapper style.
+    const fieldPadding = parseNumber(fieldStyle.spacing.padding, DEFAULT_FIELD_PADDING)
     const fieldContainer: ThemeNode = {
       id: `${baseId}-field`,
       type: 'Box',
@@ -91,12 +101,16 @@ const inputComponent: ComponentDefinition = {
         align: 'center',
         padding: [fieldPadding, fieldPadding, fieldPadding, fieldPadding],
       },
-      props: {
-        border_color: String(props.field_border_color || fieldBorderColor(theme)),
-        border_width: parseNumber(props.field_border_width, DEFAULT_FIELD_BORDER_WIDTH),
-        radius: parseNumber(props.field_radius, theme?.radius ?? DEFAULT_FIELD_RADIUS),
+      style: {
+        stroke: {
+          color: String(fieldStyle.stroke.color || fieldBorderColor(theme)),
+          width: parseNumber(fieldStyle.stroke.width, DEFAULT_FIELD_BORDER_WIDTH),
+        },
+        corners: {
+          radius: parseNumber(fieldStyle.corners.radius, theme?.radius ?? DEFAULT_FIELD_RADIUS),
+        },
         // Transparent by default so the field sits on the theme's own surface.
-        background: String(props.field_background || 'transparent'),
+        fill: { color: String(fieldStyle.fill.color || 'transparent') },
       },
       children: [],
     }

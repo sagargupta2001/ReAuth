@@ -20,6 +20,7 @@ import {
   updateBlueprintWithNodes,
   type NodeLocation,
 } from '@/features/fluid/lib/nodeUtils'
+import { applyStyleEdit, type StyleEdit } from '@/features/fluid/lib/nodeStyle'
 import { useTheme } from '@/features/theme/api/useTheme'
 import { useThemePages } from '@/features/theme/api/useThemePages'
 import { usePublishTheme } from '@/features/theme/api/usePublishTheme'
@@ -496,10 +497,15 @@ export function FluidBuilderPage() {
     layout?: Record<string, unknown>
     size?: Record<string, unknown>
     slots?: Record<string, ThemeNode | null>
+    style?: StyleEdit
   }) => {
     if (!selectedNodeId) return
     const updated = updateNodeById(activeNodes, selectedNodeId, (node) => {
-      const nextSlots = { ...(node.slots ?? {}) }
+      // A style edit is applied against the real node rather than merged as a
+      // partial, because writing a group also clears the legacy prop it
+      // replaced — which a shallow merge cannot express.
+      const base = partial.style ? applyStyleEdit(node, partial.style) : node
+      const nextSlots = { ...(base.slots ?? {}) }
       if (partial.slots) {
         Object.entries(partial.slots).forEach(([key, value]) => {
           if (!value) {
@@ -510,26 +516,26 @@ export function FluidBuilderPage() {
         })
       }
       return {
-        ...node,
+        ...base,
         props: partial.props
           ? {
-              ...(node.props ?? {}),
+              ...(base.props ?? {}),
               ...partial.props,
             }
-          : node.props,
+          : base.props,
         layout: partial.layout
           ? {
-              ...(node.layout ?? {}),
+              ...(base.layout ?? {}),
               ...partial.layout,
             }
-          : node.layout,
+          : base.layout,
         size: partial.size
           ? {
-              ...(node.size ?? {}),
+              ...(base.size ?? {}),
               ...partial.size,
             }
-          : node.size,
-        slots: partial.slots ? nextSlots : node.slots,
+          : base.size,
+        slots: partial.slots ? nextSlots : base.slots,
       }
     })
     setNodes(updated)

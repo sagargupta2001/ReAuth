@@ -4,6 +4,7 @@ import type {
   ThemeNodeLayout,
   ThemeNodeSize,
 } from '@/entities/theme/model/types'
+import { normalizeNodes } from '@/features/fluid/lib/nodeStyle'
 
 export type ThemeNodeDefinition = Omit<ThemeNode, 'id' | 'children' | 'slots'> & {
   children?: ThemeNodeDefinition[]
@@ -84,14 +85,18 @@ export function extractNodesFromBlueprint(blueprint?: ThemeBlueprint) {
     return { nodes: [] as ThemeNode[], layout: undefined as string | undefined }
   }
 
+  // Legacy styling props are folded into style groups here, so the builder,
+  // the inspector, and undo/redo only ever see the normalized shape. Save then
+  // persists it — a page converges the first time it is saved, with no
+  // migration and no rewrite of stored rows.
   if (Array.isArray(blueprint)) {
     const nodes = blueprint as ThemeNode[]
-    return { nodes: ensureNodeIds(nodes), layout: undefined }
+    return { nodes: normalizeNodes(ensureNodeIds(nodes)), layout: undefined }
   }
 
   const layout = typeof blueprint.layout === 'string' ? blueprint.layout : undefined
   return {
-    nodes: ensureNodeIds(blueprint.nodes ?? []),
+    nodes: normalizeNodes(ensureNodeIds(blueprint.nodes ?? [])),
     layout,
   }
 }

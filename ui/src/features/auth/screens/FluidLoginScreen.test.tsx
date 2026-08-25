@@ -160,6 +160,69 @@ describe('FluidLoginScreen runtime host', () => {
     expect(screen.getByPlaceholderText('Secret')).toHaveAttribute('type', 'password')
   })
 
+  it('submits a Checkbox value with the form', async () => {
+    const { onSubmit } = renderScreen([
+      usernameField,
+      passwordField,
+      {
+        id: 'cb',
+        type: 'Component',
+        component: 'Checkbox',
+        props: { label: 'Remember me', name: 'remember_me' },
+      },
+      submitButton,
+    ])
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'ada@example.com' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Your password'), {
+      target: { value: 'hunter2' },
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Remember me' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ remember_me: true })
+  })
+
+  it('treats a checkbox left alone as false, not as its absence', () => {
+    renderScreen([
+      {
+        id: 'cb',
+        type: 'Component',
+        component: 'Checkbox',
+        props: { label: 'Marketing emails', name: 'opt_in' },
+      },
+    ])
+    expect(screen.getByRole('checkbox', { name: 'Marketing emails' })).not.toBeChecked()
+  })
+
+  it('honours a blueprint default of checked', () => {
+    renderScreen([
+      {
+        id: 'cb',
+        type: 'Component',
+        component: 'Checkbox',
+        props: { label: 'Remember me', name: 'remember_me', checked: true },
+      },
+    ])
+    expect(screen.getByRole('checkbox', { name: 'Remember me' })).toBeChecked()
+  })
+
+  it('reads the inspector select\'s string "false" as unchecked', () => {
+    // The inspector writes strings, and `Boolean('false')` is true.
+    renderScreen([
+      {
+        id: 'cb',
+        type: 'Component',
+        component: 'Checkbox',
+        props: { label: 'Remember me', name: 'remember_me', checked: 'false' },
+      },
+    ])
+    expect(screen.getByRole('checkbox', { name: 'Remember me' })).not.toBeChecked()
+  })
+
   it('nests children inside a Box, in order', () => {
     renderScreen([
       {

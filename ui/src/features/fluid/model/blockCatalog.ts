@@ -1,9 +1,12 @@
 import {
+  Columns2,
   Fingerprint,
+  Heading1,
   Image,
   LayoutTemplate,
   Minus,
   MousePointer2,
+  SquareCheck,
   Type,
   type LucideIcon,
 } from 'lucide-react'
@@ -30,6 +33,9 @@ export const FluidBlockId = {
   Divider: 'divider',
   Link: 'link',
   Image: 'image',
+  Columns: 'columns',
+  Heading: 'heading',
+  Checkbox: 'checkbox',
 } as const
 
 export type FluidBlockId = (typeof FluidBlockId)[keyof typeof FluidBlockId]
@@ -53,18 +59,55 @@ export const BLOCK_CATEGORY_ORDER: readonly BlockCategory[] = [
   BlockCategory.Media,
 ]
 
+/**
+ * What a *rendered* node is, keyed by how it identifies itself
+ * (`component ?? type`).
+ *
+ * Kept separate from the block catalog because several palette entries can
+ * produce the same kind of node — "Columns" is a `Box` with its direction
+ * preset to row, and once created it *is* a Box. Deriving the label and the
+ * container capability from the block instead meant two presets sharing a
+ * render target silently overwrote each other in a `Map`: every Box in the tree
+ * would have been relabelled by whichever preset was declared last.
+ */
+export interface FluidRenderTarget {
+  /** `node.component ?? node.type`. */
+  key: string
+  label: string
+  /** Whether this kind of node can contain other blocks. */
+  acceptsChildren: boolean
+}
+
+export const RENDER_TARGETS: readonly FluidRenderTarget[] = [
+  { key: 'Box', label: 'Box', acceptsChildren: true },
+  { key: 'Text', label: 'Text', acceptsChildren: false },
+  { key: 'Icon', label: 'Icon', acceptsChildren: false },
+  { key: 'Image', label: 'Image', acceptsChildren: false },
+  { key: 'Input', label: 'Input Field', acceptsChildren: false },
+  { key: 'Button', label: 'Button', acceptsChildren: false },
+  { key: 'Checkbox', label: 'Checkbox', acceptsChildren: false },
+  { key: 'Link', label: 'Link', acceptsChildren: false },
+  { key: 'Divider', label: 'Divider', acceptsChildren: false },
+  { key: 'ProviderButtons', label: 'Sign-in Providers', acceptsChildren: false },
+]
+
+const TARGETS_BY_KEY: ReadonlyMap<string, FluidRenderTarget> = new Map(
+  RENDER_TARGETS.map((target) => [target.key, target]),
+)
+
+/** The render target a rendered node maps to, if it is one we know. */
+export function renderTargetOfNode(
+  node: Pick<ThemeNode, 'type' | 'component'>,
+): FluidRenderTarget | undefined {
+  return TARGETS_BY_KEY.get(node.component ?? node.type)
+}
+
 export interface FluidBlockDefinition {
   id: FluidBlockId
   label: string
   description: string
   icon: LucideIcon
   category: BlockCategory
-  /**
-   * Whether this block can contain other blocks. Declared here so a future
-   * container type (Grid, Stack, Columns) is a data change, the same way the
-   * inspector schema and the theme settings schema already work.
-   */
-  acceptsChildren: boolean
   node: ThemeNodeDefinition
 }
 
@@ -75,7 +118,6 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Container with auto-layout',
     icon: LayoutTemplate,
     category: BlockCategory.Layout,
-    acceptsChildren: true,
     node: {
       type: 'Box',
       size: { width: 'fill', height: 'hug' },
@@ -89,7 +131,6 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Headings, labels, hints',
     icon: Type,
     category: BlockCategory.Text,
-    acceptsChildren: false,
     node: {
       type: 'Text',
       size: { width: 'fill', height: 'hug' },
@@ -102,7 +143,6 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Email, password, custom',
     icon: LayoutTemplate,
     category: BlockCategory.FormElements,
-    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'Input',
@@ -128,7 +168,6 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Primary, secondary actions',
     icon: MousePointer2,
     category: BlockCategory.Actions,
-    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'Button',
@@ -142,7 +181,6 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Buttons for the realm’s enabled providers',
     icon: Fingerprint,
     category: BlockCategory.Actions,
-    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'ProviderButtons',
@@ -157,7 +195,6 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Section separators',
     icon: Minus,
     category: BlockCategory.Layout,
-    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'Divider',
@@ -171,7 +208,6 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Inline navigation or legal links',
     icon: Type,
     category: BlockCategory.Text,
-    acceptsChildren: false,
     node: {
       type: 'Component',
       component: 'Link',
@@ -185,32 +221,62 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
     description: 'Brand or hero image',
     icon: Image,
     category: BlockCategory.Media,
-    acceptsChildren: false,
     node: {
       type: 'Image',
       size: { width: 'fill', height: 'hug' },
       props: { asset_id: '', alt: 'Brand image' },
     },
   },
+
+  {
+    id: FluidBlockId.Columns,
+    label: 'Columns',
+    description: 'Row container for side-by-side blocks',
+    icon: Columns2,
+    category: BlockCategory.Layout,
+    // A Box with its direction preset. The catalog is a palette of starting
+    // points, so two entries may share a render target.
+    node: {
+      type: 'Box',
+      size: { width: 'fill', height: 'hug' },
+      layout: { direction: 'row', gap: 12, align: 'center', justify: 'between', padding: [0, 0, 0, 0] },
+      children: [],
+    },
+  },
+  {
+    id: FluidBlockId.Heading,
+    label: 'Heading',
+    description: 'Page title, preset larger',
+    icon: Heading1,
+    category: BlockCategory.Text,
+    node: {
+      type: 'Text',
+      size: { width: 'fill', height: 'hug' },
+      props: { text: 'Welcome back' },
+      style: { typography: { size: '24px', weight: '700' } },
+    },
+  },
+  {
+    id: FluidBlockId.Checkbox,
+    label: 'Checkbox',
+    description: 'Consent, remember me, opt-in',
+    icon: SquareCheck,
+    category: BlockCategory.FormElements,
+    node: {
+      type: 'Component',
+      component: 'Checkbox',
+      size: { width: 'fill', height: 'hug' },
+      props: { label: 'Remember me', name: 'remember_me', checked: false },
+    },
+  },
 ]
-
-/** Human label for a rendered node, keyed by component name or node type. */
-export const BLOCK_LABEL_BY_NODE_KEY: ReadonlyMap<string, string> = new Map(
-  FLUID_BLOCKS.map((block) => [block.node.component ?? block.node.type, block.label]),
-)
-
-/** Whether a rendered node's block declares that it accepts children. */
-export const BLOCK_ACCEPTS_CHILDREN_BY_NODE_KEY: ReadonlyMap<string, boolean> = new Map(
-  FLUID_BLOCKS.map((block) => [block.node.component ?? block.node.type, block.acceptsChildren]),
-)
 
 export function findBlockDefinition(id: FluidBlockId): FluidBlockDefinition | undefined {
   return FLUID_BLOCKS.find((block) => block.id === id)
 }
 
 export function labelForNode(node: Pick<ThemeNode, 'type' | 'component'>): string {
-  const key = node.component ?? node.type
-  return BLOCK_LABEL_BY_NODE_KEY.get(key) ?? key
+  return renderTargetOfNode(node)?.label ?? node.component ?? node.type
 }
 
 /**
@@ -220,7 +286,7 @@ export function labelForNode(node: Pick<ThemeNode, 'type' | 'component'>): strin
  * target, which keeps a hand-edited blueprint from opening a nesting hole.
  */
 export function canAcceptChildren(node: Pick<ThemeNode, 'type' | 'component'>): boolean {
-  return BLOCK_ACCEPTS_CHILDREN_BY_NODE_KEY.get(node.component ?? node.type) ?? false
+  return renderTargetOfNode(node)?.acceptsChildren ?? false
 }
 
 export function filterBlocks(query: string): readonly FluidBlockDefinition[] {

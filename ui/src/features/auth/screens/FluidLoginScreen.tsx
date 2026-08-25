@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/button'
 import { Form, FormField } from '@/components/form'
+import { Checkbox } from '@/components/checkbox'
 import { Input } from '@/components/input'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { PasswordInput } from '@/shared/ui/password-input'
@@ -991,6 +992,36 @@ export function FluidLoginScreen({
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {label}
         </Button>
+      )
+    },
+    renderCheckbox: (_node, { name, label, defaultChecked, controlId }) => {
+      const control = name ? (
+        <FormField
+          control={form.control}
+          name={name}
+          render={({ field }) => (
+            <Checkbox
+              id={controlId}
+              // The blueprint's `checked` is only the initial value; after that
+              // the form owns it, so an untouched box still submits `false`.
+              checked={field.value === undefined ? defaultChecked : Boolean(field.value)}
+              onCheckedChange={(next) => field.onChange(next === true)}
+              disabled={isLoading}
+            />
+          )}
+        />
+      ) : (
+        <Checkbox id={controlId} defaultChecked={defaultChecked} disabled={isLoading} />
+      )
+      return (
+        <div className="flex items-center gap-2">
+          {control}
+          {label && (
+            <label htmlFor={controlId} className="text-sm">
+              {label}
+            </label>
+          )}
+        </div>
       )
     },
     renderProviders: () => {

@@ -102,10 +102,44 @@ describe('FluidInspector', () => {
     expect(screen.getByText('Appearance')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Background'), { target: { value: '#101828' } })
-    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({ props: { background: '#101828' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({
+      style: { group: 'fill', key: 'color', part: undefined, value: '#101828' },
+    })
 
     fireEvent.change(screen.getByLabelText('Corner Radius'), { target: { value: '16' } })
-    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({ props: { radius: 16 } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({
+      style: { group: 'corners', key: 'radius', part: undefined, value: 16 },
+    })
+  })
+
+  it('writes an Input part style to the part, not to a prefixed prop', () => {
+    // `label_color`, `field_radius` and the seven others like them are gone.
+    const { onUpdateSelectedBlock } = renderInspector({
+      id: 'i1',
+      type: 'Component',
+      component: 'Input',
+      props: { label: 'Email', name: 'email' },
+    })
+
+    fireEvent.change(screen.getByLabelText('Label Color'), { target: { value: '#8899aa' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({
+      style: { group: 'typography', key: 'color', part: 'label', value: '#8899aa' },
+    })
+
+    fireEvent.change(screen.getByLabelText('Inner Padding'), { target: { value: '12' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({
+      style: { group: 'spacing', key: 'padding', part: 'field', value: 12 },
+    })
+  })
+
+  it('reads a part style back from the legacy prop it replaced', () => {
+    renderInspector({
+      id: 'i2',
+      type: 'Component',
+      component: 'Input',
+      props: { label: 'Email', name: 'email', field_border_width: 3 },
+    })
+    expect(screen.getByLabelText('Border Width')).toHaveValue(3)
   })
 
   it('offers block colours as a design token or a literal, not a raw string', () => {

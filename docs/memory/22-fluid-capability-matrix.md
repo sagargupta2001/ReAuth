@@ -23,10 +23,15 @@ lists live in `18-fluid-theme-builder.md` §5.4.
 | Divider | `divider` | `Component` / `Divider` | Layout | no | Element, Size, Placement, Spacing |
 | Link | `link` | `Component` / `Link` | Text | no | Element, Link, Size, Placement, Typography, Spacing |
 | Image | `image` | `Image` | Media | no | Element, Image, Size, Placement, Spacing |
+| Columns | `columns` | `Box` | Layout | yes | Element, Auto Layout, Appearance, Size, Placement, Spacing |
+| Heading | `heading` | `Text` | Text | no | Element, Content, Size, Placement, Typography, Spacing |
+| Checkbox | `checkbox` | `Component` / `Checkbox` | Form Elements | no | Element, Checkbox, Size, Placement, Typography, Spacing |
 
 Adding a block: an id in `FluidBlockId`, a definition in `FLUID_BLOCKS`, a
-preview in `BLOCK_PREVIEWS` (compile-enforced), and — unless the registry
-expands it — a `case` in **both** renderers.
+preview in `BLOCK_PREVIEWS` (compile-enforced), and a render target in
+`RENDER_TARGETS`. A block reusing an existing target — Columns is a `Box`
+preset — needs nothing else. A new target needs one `COMPONENT_RENDERERS`
+entry in the shared walker, not a branch per renderer.
 
 ## 2. Per-block styling options
 
@@ -59,7 +64,7 @@ Applies to: Icon (slot-only).
 |---|---|---|
 | Icon Name | `props.name` | `icon` |
 | Size | `props.size` | `text` |
-| Color | `props.color` | `color` |
+| Color | `style.typography.color` | `color` |
 | Custom SVG | `props.svg_path` | `textarea` |
 | ViewBox | `props.svg_viewbox` | `text` |
 
@@ -81,10 +86,10 @@ Applies to: Input.
 
 | Field | Writes | Control |
 |---|---|---|
-| Label Size | `props.label_size` | `text` |
-| Label Weight | `props.label_weight` | `text` |
-| Label Color | `props.label_color` | `color` |
-| Label Spacing | `props.label_spacing` | `number` |
+| Label Size | `style.parts.label.typography.size` | `text` |
+| Label Weight | `style.parts.label.typography.weight` | `text` |
+| Label Color | `style.parts.label.typography.color` | `color` |
+| Label Spacing | `style.parts.label.spacing.margin_bottom` | `number` |
 
 ### Field
 
@@ -92,11 +97,21 @@ Applies to: Input.
 
 | Field | Writes | Control |
 |---|---|---|
-| Background | `props.field_background` | `color` |
-| Border Color | `props.field_border_color` | `color` |
-| Border Width | `props.field_border_width` | `number` |
-| Corner Radius | `props.field_radius` | `number` |
-| Inner Padding | `props.field_padding` | `number` |
+| Background | `style.parts.field.fill.color` | `color` |
+| Border Color | `style.parts.field.stroke.color` | `color` |
+| Border Width | `style.parts.field.stroke.width` | `number` |
+| Corner Radius | `style.parts.field.corners.radius` | `number` |
+| Inner Padding | `style.parts.field.spacing.padding` | `number` |
+
+### Checkbox
+
+Applies to: Checkbox.
+
+| Field | Writes | Control |
+|---|---|---|
+| Label | `props.label` | `text` |
+| Name | `props.name` | `text` |
+| Checked by default | `props.checked` | `select` |
 
 ### Button
 
@@ -145,10 +160,10 @@ Applies to: Box.
 
 | Field | Writes | Control |
 |---|---|---|
-| Background | `props.background` | `color` |
-| Border Color | `props.border_color` | `color` |
-| Border Width | `props.border_width` | `number` |
-| Corner Radius | `props.radius` | `number` |
+| Background | `style.fill.color` | `color` |
+| Border Color | `style.stroke.color` | `color` |
+| Border Width | `style.stroke.width` | `number` |
+| Corner Radius | `style.corners.radius` | `number` |
 
 ### Size
 
@@ -167,17 +182,17 @@ Applies to: every block.
 | Field | Writes | Control |
 |---|---|---|
 | Slot | `props.slot` | `select` |
-| Text alignment | `props.align` | `select` |
+| Text alignment | `style.typography.align` | `select` |
 
 ### Typography
 
-Applies to: Text, Button, Link.
+Applies to: Text, Button, Link, Checkbox.
 
 | Field | Writes | Control |
 |---|---|---|
-| Font Size | `props.font_size` | `text` |
-| Font Weight | `props.font_weight` | `text` |
-| Color | `props.color` | `color` |
+| Font Size | `style.typography.size` | `text` |
+| Font Weight | `style.typography.weight` | `text` |
+| Color | `style.typography.color` | `color` |
 
 ### Spacing
 
@@ -185,9 +200,9 @@ Applies to: every block.
 
 | Field | Writes | Control |
 |---|---|---|
-| Padding | `props.padding` | `number` |
-| Margin Top | `props.margin_top` | `number` |
-| Margin Bottom | `props.margin_bottom` | `number` |
+| Padding | `style.spacing.padding` | `number` |
+| Margin Top | `style.spacing.margin_top` | `number` |
+| Margin Bottom | `style.spacing.margin_bottom` | `number` |
 
 ## 3. Global theme options
 
@@ -247,6 +262,9 @@ shipped broken in the builder.
 | Divider | `COMPONENT_RENDERERS` entry |
 | Link | `COMPONENT_RENDERERS` entry |
 | Image | walker node-type branch |
+| Columns | walker node-type branch |
+| Heading | walker node-type branch |
+| Checkbox | `COMPONENT_RENDERERS` entry |
 
 Host responsibilities, and nothing else:
 
@@ -274,8 +292,28 @@ control.
 
 | Prop | Status |
 |---|---|
+| `props.align` | Legacy spelling of `style.typography.align`. |
+| `props.background` | Legacy spelling of `style.fill.color`. |
+| `props.border_color` | Legacy spelling of `style.stroke.color`. |
+| `props.border_width` | Legacy spelling of `style.stroke.width`. |
+| `props.color` | Legacy spelling of `style.typography.color`. |
+| `props.field_background` | Legacy spelling of `style.parts.field.fill.color`. |
+| `props.field_border_color` | Legacy spelling of `style.parts.field.stroke.color`. |
+| `props.field_border_width` | Legacy spelling of `style.parts.field.stroke.width`. |
+| `props.field_padding` | Legacy spelling of `style.parts.field.spacing.padding`. |
+| `props.field_radius` | Legacy spelling of `style.parts.field.corners.radius`. |
+| `props.font_size` | Legacy spelling of `style.typography.size`. |
+| `props.font_weight` | Legacy spelling of `style.typography.weight`. |
 | `props.height` | Legacy pre-`size` fallback, still read for old blueprints. |
 | `props.height_value` | Legacy pre-`size` fallback, still read for old blueprints. |
+| `props.label_color` | Legacy spelling of `style.parts.label.typography.color`. |
+| `props.label_size` | Legacy spelling of `style.parts.label.typography.size`. |
+| `props.label_spacing` | Legacy spelling of `style.parts.label.spacing.margin_bottom`. |
+| `props.label_weight` | Legacy spelling of `style.parts.label.typography.weight`. |
+| `props.margin_bottom` | Legacy spelling of `style.spacing.margin_bottom`. |
+| `props.margin_top` | Legacy spelling of `style.spacing.margin_top`. |
+| `props.padding` | Legacy spelling of `style.spacing.padding`. |
+| `props.radius` | Legacy spelling of `style.corners.radius`. |
 | `props.visible` | Toggled by the Input slots panel, not by a schema field. |
 | `props.visible_if` | Authored in the blueprint; binds the block to auth context. |
 | `props.width` | Legacy pre-`size` fallback, still read for old blueprints. |

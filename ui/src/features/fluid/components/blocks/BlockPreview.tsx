@@ -46,6 +46,21 @@ const BLOCK_PREVIEWS: Record<FluidBlockId, () => ReactElement> = {
       Image placeholder
     </div>
   ),
+  [FluidBlockId.Columns]: () => (
+    <div className="text-muted-foreground flex items-center justify-between gap-2 rounded-md border border-dashed p-3 text-[10px]">
+      <div className="bg-muted/60 h-3 w-16 rounded-full" />
+      <div className="bg-muted/40 h-3 w-12 rounded-full" />
+    </div>
+  ),
+  [FluidBlockId.Heading]: () => (
+    <div className="text-foreground text-2xl font-bold">Welcome back</div>
+  ),
+  [FluidBlockId.Checkbox]: () => (
+    <div className="flex items-center gap-2 text-xs">
+      <div className="border-primary h-4 w-4 rounded-sm border" />
+      <span className="text-foreground">Remember me</span>
+    </div>
+  ),
 }
 
 export function BlockPreview({ blockId }: { blockId: FluidBlockId }) {

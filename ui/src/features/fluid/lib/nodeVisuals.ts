@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 
 import type { ThemeNode } from '@/entities/theme/model/types'
+import { resolveNodeStyle } from '@/features/fluid/lib/nodeStyle'
 
 /**
  * Everything both renderers derive from a node before they draw it.
@@ -52,18 +53,21 @@ function toNumber(value: unknown): number {
 
 export function computeNodeVisuals(node: ThemeNode): NodeVisuals {
   const props = node.props ?? {}
+  // Grouped style first, legacy props as the fallback. Every stored blueprint
+  // predates the groups, so the fallback is permanent, not transitional.
+  const { typography, spacing } = resolveNodeStyle(node)
 
-  const align = String(props.align || 'left')
+  const align = String(typography.align || 'left')
   const alignClass =
     align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
 
-  const fontSize = String(props.font_size || '')
-  const fontWeight = String(props.font_weight || '')
-  const fontColor = String(props.color || '')
+  const fontSize = String(typography.size || '')
+  const fontWeight = String(typography.weight || '')
+  const fontColor = String(typography.color || '')
 
-  const marginTop = toNumber(props.margin_top)
-  const marginBottom = toNumber(props.margin_bottom)
-  const padding = toNumber(props.padding)
+  const marginTop = toNumber(spacing.margin_top)
+  const marginBottom = toNumber(spacing.margin_bottom)
+  const padding = toNumber(spacing.padding)
 
   const widthMode = String(node.size?.width || props.width || 'fill')
   // Coerced here so every consumer gets a valid CSS length: a bare "240" is

@@ -289,11 +289,21 @@ typography. Add `node.style` groups any node can carry, and address a slot as
 `node.slots.label.style` rather than inventing `label_*` props. A styling
 capability is then added once and applies to every block.
 
-- Constraint: `props.*` is persisted JSON in every existing blueprint. This needs
-  a normalization layer on load and continued read support, not a breaking
-  change. The seed audit and the snapshot diff categories both need updating.
-- This is the refactor that actually unlocks styling options at Figma scale, and
-  the only one that touches persisted data. It wants its own spec.
+Shipped as `docs/specs/fluid-style-groups.md`. `node.style` carries `fill`,
+`stroke`, `corners`, `spacing`, and `typography`, plus `parts` for a composed
+component's expansion parts. All nine prefixed props are gone from the schema.
+
+Compatibility is a read-time mapping, not a migration: `resolveNodeStyle` prefers
+the group and falls back to the legacy prop, so stored blueprints render
+unchanged forever. `extractNodesFromBlueprint` normalizes the draft on load, so a
+page converges on the new shape the first time it is saved. Nothing rewrites
+stored rows.
+
+Two things changed from the draft on contact with the code, both recorded in the
+spec: component parts are `style.parts.<part>` rather than authored slots (the
+label and field container are render-time nodes and must stay out of the authored
+tree), and `spacing.padding` is a single number — the four-number tuple is a
+container's inner padding and stays in `layout`.
 
 ### Explicitly not now
 
@@ -383,7 +393,9 @@ Sequence: **R1 → R2 (independent, can run in parallel) → R3 → R4**.
 - [x] R1: collapse the two `renderNode` switches into one host-driven tree walker (`lib/renderFluidNode.tsx` + `FluidShell`).
 - [x] R2: add an inspector colour control with design-token references.
 - [x] R3: make component rendering a registry (`COMPONENT_RENDERERS`) the matrix can enumerate.
-- [ ] R4: grouped style objects on nodes — specced in `docs/specs/fluid-style-groups.md`, awaiting approval.
+- [x] R4: grouped style objects on nodes (`lib/nodeStyle.ts`), replacing the nine prefixed slot-styling props.
+- [x] Separate palette entries from render targets (`RENDER_TARGETS`), so presets can share a node kind.
+- [x] Add Checkbox (consent / remember-me), Columns, and Heading blocks.
 
 ## Upcoming integration (Flow Builder ↔ Fluid)
 - Add a **Template Selector** per Flow Node (bind node → page key).

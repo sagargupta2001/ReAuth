@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ThemeNode } from '@/entities/theme/model/types'
+import { extractNodesFromBlueprint } from './nodeUtils'
 import {
   depthOfNode,
   findNodePath,
@@ -331,5 +332,30 @@ describe('resolveDrop', () => {
     expect(
       resolveDrop(sampleTree(), { dragId: 'heading', targetId: null, intent: 'inside' }, OPTIONS),
     ).toMatchObject({ ok: true, location: { parentId: null, index: 3 } })
+  })
+})
+
+
+describe('extractNodesFromBlueprint', () => {
+  it('normalizes legacy styling props on load, so a save converges the page', () => {
+    // No migration and no rewrite of stored rows: the draft is normalized when
+    // it is read, and Save persists the new shape.
+    const { nodes } = extractNodesFromBlueprint({
+      layout: 'default',
+      nodes: [
+        { id: 'b', type: 'Box', props: { background: '#101828', text: 'kept' }, children: [] },
+      ],
+    })
+
+    expect(nodes[0].style?.fill?.color).toBe('#101828')
+    expect(nodes[0].props?.background).toBeUndefined()
+    expect(nodes[0].props?.text).toBe('kept')
+  })
+
+  it('normalizes a bare-array blueprint too', () => {
+    const { nodes } = extractNodesFromBlueprint([
+      { id: 't', type: 'Text', props: { text: 'Hi', font_size: '12px' } },
+    ])
+    expect(nodes[0].style?.typography?.size).toBe('12px')
   })
 })

@@ -1,7 +1,7 @@
 # Spec: Fluid Style Groups
 
 > Distilled from: Phase 3 R4 of `docs/memory/roadmaps/theme-engine.md`, 2026-08-25
-> Status: Draft
+> Status: Implemented
 
 ---
 
@@ -64,8 +64,9 @@ Two things already landed that this depends on:
    error.
 2. Style groups are `fill`, `stroke`, `corners`, `spacing`, and `typography`.
    Each is an object, so a group can grow a property without touching any block.
-3. A slot's style is addressed as `node.slots.<key>.style`, not as a prefixed
-   prop on the parent. `label_color` becomes `slots.label.style.typography.color`.
+3. A composed component's parts are addressed as `node.style.parts.<part>`, not
+   as prefixed props on the parent. `label_color` becomes
+   `style.parts.label.typography.color`.
 4. `props.*` styling keys remain readable forever. Existing blueprints are
    persisted JSON and are never rewritten in place.
 5. On load, legacy props are normalized into style groups by a pure mapping. The
@@ -117,7 +118,7 @@ CornerStyle
   - radius?: number | string
 
 SpacingStyle
-  - padding?: [number, number, number, number]
+  - padding?: number — space *around* the block
   - margin_top?: number
   - margin_bottom?: number
 
@@ -126,6 +127,9 @@ TypographyStyle
   - weight?: string
   - color?: string
   - align?: 'left' | 'center' | 'right'
+
+NodeStyle.parts?: Record<string, NodeStyle>
+  Styling for the nodes a composed component expands into, keyed by part name.
 ```
 
 ### Modified Entities
@@ -145,16 +149,16 @@ styling moves.
 
 | Module | Change |
 |--------|--------|
-| `domain/theme.rs` | none — `style` rides inside the opaque blueprint JSON |
+| `domain/theme.rs` | **`ThemeNodeInstance` gains `style` plus a `#[serde(flatten)] extra`** — it is a *typed* view of blueprint JSON, not opaque, so unnamed keys were being dropped |
 | `domain/theme_pages.rs` | seeded blueprints may adopt `style`; not required to ship |
-| `application/theme_service.rs` | none — blueprints stay opaque |
+| `application/theme_service.rs` | none in behaviour; gains round-trip tests for the resolve path |
 | `adapters/web/...` | none |
 | `adapters/persistence/...` | none |
 | `entities/theme/model/types.ts` | add `NodeStyle` and `ThemeNode.style` |
 | `features/fluid/lib/nodeStyle.ts` | **new** — `normalizeNodeStyle`, `readStyle`, `withStyle` |
 | `features/fluid/lib/nodeVisuals.ts` | read style groups first, legacy props as fallback |
 | `features/fluid/lib/renderFluidNode.tsx` | consume resolved style instead of raw props |
-| `features/fluid/lib/componentRegistry.ts` | expand slots with their own style, dropping `field_*` / `label_*` |
+| `features/fluid/lib/componentRegistry.ts` | expand parts from `style.parts`, dropping `field_*` / `label_*` |
 | `features/fluid/lib/nodeUtils.ts` | normalize on `extractNodesFromBlueprint` |
 | `features/fluid/model/inspectorFields.ts` | add `FieldTarget.Style` with a group + key |
 | `features/fluid/model/inspectorSchema.ts` | replace `Appearance`/`Label`/`Field` with style sections |
@@ -234,10 +238,10 @@ none — the draft PUT already carries the whole blueprint tree
    - Then: the node carries `style.fill.color` and `style.corners.radius`, and
      both renderers paint them
 
-2. **Happy path — style a slot**
-   - Given: an `Input` whose label slot is selected
-   - When: a typography colour is set
-   - Then: it writes `slots.label.style.typography.color`, and no `label_color`
+2. **Happy path — style a component part**
+   - Given: an `Input` is selected
+   - When: the Label Color is set
+   - Then: it writes `style.parts.label.typography.color`, and no `label_color`
      prop is created
 
 3. **Validation failure — unknown group is preserved**
@@ -293,16 +297,64 @@ none — the draft PUT already carries the whole blueprint tree
 
 ---
 
-## Open Questions
+## Resolved Questions
 
-- [ ] Should `layout` (direction, gap, align, justify, padding) fold into
-      `style.spacing`, or stay a separate container concern? Keeping it separate
-      is proposed: it describes how a node arranges *children*, not how it paints.
-- [ ] Does `size` (fixed/hug/fill) become a style group too? Proposed no, for the
-      same reason — it is geometry, and it already has a typed home.
-- [ ] Should the write path convert on save (rule 7) or only when a node is
-      edited? Converting the whole page on save is simpler and makes the
-      capability matrix's gap analysis converge faster.
-- [ ] Is one normalization pass at `extractNodesFromBlueprint` enough, or does
-      the runtime snapshot path need its own? The runtime reads
-      `snapshot.nodes` directly and does not currently call that helper.
+- [x] **`layout` stays separate.** It describes how a node arranges its
+      *children* — direction, gap, align, justify, and the inner padding tuple —
+      not how the node paints. Folding it in would have collided with
+      `spacing.padding`, which is the space *around* a block.
+- [x] **`size` stays separate.** Geometry with a typed home already.
+- [x] **The whole page converts on load, and Save persists it.**
+      `extractNodesFromBlueprint` normalizes, so the builder, the inspector, and
+      undo/redo only ever see the new shape.
+- [x] **The runtime needs no normalization pass.** It only ever *reads*, and
+      `resolveNodeStyle` resolves legacy props transparently, so
+      `FluidLoginScreen` renders either shape without converting anything. This
+      turned out simpler than the spec anticipated.
+
+## Post-implementation defect: the backend was not opaque
+
+This spec asserted that blueprints are "opaque JSON to the service" and that
+`domain/theme.rs` needed no change. **That was wrong, and it shipped a bug.**
+
+`ThemeNodeInstance` is a *typed* struct. `parse_blueprint` deserialises into it
+and the resolve path re-serialises from it, so every key the struct does not
+name is silently dropped. `style` was such a key.
+
+The failure was invisible in the obvious place and visible everywhere else:
+
+| Path | Shape | Result |
+|---|---|---|
+| Draft read/save | raw `serde_json::Value` | style preserved — **builder looked correct** |
+| Publish → version snapshot | raw `serde_json::Value` | style preserved in storage |
+| Resolve → preview and runtime | `ThemeNodeInstance` | **style dropped** |
+
+So a colour or alignment set in the builder persisted fine, and then vanished on
+the preview screen and the real login page.
+
+Fixed by naming `style` on the struct and adding `#[serde(flatten)] extra` so the
+*next* unnamed key survives instead of being deleted. No data was lost: storage
+always held the full JSON, so the fix restored existing themes with no repair.
+
+Guarded by `blueprint_round_trip_tests` in `theme_service.rs`, which asserts
+style survives on nodes, children, slots, and component parts — and that an
+unknown key does too. Four of its five tests fail without the fix.
+
+**The lesson worth keeping:** "the backend treats this as opaque" is a claim to
+verify by reading the struct, not to assume from the fact that a field is JSON.
+
+## Deviations from the spec as drafted
+
+Two things changed once the code was in front of me, both recorded above:
+
+1. **Parts, not slots.** The draft said a slot's style is
+   `node.slots.<key>.style`. But an `Input`'s label and field container are
+   *not* authored slots — they are generated by `componentRegistry` at render
+   time and, per rule 6 of `fluid-nested-sections.md`, never appear in the
+   authored tree. Addressing them as slots would have meant promoting them into
+   the authored tree, changing the sections tree and the seed audit for no gain.
+   `style.parts` keeps the authored tree untouched and still removes all nine
+   prefixed props.
+2. **`SpacingStyle.padding` is a single number**, matching what `props.padding`
+   always was — the space around a block. The draft's four-number tuple was the
+   *container's* inner padding, which is `layout.padding` and stays there.

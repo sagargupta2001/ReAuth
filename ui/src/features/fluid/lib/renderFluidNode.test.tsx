@@ -26,6 +26,9 @@ function recordingHost(overrides: Partial<FluidHost> = {}) {
     renderText: (_node, visuals) => <p>{String(visuals.props.text ?? '')}</p>,
     renderInput: (_node, spec) => <input placeholder={spec.placeholder} readOnly />,
     renderButton: (_node, spec) => <button type="button">{spec.defaultLabel}</button>,
+    renderCheckbox: (_node, spec) => (
+      <input type="checkbox" aria-label={spec.label} defaultChecked={spec.defaultChecked} />
+    ),
     renderProviders: () => <div>providers</div>,
     ...overrides,
   }
@@ -46,8 +49,17 @@ const NODES: ThemeNode[] = [
   { id: 'n-button', type: 'Component', component: 'Button', props: { label: 'Go' } },
   { id: 'n-link', type: 'Component', component: 'Link', props: { label: 'Here' } },
   { id: 'n-divider', type: 'Component', component: 'Divider' },
+  {
+    id: 'n-checkbox',
+    type: 'Component',
+    component: 'Checkbox',
+    props: { label: 'Remember me', name: 'remember_me' },
+  },
   { id: 'n-providers', type: 'Component', component: 'ProviderButtons' },
 ]
+
+/** Index-based lookup broke the moment a node was inserted mid-list. */
+const nodeFor = (id: string): ThemeNode => NODES.find((node) => node.id === id)!
 
 describe('renderFluidNode wrapper classes', () => {
   it.each(NODES.map((node) => [node.id, node] as const))(
@@ -77,7 +89,7 @@ describe('renderFluidNode branch behaviour', () => {
     // The runtime drops the block when the realm has no providers; the builder
     // returns a placeholder instead so the node stays selectable.
     const { host, wrapped } = recordingHost({ renderProviders: () => null })
-    render(<div>{renderFluidNode(NODES[8], host, 0)}</div>)
+    render(<div>{renderFluidNode(nodeFor('n-providers'), host, 0)}</div>)
     expect(wrapped).toEqual([])
   })
 
@@ -85,7 +97,7 @@ describe('renderFluidNode branch behaviour', () => {
     // The builder used to add `py-2` that the runtime did not, so the preview
     // spaced dividers differently from the real page.
     const { host, classFor } = recordingHost()
-    render(<div>{renderFluidNode(NODES[7], host, 0)}</div>)
+    render(<div>{renderFluidNode(nodeFor('n-divider'), host, 0)}</div>)
     expect(classFor('n-divider')).not.toContain('py-2')
   })
 
@@ -147,9 +159,22 @@ describe('renderFluidNode branch behaviour', () => {
   it('asks the host for the anchor props a Link needs', () => {
     const linkProps = vi.fn(() => ({ onClick: vi.fn() }))
     const { host } = recordingHost({ linkProps })
-    render(<div>{renderFluidNode(NODES[6], host, 0)}</div>)
-    expect(linkProps).toHaveBeenCalledWith(NODES[6])
+    render(<div>{renderFluidNode(nodeFor('n-link'), host, 0)}</div>)
+    expect(linkProps).toHaveBeenCalledWith(nodeFor('n-link'))
     expect(screen.getByText('Here').tagName).toBe('A')
+  })
+
+  it('labels a Checkbox so clicking the text toggles the control', () => {
+    const { host } = recordingHost({
+      renderCheckbox: (_node, spec) => (
+        <div>
+          <input id={spec.controlId} type="checkbox" defaultChecked={spec.defaultChecked} />
+          <label htmlFor={spec.controlId}>{spec.label}</label>
+        </div>
+      ),
+    })
+    render(<div>{renderFluidNode(nodeFor('n-checkbox'), host, 0)}</div>)
+    expect(screen.getByLabelText('Remember me')).toBeInTheDocument()
   })
 
   it('reports an unknown component rather than rendering nothing', () => {

@@ -15,6 +15,7 @@ import {
   resolveRadius,
   type NodeVisuals,
 } from '@/features/fluid/lib/nodeVisuals'
+import { resolveNodeStyle } from '@/features/fluid/lib/nodeStyle'
 import { resolveInputType } from '@/features/fluid/lib/themeUtils'
 
 /**
@@ -48,6 +49,16 @@ export interface FluidInputSpec {
   placeholder: string
   /** Classes for the inner input element, not its wrapper. */
   inputClass: string
+}
+
+/** What the shared code has already computed for a `Checkbox` leaf. */
+export interface FluidCheckboxSpec {
+  name: string
+  label: string
+  /** Blueprint default; the runtime form owns the value after that. */
+  defaultChecked: boolean
+  /** Id shared by the control and its label, so clicking the text toggles it. */
+  controlId: string
 }
 
 /** What the shared code has already computed for a `Button` leaf. */
@@ -93,6 +104,8 @@ export interface FluidHost {
   renderInput(node: ThemeNode, spec: FluidInputSpec): ReactNode
   /** Disabled button vs one carrying actions, OAuth, and passkeys. */
   renderButton(node: ThemeNode, spec: FluidButtonSpec): ReactNode
+  /** Inert checkbox vs a form-wired one. */
+  renderCheckbox(node: ThemeNode, spec: FluidCheckboxSpec): ReactNode
   /** Provider previews vs live buttons. `null` hides the block entirely. */
   renderProviders(node: ThemeNode): ReactNode | null
   /** Extra props for a `Link`'s anchor, e.g. the builder's `preventDefault`. */
@@ -148,12 +161,13 @@ export function renderFluidNode(
       const paddingValue = Array.isArray(layout.padding)
         ? layout.padding.map((value) => `${value}px`).join(' ')
         : undefined
-      const borderColor = String(props.border_color || '')
-      const borderWidth = Number.parseFloat(String(props.border_width || ''))
+      const { fill, stroke, corners } = resolveNodeStyle(node)
+      const borderColor = String(stroke.color || '')
+      const borderWidth = Number.parseFloat(String(stroke.width ?? ''))
       // A bare number is not valid CSS ("border-radius: 12" is dropped), so
       // unitless values get px.
-      const borderRadius = resolveRadius(props.radius)
-      const background = String(props.background || '')
+      const borderRadius = resolveRadius(corners.radius)
+      const background = String(fill.color || '')
       const boxStyle: CSSProperties = {
         gap,
         alignItems,
@@ -184,7 +198,7 @@ export function renderFluidNode(
 
     case 'Icon': {
       const name = String(props.name || '')
-      const color = String(props.color || '')
+      const color = String(resolveNodeStyle(node).typography.color || '')
       const sizeValue = Number.parseFloat(String(props.size || '16'))
       const svgPath = String(props.svg_path || '').trim()
       const svgViewBox = String(props.svg_viewbox || '').trim()
@@ -324,9 +338,8 @@ export const COMPONENT_RENDERERS: Record<string, FluidComponentRenderer> = {
   },
 
   link: ({ node, host, visuals, wrap }) => {
-    const { props, alignClass } = visuals
+    const { props, alignClass, fontColor } = visuals
     const target = String(props.target || '_self')
-    const fontColor = String(props.color || '')
     return wrap(
       <a
         href={String(props.href || '#')}
@@ -338,6 +351,22 @@ export const COMPONENT_RENDERERS: Record<string, FluidComponentRenderer> = {
       >
         {String(props.label || 'Link')}
       </a>,
+      alignClass,
+    )
+  },
+
+  checkbox: ({ node, host, visuals, wrap }) => {
+    const { props, alignClass } = visuals
+    const name = String(props.name || '')
+    return wrap(
+      host.renderCheckbox(node, {
+        name,
+        label: String(props.label || ''),
+        // The inspector's select writes the *string* 'false', and
+        // `Boolean('false')` is true — so compare explicitly.
+        defaultChecked: props.checked === true || props.checked === 'true',
+        controlId: `${node.id || name || 'checkbox'}-control`,
+      }),
       alignClass,
     )
   },
