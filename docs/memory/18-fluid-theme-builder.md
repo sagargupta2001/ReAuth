@@ -650,6 +650,42 @@ Two guards worth keeping:
   resolve path with its `style` intact — on nodes, children, slots, and component
   parts — and that an unknown key does too.
 
+### 5.4.13 One Drag Session, Two Surfaces
+
+Structural editing happens in two places now — the sections tree and the canvas
+— and they share a single `useFluidDrag` controller created in
+`FluidBuilderPage`. Two hooks both mutating the same tree would have been the
+duplication this phase spent its time removing, one layer up.
+
+Sharing it buys more than tidiness: a drag started on a tree row can be dropped
+on the canvas, and vice versa, because there is only one drag session to be in.
+
+What each surface still owns is its **geometry**, and only that:
+
+- The tree is a fixed vertical stack, so a row's edges are top and bottom.
+- The canvas follows the **parent's** main axis. A block inside a row is dropped
+  to its left or right; reading its vertical edges would point the indicator the
+  wrong way. `renderFluidNode` threads `parentDirection` down from the `Box`
+  branch so a node knows which way its siblings run, and `model/dropZones.ts`
+  turns a point plus a rect plus an axis into an intent.
+
+`dropIntentForOffset` moved out of `model/sectionTree.ts` when the canvas needed
+it — it was never tree-specific, only tree-shaped.
+
+Two canvas-only rules worth keeping:
+
+- **Only authored nodes drag.** The canvas also renders what a component expands
+  into, and `options.disableSelection` — already computed for selection — is
+  what marks those inert. An `Input` is one drag source containing its label,
+  field box, and inner input, not four.
+- **The drag controller is an optional prop.** A canvas rendered without one is
+  inert by construction, which is what keeps every read-only preview surface a
+  preview without needing a flag to say so.
+
+Auto-expanding a collapsed container on hover lives in the sections panel, keyed
+off `dropTarget`, not in the hook. Collapse is a tree view concern and the canvas
+has no use for it.
+
 ### 5.5 Diff and Snapshot Viewer
 
 - History tab allows opening a snapshot dialog.

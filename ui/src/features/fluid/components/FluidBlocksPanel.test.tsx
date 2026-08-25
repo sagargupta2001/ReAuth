@@ -1,8 +1,10 @@
 import { createEvent, fireEvent, render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 
 import { FluidBlocksPanel } from './FluidBlocksPanel'
 import type { ThemeNode } from '@/entities/theme/model/types'
+import { useFluidDrag } from '@/features/fluid/hooks/useFluidDrag'
+import type { NodeLocation } from '@/features/fluid/lib/nodeUtils'
 import { MAX_NESTING_DEPTH, SECTION_DRAG_MIME_TYPE } from '@/features/fluid/model/sectionTree'
 
 const toastError = vi.hoisted(() => vi.fn())
@@ -24,18 +26,33 @@ const inputNode: ThemeNode = {
   },
 }
 
-function renderPanel(overrides: Partial<Parameters<typeof FluidBlocksPanel>[0]> = {}) {
+type PanelProps = Omit<Parameters<typeof FluidBlocksPanel>[0], 'drag'>
+
+/**
+ * The drag session now lives in the builder page and is shared with the canvas,
+ * so the panel takes it as a prop. The harness builds a real one, which keeps
+ * these tests exercising the actual hook rather than a stub.
+ */
+function Harness({
+  onMoveNode,
+  ...props
+}: PanelProps & { onMoveNode: (nodeId: string, location: NodeLocation) => void }) {
+  const drag = useFluidDrag(props.nodes, onMoveNode)
+  return <FluidBlocksPanel {...props} drag={drag} />
+}
+
+function renderPanel(overrides: Partial<PanelProps> & { onMoveNode?: Mock } = {}) {
+  const { onMoveNode = vi.fn(), ...rest } = overrides
   const props = {
     nodes: [textNode, inputNode],
     selectedNodeId: null,
     onSelectNode: vi.fn(),
     onInsertNode: vi.fn(),
     onRemoveNode: vi.fn(),
-    onMoveNode: vi.fn(),
-    ...overrides,
+    ...rest,
   }
-  const view = render(<FluidBlocksPanel {...props} />)
-  return { ...props, view }
+  const view = render(<Harness {...props} onMoveNode={onMoveNode} />)
+  return { ...props, onMoveNode, view }
 }
 
 /** The draggable row that owns a label. */
@@ -314,7 +331,7 @@ describe('FluidBlocksPanel nesting', () => {
     expect(screen.getByText('Drop a block here')).toBeInTheDocument()
 
     view.rerender(
-      <FluidBlocksPanel
+      <Harness
         nodes={[{ ...emptyBox, children: [textNode] }]}
         selectedNodeId={null}
         onSelectNode={vi.fn()}
@@ -437,7 +454,7 @@ describe('FluidBlocksPanel rejected drops', () => {
     fireEvent.dragStart(rowFor('Text'), { dataTransfer })
 
     view.rerender(
-      <FluidBlocksPanel
+      <Harness
         nodes={[inputNode]}
         selectedNodeId={null}
         onSelectNode={vi.fn()}
@@ -498,8 +515,7 @@ describe('FluidBlocksPanel keyboard', () => {
   })
 
   it('reorders within the current parent on Alt+Arrow', () => {
-    const onMoveNode = vi.fn()
-    renderPanel({ onMoveNode })
+    const { onMoveNode } = renderPanel()
 
     fireEvent.keyDown(screen.getByText('Input Field'), { key: 'ArrowUp', altKey: true })
     expect(onMoveNode).toHaveBeenCalledWith('node-input', { parentId: null, index: 0 })

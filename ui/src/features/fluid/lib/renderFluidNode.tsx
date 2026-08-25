@@ -40,6 +40,14 @@ export interface FluidRenderOptions {
   wrapperClass?: string
   /** Builder only: a Component's expansion must not be separately selectable. */
   disableSelection?: boolean
+  /**
+   * How this node's parent lays its children out.
+   *
+   * The canvas needs it to place drop edges along the right axis: a block in a
+   * row is dropped to its left or right, not above or below. Set by the `Box`
+   * branch when it recurses; absent at the page root, which stacks vertically.
+   */
+  parentDirection?: 'row' | 'column'
 }
 
 /** What the shared code has already computed for an `Input` leaf. */
@@ -187,6 +195,7 @@ export function renderFluidNode(
           {(node.children ?? []).map((child, childIndex) =>
             renderFluidNode(child, host, childIndex, {
               disableSelection: options?.disableSelection,
+              parentDirection: layout.direction === 'row' ? 'row' : 'column',
             }),
           )}
         </div>,

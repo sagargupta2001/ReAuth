@@ -21,6 +21,7 @@ import {
   type NodeLocation,
 } from '@/features/fluid/lib/nodeUtils'
 import { applyStyleEdit, type StyleEdit } from '@/features/fluid/lib/nodeStyle'
+import { useFluidDrag } from '@/features/fluid/hooks/useFluidDrag'
 import { useTheme } from '@/features/theme/api/useTheme'
 import { useThemePages } from '@/features/theme/api/useThemePages'
 import { usePublishTheme } from '@/features/theme/api/usePublishTheme'
@@ -541,6 +542,13 @@ export function FluidBuilderPage() {
     setNodes(updated)
   }
 
+  /**
+   * One drag session for the whole builder. The sections tree and the canvas
+   * both drive it, so a drag can cross between them and neither surface can
+   * disagree with the other about what a drop means.
+   */
+  const drag = useFluidDrag(activeNodes, handleMoveNode)
+
   const selectedBlock = selectedNodeId ? findNodeById(activeNodes, selectedNodeId) : null
   const canUndo = history.past.length > 0
   const canRedo = history.future.length > 0
@@ -625,7 +633,7 @@ export function FluidBuilderPage() {
             onSelectNode={setSelectedNodeId}
             onInsertNode={handleInsertNode}
             onRemoveNode={handleRemoveNode}
-            onMoveNode={handleMoveNode}
+            drag={drag}
           />
         ) : (
           <FluidThemeSettingsPanel
@@ -661,6 +669,7 @@ export function FluidBuilderPage() {
           />
         )}
         <FluidCanvas
+          drag={drag}
           tokens={draftState.tokens}
           layout={draftState.layout}
           blocks={activeNodes}

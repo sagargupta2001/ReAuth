@@ -1,5 +1,3 @@
-import type { NodeDropIntent } from '@/features/fluid/lib/nodeUtils'
-
 /**
  * Custom drag payload for the sections tree. The transferred value is the
  * dragged node's **id** — indices shift the moment a sibling moves, and a path
@@ -21,36 +19,6 @@ export const SECTION_TREE_NODE_DEPTH = 2
  * older version, or hand-edited, renders as authored however deep it is.
  */
 export const MAX_NESTING_DEPTH = 6
-
-/**
- * Fraction of a row's height, at each end, that means "drop as a sibling".
- * The remaining middle band nests, on rows that accept children.
- */
-export const DROP_EDGE_RATIO = 0.25
-
-/**
- * Which drop a pointer position over a row means.
- *
- * A row that cannot contain children has no middle band at all, so the two
- * halves split cleanly into before/after. An unmeasurable row — no height, or a
- * pointer position the environment did not report — resolves to the row's
- * whole-row intent rather than pretending the pointer is at a particular edge.
- */
-export function dropIntentForOffset(
-  offsetY: number,
-  height: number,
-  acceptsChildren: boolean,
-): NodeDropIntent {
-  if (!Number.isFinite(height) || height <= 0 || !Number.isFinite(offsetY)) {
-    return acceptsChildren ? 'inside' : 'after'
-  }
-  if (!acceptsChildren) {
-    return offsetY < height / 2 ? 'before' : 'after'
-  }
-  if (offsetY < height * DROP_EDGE_RATIO) return 'before'
-  if (offsetY > height * (1 - DROP_EDGE_RATIO)) return 'after'
-  return 'inside'
-}
 
 /**
  * Non-editable rows shown above the page's nodes. They exist to communicate the

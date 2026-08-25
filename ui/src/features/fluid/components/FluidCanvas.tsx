@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import type { DragEvent, MouseEvent, ReactNode } from 'react'
 import { useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useForm } from 'react-hook-form'
@@ -23,6 +23,13 @@ import {
 } from '@/features/fluid/lib/renderFluidNode'
 import { FluidShell } from '@/features/fluid/components/FluidShell'
 import { partitionShellBlocks } from '@/features/fluid/lib/shellBlocks'
+import type { FluidDragController } from '@/features/fluid/hooks/useFluidDrag'
+import { canAcceptChildren } from '@/features/fluid/model/blockCatalog'
+import {
+  DropAxis,
+  axisForDirection,
+  dropIntentForPoint,
+} from '@/features/fluid/model/dropZones'
 import type { ProviderPreview } from '@/features/fluid/model/providerPreview'
 
 interface FluidCanvasProps {
@@ -35,6 +42,11 @@ interface FluidCanvasProps {
   providers?: ProviderPreview[]
   isInspecting?: boolean
   showChrome?: boolean
+  /**
+   * The builder's shared drag session. Absent in read-only previews, which is
+   * what keeps the canvas inert outside the builder.
+   */
+  drag?: FluidDragController
   onSelectNode: (nodeId: string) => void
 }
 
@@ -48,6 +60,7 @@ export function FluidCanvas({
   providers = [],
   isInspecting = false,
   showChrome = false,
+  drag,
   onSelectNode,
 }: FluidCanvasProps) {
   const form = useForm<{ username: string; password: string }>({
@@ -103,25 +116,69 @@ export function FluidCanvas({
       isVisible: () => true,
       wrap: ({ node, content, className, options, visuals }) => {
         const isSelected = selectedNodeId === node.id
-        const isHoverable = isInspecting && !options?.disableSelection
+        // A Component's expansion parts are render-time only. They are never
+        // selectable and never participate in a drag — the authored node is.
+        const isAuthored = !options?.disableSelection
+        const isHoverable = isInspecting && isAuthored
+        const isDraggable = Boolean(drag) && isInspecting && isAuthored
+        const acceptsChildren = canAcceptChildren(node)
+        const axis = axisForDirection(options?.parentDirection)
+        const dropState = drag?.dropTarget?.nodeId === node.id ? drag.dropTarget : null
+        const isDropInside = dropState?.intent === 'inside'
+
+        const intentAt = (event: DragEvent<HTMLDivElement>) =>
+          dropIntentForPoint(event, event.currentTarget.getBoundingClientRect(), {
+            acceptsChildren,
+            axis,
+          })
+
         return (
           <div
             key={`node-${node.id}`}
             className={cn(
-              'transition-shadow',
+              'relative transition-shadow',
               isInspecting ? 'cursor-pointer' : 'cursor-default',
               isSelected &&
                 'ring-primary/40 ring-2 ring-offset-2 ring-offset-background rounded-md',
               isHoverable &&
                 hoveredIndex === node.id &&
                 'ring-primary/20 ring-2 ring-offset-2 ring-offset-background',
+              drag?.draggingNodeId === node.id && 'opacity-50',
+              isDropInside &&
+                (dropState.isAllowed
+                  ? 'ring-primary bg-primary/5 rounded-md ring-2'
+                  : 'ring-destructive/60 rounded-md ring-2'),
               visuals.widthClass,
               visuals.heightClass,
               className,
             )}
             style={visuals.style}
+            draggable={isDraggable}
+            data-drop-intent={dropState?.intent}
+            data-drop-allowed={dropState ? String(dropState.isAllowed) : undefined}
+            onDragStart={
+              isDraggable
+                ? (event) => {
+                    // Selecting what you picked up keeps the inspector on it.
+                    onSelectNode(node.id)
+                    drag?.onDragStart(event, node.id)
+                  }
+                : undefined
+            }
+            onDragEnd={isDraggable ? drag?.onDragEnd : undefined}
+            onDragOver={
+              isDraggable
+                ? (event) => drag?.onDragOverIntent(event, node.id, intentAt(event))
+                : undefined
+            }
+            onDragLeave={isDraggable ? (event) => drag?.onDragLeave(event, node.id) : undefined}
+            onDrop={
+              isDraggable
+                ? (event) => drag?.onDropIntent(event, node.id, intentAt(event))
+                : undefined
+            }
             onClick={(event: MouseEvent<HTMLDivElement>) => {
-              if (!isInspecting || options?.disableSelection) return
+              if (!isInspecting || !isAuthored) return
               event.stopPropagation()
               onSelectNode(node.id)
             }}
@@ -132,6 +189,20 @@ export function FluidCanvas({
               if (isHoverable) setHoveredIndex(null)
             }}
           >
+            {dropState && !isDropInside && (
+              <span
+                aria-hidden="true"
+                // Absolutely positioned so showing it never nudges the thing
+                // being aimed at, and oriented along the parent's axis.
+                className={cn(
+                  'pointer-events-none absolute z-10 rounded-full',
+                  dropState.isAllowed ? 'bg-primary' : 'bg-destructive',
+                  axis === DropAxis.Horizontal
+                    ? cn('inset-y-0 w-0.5', dropState.intent === 'before' ? 'left-0' : 'right-0')
+                    : cn('inset-x-0 h-0.5', dropState.intent === 'before' ? 'top-0' : 'bottom-0'),
+                )}
+              />
+            )}
             {content}
           </div>
         )
@@ -228,6 +299,7 @@ export function FluidCanvas({
       hoveredIndex,
       onSelectNode,
       providers,
+      drag,
     ],
   )
 

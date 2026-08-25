@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-import type { SectionDragHandlers } from '@/features/fluid/hooks/useSectionDrag'
+import type { FluidDragController } from '@/features/fluid/hooks/useFluidDrag'
 import type { NodeLocation } from '@/features/fluid/lib/nodeUtils'
 import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
 
@@ -18,7 +18,7 @@ export interface SectionsPanelContextValue {
   onSelectNode: (nodeId: string) => void
   onRemoveNode: (nodeId: string) => void
   onToggleCollapse: (nodeId: string) => void
-  drag: SectionDragHandlers
+  drag: FluidDragController
   /** Anchor key the block picker is currently attached to. */
   pickerOpenKey: string | null
   onOpenPicker: (anchorKey: string, location: NodeLocation) => void

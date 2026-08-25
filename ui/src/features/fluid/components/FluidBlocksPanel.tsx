@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { Popover } from '@/components/popover'
 import { Separator } from '@/components/separator'
@@ -12,7 +12,7 @@ import {
   type SectionsPanelContextValue,
 } from '@/features/fluid/components/blocks/sectionsPanelContext'
 import { useBlockPicker } from '@/features/fluid/hooks/useBlockPicker'
-import { useSectionDrag } from '@/features/fluid/hooks/useSectionDrag'
+import type { FluidDragController } from '@/features/fluid/hooks/useFluidDrag'
 import type { NodeLocation } from '@/features/fluid/lib/nodeUtils'
 import type { ThemeValidationError } from '@/features/fluid/lib/themeValidation'
 import { buildValidationIndex } from '@/features/fluid/lib/validationIndex'
@@ -30,7 +30,8 @@ interface FluidBlocksPanelProps {
   onSelectNode: (nodeId: string) => void
   onInsertNode: (node: ThemeNode, location: NodeLocation) => void
   onRemoveNode: (nodeId: string) => void
-  onMoveNode: (nodeId: string, location: NodeLocation) => void
+  /** The builder's shared drag session, so the tree and canvas cannot diverge. */
+  drag: FluidDragController
 }
 
 /**
@@ -46,7 +47,7 @@ export function FluidBlocksPanel({
   onSelectNode,
   onInsertNode,
   onRemoveNode,
-  onMoveNode,
+  drag,
 }: FluidBlocksPanelProps) {
   const picker = useBlockPicker()
   // Collapse is a way of reading a deep tree, not a property of the page, so it
@@ -65,16 +66,22 @@ export function FluidBlocksPanel({
     })
   }, [])
 
-  const onExpandNode = useCallback((nodeId: string) => {
+  // Hovering a collapsed container during a drag opens it, so a drop is never
+  // blind. Driven off the shared drop target rather than a hook callback, which
+  // keeps collapse — a tree-only view concern — out of the drag session.
+  const insideTargetId =
+    drag.dropTarget?.intent === 'inside' && drag.dropTarget.isAllowed
+      ? drag.dropTarget.nodeId
+      : null
+  useEffect(() => {
+    if (!insideTargetId) return
     setCollapsedNodeIds((previous) => {
-      if (!previous.has(nodeId)) return previous
+      if (!previous.has(insideTargetId)) return previous
       const next = new Set(previous)
-      next.delete(nodeId)
+      next.delete(insideTargetId)
       return next
     })
-  }, [])
-
-  const drag = useSectionDrag(nodes, onMoveNode, onExpandNode)
+  }, [insideTargetId])
   const { byNodeId, pageErrors } = useMemo(
     () => buildValidationIndex(validationErrors),
     [validationErrors],

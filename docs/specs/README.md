@@ -33,6 +33,7 @@ Each spec should define:
 
 ## Index
 
+- `fluid-canvas-drag.md`
 - `fluid-nested-sections.md`
 - `fluid-style-groups.md`
 - `magic-link-builtins.md`

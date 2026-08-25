@@ -312,8 +312,9 @@ container's inner padding and stays in `layout`.
   principle above.
 - A CSS-in-JS or style-system dependency — minimal deps stands; Tailwind plus
   tokens is working.
-- Canvas drag and drop — a feature, not a refactor. It should reuse
-  `resolveDrop` / `moveNode`, and gets substantially easier after R1.
+- ~~Canvas drag and drop~~ — shipped after R1, and it did reuse `resolveDrop` /
+  `moveNode` as predicted. R1 is what made it small: drop handlers attach in the
+  walker's single `wrap`, not once per node type.
 
 Sequence: **R1 → R2 (independent, can run in parallel) → R3 → R4**.
 
@@ -396,6 +397,7 @@ Sequence: **R1 → R2 (independent, can run in parallel) → R3 → R4**.
 - [x] R4: grouped style objects on nodes (`lib/nodeStyle.ts`), replacing the nine prefixed slot-styling props.
 - [x] Separate palette entries from render targets (`RENDER_TARGETS`), so presets can share a node kind.
 - [x] Add Checkbox (consent / remember-me), Columns, and Heading blocks.
+- [x] Canvas drag and drop, sharing one drag session with the sections tree (`docs/specs/fluid-canvas-drag.md`).
 
 ## Upcoming integration (Flow Builder ↔ Fluid)
 - Add a **Template Selector** per Flow Node (bind node → page key).
