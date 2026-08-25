@@ -94,6 +94,25 @@ describe('FluidInspector', () => {
     expect(screen.queryByLabelText('Custom Width')).not.toBeInTheDocument()
   })
 
+  it('exposes the box surface props both renderers already read', () => {
+    // Background, border, and radius rendered from the blueprint long before
+    // any control wrote them — the capability matrix is what surfaced that.
+    const { onUpdateSelectedBlock } = renderInspector(box)
+
+    expect(screen.getByText('Appearance')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Background'), { target: { value: 'var(--card)' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({ props: { background: 'var(--card)' } })
+
+    fireEvent.change(screen.getByLabelText('Corner Radius'), { target: { value: '16' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({ props: { radius: 16 } })
+  })
+
+  it('does not offer box surface props on a Text node', () => {
+    renderInspector({ id: 't1', type: 'Text', props: { text: 'Hi' } })
+    expect(screen.queryByText('Appearance')).not.toBeInTheDocument()
+  })
+
   it('offers a placeholder control for an Input', () => {
     renderInspector({
       id: 'i1',

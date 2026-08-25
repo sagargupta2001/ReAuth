@@ -129,6 +129,11 @@ The editor and inspector expose props for label, field container, prefix icon, a
 
 ### 5.4 Panel Composition and Extension Points
 
+The current inventory — every block, every per-block styling option, every global
+token, and the gaps between them — is generated into
+`22-fluid-capability-matrix.md`. Read that before adding a control; this section
+is the *how*, that file is the *what*.
+
 Both left-hand panels are schema-driven shells. Their per-item knowledge lives in
 `ui/src/features/fluid/model/`, so extending the builder is a data change rather
 than a component change.

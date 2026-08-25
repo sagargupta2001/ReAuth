@@ -424,6 +424,54 @@ export const INSPECTOR_SECTIONS: readonly InspectorSection[] = [
     ],
   },
   {
+    id: 'box-appearance',
+    title: 'Appearance',
+    description: 'Surface and outline of this box.',
+    // Every prop here was already read by the `Box` case in both renderers and
+    // reachable only by hand-editing the blueprint. The capability matrix in
+    // `docs/memory/22-fluid-capability-matrix.md` is what surfaced the gap.
+    appliesTo: { types: ['Box'] },
+    fields: [
+      {
+        kind: InspectorFieldKind.Text,
+        id: 'box-background',
+        label: 'Background',
+        hint: 'A colour, or a token reference like var(--card).',
+        target: FieldTarget.Props,
+        key: 'background',
+        placeholder: 'e.g. #0f172a or var(--card)',
+      },
+      {
+        kind: InspectorFieldKind.Text,
+        id: 'box-border-color',
+        label: 'Border Color',
+        hint: 'Setting either border field draws the outline.',
+        target: FieldTarget.Props,
+        key: 'border_color',
+        placeholder: 'e.g. #1e293b or var(--border)',
+      },
+      {
+        kind: InspectorFieldKind.Number,
+        id: 'box-border-width',
+        label: 'Border Width',
+        target: FieldTarget.Props,
+        key: 'border_width',
+        min: 0,
+        placeholder: '0',
+      },
+      {
+        kind: InspectorFieldKind.Number,
+        id: 'box-radius',
+        label: 'Corner Radius',
+        hint: 'Pixels. Overrides the theme radius for this box.',
+        target: FieldTarget.Props,
+        key: 'radius',
+        min: 0,
+        placeholder: '0',
+      },
+    ],
+  },
+  {
     id: 'size',
     title: 'Size',
     description: 'How this block occupies space.',

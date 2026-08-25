@@ -160,6 +160,15 @@ const COMPONENTS: Record<string, ComponentDefinition> = {
   Input: inputComponent,
 }
 
+/**
+ * Component names this registry expands into primitives.
+ *
+ * A component named here is rendered by the expansion and needs no `case` in
+ * either renderer; anything else needs one in *both*, which is how
+ * `ProviderButtons` once shipped working at runtime and broken in the builder.
+ */
+export const EXPANDED_COMPONENTS: readonly string[] = Object.keys(COMPONENTS)
+
 export function expandComponentNode(
   node: ThemeNode,
   theme?: ComponentThemeContext,
