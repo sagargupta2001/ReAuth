@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/shared/ui/select'
 import { FieldLabel } from '@/features/fluid/components/controls/FieldLabel'
+import { ThemeColorControl } from '@/features/fluid/components/controls/ThemeColorControl'
 import { IconPicker } from '@/features/fluid/components/inspector/IconPicker'
 import { InputSlotsPanel } from '@/features/fluid/components/inspector/InputSlotsPanel'
 import { useInspector } from '@/features/fluid/components/inspector/inspectorContext'
@@ -40,9 +41,9 @@ export function InspectorField({ field }: { field: Field }) {
         <Labelled field={field}>
           <Input
             id={field.id}
-            value={asText(read(field.target, field.key))}
+            value={asText(read(field.target, field.key, field))}
             placeholder={field.placeholder}
-            onChange={(event) => write(field.target, field.key, event.target.value)}
+            onChange={(event) => write(field.target, field.key, event.target.value, field)}
           />
         </Labelled>
       )
@@ -57,10 +58,10 @@ export function InspectorField({ field }: { field: Field }) {
             max={field.max}
             step={field.step}
             placeholder={field.placeholder}
-            value={asText(read(field.target, field.key))}
+            value={asText(read(field.target, field.key, field))}
             onChange={(event) => {
               const raw = event.target.value
-              write(field.target, field.key, raw === '' ? '' : Number(raw))
+              write(field.target, field.key, raw === '' ? '' : Number(raw), field)
             }}
           />
         </Labelled>
@@ -73,8 +74,8 @@ export function InspectorField({ field }: { field: Field }) {
             id={field.id}
             className="min-h-[80px] text-xs"
             placeholder={field.placeholder}
-            value={asText(read(field.target, field.key))}
-            onChange={(event) => write(field.target, field.key, event.target.value)}
+            value={asText(read(field.target, field.key, field))}
+            onChange={(event) => write(field.target, field.key, event.target.value, field)}
           />
         </Labelled>
       )
@@ -83,8 +84,8 @@ export function InspectorField({ field }: { field: Field }) {
       return (
         <Labelled field={field}>
           <Select
-            value={asText(read(field.target, field.key)) || field.fallback}
-            onValueChange={(value) => write(field.target, field.key, value)}
+            value={asText(read(field.target, field.key, field)) || field.fallback}
+            onValueChange={(value) => write(field.target, field.key, value, field)}
           >
             <SelectTrigger id={field.id}>
               <SelectValue placeholder={field.label} />
@@ -100,19 +101,32 @@ export function InspectorField({ field }: { field: Field }) {
         </Labelled>
       )
 
+    case InspectorFieldKind.Color:
+      return (
+        <Labelled field={field}>
+          <ThemeColorControl
+            id={field.id}
+            value={asText(read(field.target, field.key, field))}
+            fallback={field.fallback}
+            ariaLabel={field.label}
+            onChange={(next) => write(field.target, field.key, next, field)}
+          />
+        </Labelled>
+      )
+
     case InspectorFieldKind.Icon:
       return (
         <Labelled field={field}>
           <div className="flex gap-2">
             <Input
               id={field.id}
-              value={asText(read(field.target, field.key))}
-              onChange={(event) => write(field.target, field.key, event.target.value)}
+              value={asText(read(field.target, field.key, field))}
+              onChange={(event) => write(field.target, field.key, event.target.value, field)}
             />
             <IconPicker
-              value={asText(read(field.target, field.key))}
+              value={asText(read(field.target, field.key, field))}
               color={asText(read(FieldTarget.Props, 'color'))}
-              onSelect={(name) => write(field.target, field.key, name)}
+              onSelect={(name) => write(field.target, field.key, name, field)}
             />
           </div>
         </Labelled>
@@ -122,8 +136,8 @@ export function InspectorField({ field }: { field: Field }) {
       return (
         <Labelled field={field}>
           <Select
-            value={asText(read(field.target, field.key))}
-            onValueChange={(value) => write(field.target, field.key, value)}
+            value={asText(read(field.target, field.key, field))}
+            onValueChange={(value) => write(field.target, field.key, value, field)}
           >
             <SelectTrigger id={field.id}>
               <SelectValue placeholder="Select asset" />

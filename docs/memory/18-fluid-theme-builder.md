@@ -129,6 +129,11 @@ The editor and inspector expose props for label, field container, prefix icon, a
 
 ### 5.4 Panel Composition and Extension Points
 
+The current inventory — every block, every per-block styling option, every global
+token, and the gaps between them — is generated into
+`22-fluid-capability-matrix.md`. Read that before adding a control; this section
+is the *how*, that file is the *what*.
+
 Both left-hand panels are schema-driven shells. Their per-item knowledge lives in
 `ui/src/features/fluid/model/`, so extending the builder is a data change rather
 than a component change.
@@ -138,20 +143,35 @@ Sections panel (`FluidBlocksPanel`):
 - `model/blockCatalog.ts` — `FluidBlockId`, `BlockCategory`,
   `BLOCK_CATEGORY_ORDER`, and `FLUID_BLOCKS` (node defaults per block), plus the
   pure `filterBlocks` / `groupBlocksByCategory` / `labelForNode` helpers.
-- `model/sectionTree.ts` — drag MIME type, indent/depth constants, and the
-  non-editable scaffold rows (`Page`, `Layout Container`).
+- `model/sectionTree.ts` — drag MIME type, indent/depth constants,
+  `MAX_NESTING_DEPTH`, the drop-zone thresholds, and the non-editable scaffold
+  rows (`Page`, `Layout Container`).
 - `components/blocks/` — `SectionTree` / `SectionTreeNode` (recursive rows),
   `BlockPicker` + `BlockCatalogList` (search + grouped catalog),
   `BlockPreview`, `AddBlockButton`, `PageValidationSummary`.
-- `hooks/useBlockPicker.ts` and `hooks/useSectionReorder.ts` own picker anchor
-  state and drag-reorder wiring. Search and hover state stay inside the picker
-  so typing there does not re-render the tree.
+- `hooks/useBlockPicker.ts` and `hooks/useSectionDrag.ts` own picker anchor
+  state and the drag/drop/keyboard wiring (§5.4.10). Search and hover state stay
+  inside the picker so typing there does not re-render the tree.
 - Tree callbacks travel via `blocks/sectionsPanelContext.ts` instead of being
   threaded through every recursion level.
 
 To add a block: add its id to `FluidBlockId`, its definition to `FLUID_BLOCKS`,
-and its preview to `BLOCK_PREVIEWS`. The preview registry is keyed by
-`FluidBlockId`, so a missing preview is a compile error.
+its preview to `BLOCK_PREVIEWS`, and — if it renders as something new — a render
+target to `RENDER_TARGETS` plus a `COMPONENT_RENDERERS` entry (§5.4.11). The
+preview registry is keyed by `FluidBlockId`, so a missing preview is a compile
+error.
+
+**A block is a palette entry; a render target is what the node becomes.** They
+are not one-to-one: `Columns` is a `Box` with its direction preset to row, and
+`Heading` is a `Text` with larger typography. Once created, each *is* the
+underlying node, and the sections tree labels it that way.
+
+This distinction is load-bearing. The label and the `acceptsChildren` capability
+used to be derived from the block and collected into a `Map` keyed by
+`component ?? type` — so the moment two presets shared a target, the later entry
+silently won: every `Box` in the tree would have been relabelled "Columns", and
+its container flag overwritten. `RENDER_TARGETS` owns both, one entry per
+target, and `blockCatalog.test.ts` asserts every block's target is declared.
 
 A block whose component is rendered by an inline `case` (rather than by
 `componentRegistry` expansion) must be handled in **both** `FluidCanvas` (builder
@@ -204,6 +224,11 @@ failure. `contrastRatio` resolves `var()` values, so the inspector's per-block
 check now works on token-based colours too (it previously showed "Unavailable").
 
 ### 5.4.1 The Two Renderers Share Their Derivation
+
+> Superseded in part by §5.4.11: the two renderers now share the whole tree
+> walk, not just the derivation. The reasoning below is why, and still governs
+> what may live in a host.
+
 
 `FluidCanvas` (builder preview) and `FluidLoginScreen` (runtime) are separate
 components by necessity — one is selectable and inert, the other wires
@@ -431,6 +456,199 @@ card pattern (e.g. "General Settings" in `FlowDetailsSettingsTab`) so the builde
 does not look like a different app. `components/controls/FieldLabel.tsx` gives both
 panels the same label treatment. Both sidebars and the sections panel are `w-80`,
 so switching left panels does not shift the canvas.
+
+### 5.4.10 Structural Editing Is Id-Addressed and Validated Once
+
+The sections tree is the structural editor: blocks nest, reorder, and reparent
+there, not on the canvas. Three rules shape how it is built.
+
+**Ids, never indices or paths.** Every structural operation takes a node id plus
+a `NodeLocation` (`{ parentId, index }`, `parentId: null` meaning the page root).
+An index is stale the moment a sibling moves, and a path captured at drag start
+is stale by the time the drop fires. The drag payload is the node's id for the
+same reason — the old `useSectionReorder` transferred a root index, which is why
+it could only ever permute root siblings.
+
+**Validity is computed once, in `lib/nodeUtils.ts`.** `resolveDrop` turns
+"this node, onto that row, this way" into either a location or a typed rejection
+(`cycle`, `depth-limit`, `unknown-node`, `no-op`). Rejections are values, not
+thrown errors, because every one of them is something the UI has to show: the
+not-allowed cursor during the drag, and the reason on drop. `useSectionDrag`
+calls it for the hover preview, for the drop, and for the keyboard commands, so
+those three paths cannot drift — the keyboard `Tab` indent is literally the same
+`{ targetId, intent: 'inside' }` request the drag makes.
+
+Two subtleties worth keeping:
+
+- Locations are expressed against the tree *before* the node is detached.
+  `moveNode` owns the index shift (`adjustForRemoval`), and `resolveDrop` uses
+  the same helper to recognise a no-op. Without that, dropping a node one slot
+  further down in its own parent lands it one place short.
+- The depth check measures the dragged **subtree**, not the dragged node. A
+  two-level box dropped into a container near `MAX_NESTING_DEPTH` would
+  otherwise slip past a check on the node alone.
+
+**The structural helpers walk `children` only, never `slots`.** `findNodePath`
+returns `null` for a slot-owned node, which is what makes every operation refuse
+slots without each call site re-checking — rule 5 of the spec enforced in one
+place. Slot rows stay visible and selectable; they are simply not draggable, not
+drop targets, and have no insertion affordance.
+
+`acceptsChildren` lives on `FluidBlockDefinition` in `model/blockCatalog.ts`, so
+adding a `Grid` or `Columns` container later is a data change. `canAcceptChildren`
+answers `false` for an unrecognised node key rather than defaulting open — a
+hand-edited blueprint should not open a nesting hole. `nodeUtils` takes the
+predicate as an argument instead of importing the catalog, because the catalog
+already imports `nodeUtils`.
+
+Drop zones are geometric: the top and bottom `DROP_EDGE_RATIO` of a row are
+before/after, and the middle band nests — but only on rows that accept children,
+where a non-container splits cleanly in half instead. An unmeasurable row (zero
+height, or a pointer position the environment did not report, which is every
+event in jsdom) resolves to the row's whole-row intent rather than pretending
+the pointer is at an edge. Tests that care which third of a row they are aiming
+at have to stub `getBoundingClientRect` *and* define `clientY` on the native
+event: jsdom has no `DragEvent`, so `fireEvent.dragOver(el, { clientY })` drops
+the coordinate silently, and the assertion then passes or fails for the wrong
+reason.
+
+Collapse state is view-only. It lives in `FluidBlocksPanel` and never reaches
+the draft, so collapsing a box is not an edit and does not dirty the page.
+Hovering a collapsed container during a drag auto-expands it once, so no drop
+lands out of sight.
+
+`Tab` / `Shift+Tab` indent and outdent, but only when the move is possible — a
+row with no preceding container, or a root row on `Shift+Tab`, falls through to
+normal focus movement. Consuming them unconditionally would make the panel a
+keyboard trap with no way out. `Alt+Up` / `Alt+Down` reorder within the current
+parent and are never ambiguous.
+
+`FluidRendererParity.test.tsx` renders the same three-level tree through
+`FluidCanvas` and through `FluidLoginScreen` (with `useThemeSnapshot` mocked) and
+compares the nesting chain and its layout derivation. That is §5.4.1's rule made
+executable for the one case nesting makes easy to break.
+
+### 5.4.11 One Walker, Two Hosts
+
+`lib/nodeVisuals.ts` removed the duplicated *derivation*; the duplicated *tree
+walk* survived it. `FluidCanvas.renderNode` was 312 lines and
+`FluidLoginScreen.renderNode` was 352, of which **233 were byte-identical** —
+about 70%. Three shipped bugs came out of that one fact: the `ProviderButtons`
+canvas gap, the two `resolveVisibleFlag` copies that disagreed on `visible: 0`,
+and the five renderer defaults in §5.4.3 that had to be fixed twice.
+
+`lib/renderFluidNode.tsx` is now the only walker. Both components drive it with
+a `FluidHost`, which carries the four things that genuinely differ and nothing
+else:
+
+| Host method | `FluidCanvas` | `FluidLoginScreen` |
+|---|---|---|
+| `isVisible` | always true, so a hidden node stays editable | gates on `visible` / `visible_if` |
+| `wrap` | selection ring and click target | plain sized wrapper |
+| `renderText` | shows the binding, dimmed | resolves it against auth context |
+| `renderInput` | inert, or a placeholder in inspect mode | `FormField`-wired |
+| `renderButton` | disabled | actions, OAuth, resend, submit |
+| `renderProviders` | preview, or a placeholder when the realm has none | live buttons, or hides the block |
+| `linkProps` | `preventDefault` | — |
+
+Three things this structurally fixes rather than fixing by vigilance:
+
+1. **A branch cannot drop the caller's wrapper class.** `wrap` merges
+   `options.wrapperClass` centrally. Four branches used to merge it by hand and
+   forgot, so brand-slot `text-white` reached Text at runtime but not in the
+   builder. `renderFluidNode.test.tsx` asserts it for every node type.
+2. **The Divider and Image wrappers had diverged.** The builder added `py-2` to
+   a Divider the runtime did not, and applied `alignClass` to an Image the
+   runtime ignored — so `align` on an Image was a control that worked only in
+   the preview. Unifying forced a choice each way, recorded in that test.
+3. **Component rendering is enumerable.** `COMPONENT_RENDERERS` is a map keyed
+   by lowercased component name, so adding a component block is an entry, and
+   the capability matrix imports `RENDERED_COMPONENTS` rather than
+   pattern-matching source for branches.
+
+`components/FluidShell.tsx` did the same for the page shell, which was written
+three times: once in the canvas and twice in the runtime, whose `SplitScreen`
+and `CenteredCard` arms each repeated the error banner and the developer
+warning. `lib/shellBlocks.ts` owns the `props.slot` partitioning that all three
+copies had re-implemented.
+
+Net: `FluidCanvas` 506 → 290 lines, `FluidLoginScreen` 1500 → 1251, with 331
+shared lines replacing ~660 duplicated ones.
+
+Rules for keeping it that way:
+
+- A new block or a render-level styling prop is **one** change, in the walker.
+  If you find yourself editing both hosts, the thing you are adding is probably
+  structural and belongs in the walker.
+- A host method is for behaviour, not styling. Adding a class in a host is how
+  the drift starts again.
+- `capabilityMatrix.test.ts` asserts the hosts contain no node `switch`. That
+  test failing means the duplication is coming back.
+
+### 5.4.12 Styling Is Grouped, and Legacy Props Never Stop Working
+
+Styling used to be a flat `props` bag, which meant every capability was declared
+per block *and* per part. `Box` had `background`, `border_color`, `border_width`,
+`radius`; an `Input` separately had `field_background`, `field_border_color`,
+`field_border_width`, `field_radius`, `field_padding`, `label_size`,
+`label_weight`, `label_color`, `label_spacing`. Nine props on one component, all
+re-spelling ideas that already existed. A third composed component would have
+added nine more.
+
+`node.style` now carries five groups — `fill`, `stroke`, `corners`, `spacing`,
+`typography` — available on every node type, plus `style.parts.<part>` for the
+nodes a composed component expands into. Adding a styling capability is one
+entry in a group and it applies everywhere.
+
+What stays out, deliberately:
+
+- **`layout`** describes how a node arranges its *children* (direction, gap,
+  align, justify, and the inner padding tuple). `spacing.padding` is the space
+  *around* a block. Folding them together would have collided the two paddings
+  that §5.4.7 went to the trouble of separating.
+- **`size`** is geometry with a typed home already.
+- **`props`** keeps content (`text`, `label`, `href`, `name`, `placeholder`) and
+  behaviour (`visible`, `visible_if`, `slot`).
+
+**Parts, not slots.** An `Input`'s label and field container are generated by
+`componentRegistry` at render time and never appear in the authored tree — rule
+6 of `fluid-nested-sections.md`. Addressing them as `node.slots.label` would have
+meant promoting them into the authored tree, changing the sections tree and the
+seed audit for no gain. `style.parts` keeps the authored tree untouched.
+
+**Compatibility is a read-time mapping, not a migration.** `resolveNodeStyle`
+prefers the group and falls back to the legacy prop, so every stored blueprint
+renders unchanged — permanently, not transitionally. `extractNodesFromBlueprint`
+normalizes the draft on load, so the builder, the inspector, and undo/redo only
+ever see the new shape and Save persists it. Nothing rewrites stored rows, and
+there is no migration.
+
+The runtime needs no normalization at all: it only reads, and the fallback is
+transparent. That is why `FluidLoginScreen` calls nothing from `nodeStyle`
+directly.
+
+**The backend is not opaque, despite storing JSON.** `ThemeNodeInstance`
+(`domain/theme.rs`) is a typed view of blueprint JSON: `parse_blueprint`
+deserialises into it and the resolve path re-serialises from it, so any key it
+does not name is silently dropped. `style` shipped without a field there, which
+produced a uniquely confusing symptom — the builder was correct, storage was
+correct, and only the preview and the real login page lost the styling, because
+those are the only paths that go through the typed struct. The struct now names
+`style` and carries `#[serde(flatten)] extra` so the next UI-side field survives
+by default. Adding a node-level field means checking that struct.
+
+Two guards worth keeping:
+
+- `FluidCanvasStyling.test.tsx` renders the same design twice — once as legacy
+  props, once as groups — and asserts the **markup is byte-identical**, including
+  the full nine-prop `Input`. Comparing output rather than resolved values is
+  what would catch a mapping that swapped two keys.
+- The capability matrix treats every key in `LEGACY_STYLE_PROPS` /
+  `LEGACY_PART_PROPS` as read, and annotates it as the legacy spelling of its
+  group. Without that the whole compatibility layer reads as a wall of gaps.
+- `theme_service.rs::blueprint_round_trip_tests` asserts a blueprint survives the
+  resolve path with its `style` intact — on nodes, children, slots, and component
+  parts — and that an unknown key does too.
 
 ### 5.5 Diff and Snapshot Viewer
 

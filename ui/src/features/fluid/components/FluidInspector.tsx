@@ -11,6 +11,7 @@ import {
   withActionIds,
   type InspectorAction,
 } from '@/features/fluid/lib/actionBindings'
+import { resolveNodeStyle, resolvePartStyle } from '@/features/fluid/lib/nodeStyle'
 import {
   FieldTarget,
   matchesNode,
@@ -134,7 +135,7 @@ export function FluidInspector({
     if (!selectedBlock) return null
     // `layout` and `size` are typed shapes; reading them by key needs an index
     // signature, and the schema is what constrains which keys are valid.
-    const records: Record<FieldTarget, Record<string, unknown>> = {
+    const records: Record<string, Record<string, unknown>> = {
       [FieldTarget.Props]: selectedBlock.props ?? {},
       [FieldTarget.Layout]: (selectedBlock.layout ?? {}) as Record<string, unknown>,
       [FieldTarget.Size]: (selectedBlock.size ?? {}) as Record<string, unknown>,
@@ -142,8 +143,24 @@ export function FluidInspector({
     return {
       node: selectedBlock,
       assets,
-      read: (target, key) => records[target][key],
-      write: (target, key, value) => onUpdateSelectedBlock({ [target]: { [key]: value } }),
+      read: (target, key, address) => {
+        if (target !== FieldTarget.Style) return records[target][key]
+        if (!address?.group) return undefined
+        const resolved = address.part
+          ? resolvePartStyle(selectedBlock, address.part)
+          : resolveNodeStyle(selectedBlock)
+        return (resolved[address.group] as Record<string, unknown>)[key]
+      },
+      write: (target, key, value, address) => {
+        if (target !== FieldTarget.Style) {
+          onUpdateSelectedBlock({ [target]: { [key]: value } })
+          return
+        }
+        if (!address?.group) return
+        onUpdateSelectedBlock({
+          style: { group: address.group, key, part: address.part, value },
+        })
+      },
       patch: onUpdateSelectedBlock,
     }
   }, [selectedBlock, assets, onUpdateSelectedBlock])

@@ -1797,6 +1797,77 @@ fn build_theme_nodes(theme_id: Uuid, pages: &[ThemePageTemplate]) -> Result<Vec<
 }
 
 #[cfg(test)]
+mod blueprint_round_trip_tests {
+    use super::*;
+
+    /// `ThemeNodeInstance` is a typed view of blueprint JSON, so any key it does
+    /// not name is dropped when the resolve path parses and re-serialises a
+    /// page. That is not a theoretical risk: grouped `style` shipped without a
+    /// field here, so a colour or alignment set in the builder survived in the
+    /// draft and disappeared on both the preview and the real login page.
+    fn round_trip(raw: &str) -> Value {
+        let (nodes, _) = parse_blueprint(raw).expect("blueprint should parse");
+        serde_json::to_value(&nodes).expect("nodes should serialise")
+    }
+
+    #[test]
+    fn preserves_grouped_style_through_the_resolve_path() {
+        let out = round_trip(
+            r##"{"nodes":[{"id":"n1","type":"Text","props":{"text":"Hi"},
+                 "style":{"typography":{"color":"#ff0000","align":"center"}}}]}"##,
+        );
+
+        let style = &out[0]["style"]["typography"];
+        assert_eq!(style["color"], "#ff0000");
+        assert_eq!(style["align"], "center");
+    }
+
+    #[test]
+    fn preserves_style_on_nested_children_and_slots() {
+        let out = round_trip(
+            r##"{"nodes":[{"id":"box","type":"Box",
+                 "children":[{"id":"c","type":"Text","style":{"fill":{"color":"#111"}}}],
+                 "slots":{"prefix":{"id":"p","type":"Icon","style":{"corners":{"radius":4}}}}}]}"##,
+        );
+
+        assert_eq!(out[0]["children"][0]["style"]["fill"]["color"], "#111");
+        assert_eq!(out[0]["slots"]["prefix"]["style"]["corners"]["radius"], 4);
+    }
+
+    #[test]
+    fn preserves_component_part_styling() {
+        let out = round_trip(
+            r##"{"nodes":[{"id":"i","type":"Component","component":"Input",
+                 "props":{"name":"email"},
+                 "style":{"parts":{"label":{"typography":{"color":"#abc"}}}}}]}"##,
+        );
+
+        assert_eq!(
+            out[0]["style"]["parts"]["label"]["typography"]["color"],
+            "#abc"
+        );
+    }
+
+    #[test]
+    fn preserves_a_key_the_backend_does_not_know_about() {
+        // The point of `extra`: the next field the UI adds must not need a
+        // backend change to survive, and must never be silently deleted.
+        let out = round_trip(r##"{"nodes":[{"id":"n1","type":"Text","future_field":{"a":1}}]}"##);
+
+        assert_eq!(out[0]["future_field"]["a"], 1);
+    }
+
+    #[test]
+    fn omits_style_entirely_when_a_node_has_none() {
+        // Emitting `"style": null` on every node would be noise in stored
+        // blueprints and in the snapshot diff viewer.
+        let out = round_trip(r##"{"nodes":[{"id":"n1","type":"Text","props":{"text":"Hi"}}]}"##);
+
+        assert!(out[0].get("style").is_none());
+    }
+}
+
+#[cfg(test)]
 mod delete_guard_tests {
     use super::*;
     use crate::domain::theme::{ThemeAsset, ThemeAssetMeta};

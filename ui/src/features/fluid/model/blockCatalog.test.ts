@@ -4,7 +4,9 @@ import {
   BLOCK_CATEGORY_ORDER,
   FLUID_BLOCKS,
   FluidBlockId,
+  RENDER_TARGETS,
   buildFluidNode,
+  canAcceptChildren,
   filterBlocks,
   findBlockDefinition,
   groupBlocksByCategory,
@@ -26,6 +28,45 @@ describe('FLUID_BLOCKS', () => {
     FLUID_BLOCKS.forEach((block) => {
       expect(BLOCK_CATEGORY_ORDER).toContain(block.category)
     })
+  })
+})
+
+describe('canAcceptChildren', () => {
+  it('accepts children for Box and nothing else', () => {
+    const containers = RENDER_TARGETS.filter((target) => target.acceptsChildren).map(
+      (target) => target.key,
+    )
+    expect(containers).toEqual(['Box'])
+  })
+
+  it('lets two palette entries share a render target without colliding', () => {
+    // Columns is a Box preset. Deriving the label and the container flag from
+    // the block instead of the target meant the later entry silently
+    // overwrote the earlier one in a Map.
+    const box = findBlockDefinition(FluidBlockId.Box)!
+    const columns = findBlockDefinition(FluidBlockId.Columns)!
+    expect(columns.node.type).toBe(box.node.type)
+
+    expect(labelForNode({ type: 'Box' })).toBe('Box')
+    expect(canAcceptChildren({ type: 'Box' })).toBe(true)
+  })
+
+  it('declares a render target for every block in the catalog', () => {
+    const targets = new Set(RENDER_TARGETS.map((target) => target.key))
+    FLUID_BLOCKS.forEach((block) => {
+      expect(targets.has(block.node.component ?? block.node.type)).toBe(true)
+    })
+  })
+
+  it('answers from the rendered node, by component name or type', () => {
+    expect(canAcceptChildren({ type: 'Box' })).toBe(true)
+    expect(canAcceptChildren({ type: 'Text' })).toBe(false)
+    expect(canAcceptChildren({ type: 'Component', component: 'Input' })).toBe(false)
+    expect(canAcceptChildren({ type: 'Component', component: 'Link' })).toBe(false)
+  })
+
+  it('refuses an unrecognised node rather than opening a nesting hole', () => {
+    expect(canAcceptChildren({ type: 'Component', component: 'Unknown' })).toBe(false)
   })
 })
 

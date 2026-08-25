@@ -1,9 +1,12 @@
 import {
+  Columns2,
   Fingerprint,
+  Heading1,
   Image,
   LayoutTemplate,
   Minus,
   MousePointer2,
+  SquareCheck,
   Type,
   type LucideIcon,
 } from 'lucide-react'
@@ -30,6 +33,9 @@ export const FluidBlockId = {
   Divider: 'divider',
   Link: 'link',
   Image: 'image',
+  Columns: 'columns',
+  Heading: 'heading',
+  Checkbox: 'checkbox',
 } as const
 
 export type FluidBlockId = (typeof FluidBlockId)[keyof typeof FluidBlockId]
@@ -52,6 +58,49 @@ export const BLOCK_CATEGORY_ORDER: readonly BlockCategory[] = [
   BlockCategory.Actions,
   BlockCategory.Media,
 ]
+
+/**
+ * What a *rendered* node is, keyed by how it identifies itself
+ * (`component ?? type`).
+ *
+ * Kept separate from the block catalog because several palette entries can
+ * produce the same kind of node — "Columns" is a `Box` with its direction
+ * preset to row, and once created it *is* a Box. Deriving the label and the
+ * container capability from the block instead meant two presets sharing a
+ * render target silently overwrote each other in a `Map`: every Box in the tree
+ * would have been relabelled by whichever preset was declared last.
+ */
+export interface FluidRenderTarget {
+  /** `node.component ?? node.type`. */
+  key: string
+  label: string
+  /** Whether this kind of node can contain other blocks. */
+  acceptsChildren: boolean
+}
+
+export const RENDER_TARGETS: readonly FluidRenderTarget[] = [
+  { key: 'Box', label: 'Box', acceptsChildren: true },
+  { key: 'Text', label: 'Text', acceptsChildren: false },
+  { key: 'Icon', label: 'Icon', acceptsChildren: false },
+  { key: 'Image', label: 'Image', acceptsChildren: false },
+  { key: 'Input', label: 'Input Field', acceptsChildren: false },
+  { key: 'Button', label: 'Button', acceptsChildren: false },
+  { key: 'Checkbox', label: 'Checkbox', acceptsChildren: false },
+  { key: 'Link', label: 'Link', acceptsChildren: false },
+  { key: 'Divider', label: 'Divider', acceptsChildren: false },
+  { key: 'ProviderButtons', label: 'Sign-in Providers', acceptsChildren: false },
+]
+
+const TARGETS_BY_KEY: ReadonlyMap<string, FluidRenderTarget> = new Map(
+  RENDER_TARGETS.map((target) => [target.key, target]),
+)
+
+/** The render target a rendered node maps to, if it is one we know. */
+export function renderTargetOfNode(
+  node: Pick<ThemeNode, 'type' | 'component'>,
+): FluidRenderTarget | undefined {
+  return TARGETS_BY_KEY.get(node.component ?? node.type)
+}
 
 export interface FluidBlockDefinition {
   id: FluidBlockId
@@ -178,20 +227,66 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
       props: { asset_id: '', alt: 'Brand image' },
     },
   },
-]
 
-/** Human label for a rendered node, keyed by component name or node type. */
-export const BLOCK_LABEL_BY_NODE_KEY: ReadonlyMap<string, string> = new Map(
-  FLUID_BLOCKS.map((block) => [block.node.component ?? block.node.type, block.label]),
-)
+  {
+    id: FluidBlockId.Columns,
+    label: 'Columns',
+    description: 'Row container for side-by-side blocks',
+    icon: Columns2,
+    category: BlockCategory.Layout,
+    // A Box with its direction preset. The catalog is a palette of starting
+    // points, so two entries may share a render target.
+    node: {
+      type: 'Box',
+      size: { width: 'fill', height: 'hug' },
+      layout: { direction: 'row', gap: 12, align: 'center', justify: 'between', padding: [0, 0, 0, 0] },
+      children: [],
+    },
+  },
+  {
+    id: FluidBlockId.Heading,
+    label: 'Heading',
+    description: 'Page title, preset larger',
+    icon: Heading1,
+    category: BlockCategory.Text,
+    node: {
+      type: 'Text',
+      size: { width: 'fill', height: 'hug' },
+      props: { text: 'Welcome back' },
+      style: { typography: { size: '24px', weight: '700' } },
+    },
+  },
+  {
+    id: FluidBlockId.Checkbox,
+    label: 'Checkbox',
+    description: 'Consent, remember me, opt-in',
+    icon: SquareCheck,
+    category: BlockCategory.FormElements,
+    node: {
+      type: 'Component',
+      component: 'Checkbox',
+      size: { width: 'fill', height: 'hug' },
+      props: { label: 'Remember me', name: 'remember_me', checked: false },
+    },
+  },
+]
 
 export function findBlockDefinition(id: FluidBlockId): FluidBlockDefinition | undefined {
   return FLUID_BLOCKS.find((block) => block.id === id)
 }
 
 export function labelForNode(node: Pick<ThemeNode, 'type' | 'component'>): string {
-  const key = node.component ?? node.type
-  return BLOCK_LABEL_BY_NODE_KEY.get(key) ?? key
+  return renderTargetOfNode(node)?.label ?? node.component ?? node.type
+}
+
+/**
+ * Whether a node may contain children.
+ *
+ * Unknown node keys answer `false`: an unrecognised block is never a drop
+ * target, which keeps a hand-edited blueprint from opening a nesting hole.
+ */
+export function canAcceptChildren(node: Pick<ThemeNode, 'type' | 'component'>): boolean {
+  return renderTargetOfNode(node)?.acceptsChildren ?? false
 }
 
 export function filterBlocks(query: string): readonly FluidBlockDefinition[] {

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 import { Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
 import { Button } from '@/components/button'
-import { Separator } from '@/components/separator'
 import { Form, FormField } from '@/components/form'
+import { Checkbox } from '@/components/checkbox'
 import { Input } from '@/components/input'
 import { Alert, AlertDescription, AlertTitle } from '@/shared/ui/alert'
 import { PasswordInput } from '@/shared/ui/password-input'
@@ -17,23 +17,16 @@ import { authApi } from '@/features/auth/api/authApi'
 import { useThemeSnapshot } from '@/features/theme/api/useThemeSnapshot'
 import { cn } from '@/lib/utils'
 import { UsernamePasswordScreen } from '@/features/auth/screens/UsernamePasswordScreen'
-import { renderIcon } from '@/shared/ui/icon-registry'
+import { FluidShell } from '@/features/fluid/components/FluidShell'
+import { partitionShellBlocks } from '@/features/fluid/lib/shellBlocks'
+import type { ComponentThemeContext } from '@/features/fluid/lib/componentRegistry'
+import { getNestedRecord, resolveThemeColor } from '@/features/fluid/lib/themeUtils'
+import { resolveVisibleFlag } from '@/features/fluid/lib/nodeVisuals'
 import {
-  expandComponentNode,
-  type ComponentThemeContext,
-} from '@/features/fluid/lib/componentRegistry'
-import { readableTextOn } from '@/lib/colorUtils'
-import { alignItemsFor, justifyContentFor } from '@/features/fluid/lib/flexLayout'
-import {
-  getNestedRecord,
-  resolveInputType,
-  resolveThemeColor,
-} from '@/features/fluid/lib/themeUtils'
-import {
-  computeNodeVisuals,
-  resolveRadius,
-  resolveVisibleFlag,
-} from '@/features/fluid/lib/nodeVisuals'
+  renderFluidNode,
+  type FluidHost,
+  type FluidRenderOptions,
+} from '@/features/fluid/lib/renderFluidNode'
 
 type LoginFormValues = Record<string, string>
 type IdentityProviderOption = {
@@ -322,27 +315,11 @@ export function FluidLoginScreen({
   const surface = resolveThemeColor(rawSurface, 'var(--card)')
   const componentTheme: ComponentThemeContext = { text, radius: radiusBase }
 
-  const formBlocks = useMemo(
-    () =>
-      nodes.filter(
-        (node) => !node.props || String(node.props.slot || 'form') === 'form',
-      ),
-    [nodes],
-  )
-  const brandBlocks = useMemo(
-    () =>
-      nodes.filter(
-        (node) => node.props && String(node.props.slot || '') === 'brand',
-      ),
-    [nodes],
-  )
-  const nonSplitBlocks = useMemo(
-    () =>
-      nodes.filter(
-        (node) => !node.props || String(node.props.slot || 'form') !== 'brand',
-      ),
-    [nodes],
-  )
+  const {
+    brand: brandBlocks,
+    form: formBlocks,
+    nonSplit: nonSplitBlocks,
+  } = useMemo(() => partitionShellBlocks(nodes), [nodes])
 
   const submitAction = useMemo(() => findActionInTree(nodes, 'on_submit'), [nodes])
 
@@ -886,356 +863,214 @@ export function FluidLoginScreen({
     }
   }
 
-  const renderNode = (
-    node: ThemeNode,
-    index: number,
-    options?: { wrapperClass?: string },
-  ): ReactNode => {
-    const props = node.props ?? {}
-    // Runtime-only gate: the builder shows every node so it stays editable.
-    const isVisible =
-      resolveVisibleFlag(props.visible) && resolveVisibleIf(props.visible_if)
-    if (!isVisible) {
-      return null
-    }
-    const {
-      alignClass,
-      sizeClass,
-      widthClass,
-      heightClass,
-      fillWidthClass,
-      fillHeightClass,
-      innerWidthClass,
-      innerHeightClass,
-      style,
-      fontSize,
-      fontWeight,
-      fontColor,
-      size,
-      heightMode,
-      heightValue,
-    } = computeNodeVisuals(node)
-
-    const sizeClassName = cn(widthClass, heightClass)
-    const wrap = (content: ReactNode, className?: string) => (
+  /**
+   * The runtime half of the shared renderer: visibility-gated, form-wired, and
+   * carrying actions, OAuth, and passkeys. Everything structural lives in
+   * `renderFluidNode`, which `FluidCanvas` walks with its own host.
+   */
+  const host: FluidHost = {
+    primary,
+    componentTheme,
+    assets: assetMap,
+    isVisible: (node) => {
+      const props = node.props ?? {}
+      // Runtime-only gate: the builder shows every node so it stays editable.
+      return resolveVisibleFlag(props.visible) && resolveVisibleIf(props.visible_if)
+    },
+    wrap: ({ node, index, content, className, visuals }) => (
       <div
-        key={`block-${index}`}
-        className={cn(sizeClassName, className)}
-        style={style}
+        key={node.id ? `node-${node.id}` : `block-${index}`}
+        className={cn(visuals.widthClass, visuals.heightClass, className)}
+        style={visuals.style}
       >
         {content}
       </div>
-    )
-
-    switch (node.type) {
-      case 'Box': {
-        const layout = node.layout ?? {}
-        const direction = layout.direction === 'row' ? 'flex-row' : 'flex-col'
-        const gap = typeof layout.gap === 'number' ? `${layout.gap}px` : undefined
-        const alignItems = alignItemsFor(layout)
-        const justifyContent = justifyContentFor(layout)
-        const paddingValue = Array.isArray(layout.padding)
-          ? layout.padding.map((value) => `${value}px`).join(' ')
-          : undefined
-        const borderColor = String(props.border_color || '')
-        const borderWidth = Number.parseFloat(String(props.border_width || ''))
-        // A bare number is not valid CSS ("border-radius: 12" is dropped), so
-        // unitless values get px.
-        const borderRadius = resolveRadius(props.radius)
-        const background = String(props.background || '')
-        const boxStyle: CSSProperties = {
-          gap,
-          alignItems,
-          justifyContent,
-          padding: paddingValue,
-          backgroundColor: background || undefined,
-          borderColor: borderColor || undefined,
-          borderWidth: Number.isNaN(borderWidth) ? undefined : `${borderWidth}px`,
-          borderStyle: borderColor || !Number.isNaN(borderWidth) ? 'solid' : undefined,
-          borderRadius: borderRadius || undefined,
-        }
-        return wrap(
-          <div
-            className={cn('flex', direction, innerWidthClass, innerHeightClass)}
-            style={boxStyle}
-          >
-            {(node.children ?? []).map((child, childIndex) =>
-              renderNode(child, childIndex),
-            )}
-          </div>,
-          undefined,
+    ),
+    renderText: (_node, visuals) => {
+      const textPath = String(visuals.props.text_path || '').trim()
+      const resolved = textPath ? resolveContextValue(textPath) : undefined
+      const textValue = resolved ?? visuals.props.text ?? 'Headline'
+      // The wrapper already carries font_size/font_weight/color from props, so
+      // only apply the heading defaults when the node does not set them —
+      // a utility class here would override the inherited inline style.
+      return (
+        <p className={cn(!visuals.fontSize && 'text-lg', !visuals.fontWeight && 'font-semibold')}>
+          {String(textValue)}
+        </p>
+      )
+    },
+    renderInput: (_node, { name, inputType, placeholder, inputClass }) => {
+      const control =
+        inputType === 'password' ? (
+          <PasswordInput
+            className="flex-1"
+            inputClassName={inputClass}
+            placeholder={placeholder}
+            disabled={isLoading}
+          />
+        ) : (
+          <Input
+            className={inputClass}
+            placeholder={placeholder}
+            type={inputType}
+            disabled={isLoading}
+          />
         )
-      }
-      case 'Text':
-        {
-          const textPath = String(props.text_path || '').trim()
-          const resolved = textPath ? resolveContextValue(textPath) : undefined
-          const textValue = resolved ?? props.text ?? 'Headline'
-          // The wrapper already carries font_size/font_weight/color from props, so
-          // only apply the heading defaults when the node does not set them —
-          // a utility class here would override the inherited inline style.
-          return wrap(
-            <div className={cn('py-1', alignClass)}>
-              <p className={cn(!fontSize && 'text-lg', !fontWeight && 'font-semibold')}>
-                {String(textValue)}
-              </p>
-            </div>,
-            options?.wrapperClass,
-          )
-        }
-      case 'Icon': {
-        const name = String(props.name || '')
-        const color = String(props.color || '')
-        const sizeValue = Number.parseFloat(String(props.size || '16'))
-        const svgPath = String(props.svg_path || '').trim()
-        const svgViewBox = String(props.svg_viewbox || '').trim()
-        return wrap(
-          <span className="flex items-center justify-center">
-            {renderIcon(
-              name,
-              { size: Number.isNaN(sizeValue) ? 16 : sizeValue, color: color || undefined },
-              { svgPath, viewBox: svgViewBox || undefined },
-            ) ?? (
-              <span style={{ color: color || '#94a3b8', fontSize: `${sizeValue || 16}px` }}>
-                {name ? name.charAt(0).toUpperCase() : '•'}
-              </span>
-            )}
-          </span>,
-          cn('flex-0', options?.wrapperClass),
-        )
-      }
-      case 'Input': {
-        const name = String(props.name || '')
-        const inputType = resolveInputType(props, name || 'input')
-        const placeholder = String(props.placeholder || '')
-        const inputClass = cn(
-          sizeClass,
-          // h-auto: the expanded field container supplies the height via its
-          // padding, so the input must not add its own.
-          'h-auto flex-1 border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0',
-          fillHeightClass,
-        )
-        return wrap(
-          name ? (
-            <FormField
-              control={form.control}
-              name={name}
-              render={({ field }) =>
-                inputType === 'password' ? (
-                  <PasswordInput
-                    {...field}
-                    className="flex-1"
-                    inputClassName={inputClass}
-                    placeholder={placeholder}
-                    disabled={isLoading}
-                  />
-                ) : (
-                  <Input
-                    {...field}
-                    className={inputClass}
-                    placeholder={placeholder}
-                    type={inputType}
-                    disabled={isLoading}
-                  />
-                )
-              }
-            />
-          ) : inputType === 'password' ? (
-            <PasswordInput
-              className="flex-1"
-              inputClassName={inputClass}
-              placeholder={placeholder}
+      if (!name) return control
+      return (
+        <FormField
+          control={form.control}
+          name={name}
+          render={({ field }) =>
+            inputType === 'password' ? (
+              <PasswordInput
+                {...field}
+                className="flex-1"
+                inputClassName={inputClass}
+                placeholder={placeholder}
+                disabled={isLoading}
+              />
+            ) : (
+              <Input
+                {...field}
+                className={inputClass}
+                placeholder={placeholder}
+                type={inputType}
+                disabled={isLoading}
+              />
+            )
+          }
+        />
+      )
+    },
+    renderButton: (node, { defaultLabel, buttonVariant, className, style }) => {
+      const props = node.props ?? {}
+      const intent = typeof props.intent === 'string' ? props.intent.trim() : ''
+      const clickAction = nodeActions(node).find(
+        (action) => normalizeTrigger(action.trigger) === 'on_click' && action.signal,
+      )
+      const hasClickAction = Boolean(clickAction)
+      const isAwaitingResend =
+        templateKey === 'awaiting_action' && intent.toLowerCase() === 'resend'
+      const label =
+        isAwaitingResend && resendStatus === 'sending' ? 'Sending…' : defaultLabel
+      return (
+        <Button
+          type={isAwaitingResend || hasClickAction ? 'button' : 'submit'}
+          variant={buttonVariant}
+          className={className}
+          style={style}
+          data-intent={intent || undefined}
+          disabled={
+            isLoading || (isAwaitingResend && (resendStatus === 'sending' || !canResend))
+          }
+          onClick={(event) => {
+            if (templateKey === 'oauth_redirecting' && oauthProviderAlias) {
+              event.preventDefault()
+              void authApi.startOauth(activeRealm, oauthProviderAlias).then((response) => {
+                window.location.href = response.redirect_url
+              })
+              return
+            }
+            if (isAwaitingResend) {
+              void handleResend()
+              return
+            }
+            if (intent) {
+              form.setValue('decision', intent)
+            }
+            if (clickAction) {
+              event.preventDefault()
+              event.stopPropagation()
+              void form
+                .handleSubmit((values) => {
+                  processSubmission(values, clickAction)
+                })()
+            }
+          }}
+        >
+          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          {label}
+        </Button>
+      )
+    },
+    renderCheckbox: (_node, { name, label, defaultChecked, controlId }) => {
+      const control = name ? (
+        <FormField
+          control={form.control}
+          name={name}
+          render={({ field }) => (
+            <Checkbox
+              id={controlId}
+              // The blueprint's `checked` is only the initial value; after that
+              // the form owns it, so an untouched box still submits `false`.
+              checked={field.value === undefined ? defaultChecked : Boolean(field.value)}
+              onCheckedChange={(next) => field.onChange(next === true)}
               disabled={isLoading}
             />
-          ) : (
-            <Input
-              className={inputClass}
-              placeholder={placeholder}
-              type={inputType}
-              disabled={isLoading}
-            />
-          ),
-          cn('flex-1', options?.wrapperClass),
-        )
-      }
-      case 'Component': {
-        const expanded = expandComponentNode(node, componentTheme)
-        if (expanded) {
-          return wrap(renderNode(expanded, index), options?.wrapperClass)
-        }
-        const component = String(node.component || '')
-
-        if (component.toLowerCase() === 'button') {
-          const variant = String(props.variant || 'primary')
-          const intent = typeof props.intent === 'string' ? props.intent.trim() : ''
-          const actions = nodeActions(node)
-          const clickAction = actions.find(
-            (action) => normalizeTrigger(action.trigger) === 'on_click' && action.signal,
-          )
-          const hasClickAction = Boolean(clickAction)
-          const isAwaitingResend =
-            templateKey === 'awaiting_action' && intent.toLowerCase() === 'resend'
-          const buttonVariant =
-            variant === 'secondary' ? 'secondary' : variant === 'outline' ? 'outline' : 'default'
-          const buttonStyle: React.CSSProperties = {}
-          if (variant === 'primary') {
-            buttonStyle.backgroundColor = primary
-            // Derived, not hard-coded: a white label on a light primary is invisible.
-            buttonStyle.color = readableTextOn(primary)
-          }
-          if (variant === 'outline') {
-            buttonStyle.borderColor = primary
-            buttonStyle.color = primary
-          }
-          const label =
-            isAwaitingResend && resendStatus === 'sending'
-              ? 'Sending…'
-              : String(props.label || 'Continue')
-          return wrap(
-            <Button
-              type={isAwaitingResend || hasClickAction ? 'button' : 'submit'}
-              variant={buttonVariant}
-              className={cn(alignClass, sizeClass, fillWidthClass, fillHeightClass)}
-              style={buttonStyle}
-              data-intent={intent || undefined}
-              disabled={isLoading || (isAwaitingResend && (resendStatus === 'sending' || !canResend))}
-              onClick={(event) => {
-                if (templateKey === 'oauth_redirecting' && oauthProviderAlias) {
-                  event.preventDefault()
-                  void authApi.startOauth(activeRealm, oauthProviderAlias).then((response) => {
-                    window.location.href = response.redirect_url
-                  })
-                  return
-                }
-                if (isAwaitingResend) {
-                  void handleResend()
-                  return
-                }
-                if (intent) {
-                  form.setValue('decision', intent)
-                }
-                if (clickAction) {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  void form
-                    .handleSubmit((values) => {
-                      processSubmission(values, clickAction)
-                    })()
-                }
-              }}
-            >
-              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          )}
+        />
+      ) : (
+        <Checkbox id={controlId} defaultChecked={defaultChecked} disabled={isLoading} />
+      )
+      return (
+        <div className="flex items-center gap-2">
+          {control}
+          {label && (
+            <label htmlFor={controlId} className="text-sm">
               {label}
-            </Button>,
-            options?.wrapperClass,
-          )
-        }
-
-        if (component.toLowerCase() === 'link') {
-          const label = String(props.label || 'Link')
-          const href = String(props.href || '#')
-          const target = String(props.target || '_self')
-          const isExternal = target === '_blank'
-          return wrap(
-            <a
-              href={href}
-              target={target}
-              rel={isExternal ? 'noreferrer' : undefined}
-              className="text-xs underline underline-offset-2"
-              style={{ color: fontColor || primary }}
-            >
-              {label}
-            </a>,
-            cn(alignClass, options?.wrapperClass),
-          )
-        }
-
-        if (component.toLowerCase() === 'divider') {
-          return wrap(<Separator />, options?.wrapperClass)
-        }
-
-        if (component.toLowerCase() === 'providerbuttons') {
-          if (enabledProviders.length === 0) {
-            return null
-          }
-
-          return wrap(
-            <div className="flex w-full flex-col gap-3">
-              {enabledProviders.map((provider) => {
-                const accent = provider.button_color || primary
-                return (
-                  <Button
-                    key={provider.alias}
-                    type="button"
-                    variant="outline"
-                    className="w-full justify-center"
-                    style={{ borderColor: accent, color: accent }}
-                    disabled={isLoading}
-                    onClick={() => {
-                      setLocalError(null)
-                      if (templateKey === 'login') {
-                        void authApi.startOauth(activeRealm, provider.alias).then((response) => {
-                          window.location.href = response.redirect_url
-                        }).catch((error) => {
-                          const message =
-                            error instanceof Error
-                              ? error.message
-                              : 'Unable to start external sign-in.'
-                          setLocalError(message)
-                        })
-                        return
-                      }
-                      void onSubmit({ provider_alias: provider.alias })
-                    }}
-                  >
-                    {provider.display_name}
-                  </Button>
-                )
-              })}
-            </div>,
-            options?.wrapperClass,
-          )
-        }
-
-        return wrap(
-          <div className="text-xs text-muted-foreground">Unknown component: {component}</div>,
-        )
-      }
-      case 'Image': {
-        const assetId = String(props.asset_id || '')
-        const asset = assetMap.get(assetId)
-        const height =
-          heightMode === 'fixed' && heightValue
-            ? heightValue
-            : heightMode === 'fill'
-              ? '100%'
-              : heightValue ||
-                (size === 'sm' ? '120px' : size === 'lg' ? '240px' : '180px')
-        return wrap(
-          asset ? (
-            <img
-              src={asset.url}
-              alt={String(props.alt || asset.filename)}
-              className="w-full rounded-lg object-cover"
-              style={{ height }}
-            />
-          ) : (
-            <div
-              className="border-muted bg-muted/40 text-muted-foreground flex w-full items-center justify-center rounded-lg border text-xs"
-              style={{ height }}
-            >
-              Select an asset
-            </div>
-          ),
-          options?.wrapperClass,
-        )
-      }
-      default:
-        return wrap(
-          <div className="text-xs text-muted-foreground">Unknown node: {node.type}</div>,
-        )
-    }
+            </label>
+          )}
+        </div>
+      )
+    },
+    renderProviders: () => {
+      // Hiding the block outright is the runtime behaviour; the builder shows a
+      // placeholder instead so the node stays selectable.
+      if (enabledProviders.length === 0) return null
+      return (
+        <div className="flex w-full flex-col gap-3">
+          {enabledProviders.map((provider) => {
+            const accent = provider.button_color || primary
+            return (
+              <Button
+                key={provider.alias}
+                type="button"
+                variant="outline"
+                className="w-full justify-center"
+                style={{ borderColor: accent, color: accent }}
+                disabled={isLoading}
+                onClick={() => {
+                  setLocalError(null)
+                  if (templateKey === 'login') {
+                    void authApi
+                      .startOauth(activeRealm, provider.alias)
+                      .then((response) => {
+                        window.location.href = response.redirect_url
+                      })
+                      .catch((error) => {
+                        const message =
+                          error instanceof Error
+                            ? error.message
+                            : 'Unable to start external sign-in.'
+                        setLocalError(message)
+                      })
+                    return
+                  }
+                  void onSubmit({ provider_alias: provider.alias })
+                }}
+              >
+                {provider.display_name}
+              </Button>
+            )
+          })}
+        </div>
+      )
+    },
   }
+
+  const renderNode = (node: ThemeNode, index: number, options?: FluidRenderOptions): ReactNode =>
+    renderFluidNode(node, host, index, options)
 
   if (isThemeLoading && !snapshot) {
     return (
@@ -1395,105 +1230,53 @@ export function FluidLoginScreen({
     fontSize: `${baseSize}px`,
   }
 
+  const paneBlocks = shell === 'SplitScreen' ? formBlocks : nonSplitBlocks
+
   return (
     <div className="min-h-svh w-full" style={containerStyle}>
       <div className="flex min-h-svh w-full items-center justify-center p-8">
-        {shell === 'SplitScreen' ? (
-          <div
-            className="grid w-full max-w-4xl grid-cols-1 overflow-hidden rounded-2xl border shadow-lg md:grid-cols-2"
-            style={{ backgroundColor: surface }}
-          >
-            <div className="flex flex-col justify-between bg-slate-900 p-8 text-white">
-              {brandBlocks.length === 0 ? (
-                <div className="space-y-2 text-xs text-white/60">
-                  <div className="h-3 w-16 rounded-full bg-white/40" />
-                  <div className="h-2 w-24 rounded-full bg-white/20" />
-                  <p>Add brand blocks in Fluid.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {brandBlocks.map((block, index) => (
-                    <div key={`brand-${index}`} className="text-white">
-                      {renderNode(block, index, { wrapperClass: 'text-white' })}
-                    </div>
-                  ))}
+        <FluidShell
+          shell={shell}
+          surface={surface}
+          background={background}
+          text={text}
+          radiusBase={radiusBase}
+          hasBrand={brandBlocks.length > 0}
+          brand={brandBlocks.map((block, index) => (
+            <div key={`brand-${block.id ?? index}`} className="text-white">
+              {renderNode(block, index, { wrapperClass: 'text-white' })}
+            </div>
+          ))}
+        >
+          <Form {...form}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {templateKey === 'consent' ? (
+                <input type="hidden" {...form.register('decision')} />
+              ) : null}
+              {displayError && (
+                <div className="text-destructive mb-2 rounded-md bg-red-50 p-3 text-sm font-medium">
+                  {String(displayError)}
                 </div>
               )}
-              <div className="h-24 rounded-xl border border-white/10 bg-white/5" />
-            </div>
-            <div className="p-8" style={{ backgroundColor: background, color: text }}>
-              <Form {...form}>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {templateKey === 'consent' ? (
-                    <input type="hidden" {...form.register('decision')} />
-                  ) : null}
-                  {displayError && (
-                    <div className="text-destructive mb-2 rounded-md bg-red-50 p-3 text-sm font-medium">
-                      {String(displayError)}
-                    </div>
-                  )}
-                  {showPayloadMapWarning && (
-                    <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900">
-                      <AlertTitle>Developer warning</AlertTitle>
-                      <AlertDescription>
-                        payload_map unresolved: {payloadMapWarningText}
-                        {payloadMapActionLabel ? ` (${payloadMapActionLabel})` : ''}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {formBlocks.length === 0 ? (
-                    <div className="text-muted-foreground text-sm">
-                      Add blocks to build this page.
-                    </div>
-                  ) : (
-                    formBlocks.map((block, index) => renderNode(block, index))
-                  )}
-                </form>
-              </Form>
-            </div>
-          </div>
-        ) : (
-          <div
-            className={cn(
-              'w-full max-w-md border p-8',
-              shell === 'Minimal' ? 'border-transparent shadow-none' : 'shadow-lg',
-            )}
-            style={{
-              borderRadius: `${radiusBase}px`,
-              backgroundColor: shell === 'Minimal' ? 'transparent' : surface,
-              color: text,
-            }}
-          >
-            <Form {...form}>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {templateKey === 'consent' ? (
-                  <input type="hidden" {...form.register('decision')} />
-                ) : null}
-                {displayError && (
-                  <div className="text-destructive mb-2 rounded-md bg-red-50 p-3 text-sm font-medium">
-                    {String(displayError)}
-                  </div>
-                )}
-                {showPayloadMapWarning && (
-                  <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900">
-                    <AlertTitle>Developer warning</AlertTitle>
-                    <AlertDescription>
-                      payload_map unresolved: {payloadMapWarningText}
-                      {payloadMapActionLabel ? ` (${payloadMapActionLabel})` : ''}
-                    </AlertDescription>
-                  </Alert>
-                )}
-                {nonSplitBlocks.length === 0 ? (
-                  <div className="text-muted-foreground text-sm">
-                    Add blocks to build this page.
-                  </div>
-                ) : (
-                  nonSplitBlocks.map((block, index) => renderNode(block, index))
-                )}
-              </form>
-            </Form>
-          </div>
-        )}
+              {showPayloadMapWarning && (
+                <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-900">
+                  <AlertTitle>Developer warning</AlertTitle>
+                  <AlertDescription>
+                    payload_map unresolved: {payloadMapWarningText}
+                    {payloadMapActionLabel ? ` (${payloadMapActionLabel})` : ''}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {paneBlocks.length === 0 ? (
+                <div className="text-muted-foreground text-sm">
+                  Add blocks to build this page.
+                </div>
+              ) : (
+                paneBlocks.map((block, index) => renderNode(block, index))
+              )}
+            </form>
+          </Form>
+        </FluidShell>
       </div>
     </div>
   )

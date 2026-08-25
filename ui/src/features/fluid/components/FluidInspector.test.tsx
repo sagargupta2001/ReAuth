@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { FluidInspector } from './FluidInspector'
@@ -92,6 +92,83 @@ describe('FluidInspector', () => {
   it('only offers the custom value when the mode is fixed', () => {
     renderInspector(box)
     expect(screen.queryByLabelText('Custom Width')).not.toBeInTheDocument()
+  })
+
+  it('exposes the box surface props both renderers already read', () => {
+    // Background, border, and radius rendered from the blueprint long before
+    // any control wrote them — the capability matrix is what surfaced that.
+    const { onUpdateSelectedBlock } = renderInspector(box)
+
+    expect(screen.getByText('Appearance')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Background'), { target: { value: '#101828' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({
+      style: { group: 'fill', key: 'color', part: undefined, value: '#101828' },
+    })
+
+    fireEvent.change(screen.getByLabelText('Corner Radius'), { target: { value: '16' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({
+      style: { group: 'corners', key: 'radius', part: undefined, value: 16 },
+    })
+  })
+
+  it('writes an Input part style to the part, not to a prefixed prop', () => {
+    // `label_color`, `field_radius` and the seven others like them are gone.
+    const { onUpdateSelectedBlock } = renderInspector({
+      id: 'i1',
+      type: 'Component',
+      component: 'Input',
+      props: { label: 'Email', name: 'email' },
+    })
+
+    fireEvent.change(screen.getByLabelText('Label Color'), { target: { value: '#8899aa' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({
+      style: { group: 'typography', key: 'color', part: 'label', value: '#8899aa' },
+    })
+
+    fireEvent.change(screen.getByLabelText('Inner Padding'), { target: { value: '12' } })
+    expect(onUpdateSelectedBlock).toHaveBeenCalledWith({
+      style: { group: 'spacing', key: 'padding', part: 'field', value: 12 },
+    })
+  })
+
+  it('reads a part style back from the legacy prop it replaced', () => {
+    renderInspector({
+      id: 'i2',
+      type: 'Component',
+      component: 'Input',
+      props: { label: 'Email', name: 'email', field_border_width: 3 },
+    })
+    expect(screen.getByLabelText('Border Width')).toHaveValue(3)
+  })
+
+  it('offers block colours as a design token or a literal, not a raw string', () => {
+    // Every inspector colour used to be a plain text input, so a block colour
+    // could only ever be pinned to a literal. Referencing a token is what lets
+    // a palette change propagate.
+    renderInspector({
+      id: 'b2',
+      type: 'Box',
+      props: { background: 'var(--card)' },
+      children: [],
+    })
+
+    const source = screen.getByRole('group', { name: 'Background source' })
+    expect(source).toBeInTheDocument()
+
+    // A token-valued colour resolves to the token picker rather than a swatch
+    // showing an unrelated fallback.
+    const tokenButton = within(source).getByRole('button', { name: 'Design token' })
+    expect(tokenButton).toHaveAttribute('aria-pressed', 'true')
+    expect(within(source).getByRole('button', { name: 'Custom' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  })
+
+  it('does not offer box surface props on a Text node', () => {
+    renderInspector({ id: 't1', type: 'Text', props: { text: 'Hi' } })
+    expect(screen.queryByText('Appearance')).not.toBeInTheDocument()
   })
 
   it('offers a placeholder control for an Input', () => {

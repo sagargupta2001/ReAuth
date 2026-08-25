@@ -201,6 +201,122 @@ Legacy blocks will be wrapped into the Box Model during draft load or publish.
 - Export/import theme bundles (JSON + assets).
 - Theme diffing and rollback history.
 
+## Phase 3: Figma-scale block growth (proposed)
+
+Four refactors, ordered. Each is justified by something measured in the current
+code, not by aesthetics. The inventory they act on is generated into
+`docs/memory/22-fluid-capability-matrix.md`.
+
+### R1 — One renderer, two hosts (biggest lever)
+
+`FluidCanvas.renderNode` is 312 lines and `FluidLoginScreen.renderNode` is 352.
+**233 of those lines are byte-identical** once whitespace is trimmed — roughly
+70% duplication. Every new block and every render-level styling prop is written
+twice, and the divergence has shipped bugs at least three times: the
+`ProviderButtons` canvas gap, the two `resolveVisibleFlag` implementations that
+disagreed on `visible: 0`, and the five renderer defaults in
+`18-fluid-theme-builder.md` §5.4.3.
+
+The parts that genuinely differ are only four, and they form a clean seam:
+
+1. **Wrapping** — the canvas adds a selection ring and a click target; the
+   runtime adds nothing.
+2. **Visibility** — the runtime gates on `visible` / `visible_if`; the builder
+   always renders, so the node stays selectable.
+3. **Leaf interactivity** — the runtime wires `FormField`, `Input`,
+   `PasswordInput`, actions, OAuth, and passkeys; the builder renders inert
+   equivalents.
+4. **Unresolved data** — the builder shows the binding itself (`{message}`,
+   dimmed); the runtime resolves it against auth context. `ProviderButtons` is
+   the same split: placeholder versus live providers.
+
+Extract `renderFluidNode(node, host)` into `features/fluid/lib/`, with a
+`FluidHost` interface covering exactly those four concerns. Both components
+become thin adapters over one tree walker.
+
+- Payoff: a new block is one branch, not two. Renderer parity stops being a test
+  and becomes structural — §4 of the capability matrix becomes trivially true.
+- Guarded by: `FluidCanvasStyling`, `FluidCanvasLoginPage`, and
+  `FluidRendererParity` already assert the behaviour that must not change.
+
+### R2 — A colour control for the inspector (cheap, independent of R1)
+
+`ThemeColorControl` makes design-token-vs-literal an explicit choice and previews
+the token's real colour, but it is used **only** by the theme settings panel.
+Every colour in the block inspector is a raw text input — `props.color` in
+Typography, and `props.background` / `props.border_color` in the Box Appearance
+section.
+
+Add `InspectorFieldKind.Color` (a kind, a descriptor, a case in
+`InspectorField.tsx`) and switch those fields to it.
+
+- Payoff: block-level colours can reference tokens, so a palette change
+  propagates instead of being pinned per block. Directly serves the "brand
+  alignment" use case above.
+
+### R3 — A component registry instead of a dispatch chain (after R1) — **done, scoped down**
+
+Proposed as "one registry entry per block, colocating definition, preview,
+inspector section, and render". Two thirds of that did not survive contact with
+the code and were deliberately dropped:
+
+- **Preview stays in `BLOCK_PREVIEWS`.** It is already a
+  `Record<FluidBlockId, …>`, so a missing preview is a compile error and the bug
+  it would prevent cannot occur. Merging it into `FLUID_BLOCKS` would only move
+  JSX into `model/`, which is where the per-item *data* lives.
+- **Inspector sections stay section-oriented.** They are cross-cutting —
+  Typography applies to Text, Button, and Link — so a per-block layout would
+  either duplicate them or reinvent `appliesTo` under another name. Declaring
+  applicability on the section is already the right model.
+
+What shipped is the part with a real payoff: the component `if` chain in the
+walker became `COMPONENT_RENDERERS`, a map keyed by lowercased component name.
+Adding a component block is an entry, and — the reason it is worth doing — the
+set is now **enumerable**, so the capability matrix imports `RENDERED_COMPONENTS`
+instead of pattern-matching the renderer's source for branches.
+
+### R4 — Grouped style objects instead of a flat prop bag (largest; own spec)
+
+The `Input` component alone carries **nine** prefixed styling props —
+`field_background`, `field_border_color`, `field_border_width`, `field_padding`,
+`field_radius`, `label_color`, `label_size`, `label_spacing`, `label_weight` —
+each re-declaring a generic concept because slot styling has no structure. Three
+more composed components at that rate is ~30 props that all mean "background" or
+"radius".
+
+Figma's model is per-node style groups: fills, strokes, effects, corner radius,
+typography. Add `node.style` groups any node can carry, and address a slot as
+`node.slots.label.style` rather than inventing `label_*` props. A styling
+capability is then added once and applies to every block.
+
+Shipped as `docs/specs/fluid-style-groups.md`. `node.style` carries `fill`,
+`stroke`, `corners`, `spacing`, and `typography`, plus `parts` for a composed
+component's expansion parts. All nine prefixed props are gone from the schema.
+
+Compatibility is a read-time mapping, not a migration: `resolveNodeStyle` prefers
+the group and falls back to the legacy prop, so stored blueprints render
+unchanged forever. `extractNodesFromBlueprint` normalizes the draft on load, so a
+page converges on the new shape the first time it is saved. Nothing rewrites
+stored rows.
+
+Two things changed from the draft on contact with the code, both recorded in the
+spec: component parts are `style.parts.<part>` rather than authored slots (the
+label and field container are render-time nodes and must stay out of the authored
+tree), and `spacing.padding` is a single number — the four-number tuple is a
+container's inner padding and stays in `layout`.
+
+### Explicitly not now
+
+- An external or plugin block SDK — there is no consumer.
+- Server-side rendering or code-generated blueprints — contradicts the decoupled
+  principle above.
+- A CSS-in-JS or style-system dependency — minimal deps stands; Tailwind plus
+  tokens is working.
+- Canvas drag and drop — a feature, not a refactor. It should reuse
+  `resolveDrop` / `moveNode`, and gets substantially easier after R1.
+
+Sequence: **R1 → R2 (independent, can run in parallel) → R3 → R4**.
+
 ## Implementation checklist
 - [x] Create core storage tables (`themes`, `theme_tokens`, `theme_layouts`, `theme_nodes`, `theme_assets`, `theme_versions`, `theme_bindings`).
 - [x] Add `is_system` flag to themes + seed a non-deletable ReAuth Default theme.
@@ -271,6 +387,15 @@ Legacy blocks will be wrapped into the Box Model during draft load or publish.
 - [x] Add Flow Builder ↔ Fluid template binding UI (node → page selector).
 - [x] Persist flow node → page bindings in flow config.
 - [x] Validate flow bindings on theme switch and show warnings + fallback behavior.
+- [x] Nested section editing: drag into containers, indent/outdent, depth limit, empty-container targets (`fluid-nested-sections.md`).
+- [x] Generate the capability matrix (blocks, styling options, tokens, gaps) from the schemas.
+- [x] Expose Box surface props (background, border colour/width, corner radius) in the inspector.
+- [x] R1: collapse the two `renderNode` switches into one host-driven tree walker (`lib/renderFluidNode.tsx` + `FluidShell`).
+- [x] R2: add an inspector colour control with design-token references.
+- [x] R3: make component rendering a registry (`COMPONENT_RENDERERS`) the matrix can enumerate.
+- [x] R4: grouped style objects on nodes (`lib/nodeStyle.ts`), replacing the nine prefixed slot-styling props.
+- [x] Separate palette entries from render targets (`RENDER_TARGETS`), so presets can share a node kind.
+- [x] Add Checkbox (consent / remember-me), Columns, and Heading blocks.
 
 ## Upcoming integration (Flow Builder ↔ Fluid)
 - Add a **Template Selector** per Flow Node (bind node → page key).

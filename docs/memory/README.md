@@ -35,6 +35,7 @@ Purpose: compact, structured project memory for fast onboarding of humans and ag
 - `19-harbor.md`
 - `20-ui-development-practices.md`
 - `21-identity-brokering-operations.md`
+- `22-fluid-capability-matrix.md`
 - `harbor-bundle.md`
 - `adr/README.md`
 - `roadmaps/README.md`
