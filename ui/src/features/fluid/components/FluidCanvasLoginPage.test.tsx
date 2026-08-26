@@ -39,7 +39,8 @@ const SEEDED_LOGIN_NODES: ThemeNode[] = [
     id: 'n3',
     type: 'Component',
     component: 'Link',
-    props: { label: 'Forgot password?', href: '/forgot-password', align: 'right' },
+    props: { label: 'Forgot password?', href: '/forgot-password' },
+    style: { typography: { align: 'right' } },
   },
   {
     id: 'n4',
@@ -64,7 +65,8 @@ const SEEDED_LOGIN_NODES: ThemeNode[] = [
         id: 'n6a',
         type: 'Text',
         size: { width: 'hug', height: 'hug' },
-        props: { text: 'New on our platform?', font_size: '12px', font_weight: '400' },
+        props: { text: 'New on our platform?' },
+        style: { typography: { size: '12px', weight: '400' } },
       },
       {
         id: 'n6b',

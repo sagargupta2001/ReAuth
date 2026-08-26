@@ -61,6 +61,28 @@ const BLOCK_PREVIEWS: Record<FluidBlockId, () => ReactElement> = {
       <span className="text-foreground">Remember me</span>
     </div>
   ),
+  [FluidBlockId.RadioGroup]: () => (
+    <div className="flex flex-col gap-2 text-xs">
+      {['Yes', 'No'].map((label) => (
+        <div key={label} className="flex items-center gap-2">
+          <div className="border-primary h-3.5 w-3.5 rounded-full border" />
+          <span className="text-foreground">{label}</span>
+        </div>
+      ))}
+    </div>
+  ),
+  [FluidBlockId.Select]: () => (
+    <div className="text-muted-foreground flex h-9 w-full items-center justify-between rounded-md border px-2 text-xs">
+      Choose one
+      <span aria-hidden="true">▾</span>
+    </div>
+  ),
+  [FluidBlockId.LegalText]: () => (
+    <p className="text-muted-foreground text-[10px]">
+      I accept the <span className="text-primary underline">Terms</span> and{' '}
+      <span className="text-primary underline">Privacy Policy</span>.
+    </p>
+  ),
 }
 
 export function BlockPreview({ blockId }: { blockId: FluidBlockId }) {

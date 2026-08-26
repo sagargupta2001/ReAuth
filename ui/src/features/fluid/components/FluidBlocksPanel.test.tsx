@@ -37,7 +37,7 @@ function Harness({
   onMoveNode,
   ...props
 }: PanelProps & { onMoveNode: (nodeId: string, location: NodeLocation) => void }) {
-  const drag = useFluidDrag(props.nodes, onMoveNode)
+  const drag = useFluidDrag(props.nodes, onMoveNode, props.onInsertNode)
   return <FluidBlocksPanel {...props} drag={drag} />
 }
 
@@ -497,19 +497,19 @@ describe('FluidBlocksPanel keyboard', () => {
     { id: 'node-divider', type: 'Component', component: 'Divider' },
   ]
 
-  it('indents a node into the container above it on Tab', () => {
+  it('indents a node into the container above it on Alt+Right', () => {
     const { onMoveNode } = renderPanel({ nodes: boxThenText })
 
-    fireEvent.keyDown(screen.getByText('Divider'), { key: 'Tab' })
+    fireEvent.keyDown(screen.getByText('Divider'), { key: 'ArrowRight', altKey: true })
 
     // Matches the drag result: last child of the preceding container.
     expect(onMoveNode).toHaveBeenCalledWith('node-divider', { parentId: 'node-box', index: 1 })
   })
 
-  it('outdents a child to its parent level on Shift+Tab', () => {
+  it('outdents a child to its parent level on Alt+Left', () => {
     const { onMoveNode } = renderPanel({ nodes: boxThenText })
 
-    fireEvent.keyDown(screen.getByText('Text'), { key: 'Tab', shiftKey: true })
+    fireEvent.keyDown(screen.getByText('Text'), { key: 'ArrowLeft', altKey: true })
 
     expect(onMoveNode).toHaveBeenCalledWith('child-text', { parentId: null, index: 1 })
   })
@@ -525,13 +525,29 @@ describe('FluidBlocksPanel keyboard', () => {
     expect(onMoveNode).toHaveBeenCalledWith('node-text', { parentId: null, index: 2 })
   })
 
-  it('leaves Tab alone when there is nothing to indent into', () => {
-    // Otherwise the tree would be a keyboard trap: every Tab consumed, with no
-    // way out of the panel.
-    const { onMoveNode } = renderPanel()
-    const event = fireEvent.keyDown(screen.getByText('Text'), { key: 'Tab' })
+  it('never consumes Tab, so focus can always leave the panel', () => {
+    // Binding Tab to indent made the tree a keyboard trap (WCAG 2.1.2). Only
+    // swallowing it when a move was possible still trapped focus mid-tree, so
+    // Tab is not bound at all.
+    const { onMoveNode } = renderPanel({ nodes: boxThenText })
 
-    expect(event).toBe(true)
+    expect(fireEvent.keyDown(screen.getByText('Divider'), { key: 'Tab' })).toBe(true)
+    expect(
+      fireEvent.keyDown(screen.getByText('Text'), { key: 'Tab', shiftKey: true }),
+    ).toBe(true)
+    expect(onMoveNode).not.toHaveBeenCalled()
+  })
+
+  it('ignores an arrow without the modifier', () => {
+    const { onMoveNode } = renderPanel({ nodes: boxThenText })
+    fireEvent.keyDown(screen.getByText('Divider'), { key: 'ArrowRight' })
+    fireEvent.keyDown(screen.getByText('Divider'), { key: 'ArrowUp' })
+    expect(onMoveNode).not.toHaveBeenCalled()
+  })
+
+  it('leaves Alt+Right alone when there is nothing to indent into', () => {
+    const { onMoveNode } = renderPanel()
+    fireEvent.keyDown(screen.getByText('Text'), { key: 'ArrowRight', altKey: true })
     expect(onMoveNode).not.toHaveBeenCalled()
   })
 
@@ -540,5 +556,63 @@ describe('FluidBlocksPanel keyboard', () => {
     fireEvent.keyDown(screen.getByText('Text'), { key: 'ArrowUp', altKey: true })
     fireEvent.keyDown(screen.getByText('Input Field'), { key: 'ArrowDown', altKey: true })
     expect(onMoveNode).not.toHaveBeenCalled()
+  })
+})
+
+describe('FluidBlocksPanel picker drag', () => {
+  it('places a block dragged out of the picker onto a row', () => {
+    const onInsertNode = vi.fn()
+    renderPanel({ onInsertNode })
+
+    fireEvent.click(screen.getByLabelText('Add block'))
+    const dataTransfer = makeDataTransfer()
+    fireEvent.dragStart(screen.getByText('Divider'), { dataTransfer })
+
+    const target = rowFor('Text')
+    stubRect(target)
+    fireDragAt('dragOver', target, dataTransfer, OFFSETS.bottom)
+    fireDragAt('drop', target, dataTransfer, OFFSETS.bottom)
+
+    expect(onInsertNode).toHaveBeenCalledTimes(1)
+    const [node, location] = onInsertNode.mock.calls[0]
+    expect(node).toMatchObject({ type: 'Component', component: 'Divider' })
+    expect(location).toEqual({ parentId: null, index: 1 })
+  })
+
+  it('nests a dragged block when dropped inside a container', () => {
+    const onInsertNode = vi.fn()
+    renderPanel({ nodes: [{ id: 'node-box', type: 'Box', children: [] }], onInsertNode })
+
+    fireEvent.click(screen.getByLabelText('Add block'))
+    const dataTransfer = makeDataTransfer()
+    fireEvent.dragStart(screen.getByText('Divider'), { dataTransfer })
+
+    const target = rowFor('Box')
+    stubRect(target)
+    fireDragAt('dragOver', target, dataTransfer, OFFSETS.middle)
+    fireDragAt('drop', target, dataTransfer, OFFSETS.middle)
+
+    expect(onInsertNode.mock.calls[0][1]).toEqual({ parentId: 'node-box', index: 0 })
+  })
+
+  it('closes the picker when a block is dragged out of it', () => {
+    renderPanel()
+    fireEvent.click(screen.getByLabelText('Add block'))
+    expect(screen.getByLabelText('Search blocks')).toBeInTheDocument()
+
+    fireEvent.dragStart(screen.getByText('Divider'), { dataTransfer: makeDataTransfer() })
+
+    // The popover would otherwise cover the canvas being dragged onto.
+    expect(screen.queryByLabelText('Search blocks')).not.toBeInTheDocument()
+  })
+
+  it('moves an existing node rather than inserting, when that is what is dragged', () => {
+    const onInsertNode = vi.fn()
+    const { onMoveNode } = renderPanel({ onInsertNode })
+
+    dragOnto(rowFor('Input Field'), rowFor('Text'), 'top')
+
+    expect(onMoveNode).toHaveBeenCalled()
+    expect(onInsertNode).not.toHaveBeenCalled()
   })
 })

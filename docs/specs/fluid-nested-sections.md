@@ -319,11 +319,18 @@ capability over a model that already supports it.
       box), or stay flat? Deferred — no seed change was needed to ship the
       editing capability.
 
-## Known Gap
+## Resolved: the keyboard binding
 
-`Tab` / `Shift+Tab` are consumed only when the move is actually possible: a row
-with no preceding container falls through to normal focus movement, and so does
-a root row on `Shift+Tab`. Consuming them unconditionally would make the tree a
-keyboard trap (WCAG 2.1.2) with no way to leave the panel. `Alt+Up` / `Alt+Down`
-reorder and are never ambiguous. A dedicated non-`Tab` indent binding would
-remove the compromise entirely and is worth revisiting.
+Rule 9 asked for indent and outdent on `Tab` / `Shift+Tab`. That shipped as a
+compromise — consuming them only when a move was actually possible — because
+binding them outright makes the panel a keyboard trap (WCAG 2.1.2). The
+compromise still trapped focus anywhere in the middle of a tree, where a move
+*is* always possible.
+
+Replaced with `Alt+Right` (indent) and `Alt+Left` (outdent), alongside the
+`Alt+Up` / `Alt+Down` reorder that rule 9 already had. One modifier, four
+directions, and `Tab` is plain focus navigation again. This matters more since
+canvas drag shipped: that is mouse-only, so the tree's keyboard path is the
+accessible route to structural editing and cannot be a trap.
+
+`FluidBlocksPanel.test.tsx` asserts `Tab` and `Shift+Tab` are never consumed.

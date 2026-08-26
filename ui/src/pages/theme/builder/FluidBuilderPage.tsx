@@ -547,7 +547,7 @@ export function FluidBuilderPage() {
    * both drive it, so a drag can cross between them and neither surface can
    * disagree with the other about what a drop means.
    */
-  const drag = useFluidDrag(activeNodes, handleMoveNode)
+  const drag = useFluidDrag(activeNodes, handleMoveNode, handleInsertNode)
 
   const selectedBlock = selectedNodeId ? findNodeById(activeNodes, selectedNodeId) : null
   const canUndo = history.past.length > 0

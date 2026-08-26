@@ -1,5 +1,8 @@
 import {
+  ChevronDown,
+  Circle,
   Columns2,
+  FileText,
   Fingerprint,
   Heading1,
   Image,
@@ -36,6 +39,9 @@ export const FluidBlockId = {
   Columns: 'columns',
   Heading: 'heading',
   Checkbox: 'checkbox',
+  RadioGroup: 'radio-group',
+  Select: 'select',
+  LegalText: 'legal-text',
 } as const
 
 export type FluidBlockId = (typeof FluidBlockId)[keyof typeof FluidBlockId]
@@ -86,6 +92,9 @@ export const RENDER_TARGETS: readonly FluidRenderTarget[] = [
   { key: 'Input', label: 'Input Field', acceptsChildren: false },
   { key: 'Button', label: 'Button', acceptsChildren: false },
   { key: 'Checkbox', label: 'Checkbox', acceptsChildren: false },
+  { key: 'RadioGroup', label: 'Radio Group', acceptsChildren: false },
+  { key: 'Select', label: 'Select', acceptsChildren: false },
+  { key: 'LegalText', label: 'Legal Text', acceptsChildren: false },
   { key: 'Link', label: 'Link', acceptsChildren: false },
   { key: 'Divider', label: 'Divider', acceptsChildren: false },
   { key: 'ProviderButtons', label: 'Sign-in Providers', acceptsChildren: false },
@@ -267,6 +276,50 @@ export const FLUID_BLOCKS: readonly FluidBlockDefinition[] = [
       component: 'Checkbox',
       size: { width: 'fill', height: 'hug' },
       props: { label: 'Remember me', name: 'remember_me', checked: false },
+    },
+  },
+  {
+    id: FluidBlockId.RadioGroup,
+    label: 'Radio Group',
+    description: 'Single choice from a short list',
+    icon: Circle,
+    category: BlockCategory.FormElements,
+    node: {
+      type: 'Component',
+      component: 'RadioGroup',
+      size: { width: 'fill', height: 'hug' },
+      props: { name: 'choice', options: 'yes|Yes\nno|No', value: '' },
+    },
+  },
+  {
+    id: FluidBlockId.Select,
+    label: 'Select',
+    description: 'Dropdown for a longer list',
+    icon: ChevronDown,
+    category: BlockCategory.FormElements,
+    node: {
+      type: 'Component',
+      component: 'Select',
+      size: { width: 'fill', height: 'hug' },
+      props: {
+        name: 'choice',
+        placeholder: 'Choose one',
+        options: 'yes|Yes\nno|No',
+        value: '',
+      },
+    },
+  },
+  {
+    id: FluidBlockId.LegalText,
+    label: 'Legal Text',
+    description: 'Consent copy with inline links',
+    icon: FileText,
+    category: BlockCategory.Text,
+    node: {
+      type: 'Component',
+      component: 'LegalText',
+      size: { width: 'fill', height: 'hug' },
+      props: { text: 'I accept the [Terms](/terms) and [Privacy Policy](/privacy).' },
     },
   },
 ]

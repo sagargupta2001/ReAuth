@@ -16,13 +16,18 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 function Harness({
   nodes,
   onMoveNode,
+  onInsertNode,
   isInspecting = true,
+  onReady,
 }: {
   nodes: ThemeNode[]
   onMoveNode: (nodeId: string, location: NodeLocation) => void
+  onInsertNode?: (node: ThemeNode, location: NodeLocation) => void
   isInspecting?: boolean
+  onReady?: (drag: ReturnType<typeof useFluidDrag>) => void
 }) {
-  const drag = useFluidDrag(nodes, onMoveNode)
+  const drag = useFluidDrag(nodes, onMoveNode, onInsertNode)
+  onReady?.(drag)
   return (
     <FluidCanvas
       tokens={{ colors: { primary: '#111827' } }}
@@ -39,8 +44,20 @@ function Harness({
 
 function renderCanvas(nodes: ThemeNode[], isInspecting = true) {
   const onMoveNode = vi.fn()
-  render(<Harness nodes={nodes} onMoveNode={onMoveNode} isInspecting={isInspecting} />)
-  return { onMoveNode }
+  const onInsertNode = vi.fn()
+  let controller: ReturnType<typeof useFluidDrag> | undefined
+  render(
+    <Harness
+      nodes={nodes}
+      onMoveNode={onMoveNode}
+      onInsertNode={onInsertNode}
+      isInspecting={isInspecting}
+      onReady={(drag) => {
+        controller = drag
+      }}
+    />,
+  )
+  return { onMoveNode, onInsertNode, controller: () => controller! }
 }
 
 /** The draggable wrapper the walker put around a node. */
@@ -236,5 +253,29 @@ describe('canvas drag', () => {
       />,
     )
     expect(document.querySelectorAll('[draggable="true"]')).toHaveLength(0)
+  })
+})
+
+describe('canvas drag from the picker', () => {
+  it('places a new block where it is dropped on the canvas', () => {
+    const { onInsertNode, onMoveNode, controller } = renderCanvas(COLUMN_NODES)
+    const target = nodeEl('First')
+    stubRect(target, { top: 0, height: 40 })
+
+    // The picker lives in the other panel; what reaches the canvas is a drag
+    // the shared session already knows about.
+    const dataTransfer = makeDataTransfer()
+    controller().onBlockDragStart(
+      { dataTransfer, currentTarget: target } as never,
+      'divider',
+    )
+    fireDragAt('dragOver', target, dataTransfer, { clientX: 100, clientY: 2 })
+    fireDragAt('drop', target, dataTransfer, { clientX: 100, clientY: 2 })
+
+    expect(onMoveNode).not.toHaveBeenCalled()
+    expect(onInsertNode).toHaveBeenCalledTimes(1)
+    const [node, location] = onInsertNode.mock.calls[0]
+    expect(node).toMatchObject({ type: 'Component', component: 'Divider' })
+    expect(location).toEqual({ parentId: null, index: 0 })
   })
 })

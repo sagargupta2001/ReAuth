@@ -26,6 +26,9 @@ lists live in `18-fluid-theme-builder.md` §5.4.
 | Columns | `columns` | `Box` | Layout | yes | Element, Auto Layout, Appearance, Size, Placement, Spacing |
 | Heading | `heading` | `Text` | Text | no | Element, Content, Size, Placement, Typography, Spacing |
 | Checkbox | `checkbox` | `Component` / `Checkbox` | Form Elements | no | Element, Checkbox, Size, Placement, Typography, Spacing |
+| Radio Group | `radio-group` | `Component` / `RadioGroup` | Form Elements | no | Element, Options, Size, Placement, Spacing |
+| Select | `select` | `Component` / `Select` | Form Elements | no | Element, Options, Select, Size, Placement, Spacing |
+| Legal Text | `legal-text` | `Component` / `LegalText` | Text | no | Element, Legal Copy, Size, Placement, Typography, Spacing |
 
 Adding a block: an id in `FluidBlockId`, a definition in `FLUID_BLOCKS`, a
 preview in `BLOCK_PREVIEWS` (compile-enforced), and a render target in
@@ -113,6 +116,32 @@ Applies to: Checkbox.
 | Name | `props.name` | `text` |
 | Checked by default | `props.checked` | `select` |
 
+### Options
+
+Applies to: RadioGroup, Select.
+
+| Field | Writes | Control |
+|---|---|---|
+| Name | `props.name` | `text` |
+| Options | `props.options` | `textarea` |
+| Default value | `props.value` | `text` |
+
+### Select
+
+Applies to: Select.
+
+| Field | Writes | Control |
+|---|---|---|
+| Placeholder | `props.placeholder` | `text` |
+
+### Legal Copy
+
+Applies to: LegalText.
+
+| Field | Writes | Control |
+|---|---|---|
+| Text | `props.text` | `textarea` |
+
 ### Button
 
 Applies to: Button.
@@ -186,7 +215,7 @@ Applies to: every block.
 
 ### Typography
 
-Applies to: Text, Button, Link, Checkbox.
+Applies to: Text, Button, Link, Checkbox, LegalText.
 
 | Field | Writes | Control |
 |---|---|---|
@@ -265,6 +294,9 @@ shipped broken in the builder.
 | Columns | walker node-type branch |
 | Heading | walker node-type branch |
 | Checkbox | `COMPONENT_RENDERERS` entry |
+| Radio Group | `COMPONENT_RENDERERS` entry |
+| Select | `COMPONENT_RENDERERS` entry |
+| Legal Text | `COMPONENT_RENDERERS` entry |
 
 Host responsibilities, and nothing else:
 

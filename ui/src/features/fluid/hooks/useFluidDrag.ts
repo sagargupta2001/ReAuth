@@ -7,12 +7,20 @@ import type { ThemeNode } from '@/entities/theme/model/types'
 import {
   findNodePath,
   resolveDrop,
+  resolveInsertion,
+  subtreeHeight,
   type NodeDropIntent,
   type NodeLocation,
 } from '@/features/fluid/lib/nodeUtils'
-import { canAcceptChildren } from '@/features/fluid/model/blockCatalog'
+import {
+  buildFluidNode,
+  canAcceptChildren,
+  findBlockDefinition,
+  type FluidBlockId,
+} from '@/features/fluid/model/blockCatalog'
 import { dropIntentForOffset } from '@/features/fluid/model/dropZones'
 import {
+  BLOCK_DRAG_MIME_TYPE,
   MAX_NESTING_DEPTH,
   SECTION_DRAG_MIME_TYPE,
 } from '@/features/fluid/model/sectionTree'
@@ -26,8 +34,12 @@ export interface FluidDropTarget {
 
 export interface FluidDragController {
   draggingNodeId: string | null
+  /** Set while a *new* block is being dragged out of the picker. */
+  draggingBlockId: FluidBlockId | null
   dropTarget: FluidDropTarget | null
   onDragStart: (event: DragEvent<HTMLElement>, nodeId: string) => void
+  /** Picks up a catalog entry, so a block can be placed by dropping it. */
+  onBlockDragStart: (event: DragEvent<HTMLElement>, blockId: FluidBlockId) => void
   onDragEnd: () => void
   /** Drop zones on a node row: top edge, bottom edge, and (containers) middle. */
   onRowDragOver: (
@@ -53,7 +65,10 @@ export interface FluidDragController {
   ) => void
   onDropIntent: (event: DragEvent<HTMLElement>, nodeId: string, intent: NodeDropIntent) => void
   onDragLeave: (event: DragEvent<HTMLElement>, nodeId: string) => void
-  /** Keyboard parity for indent, outdent, and reorder. */
+  /**
+   * Keyboard parity for reorder, indent, and outdent — all on `Alt` plus an
+   * arrow, so `Tab` stays focus navigation.
+   */
   onRowKeyDown: (event: KeyboardEvent<HTMLElement>, nodeId: string) => void
   /** Commits a move expressed the same way a drop is. Returns whether it acted. */
   requestMove: (dragId: string, targetId: string | null, intent: NodeDropIntent) => boolean
@@ -79,8 +94,11 @@ const DROP_OPTIONS = {
 export function useFluidDrag(
   nodes: ThemeNode[],
   onMoveNode: (nodeId: string, location: NodeLocation) => void,
+  onInsertNode?: (node: ThemeNode, location: NodeLocation) => void,
 ): FluidDragController {
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
+  const [draggingBlockId, setDraggingBlockId] = useState<FluidBlockId | null>(null)
+  const draggingBlockRef = useRef<FluidBlockId | null>(null)
   const [dropTarget, setDropTarget] = useState<FluidDropTarget | null>(null)
   // `dataTransfer` payloads are unreadable during dragover, and state updates
   // lag the event stream, so the in-flight drag is mirrored in refs.
@@ -90,8 +108,33 @@ export function useFluidDrag(
 
   const clear = useCallback(() => {
     draggingRef.current = null
+    draggingBlockRef.current = null
     setDraggingNodeId(null)
+    setDraggingBlockId(null)
     setDropTarget(null)
+  }, [])
+
+  /**
+   * What the in-flight drag would do at this target.
+   *
+   * A drag carries either an existing node or a catalog entry, and the two ask
+   * different questions: a move can create a cycle or be a no-op, an insertion
+   * can do neither. Both share `resolveDestination`, so a drop zone means the
+   * same thing whichever is being dragged.
+   */
+  const resolveForDrag = useCallback((targetId: string | null, intent: NodeDropIntent) => {
+    const blockId = draggingBlockRef.current
+    if (blockId) {
+      const definition = findBlockDefinition(blockId)
+      if (!definition) return null
+      return resolveInsertion(nodesRef.current, { targetId, intent }, {
+        ...DROP_OPTIONS,
+        subtreeHeight: subtreeHeight(definition.node as ThemeNode),
+      })
+    }
+    const dragId = draggingRef.current
+    if (!dragId) return null
+    return resolveDrop(nodesRef.current, { dragId, targetId, intent }, DROP_OPTIONS)
   }, [])
 
   const requestMove = useCallback(
@@ -113,16 +156,11 @@ export function useFluidDrag(
 
   const previewDrop = useCallback(
     (event: DragEvent<HTMLElement>, nodeId: string, intent: NodeDropIntent) => {
-      const dragId = draggingRef.current
-      if (!dragId) return
+      const resolution = resolveForDrag(nodeId, intent)
+      if (!resolution) return
       event.preventDefault()
       event.stopPropagation()
 
-      const resolution = resolveDrop(
-        nodesRef.current,
-        { dragId, targetId: nodeId, intent },
-        DROP_OPTIONS,
-      )
       const isAllowed = resolution.ok
       // The drop still has to fire when it is not allowed: the not-allowed
       // cursor shows *that* it is refused, and only the drop can say why.
@@ -140,26 +178,51 @@ export function useFluidDrag(
         return next
       })
     },
-    [],
+    [resolveForDrag],
   )
 
   const commitDrop = useCallback(
     (event: DragEvent<HTMLElement>, nodeId: string, intent: NodeDropIntent) => {
       event.preventDefault()
       event.stopPropagation()
+
+      const blockId =
+        (event.dataTransfer.getData(BLOCK_DRAG_MIME_TYPE) as FluidBlockId) ||
+        draggingBlockRef.current
       const dragId =
         event.dataTransfer.getData(SECTION_DRAG_MIME_TYPE) || draggingRef.current || ''
+      const resolution = resolveForDrag(nodeId, intent)
       clear()
-      if (!dragId) return
-      requestMove(dragId, nodeId, intent)
+
+      if (!resolution) return
+      if (!resolution.ok) {
+        // A no-op is a drop that landed where the node already was. Reporting it
+        // would be noise, and committing it would add an empty undo entry.
+        if (resolution.reason !== 'no-op') toast.error(resolution.message)
+        return
+      }
+
+      if (blockId) {
+        const definition = findBlockDefinition(blockId)
+        if (definition) onInsertNode?.(buildFluidNode(definition), resolution.location)
+        return
+      }
+      if (dragId) onMoveNode(dragId, resolution.location)
     },
-    [clear, requestMove],
+    [clear, onInsertNode, onMoveNode, resolveForDrag],
   )
 
   return useMemo(
     () => ({
       draggingNodeId,
+      draggingBlockId,
       dropTarget,
+      onBlockDragStart: (event, blockId) => {
+        event.dataTransfer.setData(BLOCK_DRAG_MIME_TYPE, blockId)
+        event.dataTransfer.effectAllowed = 'copy'
+        draggingBlockRef.current = blockId
+        setDraggingBlockId(blockId)
+      },
       onDragStart: (event, nodeId) => {
         event.dataTransfer.setData(SECTION_DRAG_MIME_TYPE, nodeId)
         event.dataTransfer.effectAllowed = 'move'
@@ -194,10 +257,16 @@ export function useFluidDrag(
         setDropTarget((previous) => (previous?.nodeId === nodeId ? null : previous))
       },
       onRowKeyDown: (event, nodeId) => {
-        const isIndent = event.key === 'Tab' && !event.shiftKey
-        const isOutdent = event.key === 'Tab' && event.shiftKey
-        const isMoveUp = event.altKey && event.key === 'ArrowUp'
-        const isMoveDown = event.altKey && event.key === 'ArrowDown'
+        // One modifier, four directions. `Tab` is deliberately *not* bound:
+        // consuming it made the panel a keyboard trap (WCAG 2.1.2), and the
+        // earlier compromise — only swallowing it when a move was possible —
+        // still trapped focus anywhere in the middle of a tree. Tab is focus
+        // navigation again, and structural editing has its own binding.
+        if (!event.altKey) return
+        const isIndent = event.key === 'ArrowRight'
+        const isOutdent = event.key === 'ArrowLeft'
+        const isMoveUp = event.key === 'ArrowUp'
+        const isMoveDown = event.key === 'ArrowDown'
         if (!isIndent && !isOutdent && !isMoveUp && !isMoveDown) return
 
         const path = findNodePath(nodesRef.current, nodeId)
@@ -210,8 +279,6 @@ export function useFluidDrag(
         let intent: NodeDropIntent = 'inside'
         if (isIndent) {
           const previous = index > 0 ? siblings[index - 1] : undefined
-          // Falling through to normal focus movement when there is nothing to
-          // indent into is what keeps the tree escapable by keyboard.
           if (!previous || !canAcceptChildren(previous)) return
           target = previous.id
         } else if (isOutdent) {
@@ -233,6 +300,6 @@ export function useFluidDrag(
       },
       requestMove,
     }),
-    [clear, commitDrop, draggingNodeId, dropTarget, previewDrop, requestMove],
+    [clear, commitDrop, draggingBlockId, draggingNodeId, dropTarget, previewDrop, requestMove],
   )
 }

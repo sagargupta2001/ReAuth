@@ -223,44 +223,87 @@ export function FluidCanvas({
           </p>
         )
       },
-      renderInput: (_node, { inputType, placeholder, inputClass }) => {
+      renderField: (_node, spec) => {
+        if (spec.kind === 'checkbox') {
+          return (
+            <div className="flex items-center gap-2">
+              <Checkbox id={spec.controlId} checked={spec.defaultChecked} disabled />
+              {spec.label && (
+                <label htmlFor={spec.controlId} className="text-sm">
+                  {spec.label}
+                </label>
+              )}
+            </div>
+          )
+        }
+        if (spec.kind === 'radio') {
+          return (
+            <div className="flex flex-col gap-2" role="radiogroup" aria-label={spec.name}>
+              {spec.options.map((option) => (
+                <label key={option.value} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name={spec.controlId}
+                    value={option.value}
+                    defaultChecked={option.value === spec.defaultValue}
+                    disabled
+                  />
+                  {option.label}
+                </label>
+              ))}
+            </div>
+          )
+        }
+        if (spec.kind === 'select') {
+          return (
+            <select
+              id={spec.controlId}
+              className={spec.className}
+              defaultValue={spec.defaultValue}
+              aria-label={spec.name}
+              disabled
+            >
+              {spec.placeholder && <option value="">{spec.placeholder}</option>}
+              {spec.options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )
+        }
         if (isInspecting) {
           return (
             <div
               className={cn(
-                inputClass,
+                spec.inputClass,
                 'pointer-events-none flex items-center text-muted-foreground/70',
               )}
             >
-              {placeholder || 'Input'}
+              {spec.placeholder || 'Input'}
             </div>
           )
         }
-        return inputType === 'password' ? (
+        return spec.inputType === 'password' ? (
           <PasswordInput
             className="flex-1"
-            inputClassName={inputClass}
-            placeholder={placeholder}
+            inputClassName={spec.inputClass}
+            placeholder={spec.placeholder}
             disabled
           />
         ) : (
-          <Input className={inputClass} placeholder={placeholder} type={inputType} disabled />
+          <Input
+            className={spec.inputClass}
+            placeholder={spec.placeholder}
+            type={spec.inputType}
+            disabled
+          />
         )
       },
       renderButton: (_node, { defaultLabel, buttonVariant, className, style }) => (
         <Button type="button" variant={buttonVariant} className={className} style={style} disabled>
           {defaultLabel}
         </Button>
-      ),
-      renderCheckbox: (_node, { label, defaultChecked, controlId }) => (
-        <div className="flex items-center gap-2">
-          <Checkbox id={controlId} checked={defaultChecked} disabled />
-          {label && (
-            <label htmlFor={controlId} className="text-sm">
-              {label}
-            </label>
-          )}
-        </div>
       ),
       renderProviders: () =>
         providers.length === 0 ? (

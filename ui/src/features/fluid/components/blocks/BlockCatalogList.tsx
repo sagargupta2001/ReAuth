@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 import { useMemo } from 'react'
+import type { DragEvent } from 'react'
 
 import { Input } from '@/components/input'
 import {
@@ -13,6 +14,9 @@ interface BlockCatalogListProps {
   onQueryChange: (query: string) => void
   onHoverBlock: (blockId: FluidBlockId) => void
   onSelectBlock: (blockId: FluidBlockId) => void
+  /** Starts a drag that places the block wherever it is dropped. */
+  onBlockDragStart: (event: DragEvent<HTMLElement>, blockId: FluidBlockId) => void
+  onBlockDragEnd: () => void
 }
 
 /** Searchable, category-grouped list of insertable blocks. */
@@ -21,6 +25,8 @@ export function BlockCatalogList({
   onQueryChange,
   onHoverBlock,
   onSelectBlock,
+  onBlockDragStart,
+  onBlockDragEnd,
 }: BlockCatalogListProps) {
   const groups = useMemo(() => groupBlocksByCategory(filterBlocks(query)), [query])
 
@@ -52,10 +58,13 @@ export function BlockCatalogList({
                   <button
                     key={block.id}
                     type="button"
+                    draggable
+                    onDragStart={(event) => onBlockDragStart(event, block.id)}
+                    onDragEnd={onBlockDragEnd}
                     onMouseEnter={() => onHoverBlock(block.id)}
                     onFocus={() => onHoverBlock(block.id)}
                     onClick={() => onSelectBlock(block.id)}
-                    className="hover:bg-muted/40 flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors"
+                    className="hover:bg-muted/40 flex w-full cursor-grab items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors"
                   >
                     <Icon className="text-muted-foreground h-3.5 w-3.5" />
                     <div className="flex flex-col">

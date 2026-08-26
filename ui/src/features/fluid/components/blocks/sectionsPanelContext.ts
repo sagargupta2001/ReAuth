@@ -22,6 +22,7 @@ export interface SectionsPanelContextValue {
   /** Anchor key the block picker is currently attached to. */
   pickerOpenKey: string | null
   onOpenPicker: (anchorKey: string, location: NodeLocation) => void
+  onClosePicker: () => void
 }
 
 const SectionsPanelContext = createContext<SectionsPanelContextValue | null>(null)

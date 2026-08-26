@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 
 import { Separator } from '@/components/separator'
@@ -16,6 +17,8 @@ import {
   type NodeVisuals,
 } from '@/features/fluid/lib/nodeVisuals'
 import { resolveNodeStyle } from '@/features/fluid/lib/nodeStyle'
+import { parseChoices, type FluidChoice } from '@/features/fluid/lib/choiceOptions'
+import { parseInlineLinks } from '@/features/fluid/lib/inlineLinks'
 import { resolveInputType } from '@/features/fluid/lib/themeUtils'
 
 /**
@@ -50,24 +53,51 @@ export interface FluidRenderOptions {
   parentDirection?: 'row' | 'column'
 }
 
-/** What the shared code has already computed for an `Input` leaf. */
-export interface FluidInputSpec {
-  name: string
-  inputType: string
-  placeholder: string
-  /** Classes for the inner input element, not its wrapper. */
-  inputClass: string
-}
+/**
+ * A form control the walker has already worked out, for the host to make either
+ * inert or live.
+ *
+ * One method rather than one per control: every form block differs between the
+ * builder and the runtime in exactly the same way — disabled preview versus
+ * wired to react-hook-form — so a new control is a variant here, not a seventh
+ * method on `FluidHost`.
+ */
+export type FluidFieldSpec =
+  | {
+      kind: 'text'
+      name: string
+      inputType: string
+      placeholder: string
+      /** Classes for the inner input element, not its wrapper. */
+      inputClass: string
+    }
+  | {
+      kind: 'checkbox'
+      name: string
+      label: string
+      /** Blueprint default; the runtime form owns the value after that. */
+      defaultChecked: boolean
+      /** Id shared by the control and its label, so the text toggles it. */
+      controlId: string
+    }
+  | {
+      kind: 'radio'
+      name: string
+      options: FluidChoice[]
+      defaultValue: string
+      controlId: string
+    }
+  | {
+      kind: 'select'
+      name: string
+      options: FluidChoice[]
+      placeholder: string
+      defaultValue: string
+      controlId: string
+      className: string
+    }
 
-/** What the shared code has already computed for a `Checkbox` leaf. */
-export interface FluidCheckboxSpec {
-  name: string
-  label: string
-  /** Blueprint default; the runtime form owns the value after that. */
-  defaultChecked: boolean
-  /** Id shared by the control and its label, so clicking the text toggles it. */
-  controlId: string
-}
+
 
 /** What the shared code has already computed for a `Button` leaf. */
 export interface FluidButtonSpec {
@@ -108,12 +138,10 @@ export interface FluidHost {
   wrap(args: FluidWrapArgs): ReactNode
   /** Resolved copy: the builder shows the binding, the runtime resolves it. */
   renderText(node: ThemeNode, visuals: NodeVisuals): ReactNode
-  /** Inert preview input vs a form-wired one. */
-  renderInput(node: ThemeNode, spec: FluidInputSpec): ReactNode
+  /** Inert preview control vs a form-wired one, for every kind of field. */
+  renderField(node: ThemeNode, spec: FluidFieldSpec): ReactNode
   /** Disabled button vs one carrying actions, OAuth, and passkeys. */
   renderButton(node: ThemeNode, spec: FluidButtonSpec): ReactNode
-  /** Inert checkbox vs a form-wired one. */
-  renderCheckbox(node: ThemeNode, spec: FluidCheckboxSpec): ReactNode
   /** Provider previews vs live buttons. `null` hides the block entirely. */
   renderProviders(node: ThemeNode): ReactNode | null
   /** Extra props for a `Link`'s anchor, e.g. the builder's `preventDefault`. */
@@ -239,7 +267,7 @@ export function renderFluidNode(
         fillHeightClass,
       )
       return wrap(
-        host.renderInput(node, { name, inputType, placeholder, inputClass }),
+        host.renderField(node, { kind: 'text', name, inputType, placeholder, inputClass }),
         'flex-1',
       )
     }
@@ -368,7 +396,8 @@ export const COMPONENT_RENDERERS: Record<string, FluidComponentRenderer> = {
     const { props, alignClass } = visuals
     const name = String(props.name || '')
     return wrap(
-      host.renderCheckbox(node, {
+      host.renderField(node, {
+        kind: 'checkbox',
         name,
         label: String(props.label || ''),
         // The inspector's select writes the *string* 'false', and
@@ -377,6 +406,67 @@ export const COMPONENT_RENDERERS: Record<string, FluidComponentRenderer> = {
         controlId: `${node.id || name || 'checkbox'}-control`,
       }),
       alignClass,
+    )
+  },
+
+  radiogroup: ({ node, host, visuals, wrap }) => {
+    const { props, alignClass } = visuals
+    const name = String(props.name || '')
+    return wrap(
+      host.renderField(node, {
+        kind: 'radio',
+        name,
+        options: parseChoices(props.options),
+        defaultValue: String(props.value || ''),
+        controlId: `${node.id || name || 'radio'}-control`,
+      }),
+      alignClass,
+    )
+  },
+
+  select: ({ node, host, visuals, wrap }) => {
+    const { props, alignClass, sizeClass, fillWidthClass } = visuals
+    const name = String(props.name || '')
+    return wrap(
+      host.renderField(node, {
+        kind: 'select',
+        name,
+        options: parseChoices(props.options),
+        placeholder: String(props.placeholder || ''),
+        defaultValue: String(props.value || ''),
+        controlId: `${node.id || name || 'select'}-control`,
+        className: cn(
+          'bg-transparent',
+          sizeClass,
+          fillWidthClass,
+          'rounded-md border px-2',
+        ),
+      }),
+      alignClass,
+    )
+  },
+
+  legaltext: ({ host, visuals, wrap }) => {
+    const { props, alignClass } = visuals
+    const segments = parseInlineLinks(props.text)
+    return wrap(
+      <p className={cn('text-xs', alignClass)}>
+        {segments.map((segment, index) =>
+          segment.kind === 'link' ? (
+            <a
+              key={index}
+              href={segment.href}
+              className="underline underline-offset-2"
+              style={{ color: host.primary }}
+              {...(host.linkProps?.({ id: '', type: 'Text' }) ?? {})}
+            >
+              {segment.text}
+            </a>
+          ) : (
+            <Fragment key={index}>{segment.text}</Fragment>
+          ),
+        )}
+      </p>,
     )
   },
 

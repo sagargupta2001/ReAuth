@@ -335,6 +335,71 @@ export const INSPECTOR_SECTIONS: readonly InspectorSection[] = [
     ],
   },
   {
+    id: 'choices',
+    title: 'Options',
+    description: 'What the field offers.',
+    appliesTo: { components: ['RadioGroup', 'Select'] },
+    fields: [
+      {
+        kind: InspectorFieldKind.Text,
+        id: 'choice-name',
+        label: 'Name',
+        hint: 'Submitted field name. Without one the control is decorative.',
+        target: FieldTarget.Props,
+        key: 'name',
+      },
+      {
+        kind: InspectorFieldKind.Textarea,
+        id: 'choice-options',
+        label: 'Options',
+        hint: 'One per line, as value|Label. The label defaults to the value.',
+        target: FieldTarget.Props,
+        key: 'options',
+        placeholder: 'gb|United Kingdom',
+      },
+      {
+        kind: InspectorFieldKind.Text,
+        id: 'choice-value',
+        label: 'Default value',
+        hint: 'Must match one of the option values.',
+        target: FieldTarget.Props,
+        key: 'value',
+      },
+    ],
+  },
+  {
+    id: 'select-placeholder',
+    title: 'Select',
+    description: 'The empty state of the dropdown.',
+    appliesTo: { components: ['Select'] },
+    fields: [
+      {
+        kind: InspectorFieldKind.Text,
+        id: 'select-placeholder-text',
+        label: 'Placeholder',
+        hint: 'Shown as the first, empty choice.',
+        target: FieldTarget.Props,
+        key: 'placeholder',
+      },
+    ],
+  },
+  {
+    id: 'legal-text',
+    title: 'Legal Copy',
+    description: 'Consent wording, with inline links.',
+    appliesTo: { components: ['LegalText'] },
+    fields: [
+      {
+        kind: InspectorFieldKind.Textarea,
+        id: 'legal-text-body',
+        label: 'Text',
+        hint: 'Link with [label](/path). Anything else stays literal.',
+        target: FieldTarget.Props,
+        key: 'text',
+      },
+    ],
+  },
+  {
     id: 'button',
     title: 'Button',
     description: 'Label and variant.',
@@ -606,7 +671,7 @@ export const INSPECTOR_SECTIONS: readonly InspectorSection[] = [
     title: 'Typography',
     description: 'Font overrides for this block.',
     // Text-bearing nodes only: it made no sense on a Box or an Image.
-    appliesTo: { types: ['Text'], components: ['Button', 'Link', 'Checkbox'] },
+    appliesTo: { types: ['Text'], components: ['Button', 'Link', 'Checkbox', 'LegalText'] },
     fields: [
       {
         kind: InspectorFieldKind.Text,

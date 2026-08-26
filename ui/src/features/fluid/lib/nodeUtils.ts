@@ -391,40 +391,15 @@ export function resolveDrop(
   }
   const dragged = dragPath[dragPath.length - 1]
 
-  let intent: NodeDropIntent = request.intent
-  let location: NodeLocation
-
-  if (request.targetId === null) {
-    intent = 'inside'
-    location = { parentId: null, index: nodes.length }
-  } else {
-    const targetPath = findNodePath(nodes, request.targetId)
-    if (!targetPath) {
-      return {
-        ok: false,
-        reason: 'unknown-node',
-        message: 'That block is no longer on the page.',
-      }
-    }
-    const target = targetPath[targetPath.length - 1]
-    // Rule 5 of the spec: a drop on a non-container is a sibling drop, never a
-    // failed attempt to nest.
-    if (intent === 'inside' && !options.acceptsChildren(target)) {
-      intent = 'after'
-    }
-
-    if (intent === 'inside') {
-      location = { parentId: target.id, index: (target.children ?? []).length }
-    } else {
-      const parent = targetPath.length > 1 ? targetPath[targetPath.length - 2] : null
-      const siblings = parent ? parent.children ?? [] : nodes
-      const targetIndex = siblings.findIndex((sibling) => sibling.id === target.id)
-      location = {
-        parentId: parent?.id ?? null,
-        index: targetIndex + (intent === 'after' ? 1 : 0),
-      }
+  const destination = resolveDestination(nodes, request.targetId, request.intent, options)
+  if (!destination) {
+    return {
+      ok: false,
+      reason: 'unknown-node',
+      message: 'That block is no longer on the page.',
     }
   }
+  const { location, intent } = destination
 
   const { parentId } = location
   if (parentId === request.dragId || (parentId && isDescendantOf(nodes, parentId, request.dragId))) {
@@ -443,6 +418,86 @@ export function resolveDrop(
 
   if (isSameLocation(current, adjustForRemoval(current, location))) {
     return { ok: false, reason: 'no-op', message: 'The block is already there.' }
+  }
+
+  return { ok: true, location, intent }
+}
+
+/**
+ * Turns a target row plus an intent into an address, with no regard for what is
+ * being placed there.
+ *
+ * Shared by moving an existing node and inserting a new block, so a drop means
+ * the same thing whichever the drag carries.
+ */
+function resolveDestination(
+  nodes: ThemeNode[],
+  targetId: string | null,
+  requestedIntent: NodeDropIntent,
+  options: Pick<DropOptions, 'acceptsChildren'>,
+): { location: NodeLocation; intent: NodeDropIntent } | null {
+  if (targetId === null) {
+    return { location: { parentId: null, index: nodes.length }, intent: 'inside' }
+  }
+
+  const targetPath = findNodePath(nodes, targetId)
+  if (!targetPath) return null
+  const target = targetPath[targetPath.length - 1]
+
+  // A drop on a non-container is a sibling drop, never a failed attempt to nest.
+  const intent =
+    requestedIntent === 'inside' && !options.acceptsChildren(target) ? 'after' : requestedIntent
+
+  if (intent === 'inside') {
+    return {
+      location: { parentId: target.id, index: (target.children ?? []).length },
+      intent,
+    }
+  }
+
+  const parent = targetPath.length > 1 ? targetPath[targetPath.length - 2] : null
+  const siblings = parent ? parent.children ?? [] : nodes
+  const targetIndex = siblings.findIndex((sibling) => sibling.id === target.id)
+  return {
+    location: {
+      parentId: parent?.id ?? null,
+      index: targetIndex + (intent === 'after' ? 1 : 0),
+    },
+    intent,
+  }
+}
+
+/**
+ * Where a *new* block dropped on this target would land.
+ *
+ * Insertion cannot create a cycle and is never a no-op, so only the depth limit
+ * applies. `subtreeHeight` still matters: a preset that ships with children of
+ * its own takes up more than one level.
+ */
+export function resolveInsertion(
+  nodes: ThemeNode[],
+  request: { targetId: string | null; intent: NodeDropIntent },
+  options: DropOptions & { subtreeHeight?: number },
+): DropResolution {
+  const destination = resolveDestination(nodes, request.targetId, request.intent, options)
+  if (!destination) {
+    return {
+      ok: false,
+      reason: 'unknown-node',
+      message: 'That block is no longer on the page.',
+    }
+  }
+
+  const { location, intent } = destination
+  const parentDepth =
+    location.parentId === null ? -1 : depthOfNode(nodes, location.parentId) ?? -1
+  const deepestLevel = parentDepth + 1 + (options.subtreeHeight ?? 0)
+  if (deepestLevel > options.maxDepth - 1) {
+    return {
+      ok: false,
+      reason: 'depth-limit',
+      message: `Blocks can be nested up to ${options.maxDepth} levels deep.`,
+    }
   }
 
   return { ok: true, location, intent }

@@ -899,43 +899,154 @@ export function FluidLoginScreen({
         </p>
       )
     },
-    renderInput: (_node, { name, inputType, placeholder, inputClass }) => {
+    renderField: (_node, spec) => {
+      if (spec.kind === 'checkbox') {
+        const control = spec.name ? (
+          <FormField
+            control={form.control}
+            name={spec.name}
+            render={({ field }) => (
+              <Checkbox
+                id={spec.controlId}
+                // The blueprint's `checked` is only the initial value; after
+                // that the form owns it, so an untouched box submits `false`.
+                checked={field.value === undefined ? spec.defaultChecked : Boolean(field.value)}
+                onCheckedChange={(next) => field.onChange(next === true)}
+                disabled={isLoading}
+              />
+            )}
+          />
+        ) : (
+          <Checkbox
+            id={spec.controlId}
+            defaultChecked={spec.defaultChecked}
+            disabled={isLoading}
+          />
+        )
+        return (
+          <div className="flex items-center gap-2">
+            {control}
+            {spec.label && (
+              <label htmlFor={spec.controlId} className="text-sm">
+                {spec.label}
+              </label>
+            )}
+          </div>
+        )
+      }
+
+      if (spec.kind === 'radio') {
+        const group = (value: string, onChange: (next: string) => void) => (
+          <div className="flex flex-col gap-2" role="radiogroup" aria-label={spec.name}>
+            {spec.options.map((option) => (
+              <label key={option.value} className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name={spec.controlId}
+                  value={option.value}
+                  checked={value === option.value}
+                  onChange={() => onChange(option.value)}
+                  disabled={isLoading}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        )
+        if (!spec.name) return group(spec.defaultValue, () => {})
+        return (
+          <FormField
+            control={form.control}
+            name={spec.name}
+            render={({ field }) =>
+              group(
+                field.value === undefined ? spec.defaultValue : String(field.value),
+                field.onChange,
+              )
+            }
+          />
+        )
+      }
+
+      if (spec.kind === 'select') {
+        const options = (
+          <>
+            {spec.placeholder && <option value="">{spec.placeholder}</option>}
+            {spec.options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </>
+        )
+        if (!spec.name) {
+          return (
+            <select
+              id={spec.controlId}
+              className={spec.className}
+              defaultValue={spec.defaultValue}
+              aria-label={spec.name}
+              disabled={isLoading}
+            >
+              {options}
+            </select>
+          )
+        }
+        return (
+          <FormField
+            control={form.control}
+            name={spec.name}
+            render={({ field }) => (
+              <select
+                {...field}
+                id={spec.controlId}
+                className={spec.className}
+                value={field.value === undefined ? spec.defaultValue : String(field.value)}
+                disabled={isLoading}
+              >
+                {options}
+              </select>
+            )}
+          />
+        )
+      }
+
       const control =
-        inputType === 'password' ? (
+        spec.inputType === 'password' ? (
           <PasswordInput
             className="flex-1"
-            inputClassName={inputClass}
-            placeholder={placeholder}
+            inputClassName={spec.inputClass}
+            placeholder={spec.placeholder}
             disabled={isLoading}
           />
         ) : (
           <Input
-            className={inputClass}
-            placeholder={placeholder}
-            type={inputType}
+            className={spec.inputClass}
+            placeholder={spec.placeholder}
+            type={spec.inputType}
             disabled={isLoading}
           />
         )
-      if (!name) return control
+      if (!spec.name) return control
       return (
         <FormField
           control={form.control}
-          name={name}
+          name={spec.name}
           render={({ field }) =>
-            inputType === 'password' ? (
+            spec.inputType === 'password' ? (
               <PasswordInput
                 {...field}
                 className="flex-1"
-                inputClassName={inputClass}
-                placeholder={placeholder}
+                inputClassName={spec.inputClass}
+                placeholder={spec.placeholder}
                 disabled={isLoading}
               />
             ) : (
               <Input
                 {...field}
-                className={inputClass}
-                placeholder={placeholder}
-                type={inputType}
+                className={spec.inputClass}
+                placeholder={spec.placeholder}
+                type={spec.inputType}
                 disabled={isLoading}
               />
             )
@@ -992,36 +1103,6 @@ export function FluidLoginScreen({
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
           {label}
         </Button>
-      )
-    },
-    renderCheckbox: (_node, { name, label, defaultChecked, controlId }) => {
-      const control = name ? (
-        <FormField
-          control={form.control}
-          name={name}
-          render={({ field }) => (
-            <Checkbox
-              id={controlId}
-              // The blueprint's `checked` is only the initial value; after that
-              // the form owns it, so an untouched box still submits `false`.
-              checked={field.value === undefined ? defaultChecked : Boolean(field.value)}
-              onCheckedChange={(next) => field.onChange(next === true)}
-              disabled={isLoading}
-            />
-          )}
-        />
-      ) : (
-        <Checkbox id={controlId} defaultChecked={defaultChecked} disabled={isLoading} />
-      )
-      return (
-        <div className="flex items-center gap-2">
-          {control}
-          {label && (
-            <label htmlFor={controlId} className="text-sm">
-              {label}
-            </label>
-          )}
-        </div>
       )
     },
     renderProviders: () => {

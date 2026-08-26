@@ -186,8 +186,6 @@ none — structural edits already go through commitDraft and the draft PUT
 - Free/absolute positioning. Dropping still resolves to a place in the tree.
 - Multi-select drag.
 - Auto-scrolling the canvas while dragging near its edge.
-- Dragging a new block from the picker onto the canvas — the picker inserts by
-  location today, and that is a separate affordance.
 - Resize handles on canvas nodes.
 
 ---
@@ -201,6 +199,24 @@ none — structural edits already go through commitDraft and the draft PUT
 - [ ] Should the canvas auto-scroll when dragging near an edge? Still deferred;
       independent of this slice and only matters for pages taller than the
       viewport.
+
+## Follow-up shipped: dragging a new block from the picker
+
+Originally out of scope. It turned out to be small once the drag session was
+shared, because the only genuinely new thing is a second payload:
+
+- `BLOCK_DRAG_MIME_TYPE` carries a **catalog id**, not a node id, because
+  nothing has been created yet.
+- `resolveInsertion` answers "where would a *new* block land", sharing
+  `resolveDestination` with `resolveDrop` so a drop zone means the same thing
+  whichever the drag carries. Insertion skips the cycle and no-op checks — it
+  can be neither — but keeps the depth check, and measures the preset's own
+  subtree, since a preset may ship with children.
+- The picker closes on drag start; a popover covering the canvas being dragged
+  onto is not a target you can aim at.
+
+It works on the tree and the canvas alike, for free, because both drive the one
+session.
 
 ## Notes from implementation
 

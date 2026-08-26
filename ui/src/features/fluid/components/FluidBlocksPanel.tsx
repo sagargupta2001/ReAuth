@@ -105,6 +105,7 @@ export function FluidBlocksPanel({
       drag,
       pickerOpenKey: picker.openKey,
       onOpenPicker: picker.open,
+      onClosePicker: picker.close,
     }),
     [
       selectedNodeId,
@@ -116,6 +117,7 @@ export function FluidBlocksPanel({
       drag,
       picker.openKey,
       picker.open,
+      picker.close,
     ],
   )
 

@@ -5,6 +5,12 @@
  */
 export const SECTION_DRAG_MIME_TYPE = 'application/reauth-fluid-node'
 
+/**
+ * Drag payload for a *new* block coming out of the picker: a catalog id rather
+ * than a node id, because nothing has been created yet.
+ */
+export const BLOCK_DRAG_MIME_TYPE = 'application/reauth-fluid-block'
+
 /** Left indent applied per tree depth, in pixels. */
 export const SECTION_TREE_INDENT_PX = 12
 

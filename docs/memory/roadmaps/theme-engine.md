@@ -398,6 +398,10 @@ Sequence: **R1 → R2 (independent, can run in parallel) → R3 → R4**.
 - [x] Separate palette entries from render targets (`RENDER_TARGETS`), so presets can share a node kind.
 - [x] Add Checkbox (consent / remember-me), Columns, and Heading blocks.
 - [x] Canvas drag and drop, sharing one drag session with the sections tree (`docs/specs/fluid-canvas-drag.md`).
+- [x] Drag a new block out of the picker onto either surface.
+- [x] Retire the `Tab` keyboard trap: indent/outdent moved to `Alt+Right` / `Alt+Left`.
+- [x] Converge seeded blueprints on style groups, and assert it in the seed audit.
+- [x] Add Radio Group, Select, and Legal Text blocks.
 
 ## Upcoming integration (Flow Builder ↔ Fluid)
 - Add a **Template Selector** per Flow Node (bind node → page key).

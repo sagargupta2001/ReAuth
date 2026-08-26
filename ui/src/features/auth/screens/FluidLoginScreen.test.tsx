@@ -223,6 +223,101 @@ describe('FluidLoginScreen runtime host', () => {
     expect(screen.getByRole('checkbox', { name: 'Remember me' })).not.toBeChecked()
   })
 
+  it('submits the chosen radio option', async () => {
+    const { onSubmit } = renderScreen([
+      usernameField,
+      passwordField,
+      {
+        id: 'rg',
+        type: 'Component',
+        component: 'RadioGroup',
+        props: { name: 'plan', options: 'free|Free\npro|Pro' },
+      },
+      submitButton,
+    ])
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'ada@example.com' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Your password'), {
+      target: { value: 'hunter2' },
+    })
+    fireEvent.click(screen.getByRole('radio', { name: 'Pro' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ plan: 'pro' })
+  })
+
+  it('renders a radio option per authored line, labelled', () => {
+    renderScreen([
+      {
+        id: 'rg',
+        type: 'Component',
+        component: 'RadioGroup',
+        props: { name: 'plan', options: 'free|Free\npro|Pro' },
+      },
+    ])
+    expect(screen.getAllByRole('radio')).toHaveLength(2)
+    expect(screen.getByRole('radio', { name: 'Free' })).toBeInTheDocument()
+  })
+
+  it('submits the chosen select option', async () => {
+    const { onSubmit } = renderScreen([
+      usernameField,
+      passwordField,
+      {
+        id: 'sel',
+        type: 'Component',
+        component: 'Select',
+        props: { name: 'country', placeholder: 'Choose', options: 'gb|United Kingdom\nin|India' },
+      },
+      submitButton,
+    ])
+
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'ada@example.com' },
+    })
+    fireEvent.change(screen.getByPlaceholderText('Your password'), {
+      target: { value: 'hunter2' },
+    })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'in' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled())
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ country: 'in' })
+  })
+
+  it('offers the placeholder as the empty choice on a select', () => {
+    renderScreen([
+      {
+        id: 'sel',
+        type: 'Component',
+        component: 'Select',
+        props: { name: 'country', placeholder: 'Choose', options: 'gb|United Kingdom' },
+      },
+    ])
+    const options = screen.getAllByRole('option')
+    expect(options[0]).toHaveTextContent('Choose')
+    expect(options[0]).toHaveValue('')
+  })
+
+  it('renders legal copy with its inline links as real anchors', () => {
+    renderScreen([
+      {
+        id: 'legal',
+        type: 'Component',
+        component: 'LegalText',
+        props: { text: 'I accept the [Terms](/terms) and [Privacy](/privacy).' },
+      },
+    ])
+
+    expect(screen.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', '/terms')
+    expect(screen.getByRole('link', { name: 'Privacy' })).toHaveAttribute('href', '/privacy')
+    // The surrounding copy survives as text, not as markup.
+    expect(screen.getByText(/I accept the/)).toBeInTheDocument()
+  })
+
   it('nests children inside a Box, in order', () => {
     renderScreen([
       {

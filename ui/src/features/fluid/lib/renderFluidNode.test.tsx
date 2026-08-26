@@ -24,11 +24,13 @@ function recordingHost(overrides: Partial<FluidHost> = {}) {
       )
     },
     renderText: (_node, visuals) => <p>{String(visuals.props.text ?? '')}</p>,
-    renderInput: (_node, spec) => <input placeholder={spec.placeholder} readOnly />,
+    renderField: (_node, spec) =>
+      spec.kind === 'text' ? (
+        <input placeholder={spec.placeholder} readOnly />
+      ) : (
+        <input type="checkbox" aria-label={'label' in spec ? spec.label : spec.name} readOnly />
+      ),
     renderButton: (_node, spec) => <button type="button">{spec.defaultLabel}</button>,
-    renderCheckbox: (_node, spec) => (
-      <input type="checkbox" aria-label={spec.label} defaultChecked={spec.defaultChecked} />
-    ),
     renderProviders: () => <div>providers</div>,
     ...overrides,
   }
@@ -166,12 +168,13 @@ describe('renderFluidNode branch behaviour', () => {
 
   it('labels a Checkbox so clicking the text toggles the control', () => {
     const { host } = recordingHost({
-      renderCheckbox: (_node, spec) => (
-        <div>
-          <input id={spec.controlId} type="checkbox" defaultChecked={spec.defaultChecked} />
-          <label htmlFor={spec.controlId}>{spec.label}</label>
-        </div>
-      ),
+      renderField: (_node, spec) =>
+        spec.kind === 'checkbox' ? (
+          <div>
+            <input id={spec.controlId} type="checkbox" defaultChecked={spec.defaultChecked} />
+            <label htmlFor={spec.controlId}>{spec.label}</label>
+          </div>
+        ) : null,
     })
     render(<div>{renderFluidNode(nodeFor('n-checkbox'), host, 0)}</div>)
     expect(screen.getByLabelText('Remember me')).toBeInTheDocument()

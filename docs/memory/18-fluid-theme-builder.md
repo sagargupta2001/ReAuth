@@ -686,6 +686,33 @@ Auto-expanding a collapsed container on hover lives in the sections panel, keyed
 off `dropTarget`, not in the hook. Collapse is a tree view concern and the canvas
 has no use for it.
 
+**A drag carries one of two payloads.** `SECTION_DRAG_MIME_TYPE` carries a node
+id (move an existing block); `BLOCK_DRAG_MIME_TYPE` carries a catalog id (place a
+new one). They ask different questions — a move can create a cycle or be a
+no-op, an insertion can do neither — so `resolveDrop` and `resolveInsertion` are
+separate entry points over one shared `resolveDestination`. That is what keeps a
+drop zone meaning the same thing whichever is being dragged.
+
+**Structural editing is `Alt` plus an arrow, and `Tab` is never bound.** Up and
+down reorder, right and left indent and outdent. Binding `Tab` made the panel a
+keyboard trap (WCAG 2.1.2); the earlier compromise of swallowing it only when a
+move was possible still trapped focus mid-tree. Since canvas drag is mouse-only,
+the tree's keyboard path is the accessible route to structural editing and
+cannot be a trap.
+
+**A form control is one host method, not one per block.** `renderField` takes a
+discriminated `FluidFieldSpec` (`text` / `checkbox` / `radio` / `select`),
+because every form block differs between builder and runtime in exactly the same
+way: inert preview versus wired to react-hook-form. Adding a control is a
+variant, not a seventh method on `FluidHost`.
+
+Radio and Select author their options as a textarea — one per line, `value|Label`
+— parsed by `lib/choiceOptions.ts`. That is a deliberate stop-gap: a repeater
+control is the right editor and is worth building when a third options-bearing
+block appears. `LegalText` parses `[label](href)` via `lib/inlineLinks.ts` and
+leaves anything malformed literal, because silently swallowing copy someone typed
+is worse than showing the brackets.
+
 ### 5.5 Diff and Snapshot Viewer
 
 - History tab allows opening a snapshot dialog.

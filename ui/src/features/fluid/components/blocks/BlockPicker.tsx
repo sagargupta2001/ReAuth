@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { PopoverContent } from '@/components/popover'
 import { BlockCatalogList } from '@/features/fluid/components/blocks/BlockCatalogList'
 import { BlockPreview } from '@/features/fluid/components/blocks/BlockPreview'
+import { useSectionsPanel } from '@/features/fluid/components/blocks/sectionsPanelContext'
 import {
   FLUID_BLOCKS,
   findBlockDefinition,
@@ -19,6 +20,7 @@ interface BlockPickerProps {
  * Search and hover state stay local so typing here never re-renders the tree.
  */
 export function BlockPicker({ onSelectBlock }: BlockPickerProps) {
+  const { drag, onClosePicker: onDragOutOfPicker } = useSectionsPanel()
   const [query, setQuery] = useState('')
   const [hoveredBlockId, setHoveredBlockId] = useState<FluidBlockId | null>(null)
 
@@ -40,6 +42,13 @@ export function BlockPicker({ onSelectBlock }: BlockPickerProps) {
             onQueryChange={setQuery}
             onHoverBlock={setHoveredBlockId}
             onSelectBlock={onSelectBlock}
+            onBlockDragStart={(event, blockId) => {
+              drag.onBlockDragStart(event, blockId)
+              // The picker is a popover; leaving it open would cover the very
+              // canvas the block is being dragged onto.
+              onDragOutOfPicker()
+            }}
+            onBlockDragEnd={drag.onDragEnd}
           />
         </div>
 
